@@ -67,8 +67,8 @@ node_modules/
 # Editor directories and files
 .idea
 .vscode
-.claude
-.taskmaster
+.claude/
+.taskmaster/
 *.suo
 *.ntvs*
 *.njsproj
