@@ -1,4 +1,0 @@
-- [User Profile](user_profile.md) — C# developer porting Python project, values durability and traceability
-- [Architecture Decisions](arch_decisions.md) — Key design decisions settled during pre-implementation review
-- [Feedback: Logging](feedback_logging.md) — Effusive logging everywhere, provider types stay in Providers
-- [Diagnostics Design](arch_diagnostics.md) — IDiagnosticSource pattern for /debug command, agents can self-diagnose
