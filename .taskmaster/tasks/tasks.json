@@ -1,0 +1,856 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Solution Structure and Build Configuration",
+        "description": "Create the C#/.NET 10 solution structure with proper project organization, dependency management, and build configuration",
+        "details": "Create QuillForge.sln with four projects: QuillForge.Core (zero dependencies), QuillForge.Providers (LLM SDK references), QuillForge.Storage (file system implementations), and QuillForge.Web (ASP.NET Core host). Set up Directory.Build.props with DisableTransitiveProjectReferences=true, target net10.0, enable nullable reference types, implicit usings, EnforceCodeStyleInBuild, and latest AnalysisLevel. Create Directory.Packages.props for centralized NuGet package management. Configure test projects with xUnit framework. Establish proper project references following the dependency direction: Web \u2192 Core/Providers/Storage, Providers \u2192 Core, Storage \u2192 Core, Core \u2192 nothing.",
+        "testStrategy": "Create QuillForge.Architecture.Tests to verify dependency boundaries using reflection - ensure Core has no external NuGet references, Core doesn't reference Providers/Storage, no project references Web, and LLM SDK types don't appear in Core's public API surface.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Solution File and Project Structure",
+            "description": "Initialize the QuillForge.sln solution file and create the four main project directories with proper .csproj files",
+            "dependencies": [],
+            "details": "Create QuillForge.sln solution file in root directory. Create four project directories: QuillForge.Core, QuillForge.Providers, QuillForge.Storage, and QuillForge.Web. Generate .csproj files for each project with appropriate project types (class library for Core/Providers/Storage, web application for Web). Add all projects to the solution file.",
+            "status": "done",
+            "testStrategy": "Verify solution builds successfully with dotnet build. Confirm all four projects are properly referenced in the solution file and can be built independently."
+          },
+          {
+            "id": 2,
+            "title": "Configure Directory.Build.props with Global Settings",
+            "description": "Set up the Directory.Build.props file with all required MSBuild properties and compiler settings",
+            "dependencies": [
+              1
+            ],
+            "details": "Create Directory.Build.props in solution root with DisableTransitiveProjectReferences=true, TargetFramework=net10.0, enable Nullable reference types, ImplicitUsings=enable, EnforceCodeStyleInBuild=true, and AnalysisLevel=latest. Configure TreatWarningsAsErrors and other code quality settings.",
+            "status": "done",
+            "testStrategy": "Build solution and verify all projects inherit the global properties. Test that nullable reference types are enforced and implicit usings work correctly across all projects."
+          },
+          {
+            "id": 3,
+            "title": "Setup Centralized Package Management",
+            "description": "Create Directory.Packages.props for centralized NuGet package version management across all projects",
+            "dependencies": [
+              1
+            ],
+            "details": "Create Directory.Packages.props with ManagePackageVersionsCentrally=true. Define package versions for common dependencies like Microsoft.Extensions.*, System.Text.Json, xUnit testing framework, and other shared packages. Update project files to use PackageReference without Version attributes.",
+            "status": "done",
+            "testStrategy": "Verify that package versions are centrally managed and projects can reference packages without specifying versions. Test that package restore works correctly for all projects."
+          },
+          {
+            "id": 4,
+            "title": "Establish Project Dependencies and References",
+            "description": "Configure proper project-to-project references following the dependency architecture",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Set up project references according to dependency direction: QuillForge.Web references Core, Providers, and Storage. QuillForge.Providers references Core only. QuillForge.Storage references Core only. QuillForge.Core has no project references. Ensure dependency graph is acyclic and follows clean architecture principles.",
+            "status": "done",
+            "testStrategy": "Build solution and verify dependency graph is correct. Use dependency analysis tools to confirm no circular references exist. Test that Core project builds without any external project dependencies."
+          },
+          {
+            "id": 5,
+            "title": "Configure Test Projects and Framework",
+            "description": "Set up test projects for each main project with xUnit framework and proper test configuration",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Create test projects: QuillForge.Core.Tests, QuillForge.Providers.Tests, QuillForge.Storage.Tests, QuillForge.Web.Tests, and QuillForge.Architecture.Tests. Configure xUnit framework, test runners, and code coverage tools. Set up test project references to corresponding main projects. Configure test settings and discovery.",
+            "status": "done",
+            "testStrategy": "Run dotnet test to verify all test projects are discovered and can execute. Create sample tests in each project to confirm xUnit framework is properly configured. Verify test coverage reporting works correctly."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Implement Core Domain Models and Interfaces",
+        "description": "Define all core domain models, service interfaces, and the foundational ICompletionService abstraction",
+        "details": "Create immutable record types: CompletionRequest/Response, StreamEvent, MessageNode, ConversationTree, LoreBundle, ProseResult, ReviewResult, ForgeManifest, ChapterStatus, ToolDefinition, ToolResult, AgentResponse, AgentConfig. Define service interfaces: ICompletionService, IToolHandler, ISessionStore, ILoreStore, IStoryStore, IWritingStyleStore, IPersonaStore, IImageGenerator, ITtsGenerator, IContentFileService. Implement ConversationTree class with GUID-based message nodes, tree operations (Append, Fork, Delete, GetThread), and thread-safe operations. All types must be pure .NET BCL with no external dependencies.",
+        "testStrategy": "Unit tests for ConversationTree operations: append messages, fork from any node, delete nodes with orphan cleanup, thread extraction from leaf to root, concurrent access safety with multiple threads, and variant creation for regeneration scenarios.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Core Domain Record Types",
+            "description": "Define all immutable record types for the domain model including requests, responses, and data structures",
+            "dependencies": [],
+            "details": "Create immutable record types: CompletionRequest/Response for LLM interactions, StreamEvent for real-time updates, MessageNode for conversation elements, LoreBundle for story knowledge, ProseResult/ReviewResult for writing outputs, ForgeManifest for pipeline state, ChapterStatus for tracking, ToolDefinition/ToolResult for agent tools, AgentResponse/AgentConfig for agent system. All records must be pure .NET BCL with no external dependencies and include proper validation.",
+            "status": "done",
+            "testStrategy": "Unit tests for record immutability, equality comparisons, serialization/deserialization, and validation of required fields. Test edge cases for null/empty values."
+          },
+          {
+            "id": 2,
+            "title": "Define Service Interface Contracts",
+            "description": "Create all service interfaces that define the contracts for external dependencies and core services",
+            "dependencies": [
+              1
+            ],
+            "details": "Define service interfaces: ICompletionService for LLM interactions, IToolHandler for agent tools, ISessionStore/ILoreStore/IStoryStore for data persistence, IWritingStyleStore/IPersonaStore for configuration, IImageGenerator/ITtsGenerator for media generation, IContentFileService for file operations. Each interface must have clear method signatures, return types, and async patterns where appropriate.",
+            "status": "done",
+            "testStrategy": "Create mock implementations for each interface to verify contract completeness. Test interface segregation and dependency injection compatibility."
+          },
+          {
+            "id": 3,
+            "title": "Implement ConversationTree Core Structure",
+            "description": "Build the ConversationTree class with GUID-based message nodes and basic tree structure",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement ConversationTree class with GUID-based MessageNode system. Create internal tree structure using Dictionary<Guid, MessageNode> for O(1) lookups. Implement basic node relationships (parent/children) and tree integrity validation. Include node creation, basic navigation, and tree structure validation methods.",
+            "status": "done",
+            "testStrategy": "Unit tests for tree structure integrity, node relationships, GUID uniqueness, and basic navigation. Test tree validation with various node configurations."
+          },
+          {
+            "id": 4,
+            "title": "Implement ConversationTree Operations",
+            "description": "Add all tree manipulation operations including append, fork, delete, and thread extraction",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement tree operations: Append (add message to existing thread), Fork (create branch from any node), Delete (remove nodes with orphan cleanup), GetThread (extract path from leaf to root). Include validation for each operation, proper parent-child relationship management, and orphan node cleanup during deletion operations.",
+            "status": "done",
+            "testStrategy": "Unit tests for each operation: append messages to various nodes, fork from different positions, delete with orphan cleanup verification, thread extraction accuracy. Test operation combinations and edge cases."
+          },
+          {
+            "id": 5,
+            "title": "Add ConversationTree Thread Safety",
+            "description": "Implement thread-safe operations and concurrent access protection for ConversationTree",
+            "dependencies": [
+              4
+            ],
+            "details": "Add thread-safe operations using ReaderWriterLockSlim for concurrent access protection. Implement proper locking strategies for read operations (GetThread, navigation) and write operations (Append, Fork, Delete). Include variant creation for regeneration scenarios and ensure all operations are atomic and consistent under concurrent access.",
+            "status": "done",
+            "testStrategy": "Concurrent access tests with multiple threads performing simultaneous operations. Verify thread safety, deadlock prevention, and data consistency. Test variant creation scenarios and regeneration workflows."
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Build Tool System and Tool Loop Engine",
+        "description": "Implement the reusable tool system with strongly-typed handlers and the shared ToolLoop engine",
+        "details": "Create IToolHandler interface with Name, Definition, and HandleAsync method. Implement ToolLoop class that handles the complete tool execution cycle: call completion service, detect tool_use stop reasons, dispatch to correct handlers, append results to conversation, respect max tool rounds, handle max_tokens with auto-continuation. Create AgentContext record for passing session state and services to tool handlers. Implement ContinuationStrategy for handling max_tokens scenarios. All tool handlers must be named classes with constructor injection for testability.",
+        "testStrategy": "Mock ICompletionService to return scripted sequences (tool_use \u2192 tool_use \u2192 end_turn). Verify correct handler dispatch, message construction, max rounds enforcement, auto-continuation logic, and error handling for invalid tool calls or handler failures.",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create IToolHandler Interface and AgentContext Record",
+            "description": "Define the core interfaces and data structures for the tool system",
+            "dependencies": [],
+            "details": "Create IToolHandler interface with Name property (string), Definition property (for tool schema), and HandleAsync method that takes AgentContext and returns tool result. Implement AgentContext record to pass session state, services, and configuration to tool handlers. Include properties for conversation history, completion service, session store, and other required services.",
+            "status": "done",
+            "testStrategy": "Unit tests for interface contracts and AgentContext property access. Mock implementations to verify interface design supports required functionality."
+          },
+          {
+            "id": 2,
+            "title": "Implement ContinuationStrategy for Max Tokens Handling",
+            "description": "Create the strategy pattern for handling max_tokens scenarios with auto-continuation",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement ContinuationStrategy class that detects when completion stops due to max_tokens limit and automatically continues the conversation. Handle partial responses by appending continuation requests and merging responses. Support different continuation behaviors based on agent type and context.",
+            "status": "done",
+            "testStrategy": "Mock ICompletionService to return max_tokens stop reasons. Verify continuation requests are properly formatted and responses are correctly merged."
+          },
+          {
+            "id": 3,
+            "title": "Build Core ToolLoop Engine",
+            "description": "Implement the main ToolLoop class that orchestrates the complete tool execution cycle",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create ToolLoop class that manages the full cycle: call completion service, detect tool_use stop reasons, parse tool calls, dispatch to appropriate handlers, append tool results to conversation, and continue until end_turn or max rounds reached. Integrate ContinuationStrategy for max_tokens handling. Include error handling for invalid tool calls and handler failures.",
+            "status": "done",
+            "testStrategy": "Mock ICompletionService with scripted sequences (tool_use \u2192 tool_use \u2192 end_turn). Verify correct handler dispatch, message construction, and conversation flow."
+          },
+          {
+            "id": 4,
+            "title": "Implement Tool Handler Registration and Dispatch System",
+            "description": "Create the system for registering tool handlers and dispatching tool calls to correct handlers",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement tool handler registry that maps tool names to handler instances. Create dispatcher logic within ToolLoop that matches incoming tool calls to registered handlers by name. Support constructor injection for tool handlers to enable testability. Include validation for tool call parameters and handler availability.",
+            "status": "done",
+            "testStrategy": "Test handler registration, name-based dispatch, parameter validation, and error handling for unregistered tools. Mock multiple handlers to verify correct routing."
+          },
+          {
+            "id": 5,
+            "title": "Add Max Tool Rounds Enforcement and Error Handling",
+            "description": "Implement safety limits and comprehensive error handling for the tool execution system",
+            "dependencies": [
+              4
+            ],
+            "details": "Add configurable max tool rounds limit to prevent infinite loops. Implement comprehensive error handling for handler failures, invalid tool calls, and system errors. Create proper logging and error reporting. Ensure graceful degradation when tools fail and proper cleanup of resources.",
+            "status": "done",
+            "testStrategy": "Test max rounds enforcement with mock handlers that would cause infinite loops. Verify error handling for various failure scenarios including handler exceptions and malformed tool calls."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Implement Agent Architecture and Mode System",
+        "description": "Create the agent system with Librarian, ProseWriter, Orchestrator, and Forge agents, plus the mode system for different interaction patterns",
+        "details": "Implement each agent as a configuration (system prompt builder + tool set + response processing) that feeds into the shared ToolLoop. Create Librarian agent for lore retrieval with structured queries and provenance. Build ProseWriter agent with QueryLoreHandler tool and ContinuationStrategy. Implement Orchestrator agent with mode-specific behavior delegation. Create ForgeWriter, ForgePlanner, ForgeReviewer agents for pipeline stages. Implement IMode interface with implementations: GeneralMode, WriterMode (pending content state machine), RoleplayMode, ForgeMode, CouncilMode. Each mode provides system prompt section, tool set, and response handling.",
+        "testStrategy": "Test each agent's system prompt generation, tool availability, and response processing independently. Test mode switching and tool availability per mode. Test WriterMode state machine transitions (pending \u2192 accept/reject/regenerate). Mock all dependencies to focus on agent logic.",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Base Agent Configuration System",
+            "description": "Create the foundational agent configuration system that feeds into the shared ToolLoop",
+            "dependencies": [],
+            "details": "Implement AgentConfig record type with system prompt builder, tool set definition, and response processing configuration. Create base Agent class that accepts AgentConfig and integrates with ToolLoop. Define IAgent interface for consistent agent behavior across all implementations.",
+            "status": "done",
+            "testStrategy": "Unit tests for AgentConfig creation, system prompt generation, and tool set validation. Mock ToolLoop integration to verify agent configuration is properly applied."
+          },
+          {
+            "id": 2,
+            "title": "Implement Librarian and ProseWriter Agents",
+            "description": "Create specialized agents for lore retrieval and prose writing with their specific tools and behaviors",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement Librarian agent with structured query capabilities and provenance tracking for lore retrieval. Build ProseWriter agent with QueryLoreHandler tool integration and ContinuationStrategy for story writing. Configure each agent's system prompts, tool sets, and response processing logic.",
+            "status": "done",
+            "testStrategy": "Test Librarian's structured query generation and lore retrieval with mock data. Test ProseWriter's integration with QueryLoreHandler and continuation logic. Verify agent-specific system prompt generation."
+          },
+          {
+            "id": 3,
+            "title": "Implement Forge Pipeline Agents",
+            "description": "Create the three specialized agents for the Forge pipeline: ForgeWriter, ForgePlanner, and ForgeReviewer",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement ForgePlanner agent for generating chapter briefs and story planning. Create ForgeWriter agent for autonomous chapter writing with Librarian tool access. Build ForgeReviewer agent for scoring and evaluating generated chapters. Configure each agent's specialized prompts and tool access patterns.",
+            "status": "done",
+            "testStrategy": "Test each Forge agent independently with mock inputs. Verify ForgePlanner produces valid chapter briefs, ForgeWriter generates coherent content, and ForgeReviewer provides meaningful scores. Test tool access patterns for each agent."
+          },
+          {
+            "id": 4,
+            "title": "Implement IMode Interface and Mode Implementations",
+            "description": "Create the mode system interface and implement all five interaction modes with their specific behaviors",
+            "dependencies": [
+              1
+            ],
+            "details": "Define IMode interface with system prompt section, tool set, and response handling methods. Implement GeneralMode, WriterMode with pending content state machine, RoleplayMode, ForgeMode, and CouncilMode. Each mode provides mode-specific system prompt contributions, available tools, and response processing logic.",
+            "status": "done",
+            "testStrategy": "Test each mode implementation independently. Verify mode-specific system prompt generation, tool availability filtering, and response handling. Test WriterMode state machine transitions (pending \u2192 accept/reject/regenerate) with various scenarios."
+          },
+          {
+            "id": 5,
+            "title": "Implement Orchestrator Agent with Mode Delegation",
+            "description": "Create the Orchestrator agent that manages mode-specific behavior delegation and coordinates between different modes",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Implement Orchestrator agent that handles mode switching, delegates behavior to appropriate mode implementations, and coordinates between different agents based on current mode. Integrate mode-specific tool availability and response processing. Handle mode transitions and state management.",
+            "status": "done",
+            "testStrategy": "Test mode switching functionality and behavior delegation. Verify correct agent coordination based on active mode. Test mode transition handling and state preservation. Mock all agent dependencies to focus on orchestration logic."
+          },
+          {
+            "id": 6,
+            "title": "Implement Email Developer Tool Handler",
+            "description": "IToolHandler for sending bug reports/feature requests via SMTP from the chat interface. Named class with SMTP configuration injected via constructor.",
+            "dependencies": [],
+            "details": "Implement an IToolHandler named class for sending bug reports and feature requests via SMTP from the chat interface. SMTP configuration (host, port, credentials, sender/recipient addresses) is injected via constructor. The handler validates email content, constructs properly formatted email messages, and sends them through the configured SMTP server. Includes error handling for SMTP failures and input validation.",
+            "status": "done",
+            "testStrategy": "Unit tests with mocked SMTP client to verify email construction, validation logic, and error handling for SMTP failures. Test constructor injection of SMTP configuration."
+          },
+          {
+            "id": 7,
+            "title": "Implement Web Search Tool Handler",
+            "description": "IToolHandler for querying external web search APIs to retrieve real-world information outside the lore corpus.",
+            "dependencies": [],
+            "details": "Implement an IToolHandler named class for querying external web search APIs to retrieve real-world information outside the lore corpus. Supports configurable search API backend (e.g., SearXNG, Brave Search, Google Custom Search). Search parameters and API credentials injected via constructor. Returns structured search results with titles, snippets, and URLs. Includes rate limiting, result filtering, and error handling for API failures.",
+            "status": "done",
+            "testStrategy": "Unit tests with mocked HTTP client to verify search query construction, result parsing, rate limiting, and error handling. Test constructor injection of API configuration and multiple search backend support."
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Implement LLM Provider Abstraction Layer",
+        "description": "Build the provider system using Microsoft.Extensions.AI with Anthropic and OpenAI adapters",
+        "details": "Implement ChatClientCompletionService that adapts IChatClient to ICompletionService interface. Create AnthropicProvider with prompt caching support (cache_control) and Anthropic message format handling. Build OpenAIProvider with function calling format and provider quirks (DeepSeek reasoning_content, empty required arrays, Ollama num_ctx). Implement ProviderRegistry for managing multiple configured providers with encrypted API key storage. Add model fetching from provider APIs with local caching. Ensure no LLM SDK types leak beyond the provider boundary.",
+        "testStrategy": "Test message format conversion between internal types and provider-specific formats. Verify tool schema translation from Core ToolDefinition to Anthropic/OpenAI formats. Test provider quirk handling and encrypted key storage/retrieval.",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement ChatClientCompletionService Adapter",
+            "description": "Create the adapter that bridges Microsoft.Extensions.AI IChatClient to our internal ICompletionService interface",
+            "dependencies": [],
+            "details": "Implement ChatClientCompletionService class that wraps IChatClient and adapts it to ICompletionService. Handle message format conversion from internal CompletionRequest to ChatMessage format. Implement streaming support by converting IAsyncEnumerable<StreamingChatCompletionUpdate> to StreamEvent. Handle tool calling integration and error mapping between the two interfaces.",
+            "status": "pending",
+            "testStrategy": "Unit tests for message conversion, streaming behavior, tool call handling, and error scenarios with mocked IChatClient"
+          },
+          {
+            "id": 2,
+            "title": "Create AnthropicProvider with Prompt Caching",
+            "description": "Build the Anthropic-specific provider implementation with cache_control support and message format handling",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement AnthropicProvider class that creates configured IChatClient for Anthropic API. Add prompt caching support using cache_control parameter in message format. Handle Anthropic-specific message structure and tool schema conversion from Core ToolDefinition to Anthropic format. Implement proper error handling and rate limiting for Anthropic API calls.",
+            "status": "pending",
+            "testStrategy": "Test Anthropic message format conversion, cache_control parameter handling, tool schema translation, and API error responses"
+          },
+          {
+            "id": 3,
+            "title": "Build OpenAIProvider with Function Calling and Quirks",
+            "description": "Create OpenAI provider with function calling support and handling for various provider quirks",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement OpenAIProvider class with IChatClient configuration for OpenAI API. Add function calling format support and tool schema conversion. Handle provider-specific quirks: DeepSeek reasoning_content field, empty required arrays handling, Ollama num_ctx parameter. Implement proper authentication and error handling for different OpenAI-compatible providers.",
+            "status": "pending",
+            "testStrategy": "Test OpenAI function calling format, provider quirk handling (DeepSeek, Ollama), tool schema conversion, and compatibility with various OpenAI-compatible APIs"
+          },
+          {
+            "id": 4,
+            "title": "Implement ProviderRegistry with Encrypted Key Storage",
+            "description": "Create the registry system for managing multiple configured providers with secure API key storage",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Implement ProviderRegistry class that manages multiple provider instances with configuration. Add encrypted API key storage using Data Protection API or similar secure storage mechanism. Implement provider selection logic and configuration validation. Support dynamic provider registration and removal. Ensure thread-safe access to provider instances and secure key retrieval.",
+            "status": "pending",
+            "testStrategy": "Test provider registration/removal, encrypted key storage/retrieval, thread safety, configuration validation, and provider selection logic"
+          },
+          {
+            "id": 5,
+            "title": "Add Model Fetching with Local Caching",
+            "description": "Implement model discovery and caching system that fetches available models from provider APIs",
+            "dependencies": [
+              4
+            ],
+            "details": "Implement model fetching functionality that queries provider APIs for available models. Add local caching mechanism to avoid repeated API calls for model lists. Implement cache invalidation strategy and refresh logic. Handle API failures gracefully with fallback to cached data. Ensure model information includes capabilities, context limits, and pricing where available. Prevent LLM SDK types from leaking beyond provider boundary.",
+            "status": "pending",
+            "testStrategy": "Test model fetching from different providers, cache behavior and invalidation, API failure handling, and verify no SDK types leak to consuming code"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Build Storage Layer Implementations",
+        "description": "Implement all file system-based storage services for lore, stories, sessions, and content management",
+        "details": "Implement all Core service interfaces using file system storage: ILoreStore (load from build/lore/, search content), IStoryStore (read/append story files, list projects), IWritingStyleStore (load templates), IPersonaStore (load definitions), IContentFileService (generic file operations). Preserve existing content directory structure (build/lore/, build/story/, build/writing/, etc.). Implement encrypted key store using System.Security.Cryptography for API keys. Add atomic write operations for all file mutations. Implement image generation integration (ComfyUI HTTP API, OpenAI DALL-E) and TTS generation with multiple provider support.",
+        "testStrategy": "Integration tests with temporary directories for each service implementation. Test atomic write operations, content directory structure preservation, encrypted key storage, and file search functionality. Verify backwards compatibility with existing content formats.",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Core Storage Service Interfaces",
+            "description": "Create the foundational storage service implementations for lore, stories, writing styles, and personas using file system operations.",
+            "dependencies": [],
+            "details": "Implement ILoreStore for loading content from build/lore/ directory with search functionality, IStoryStore for reading and appending story files with project listing, IWritingStyleStore for loading templates from build/writing/, and IPersonaStore for loading character definitions. Each service should handle file I/O operations and maintain the existing directory structure.",
+            "status": "pending",
+            "testStrategy": "Unit tests with temporary directories for each service. Test file loading, content search, directory traversal, and error handling for missing files."
+          },
+          {
+            "id": 2,
+            "title": "Build Generic Content File Service",
+            "description": "Implement IContentFileService for generic file operations across all content types with atomic write capabilities.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create IContentFileService implementation that provides generic file operations (read, write, delete, list) with atomic write operations to prevent data corruption. Implement file locking mechanisms and temporary file strategies for safe mutations. Support various file formats and maintain file metadata.",
+            "status": "pending",
+            "testStrategy": "Test atomic write operations under concurrent access, verify file integrity after interrupted operations, and test generic file operations across different content types."
+          },
+          {
+            "id": 3,
+            "title": "Implement Encrypted Key Store",
+            "description": "Create secure storage for API keys using System.Security.Cryptography with encryption and decryption capabilities.",
+            "dependencies": [],
+            "details": "Implement encrypted key storage using System.Security.Cryptography for storing API keys securely. Use DPAPI or similar encryption methods to protect sensitive data at rest. Provide methods for storing, retrieving, and updating encrypted keys with proper error handling for decryption failures.",
+            "status": "pending",
+            "testStrategy": "Test key encryption and decryption, verify keys cannot be read in plain text from storage, test key rotation and update scenarios, and validate error handling for corrupted encrypted data."
+          },
+          {
+            "id": 4,
+            "title": "Integrate Image Generation Services",
+            "description": "Implement image generation integration supporting ComfyUI HTTP API and OpenAI DALL-E with provider abstraction.",
+            "dependencies": [
+              3
+            ],
+            "details": "Create image generation service implementations for ComfyUI HTTP API and OpenAI DALL-E. Implement provider abstraction to support multiple image generation backends. Handle API communication, image format conversion, error handling, and response processing. Support different image parameters and generation options for each provider.",
+            "status": "pending",
+            "testStrategy": "Mock HTTP clients to test API communication patterns, verify image generation requests and responses, test provider switching, and validate error handling for API failures."
+          },
+          {
+            "id": 5,
+            "title": "Implement Text-to-Speech Generation Services",
+            "description": "Build TTS generation system with multiple provider support and audio file management capabilities.",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Implement text-to-speech generation with support for multiple TTS providers. Create provider abstraction for different TTS services, handle audio file generation and storage, implement voice selection and audio parameter configuration. Manage audio file formats and provide streaming capabilities where supported.",
+            "status": "pending",
+            "testStrategy": "Test TTS generation with different providers, verify audio file creation and storage, test voice parameter handling, and validate provider fallback mechanisms for service failures."
+          },
+          {
+            "id": 6,
+            "title": "Implement FileSystemSessionStore with Atomic Writes",
+            "description": "ISessionStore implementation using write-to-temp-then-rename, storing sessions in build/data/sessions/ with GUID filenames, JSON serialization of ConversationTree with proper parent-child relationships.",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement FileSystemSessionStore class that implements ISessionStore using atomic file operations with write-to-temp-then-rename pattern. Store sessions in build/data/sessions/ directory with GUID-based filenames (sessionId.json). Serialize ConversationTree to JSON preserving parent-child relationships and GUID message node references. Implement session listing, loading, saving, and deletion operations. Handle file system errors, cleanup orphaned temp files on startup, and ensure thread-safe operations with proper locking.",
+            "status": "pending",
+            "testStrategy": "Integration tests with temporary directories: session save/load roundtrip, atomic write verification (simulate crash during write), JSON serialization accuracy for ConversationTree with multiple branches, concurrent access safety, and orphaned temp file cleanup."
+          },
+          {
+            "id": 7,
+            "title": "Implement Legacy Session Migration",
+            "description": "Detect flat array format, convert to tree structure with GUIDs, backup originals before migrating, handle migration errors gracefully.",
+            "dependencies": [
+              6
+            ],
+            "details": "Implement legacy session migration that detects flat message array format from previous sessions. Convert to ConversationTree structure by generating GUIDs for each message and establishing parent-child relationships based on array order. Create backup of original session files before migration. Handle migration errors gracefully with rollback capability. Log migration progress and results. Support batch migration of all sessions in the sessions directory.",
+            "status": "pending",
+            "testStrategy": "Integration tests with sample legacy session files in flat array format. Verify correct tree structure creation with proper GUID assignment and parent-child relationships. Test backup creation, rollback on failure, and batch migration across multiple session files."
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Implement Forge Pipeline System",
+        "description": "Build the autonomous story generation pipeline with discrete stages and state management",
+        "details": "Create IPipelineStage interface and implement five stages: PlanningStage (ForgePlanner produces chapter briefs), DesignStage (refines briefs with character arcs), WritingStage (ForgeWriter drafts chapters with Librarian tool), ReviewStage (ForgeReviewer scores chapters), AssemblyStage (combines approved chapters). Implement ForgePipeline orchestrator that manages stage progression, maintains ForgeManifest, emits progress events via IAsyncEnumerable<ForgeEvent>, and handles pause points. Create ForgeContext for passing state between stages. Implement chapter revision logic based on review scores and feedback. Pipeline persists progress to manifest file after each completed step. On error, cancel the run at the current point. On restart, read manifest and skip completed work. Add configurable timeout from config file for stage execution.",
+        "testStrategy": "Test each pipeline stage independently with mocked agents. Verify stage progression, manifest updates, pause handling, chapter status transitions, and event emission. Test revision loops and assembly logic with various chapter approval scenarios.",
+        "priority": "medium",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create IPipelineStage Interface and ForgeContext",
+            "description": "Define the core pipeline stage interface and context for passing state between stages",
+            "dependencies": [],
+            "details": "Create IPipelineStage interface with ExecuteAsync method that takes ForgeContext and returns updated context. Define ForgeContext class to hold pipeline state including ForgeManifest, current chapter data, agent configurations, and stage-specific metadata. Include methods for context cloning and state validation.",
+            "status": "pending",
+            "testStrategy": "Unit tests for ForgeContext state management, cloning operations, and IPipelineStage interface contract validation with mock implementations."
+          },
+          {
+            "id": 2,
+            "title": "Implement Planning and Design Stages",
+            "description": "Build PlanningStage and DesignStage implementations for story structure and character development",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement PlanningStage that uses ForgePlanner agent to generate chapter briefs from story outline. Create DesignStage that refines chapter briefs by incorporating character arcs and story themes. Both stages update ForgeManifest with planning data and character development notes.",
+            "status": "pending",
+            "testStrategy": "Test each stage with mocked ForgePlanner agent responses. Verify chapter brief generation, character arc integration, and proper ForgeManifest updates."
+          },
+          {
+            "id": 3,
+            "title": "Implement Writing and Review Stages",
+            "description": "Build WritingStage and ReviewStage for chapter generation and quality assessment",
+            "dependencies": [
+              1
+            ],
+            "details": "Create WritingStage that uses ForgeWriter agent with Librarian tool to draft chapters based on briefs. Implement ReviewStage that uses ForgeReviewer agent to score chapters and provide feedback. Include chapter revision logic that triggers rewrites based on review scores below threshold.",
+            "status": "pending",
+            "testStrategy": "Test chapter generation with mocked ForgeWriter and Librarian responses. Verify review scoring, feedback generation, and revision loop triggering based on score thresholds."
+          },
+          {
+            "id": 4,
+            "title": "Implement Assembly Stage and Chapter Management",
+            "description": "Build AssemblyStage for combining approved chapters and managing chapter status transitions",
+            "dependencies": [
+              1
+            ],
+            "details": "Create AssemblyStage that combines approved chapters into final story format. Implement chapter status management (draft \u2192 review \u2192 approved/revision \u2192 assembled). Handle chapter ordering, formatting, and final story compilation with proper metadata preservation.",
+            "status": "pending",
+            "testStrategy": "Test chapter assembly with various approval scenarios. Verify status transitions, proper ordering, and final story compilation with different chapter combinations."
+          },
+          {
+            "id": 5,
+            "title": "Implement ForgePipeline Orchestrator with Event System",
+            "description": "Build the main pipeline orchestrator that manages stage progression and emits progress events",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Create ForgePipeline class that orchestrates stage execution, maintains ForgeManifest state, and emits progress events via IAsyncEnumerable<ForgeEvent>. Implement pause point handling, stage progression logic, error recovery, and pipeline state persistence. Include methods for pipeline resumption and cancellation. Persist progress to manifest file after each stage completion. On error, cancel the run at the current point with proper cleanup. On restart, read manifest and resume from the last completed stage, skipping already-finished work. Add configurable stage timeout from AppConfig to enforce maximum execution time per stage.",
+            "status": "pending",
+            "testStrategy": "Test complete pipeline execution with all stages. Verify event emission, pause/resume functionality, error handling, and state persistence across pipeline runs."
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Create ASP.NET Core Web API Layer",
+        "description": "Build the minimal API host with all endpoints, SSE streaming, and dependency injection setup",
+        "details": "Create ASP.NET Core minimal API host in QuillForge.Web with explicit DI registration in Program.cs. Implement all endpoint groups: Chat (POST /api/chat/stream with SSE), Session (CRUD operations with GUID-based message IDs), Mode & Profile (switching and listing), Content (image/TTS generation, lore browsing), Forge (project management and pipeline execution), Providers (CRUD with model fetching). Implement SSE streaming using IAsyncEnumerable<StreamEvent> from ToolLoop. Add static file serving for React frontend from wwwroot/. Preserve layout markdown system for UI customization.",
+        "testStrategy": "Integration tests for each endpoint group. Test SSE streaming with mock completion services. Verify proper error handling, request validation, and response serialization. Test static file serving and SPA fallback routing.",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          6,
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create ASP.NET Core minimal API host project structure",
+            "description": "Set up the QuillForge.Web project with Program.cs and basic configuration",
+            "dependencies": [],
+            "details": "Create QuillForge.Web project with ASP.NET Core minimal API template. Set up Program.cs with WebApplicationBuilder, configure services, and build the application. Add necessary NuGet packages for ASP.NET Core, dependency injection, and SSE support. Configure CORS, routing, and basic middleware pipeline.",
+            "status": "pending",
+            "testStrategy": "Unit tests for Program.cs configuration and basic application startup"
+          },
+          {
+            "id": 2,
+            "title": "Implement dependency injection registration in Program.cs",
+            "description": "Configure explicit DI registration for all services and dependencies",
+            "dependencies": [
+              1
+            ],
+            "details": "Add service registration for ICompletionService, ISessionStore, ILoreStore, IStoryStore, IWritingStyleStore, IPersonaStore, IImageGenerator, ITtsGenerator, and IContentFileService. Configure scoped/singleton lifetimes appropriately. Set up configuration binding for provider settings and API keys.",
+            "status": "pending",
+            "testStrategy": "Integration tests to verify all services can be resolved from DI container"
+          },
+          {
+            "id": 3,
+            "title": "Implement Chat and Session endpoint groups",
+            "description": "Create Chat endpoints with SSE streaming and Session CRUD operations",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement POST /api/chat/stream endpoint using IAsyncEnumerable<StreamEvent> for SSE streaming. Create Session endpoints: GET /api/sessions (list), GET /api/sessions/{id} (load), POST /api/sessions (create), PUT /api/sessions/{id} (save), DELETE /api/sessions/{id} (delete). Handle GUID-based message IDs and proper error responses.",
+            "status": "pending",
+            "testStrategy": "Integration tests for SSE streaming with mock completion services and CRUD operations for sessions"
+          },
+          {
+            "id": 4,
+            "title": "Implement Mode, Profile, Content, and Forge endpoint groups",
+            "description": "Create remaining API endpoint groups for application functionality",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement Mode endpoints for switching writing modes, Profile endpoints for persona management, Content endpoints for image/TTS generation and lore browsing (GET /api/content/lore, POST /api/content/image, POST /api/content/tts), and Forge endpoints for project management and pipeline execution (GET /api/forge/projects, POST /api/forge/execute).",
+            "status": "pending",
+            "testStrategy": "Integration tests for each endpoint group with proper request validation and response serialization"
+          },
+          {
+            "id": 5,
+            "title": "Add static file serving and Provider endpoints",
+            "description": "Configure static file serving for React frontend and implement Provider CRUD endpoints",
+            "dependencies": [
+              4
+            ],
+            "details": "Configure static file serving from wwwroot/ for React frontend with SPA fallback routing. Implement Provider endpoints: GET /api/providers (list), POST /api/providers (create), PUT /api/providers/{id} (update), DELETE /api/providers/{id} (delete), GET /api/providers/{id}/models (fetch available models). Preserve layout markdown system for UI customization.",
+            "status": "pending",
+            "testStrategy": "Integration tests for static file serving, SPA routing, and Provider CRUD operations with model fetching"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Integrate React Frontend and Static Assets",
+        "description": "Integrate the existing React/TypeScript frontend with the new API endpoints and build process",
+        "details": "Copy existing React frontend into QuillForge.Web/wwwroot/ directory. Update frontend API calls to use GUID-based message IDs instead of array indices for session operations (fork, delete, regenerate). Ensure all other API endpoints maintain compatible request/response shapes. Configure build process to include frontend assets in publish output. Test session tree operations (fork from message, delete by GUID, regenerate variants) in the UI. Preserve all existing UI functionality including layout markdown rendering, mode switching, and profile management.",
+        "testStrategy": "End-to-end testing of frontend integration. Verify session tree operations work correctly in UI. Test all existing features: chat streaming, mode switching, profile management, forge pipeline UI, provider configuration. Ensure layout markdown rendering works unchanged.",
+        "priority": "medium",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Copy React frontend to QuillForge.Web/wwwroot directory",
+            "description": "Move the existing React/TypeScript frontend codebase into the ASP.NET Core project structure",
+            "dependencies": [],
+            "details": "Copy all React frontend files (components, styles, assets, package.json, etc.) from the existing location into QuillForge.Web/wwwroot/ directory. Ensure proper directory structure is maintained and all dependencies are preserved.",
+            "status": "pending",
+            "testStrategy": "Verify all frontend files are copied correctly and directory structure matches expectations"
+          },
+          {
+            "id": 2,
+            "title": "Update API calls to use GUID-based message IDs",
+            "description": "Replace array index-based message identification with GUID-based IDs in frontend API calls",
+            "dependencies": [
+              1
+            ],
+            "details": "Update all frontend API calls for session operations (fork, delete, regenerate) to use GUID-based message IDs instead of array indices. Modify TypeScript interfaces and API client code to handle the new ID format while maintaining backward compatibility where possible.",
+            "status": "pending",
+            "testStrategy": "Test session tree operations with GUID IDs and verify API calls send correct parameters"
+          },
+          {
+            "id": 3,
+            "title": "Configure build process for frontend asset inclusion",
+            "description": "Set up the build pipeline to include React frontend assets in the publish output",
+            "dependencies": [
+              1
+            ],
+            "details": "Configure MSBuild targets and properties to ensure React frontend assets are properly included in the publish output. Set up npm/yarn build integration if needed, configure static file serving in ASP.NET Core, and ensure assets are optimized for production deployment.",
+            "status": "pending",
+            "testStrategy": "Verify published output contains all frontend assets and they are served correctly by the web server"
+          },
+          {
+            "id": 4,
+            "title": "Ensure API endpoint compatibility",
+            "description": "Verify all non-session API endpoints maintain compatible request/response shapes",
+            "dependencies": [
+              2
+            ],
+            "details": "Review and test all existing API endpoints to ensure they maintain compatible request/response shapes with the frontend expectations. Update any endpoints that may have changed during backend refactoring while preserving the frontend's ability to consume them.",
+            "status": "pending",
+            "testStrategy": "Test all API endpoints with existing frontend code to verify compatibility and proper data flow"
+          },
+          {
+            "id": 5,
+            "title": "Test complete UI functionality integration",
+            "description": "Perform comprehensive testing of all UI features with the integrated backend",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Test all existing UI functionality including layout markdown rendering, mode switching, profile management, session tree operations (fork from message, delete by GUID, regenerate variants), chat streaming, and forge pipeline UI. Ensure no regressions in user experience.",
+            "status": "pending",
+            "testStrategy": "End-to-end testing of all UI features including session tree operations, chat streaming, mode switching, profile management, and forge pipeline functionality"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Implement Configuration and Migration Systems",
+        "description": "Build configuration loading, validation, and migration from existing Python application data",
+        "details": "Create AppConfig record with nested configuration sections (PathsConfig, ModelsConfig, LibrarianConfig, etc.). Implement YAML configuration loading from config.yaml with validation at startup. Build migration system for existing content: preserve build/ directory structure, migrate legacy session files from flat array to tree format, maintain provider configuration compatibility or provide re-entry flow. Implement first-run setup that creates default build/ directory structure. Add configuration validation with helpful error messages for missing or invalid settings.",
+        "testStrategy": "Test configuration loading and validation with various YAML formats. Test migration of legacy session files and provider configurations. Verify first-run setup creates proper directory structure. Test configuration error handling and validation messages.",
+        "priority": "medium",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create AppConfig Record Structure with Nested Configuration Sections",
+            "description": "Define the hierarchical configuration structure with strongly-typed record types for all configuration sections",
+            "dependencies": [],
+            "details": "Create AppConfig record as the root configuration container. Define nested configuration sections: PathsConfig (build directory, config paths), ModelsConfig (default models, provider settings), LibrarianConfig (search parameters, retrieval settings), ForgeConfig (pipeline settings, review thresholds), and other domain-specific configuration sections. Ensure all configuration records are immutable and provide sensible defaults.",
+            "status": "pending",
+            "testStrategy": "Unit tests for configuration record creation, default value validation, and nested structure access patterns"
+          },
+          {
+            "id": 2,
+            "title": "Implement YAML Configuration Loading with Validation",
+            "description": "Build the configuration loading system that reads from config.yaml and validates all settings at startup",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement ConfigurationLoader that reads config.yaml file and deserializes to AppConfig record. Add comprehensive validation for all configuration sections including path existence checks, model name validation, numeric range validation, and required field verification. Provide detailed error messages for configuration issues with specific field paths and suggested fixes.",
+            "status": "pending",
+            "testStrategy": "Test configuration loading with valid YAML, invalid formats, missing files, and various validation error scenarios. Verify error message clarity and specificity"
+          },
+          {
+            "id": 3,
+            "title": "Build Legacy Data Migration System",
+            "description": "Create migration system to convert existing Python application data to new format while preserving content",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement MigrationService that detects legacy data formats and converts them to new structure. Migrate legacy session files from flat message arrays to ConversationTree format with proper node relationships. Convert provider configurations while maintaining compatibility or providing guided re-entry flow. Preserve existing build/ directory structure and content files. Add migration progress reporting and rollback capability for failed migrations.",
+            "status": "pending",
+            "testStrategy": "Test migration of various legacy session file formats, provider configurations, and directory structures. Verify data integrity before and after migration with rollback scenarios"
+          },
+          {
+            "id": 4,
+            "title": "Implement First-Run Setup and Directory Structure Creation",
+            "description": "Create first-run setup system that initializes default directory structure and configuration",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement FirstRunSetup service that detects new installations and creates default build/ directory structure with appropriate subdirectories (sessions/, lore/, stories/, etc.). Generate default config.yaml with commented examples and sensible defaults. Create welcome content and setup wizard for initial provider configuration. Ensure proper permissions and error handling for directory creation across different operating systems.",
+            "status": "pending",
+            "testStrategy": "Test first-run detection, directory creation on various file systems, default configuration generation, and setup wizard flow with different user choices"
+          },
+          {
+            "id": 5,
+            "title": "Add Configuration Validation with Helpful Error Messages",
+            "description": "Implement comprehensive configuration validation system with user-friendly error reporting",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Create ConfigurationValidator that performs deep validation of all configuration sections including cross-field validation, dependency checks, and runtime validation (API key format, model availability, path accessibility). Implement ValidationResult system with structured error messages including field paths, current values, expected formats, and suggested corrections. Add validation caching to avoid repeated expensive checks and provide validation summary reports.",
+            "status": "pending",
+            "testStrategy": "Test validation with various invalid configurations, cross-field dependency violations, and runtime validation scenarios. Verify error message helpfulness and actionability for end users"
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Setup Deployment and Auto-Update System",
+        "description": "Configure self-contained binary publishing, GitHub Actions CI, and auto-update functionality",
+        "details": "Configure self-contained publishing for multiple platforms (win-x64, osx-arm64, osx-x64, linux-x64) with single-file output and no runtime dependencies. Create GitHub Actions workflow triggered on version tags that builds all platforms, runs full test suite, and creates GitHub Release with platform-specific assets. Implement auto-update system that checks GitHub Releases API on startup, downloads appropriate platform binary, replaces current executable, and restarts. Create minimal start scripts (start.sh, start.bat) for each platform. Ensure user content directory (build/) is never touched by updates.",
+        "testStrategy": "Test publishing process for all target platforms. Verify self-contained binaries run without .NET runtime. Test auto-update mechanism with mock GitHub API responses. Verify start scripts work on target platforms and content directory preservation during updates.",
+        "priority": "low",
+        "dependencies": [
+          10,
+          11
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Configure Self-Contained Binary Publishing",
+            "description": "Set up .NET project configuration for self-contained publishing across multiple platforms",
+            "dependencies": [],
+            "details": "Configure project file with PublishSingleFile, SelfContained, and RuntimeIdentifier properties for win-x64, osx-arm64, osx-x64, and linux-x64 targets. Set up MSBuild targets for each platform with appropriate trimming and compression settings to minimize binary size while ensuring no runtime dependencies.",
+            "status": "pending",
+            "testStrategy": "Test publishing process for each target platform. Verify binaries run on clean systems without .NET runtime installed. Check binary sizes and startup performance."
+          },
+          {
+            "id": 2,
+            "title": "Create GitHub Actions CI/CD Workflow",
+            "description": "Build automated workflow for building, testing, and releasing multi-platform binaries",
+            "dependencies": [
+              1
+            ],
+            "details": "Create .github/workflows/release.yml triggered on version tags (v*). Set up matrix build for all target platforms, run full test suite, build self-contained binaries, and create GitHub Release with platform-specific assets. Include proper artifact naming and checksums for security.",
+            "status": "pending",
+            "testStrategy": "Test workflow with mock version tags. Verify all platforms build successfully, tests pass, and release artifacts are properly named and uploaded to GitHub Releases."
+          },
+          {
+            "id": 3,
+            "title": "Implement Auto-Update System Core",
+            "description": "Build the core auto-update functionality that checks for and downloads new versions",
+            "dependencies": [
+              2
+            ],
+            "details": "Create AutoUpdateService that checks GitHub Releases API on startup, compares current version with latest release, downloads appropriate platform binary to temp location, validates checksums, and prepares for executable replacement. Implement proper error handling and rollback mechanisms.",
+            "status": "pending",
+            "testStrategy": "Test with mock GitHub API responses. Verify version comparison logic, download validation, and error handling for network failures or corrupted downloads."
+          },
+          {
+            "id": 4,
+            "title": "Implement Executable Replacement and Restart Logic",
+            "description": "Handle the critical process of replacing the running executable and restarting the application",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement platform-specific executable replacement logic that handles file locking issues on Windows, permission requirements on Unix systems, and safe atomic replacement. Create restart mechanism that preserves user content directory (build/) and maintains application state. Handle edge cases like permission failures and partial updates.",
+            "status": "pending",
+            "testStrategy": "Test executable replacement on all target platforms. Verify content directory preservation, proper restart behavior, and graceful handling of permission or file system errors."
+          },
+          {
+            "id": 5,
+            "title": "Create Platform-Specific Start Scripts",
+            "description": "Build minimal startup scripts for each platform to facilitate the auto-update process",
+            "dependencies": [
+              4
+            ],
+            "details": "Create start.sh for Unix systems and start.bat for Windows that handle initial application launch, auto-update process coordination, and post-update restart. Scripts should be minimal, robust, and handle edge cases like missing executables or update failures. Ensure scripts preserve working directory and environment variables.",
+            "status": "pending",
+            "testStrategy": "Test start scripts on target platforms with various scenarios including fresh installs, successful updates, and update failures. Verify proper working directory handling and environment preservation."
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Implement Story State System",
+        "description": "Build the .state.yaml companion file system for tracking plot threads, character conditions, and story progression across sessions",
+        "details": "Implement the story state system that maintains a .state.yaml companion file alongside story/chat files. Track plot threads, character conditions, tension levels, event counters, and other narrative state. State is separate from the conversation tree and persists across sessions. Implement YAML state merge logic, event counter increment, key removal. Create IStoryStateService interface in Core and file-based implementation in Storage. Preserve backwards compatibility with existing YAML format from the Python version.",
+        "testStrategy": "Unit tests for YAML state merge operations, event counter logic, and key management. Integration tests for file persistence with temp directories. Verify backwards compatibility with existing .state.yaml files from Python version.",
+        "priority": "medium",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define IStoryStateService Interface and State Models",
+            "description": "Core interface and records for story state (plot threads, character conditions, tension levels, event counters).",
+            "dependencies": [],
+            "details": "Define IStoryStateService interface in Core project with methods for loading, saving, and updating story state. Create immutable record types for story state components: PlotThread (name, status, tension level), CharacterCondition (character, condition, severity), EventCounter (name, count), and root StoryState record aggregating all components. Ensure all types are pure .NET BCL with no external dependencies.",
+            "status": "pending",
+            "testStrategy": "Unit tests for record creation, immutability, equality comparisons, and interface contract validation with mock implementations."
+          },
+          {
+            "id": 2,
+            "title": "Implement YAML State Merge and Mutation Logic",
+            "description": "Pure logic for merging state updates, incrementing event counters, removing keys.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement pure functions for merging story state updates into existing state. Support event counter increments, plot thread status changes, character condition updates, tension level adjustments, and key removal. Merge logic should be deterministic and handle conflicts (e.g., concurrent updates to same plot thread). Preserve unknown YAML keys for forwards compatibility with the Python version.",
+            "status": "pending",
+            "testStrategy": "Unit tests for all merge operations: counter increments, key additions, key removals, conflict resolution, and preservation of unknown keys. Test edge cases with empty states and partial updates."
+          },
+          {
+            "id": 3,
+            "title": "Implement File-Based Story State Persistence",
+            "description": "Storage implementation reading/writing .state.yaml companion files with atomic writes.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement IStoryStateService in Storage project using file-based persistence. Read and write .state.yaml companion files alongside story/chat files using atomic write-to-temp-then-rename pattern. Handle YAML serialization/deserialization preserving format compatibility with the Python version. Support file discovery by convention (matching .state.yaml to corresponding story file). Handle missing state files gracefully by returning default empty state.",
+            "status": "pending",
+            "testStrategy": "Integration tests with temp directories for file persistence roundtrip. Verify atomic write behavior, YAML format compatibility with Python version samples, missing file handling, and file discovery by naming convention."
+          },
+          {
+            "id": 4,
+            "title": "Add Story State Integration with Orchestrator",
+            "description": "Wire story state into orchestrator's system prompt and tool context so agents can read/update narrative state.",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Integrate IStoryStateService into the Orchestrator agent's workflow. Include current story state summary in system prompts so agents are aware of active plot threads, character conditions, and tension levels. Expose story state update capabilities through tool context so agents can modify narrative state during conversations. Ensure state changes are persisted after each interaction.",
+            "status": "pending",
+            "testStrategy": "Integration tests verifying story state appears in system prompts, agents can read and update state through tool context, and state changes persist across interactions. Mock agent responses to test state update flows."
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2026-03-25T10:38:44.917Z",
+      "updated": "2026-03-25T10:38:44.917Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

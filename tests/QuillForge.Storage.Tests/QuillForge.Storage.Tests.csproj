@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\QuillForge.Storage\QuillForge.Storage.csproj" />
+    <ProjectReference Include="..\..\src\QuillForge.Core\QuillForge.Core.csproj" />
+  </ItemGroup>
+
+</Project>

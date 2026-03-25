@@ -1,0 +1,110 @@
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using QuillForge.Core.Models;
+using QuillForge.Core.Services;
+
+namespace QuillForge.Core.Agents.Tools;
+
+/// <summary>
+/// Reads the current story state from a .state.yaml companion file.
+/// </summary>
+public sealed class GetStoryStateHandler : IToolHandler
+{
+    private readonly IStoryStateService _storyState;
+    private readonly Func<string> _stateFilePathProvider;
+    private readonly ILogger<GetStoryStateHandler> _logger;
+
+    public GetStoryStateHandler(
+        IStoryStateService storyState,
+        Func<string> stateFilePathProvider,
+        ILogger<GetStoryStateHandler> logger)
+    {
+        _storyState = storyState;
+        _stateFilePathProvider = stateFilePathProvider;
+        _logger = logger;
+    }
+
+    public string Name => "get_story_state";
+
+    public ToolDefinition Definition => new(Name,
+        "Read the current story/session state (plot threads, character conditions, tension, event counters).",
+        JsonDocument.Parse("""
+            {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+            """).RootElement);
+
+    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    {
+        var path = _stateFilePathProvider();
+        _logger.LogDebug("GetStoryStateHandler: reading state from {Path}", path);
+        var state = await _storyState.LoadAsync(path, ct);
+        return ToolResult.Ok(JsonSerializer.Serialize(state));
+    }
+}
+
+/// <summary>
+/// Merges updates into the story state.
+/// </summary>
+public sealed class UpdateStoryStateHandler : IToolHandler
+{
+    private readonly IStoryStateService _storyState;
+    private readonly Func<string> _stateFilePathProvider;
+    private readonly ILogger<UpdateStoryStateHandler> _logger;
+
+    public UpdateStoryStateHandler(
+        IStoryStateService storyState,
+        Func<string> stateFilePathProvider,
+        ILogger<UpdateStoryStateHandler> logger)
+    {
+        _storyState = storyState;
+        _stateFilePathProvider = stateFilePathProvider;
+        _logger = logger;
+    }
+
+    public string Name => "update_story_state";
+
+    public ToolDefinition Definition => new(Name,
+        "Update story state by merging new values. Supports nested updates and event counter increment.",
+        JsonDocument.Parse("""
+            {
+                "type": "object",
+                "properties": {
+                    "updates": {
+                        "type": "object",
+                        "description": "Key-value pairs to merge into the state"
+                    },
+                    "increment_counter": {
+                        "type": "boolean",
+                        "description": "If true, increment the event counter for pacing"
+                    }
+                },
+                "required": ["updates"]
+            }
+            """).RootElement);
+
+    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    {
+        var path = _stateFilePathProvider();
+        _logger.LogDebug("UpdateStoryStateHandler: updating state at {Path}", path);
+
+        if (input.TryGetProperty("updates", out var updates))
+        {
+            var dict = new Dictionary<string, object>();
+            foreach (var prop in updates.EnumerateObject())
+            {
+                dict[prop.Name] = prop.Value.ToString();
+            }
+            await _storyState.MergeAsync(path, dict, ct);
+        }
+
+        if (input.TryGetProperty("increment_counter", out var inc) && inc.GetBoolean())
+        {
+            await _storyState.IncrementCounterAsync(path, "_event_counter", ct);
+        }
+
+        return ToolResult.Ok("State updated.");
+    }
+}

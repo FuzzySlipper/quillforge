@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\QuillForge.Core\QuillForge.Core.csproj" />
+    <ProjectReference Include="..\QuillForge.Providers\QuillForge.Providers.csproj" />
+    <ProjectReference Include="..\QuillForge.Storage\QuillForge.Storage.csproj" />
+  </ItemGroup>
+
+</Project>

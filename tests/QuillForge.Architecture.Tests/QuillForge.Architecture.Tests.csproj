@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\QuillForge.Core\QuillForge.Core.csproj" />
+    <ProjectReference Include="..\..\src\QuillForge.Providers\QuillForge.Providers.csproj" />
+    <ProjectReference Include="..\..\src\QuillForge.Storage\QuillForge.Storage.csproj" />
+    <ProjectReference Include="..\..\src\QuillForge.Web\QuillForge.Web.csproj" />
+  </ItemGroup>
+
+</Project>
