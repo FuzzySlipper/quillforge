@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="QuillForge.Core.Tests" />
+    <InternalsVisibleTo Include="QuillForge.Storage" />
   </ItemGroup>
 
 </Project>

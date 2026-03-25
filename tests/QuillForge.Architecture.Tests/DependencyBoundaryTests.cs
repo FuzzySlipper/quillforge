@@ -4,9 +4,9 @@ namespace QuillForge.Architecture.Tests;
 
 public class DependencyBoundaryTests
 {
-    private static readonly Assembly CoreAssembly = typeof(QuillForge.Core.Marker).Assembly;
-    private static readonly Assembly ProvidersAssembly = typeof(QuillForge.Providers.Marker).Assembly;
-    private static readonly Assembly StorageAssembly = typeof(QuillForge.Storage.Marker).Assembly;
+    private static readonly Assembly CoreAssembly = typeof(QuillForge.Core.Models.MessageNode).Assembly;
+    private static readonly Assembly ProvidersAssembly = typeof(QuillForge.Providers.Registry.ProviderRegistry).Assembly;
+    private static readonly Assembly StorageAssembly = typeof(QuillForge.Storage.FileSystem.FileSystemLoreStore).Assembly;
 
     [Fact]
     public void Core_DoesNot_Reference_Providers()
