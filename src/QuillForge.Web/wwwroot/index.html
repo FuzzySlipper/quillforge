@@ -5,11 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Narrative System</title>
+    <title>Quill Forge</title>
     <script type="module" crossorigin src="/assets/index-BznCV4Vx.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-o_L7Nks_.css">
   </head>
   <body class="bg-bg text-text">
     <div id="root"></div>
+    <script>
+      // Persistent version badge — survives React re-renders via fixed positioning
+      fetch('/api/status').then(r=>r.json()).then(d=>{
+        if(!d.version)return;
+        const badge=document.createElement('div');
+        badge.id='qf-version-badge';
+        badge.style.cssText='position:fixed;bottom:4px;left:8px;font-size:10px;opacity:0.4;z-index:9999;color:inherit;pointer-events:none;font-family:monospace;';
+        badge.textContent='v'+d.version+(d.build&&d.build!==d.version?' ('+d.build.split('+')[1]+')':'');
+        document.body.appendChild(badge);
+      }).catch(()=>{});
+    </script>
   </body>
 </html>

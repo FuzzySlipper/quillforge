@@ -2,7 +2,17 @@
 
   <PropertyGroup>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <Version>0.1.0</Version>
+    <!-- Append git short hash to informational version -->
+    <SourceRevisionId>unknown</SourceRevisionId>
   </PropertyGroup>
+
+  <!-- Grab git hash at build time if available -->
+  <Target Name="SetGitHash" BeforeTargets="GetAssemblyVersion" Condition="'$(SourceRevisionId)' == 'unknown'">
+    <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="SourceRevisionId" />
+    </Exec>
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="..\QuillForge.Core\QuillForge.Core.csproj" />

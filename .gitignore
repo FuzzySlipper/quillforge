@@ -69,6 +69,7 @@ node_modules/
 .vscode
 .claude/
 .taskmaster/
+build/
 *.suo
 *.ntvs*
 *.njsproj

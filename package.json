@@ -1,0 +1,12 @@
+{
+  "name": "quillforge",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test:smoke": "npx playwright test",
+    "test:smoke:headed": "npx playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}

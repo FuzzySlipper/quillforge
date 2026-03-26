@@ -14,14 +14,29 @@ using QuillForge.Web.Endpoints;
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Content paths and first-run setup ---
-var contentRoot = builder.Configuration.GetValue<string>("ContentRoot")
-    ?? Path.Combine(Directory.GetCurrentDirectory(), "build");
+// Walk up from executable location or working directory to find the solution root.
+// This handles both `dotnet run --project` (cwd = project dir) and published binaries.
+var solutionRoot = FindSolutionRoot(AppContext.BaseDirectory)
+    ?? FindSolutionRoot(Directory.GetCurrentDirectory());
+var contentRoot = builder.Configuration.GetValue<string>("QuillForge:ContentRoot")
+    ?? (solutionRoot is not null
+        ? Path.Combine(solutionRoot, "build")
+        : Path.Combine(AppContext.BaseDirectory, "build"));
 
-var defaultsPath = Path.Combine(AppContext.BaseDirectory, "..", "dev", "defaults");
-if (!Directory.Exists(defaultsPath))
+var defaultsPath = solutionRoot is not null
+    ? Path.Combine(solutionRoot, "dev", "defaults")
+    : Path.Combine(AppContext.BaseDirectory, "dev", "defaults");
+
+static string? FindSolutionRoot(string startDir)
 {
-    // Try relative to current directory (for development)
-    defaultsPath = Path.Combine(Directory.GetCurrentDirectory(), "dev", "defaults");
+    var dir = startDir;
+    while (dir is not null)
+    {
+        if (File.Exists(Path.Combine(dir, "QuillForge.slnx")))
+            return dir;
+        dir = Path.GetDirectoryName(dir);
+    }
+    return null;
 }
 
 var firstRunSetup = new FirstRunSetup(
@@ -29,10 +44,15 @@ var firstRunSetup = new FirstRunSetup(
 firstRunSetup.EnsureContentDirectory(contentRoot,
     Directory.Exists(defaultsPath) ? defaultsPath : null);
 
-// --- Load configuration ---
+// --- Load configuration (create defaults if missing, even on existing installs) ---
+var configPath = Path.Combine(contentRoot, "config.yaml");
 var configLoader = new ConfigurationLoader(
     LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ConfigurationLoader>());
-var appConfig = configLoader.Load(Path.Combine(contentRoot, "config.yaml"));
+if (!File.Exists(configPath))
+{
+    configLoader.WriteDefaults(configPath);
+}
+var appConfig = configLoader.Load(configPath);
 builder.Services.AddSingleton(appConfig);
 
 // --- Utilities ---
@@ -67,9 +87,15 @@ builder.Services.AddSingleton<ISessionStore>(sp =>
         sp.GetRequiredService<ILogger<FileSystemSessionStore>>(),
         sp.GetRequiredService<ILoggerFactory>()));
 
-// --- Provider registry ---
+builder.Services.AddSingleton(sp =>
+    new RuntimeStateStore(contentRoot,
+        sp.GetRequiredService<AtomicFileWriter>(),
+        sp.GetRequiredService<ILogger<RuntimeStateStore>>()));
+
+// --- Provider registry and default completion service ---
 builder.Services.AddSingleton<ProviderFactory>();
 builder.Services.AddSingleton<ProviderRegistry>();
+builder.Services.AddSingleton<ICompletionService, QuillForge.Web.Services.DefaultCompletionService>();
 
 // --- Core agents ---
 builder.Services.AddSingleton<ContinuationStrategy>();
@@ -78,10 +104,10 @@ builder.Services.AddSingleton<LibrarianAgent>();
 builder.Services.AddSingleton<ProseWriterAgent>(sp =>
 {
     var toolLoop = sp.GetRequiredService<ToolLoop>();
-    // QueryLoreHandler needs to be created with runtime config; placeholder for now
+    var config = sp.GetRequiredService<AppConfig>();
     var queryLore = new QueryLoreHandler(
         sp.GetRequiredService<LibrarianAgent>(),
-        "default",
+        config.Lore.Active,
         sp.GetRequiredService<ILogger<QueryLoreHandler>>());
     return new ProseWriterAgent(toolLoop, queryLore,
         sp.GetRequiredService<IWritingStyleStore>(),
@@ -92,7 +118,7 @@ builder.Services.AddSingleton<ForgePlannerAgent>();
 builder.Services.AddSingleton<ForgeWriterAgent>();
 builder.Services.AddSingleton<ForgeReviewerAgent>(sp =>
     new ForgeReviewerAgent(
-        sp.GetRequiredService<ProviderRegistry>().GetCompletionService("default"),
+        sp.GetRequiredService<ICompletionService>(),
         sp.GetRequiredService<ILogger<ForgeReviewerAgent>>()));
 
 // --- Modes (explicit, no scanning) ---
@@ -115,7 +141,8 @@ builder.Services.AddSingleton<ForgePipeline>();
 
 // --- Auto-update checker ---
 builder.Services.AddHttpClient();
-builder.Services.AddHostedService<QuillForge.Web.Services.AutoUpdateService>();
+builder.Services.AddSingleton<QuillForge.Web.Services.AutoUpdateService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<QuillForge.Web.Services.AutoUpdateService>());
 
 // --- CORS for local development ---
 builder.Services.AddCors(options =>
@@ -130,6 +157,22 @@ var app = builder.Build();
 
 app.UseCors();
 
+// --- Restore last mode from runtime state ---
+var runtimeState = app.Services.GetRequiredService<RuntimeStateStore>().Load();
+if (!string.IsNullOrEmpty(runtimeState.LastMode))
+{
+    try
+    {
+        var orchestrator = app.Services.GetRequiredService<OrchestratorAgent>();
+        orchestrator.SetMode(runtimeState.LastMode, runtimeState.LastProject, runtimeState.LastFile);
+        app.Logger.LogInformation("Restored last mode: {Mode}", runtimeState.LastMode);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Failed to restore last mode '{Mode}'", runtimeState.LastMode);
+    }
+}
+
 // --- Static files for React frontend ---
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -141,6 +184,8 @@ app.MapChatEndpoints();
 app.MapModeEndpoints();
 app.MapProviderEndpoints();
 app.MapForgeEndpoints();
+app.MapContentEndpoints(contentRoot);
+app.MapProfileEndpoints(contentRoot);
 
 // --- SPA fallback ---
 app.MapFallbackToFile("index.html");
