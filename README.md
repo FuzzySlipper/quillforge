@@ -169,3 +169,7 @@ dotnet publish src/QuillForge.Web -c Release -r osx-arm64 --self-contained -p:Pu
 ## License
 
 See [LICENSE](LICENSE) for details.
+
+## References
+
+Concepts based on paper [CreAgentive: An Agent Workflow Driven Multi-Category Creative Generation Engine](https://arxiv.org/html/2509.26461v1)
