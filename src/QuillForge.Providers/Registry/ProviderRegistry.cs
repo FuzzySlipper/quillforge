@@ -92,6 +92,17 @@ public sealed class ProviderRegistry : IDiagnosticSource
     }
 
     /// <summary>
+    /// Returns a snapshot of all registered provider configurations.
+    /// </summary>
+    public IReadOnlyList<ProviderConfig> GetAllConfigs()
+    {
+        lock (_lock)
+        {
+            return _configs.Values.ToList();
+        }
+    }
+
+    /// <summary>
     /// Gets the config for a provider alias.
     /// </summary>
     public ProviderConfig? GetConfig(string alias)

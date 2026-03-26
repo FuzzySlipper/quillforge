@@ -7,6 +7,11 @@ namespace QuillForge.Web.Endpoints;
 
 public static class ForgeEndpoints
 {
+    private static readonly JsonSerializerOptions s_jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     public static void MapForgeEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/forge");
@@ -27,10 +32,10 @@ public static class ForgeEndpoints
                     {
                         projects.Add(new
                         {
-                            manifest.ProjectName,
-                            stage = manifest.Stage.ToString(),
-                            manifest.ChapterCount,
-                            manifest.Paused,
+                            ProjectName = manifest.ProjectName,
+                            Stage = manifest.Stage.ToString(),
+                            ChapterCount = manifest.ChapterCount,
+                            Paused = manifest.Paused,
                         });
                     }
                 }
@@ -58,14 +63,14 @@ public static class ForgeEndpoints
             // Full wiring happens during the configuration task.
 
             await httpContext.Response.WriteAsync(
-                $"data: {{\"type\": \"info\", \"message\": \"Pipeline endpoint ready for project {name}\"}}\n\n", ct);
+                $"data: {JsonSerializer.Serialize(new { Type = "info", Message = $"Pipeline endpoint ready for project {name}" }, s_jsonOptions)}\n\n", ct);
             await httpContext.Response.Body.FlushAsync(ct);
         });
 
         group.MapPost("/projects/{name}/pause", (string name, ForgePipeline pipeline) =>
         {
             pipeline.RequestPause();
-            return Results.Ok(new { paused = name });
+            return Results.Ok(new { Paused = name });
         });
     }
 }

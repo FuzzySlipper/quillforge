@@ -6,11 +6,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Quill Forge</title>
-    <script type="module" crossorigin src="/assets/index-eQV5BqeJ.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-D1JrymOd.css">
   </head>
   <body class="bg-bg text-text">
     <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
     <script>
       // Persistent version badge — survives React re-renders via fixed positioning
       fetch('/api/status').then(r=>r.json()).then(d=>{

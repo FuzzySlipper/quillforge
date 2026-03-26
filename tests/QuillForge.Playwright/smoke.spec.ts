@@ -70,8 +70,8 @@ test.describe('API Smoke Tests', () => {
   test('profiles returns personas and lore sets', async ({ request }) => {
     const d = await (await request.get(`${BASE}/api/profiles`)).json();
     expect(d.personas).toBeTruthy();
-    expect(d.lore_sets).toBeTruthy();
-    expect(d.writing_styles).toBeTruthy();
+    expect(d.loreSets).toBeTruthy();
+    expect(d.writingStyles).toBeTruthy();
   });
 
   test('layouts returns list', async ({ request }) => {
@@ -80,9 +80,10 @@ test.describe('API Smoke Tests', () => {
     expect(d.layouts.length).toBeGreaterThan(0);
   });
 
-  test('sessions returns array', async ({ request }) => {
+  test('sessions returns object with array', async ({ request }) => {
     const d = await (await request.get(`${BASE}/api/sessions`)).json();
-    expect(Array.isArray(d)).toBe(true);
+    expect(d.sessions).toBeTruthy();
+    expect(Array.isArray(d.sessions)).toBe(true);
   });
 
   test('providers returns object', async ({ request }) => {
@@ -93,7 +94,7 @@ test.describe('API Smoke Tests', () => {
   test('lore returns files', async ({ request }) => {
     const d = await (await request.get(`${BASE}/api/lore`)).json();
     expect(d.files).toBeTruthy();
-    expect(d.active_project).toBeTruthy();
+    expect(d.activeProject).toBeTruthy();
   });
 
   test('forge/projects returns array', async ({ request }) => {
@@ -117,26 +118,26 @@ test.describe('API Smoke Tests', () => {
 
   test('session create and list', async ({ request }) => {
     const created = await (await request.post(`${BASE}/api/session/new`)).json();
-    expect(created.session_id).toBeTruthy();
+    expect(created.sessionId).toBeTruthy();
     const list = await (await request.get(`${BASE}/api/sessions`)).json();
     expect(Array.isArray(list)).toBe(true);
   });
 
   test('profiles/switch succeeds', async ({ request }) => {
     const resp = await request.post(`${BASE}/api/profiles/switch`, {
-      data: { persona: 'default', lore: 'default', writing_style: 'default' },
+      data: { persona: 'default', lore: 'default', writingStyle: 'default' },
     });
     expect(resp.ok()).toBe(true);
   });
 
   test('persona returns data', async ({ request }) => {
     const d = await (await request.get(`${BASE}/api/persona`)).json();
-    expect(d.personas).toBeTruthy();
+    expect(d.files).toBeTruthy();
   });
 
   test('writing-styles returns data', async ({ request }) => {
     const d = await (await request.get(`${BASE}/api/writing-styles`)).json();
-    expect(d.styles).toBeTruthy();
+    expect(d.files).toBeTruthy();
   });
 
   test('backgrounds returns data', async ({ request }) => {

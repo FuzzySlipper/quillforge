@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #1a1a2e;
+  --color-surface: #16213e;
+  --color-surface-alt: #0f3460;
+  --color-text: #e0e0e0;
+  --color-text-muted: #888888;
+  --color-accent: #e94560;
+  --color-accent-hover: #ff6b81;
+  --color-input-bg: #222244;
+  --color-border: #333355;
+}
+
+/* MD editor theme overrides */
+.w-md-editor {
+  --color-fg-default: #e0e0e0 !important;
+  --color-canvas-default: #222244 !important;
+  --color-canvas-subtle: #1a1a2e !important;
+  --color-border-default: #333355 !important;
+  --color-border-muted: #333355 !important;
+  border-color: #333355 !important;
+  border-radius: 0.5rem !important;
+}
+
+.w-md-editor-toolbar {
+  background-color: #1a1a2e !important;
+  border-bottom-color: #333355 !important;
+}
+
+.w-md-editor-text-pre,
+.w-md-editor-text-input,
+.w-md-editor-text {
+  font-size: 14px !important;
+}
+
+.wmde-markdown {
+  background-color: #222244 !important;
+  color: #e0e0e0 !important;
+}
+
+/* ── Background image transparency ── */
+.has-bg-image .bg-bg {
+  background-color: rgba(26, 26, 46, 0.85);
+}
+
+.has-bg-image .bg-surface {
+  background-color: rgba(22, 33, 62, 0.9);
+}
+
+/* ── Prose text theme ── */
+:root {
+  --prose-quote: inherit;
+  --prose-em: inherit;
+  --prose-strong: inherit;
+  --prose-blockquote: inherit;
+  --prose-base: inherit;
+}
+
+.prose-themed {
+  color: var(--prose-base);
+}
+
+.prose-themed em {
+  color: var(--prose-em);
+}
+
+.prose-themed strong {
+  color: var(--prose-strong);
+}
+
+.prose-themed blockquote,
+.prose-themed blockquote p {
+  color: var(--prose-blockquote);
+}
+
+.prose-themed .dialogue {
+  color: var(--prose-quote);
+}

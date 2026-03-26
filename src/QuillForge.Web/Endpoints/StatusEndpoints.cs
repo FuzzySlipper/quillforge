@@ -16,30 +16,30 @@ public static class StatusEndpoints
         {
             return Results.Ok(new
             {
-                status = "ready",
-                version = BuildInfo.Version,
-                build = BuildInfo.InformationalVersion,
-                mode = orchestrator.ActiveModeName,
-                project = orchestrator.ProjectName,
-                file = orchestrator.CurrentFile,
-                lore_set = config.Lore.Active,
-                persona = config.Persona.Active,
-                writing_style = config.WritingStyle.Active,
-                model = config.Models.Orchestrator,
-                layout = config.Layout.Active,
-                ai_character = config.Roleplay.AiCharacter ?? "",
-                user_character = config.Roleplay.UserCharacter ?? "",
-                conversation_turns = 0,
-                lore_files = 0,
-                context_limit = 0,
-                lore_tokens = 0,
-                persona_tokens = 0,
-                history_tokens = 0,
-                update = updateService.UpdateAvailable ? new
+                Status = "ready",
+                Version = BuildInfo.Version,
+                Build = BuildInfo.InformationalVersion,
+                Mode = orchestrator.ActiveModeName,
+                Project = orchestrator.ProjectName,
+                File = orchestrator.CurrentFile,
+                LoreSet = config.Lore.Active,
+                Persona = config.Persona.Active,
+                WritingStyle = config.WritingStyle.Active,
+                Model = config.Models.Orchestrator,
+                Layout = config.Layout.Active,
+                AiCharacter = config.Roleplay.AiCharacter ?? "",
+                UserCharacter = config.Roleplay.UserCharacter ?? "",
+                ConversationTurns = 0,
+                LoreFiles = 0,
+                ContextLimit = 0,
+                LoreTokens = 0,
+                PersonaTokens = 0,
+                HistoryTokens = 0,
+                Update = updateService.UpdateAvailable ? new
                 {
-                    available = true,
-                    version = updateService.LatestVersion,
-                    url = updateService.DownloadUrl,
+                    Available = true,
+                    Version = updateService.LatestVersion,
+                    Url = updateService.DownloadUrl,
                 } : null,
             });
         });
@@ -52,12 +52,12 @@ public static class StatusEndpoints
             {
                 ["build"] = new
                 {
-                    version = BuildInfo.Version,
-                    informationalVersion = BuildInfo.InformationalVersion,
-                    buildDate = BuildInfo.BuildDate,
-                    buildAge = FormatDuration(BuildInfo.Age),
-                    startTime = BuildInfo.StartTime,
-                    uptime = FormatDuration(BuildInfo.Uptime),
+                    Version = BuildInfo.Version,
+                    InformationalVersion = BuildInfo.InformationalVersion,
+                    BuildDate = BuildInfo.BuildDate,
+                    BuildAge = FormatDuration(BuildInfo.Age),
+                    StartTime = BuildInfo.StartTime,
+                    Uptime = FormatDuration(BuildInfo.Uptime),
                 },
             };
 

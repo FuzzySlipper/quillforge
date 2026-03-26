@@ -12,7 +12,7 @@ public static class SessionEndpoints
         group.MapGet("/", async (ISessionStore store, CancellationToken ct) =>
         {
             var sessions = await store.ListAsync(ct);
-            return Results.Ok(sessions);
+            return Results.Ok(new { Sessions = sessions });
         });
 
         group.MapPost("/new", async (ISessionStore store, ILoggerFactory loggerFactory, CancellationToken ct) =>
@@ -22,7 +22,7 @@ public static class SessionEndpoints
                 "New Session",
                 loggerFactory.CreateLogger<ConversationTree>());
             await store.SaveAsync(tree, ct);
-            return Results.Ok(new { sessionId = tree.SessionId, name = tree.Name });
+            return Results.Ok(new { SessionId = tree.SessionId, Name = tree.Name });
         });
 
         group.MapPost("/{id}/load", async (Guid id, ISessionStore store, CancellationToken ct) =>
@@ -33,27 +33,27 @@ public static class SessionEndpoints
                 var thread = tree.ToFlatThread();
                 return Results.Ok(new
                 {
-                    sessionId = tree.SessionId,
-                    name = tree.Name,
-                    messages = thread.Select(n => new
+                    SessionId = tree.SessionId,
+                    Name = tree.Name,
+                    Messages = thread.Select(n => new
                     {
-                        id = n.Id,
-                        role = n.Role,
-                        content = n.Content.GetText(),
-                        createdAt = n.CreatedAt,
+                        Id = n.Id,
+                        Role = n.Role,
+                        Content = n.Content.GetText(),
+                        CreatedAt = n.CreatedAt,
                     }),
                 });
             }
             catch (FileNotFoundException)
             {
-                return Results.NotFound(new { error = $"Session {id} not found" });
+                return Results.NotFound(new { Error = $"Session {id} not found" });
             }
         });
 
         group.MapDelete("/{id}", async (Guid id, ISessionStore store, CancellationToken ct) =>
         {
             await store.DeleteAsync(id, ct);
-            return Results.Ok(new { deleted = id });
+            return Results.Ok(new { Deleted = id });
         });
 
         group.MapDelete("/{id}/messages/{messageId}", async (
@@ -64,7 +64,7 @@ public static class SessionEndpoints
             var tree = await store.LoadAsync(id, ct);
             var removed = tree.Delete(messageId);
             await store.SaveAsync(tree, ct);
-            return Results.Ok(new { removed });
+            return Results.Ok(new { Removed = removed });
         });
 
         group.MapPost("/{id}/messages/{messageId}/regenerate", async (
@@ -76,15 +76,15 @@ public static class SessionEndpoints
             var node = tree.GetNode(messageId);
             if (node is null)
             {
-                return Results.NotFound(new { error = $"Message {messageId} not found" });
+                return Results.NotFound(new { Error = $"Message {messageId} not found" });
             }
 
             // Create a variant — the actual regeneration (calling the LLM) happens via chat/stream
             // This endpoint just prepares the tree for a new variant
             return Results.Ok(new
             {
-                parentId = node.ParentId,
-                message = "Use chat/stream with parentId to generate a new variant",
+                ParentId = node.ParentId,
+                Message = "Use chat/stream with parentId to generate a new variant",
             });
         });
     }

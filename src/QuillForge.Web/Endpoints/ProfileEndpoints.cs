@@ -23,25 +23,24 @@ public static class ProfileEndpoints
 
             var configPath = Path.Combine(contentRoot, "config.yaml");
             var loader = new ConfigurationLoader(logger);
-            var current = loader.Load(configPath);
 
-            var persona = GetString(root, "persona") ?? current.Persona.Active;
-            var lore = GetString(root, "lore", "lore_set") ?? current.Lore.Active;
-            var style = GetString(root, "writing_style") ?? current.WritingStyle.Active;
-            var layout = GetString(root, "layout") ?? current.Layout.Active;
+            var persona = root.TryGetProperty("persona", out var pEl) ? pEl.GetString() ?? config.Persona.Active : config.Persona.Active;
+            var lore = root.TryGetProperty("lore", out var lEl) ? lEl.GetString() ?? config.Lore.Active : config.Lore.Active;
+            var style = root.TryGetProperty("writingStyle", out var sEl) ? sEl.GetString() ?? config.WritingStyle.Active : config.WritingStyle.Active;
+            var layout = root.TryGetProperty("layout", out var layEl) ? layEl.GetString() ?? config.Layout.Active : config.Layout.Active;
 
             // Build YAML without leading indentation
             var yaml =
                 $"models:\n" +
-                $"  orchestrator: {current.Models.Orchestrator}\n" +
-                $"  prose_writer: {current.Models.ProseWriter}\n" +
-                $"  librarian: {current.Models.Librarian}\n" +
-                $"  forge_writer: {current.Models.ForgeWriter}\n" +
-                $"  forge_planner: {current.Models.ForgePlanner}\n" +
-                $"  forge_reviewer: {current.Models.ForgeReviewer}\n" +
+                $"  orchestrator: {config.Models.Orchestrator}\n" +
+                $"  prose_writer: {config.Models.ProseWriter}\n" +
+                $"  librarian: {config.Models.Librarian}\n" +
+                $"  forge_writer: {config.Models.ForgeWriter}\n" +
+                $"  forge_planner: {config.Models.ForgePlanner}\n" +
+                $"  forge_reviewer: {config.Models.ForgeReviewer}\n" +
                 $"persona:\n" +
                 $"  active: {persona}\n" +
-                $"  max_tokens: {current.Persona.MaxTokens}\n" +
+                $"  max_tokens: {config.Persona.MaxTokens}\n" +
                 $"lore:\n" +
                 $"  active: {lore}\n" +
                 $"writing_style:\n" +
@@ -49,20 +48,32 @@ public static class ProfileEndpoints
                 $"layout:\n" +
                 $"  active: {layout}\n" +
                 $"roleplay:\n" +
-                $"  ai_character: {current.Roleplay.AiCharacter ?? ""}\n" +
-                $"  user_character: {current.Roleplay.UserCharacter ?? ""}\n" +
+                $"  ai_character: {config.Roleplay.AiCharacter ?? ""}\n" +
+                $"  user_character: {config.Roleplay.UserCharacter ?? ""}\n" +
                 $"forge:\n" +
-                $"  review_pass_threshold: {current.Forge.ReviewPassThreshold}\n" +
-                $"  max_revisions: {current.Forge.MaxRevisions}\n" +
-                $"  pause_after_chapter1: {current.Forge.PauseAfterChapter1.ToString().ToLowerInvariant()}\n" +
-                $"  stage_timeout_minutes: {current.Forge.StageTimeoutMinutes}\n" +
+                $"  review_pass_threshold: {config.Forge.ReviewPassThreshold}\n" +
+                $"  max_revisions: {config.Forge.MaxRevisions}\n" +
+                $"  pause_after_chapter1: {config.Forge.PauseAfterChapter1.ToString().ToLowerInvariant()}\n" +
+                $"  stage_timeout_minutes: {config.Forge.StageTimeoutMinutes}\n" +
                 $"web_search:\n" +
-                $"  enabled: {current.WebSearch.Enabled.ToString().ToLowerInvariant()}\n" +
-                $"  provider: {current.WebSearch.Provider}\n" +
-                $"  searxng_url: {current.WebSearch.SearxngUrl ?? ""}\n" +
-                $"  max_results: {current.WebSearch.MaxResults}\n";
+                $"  enabled: {config.WebSearch.Enabled.ToString().ToLowerInvariant()}\n" +
+                $"  provider: {config.WebSearch.Provider}\n" +
+                $"  searxng_url: {config.WebSearch.SearxngUrl ?? ""}\n" +
+                $"  max_results: {config.WebSearch.MaxResults}\n";
 
             await writer.WriteAsync(configPath, yaml, ct);
+
+            // Reload the singleton so all endpoints see the new values
+            var reloaded = loader.Load(configPath);
+            config.Models = reloaded.Models;
+            config.Persona = reloaded.Persona;
+            config.Lore = reloaded.Lore;
+            config.WritingStyle = reloaded.WritingStyle;
+            config.Layout = reloaded.Layout;
+            config.Roleplay = reloaded.Roleplay;
+            config.Forge = reloaded.Forge;
+            config.WebSearch = reloaded.WebSearch;
+            config.Email = reloaded.Email;
 
             logger.LogInformation(
                 "Profile switched: persona={Persona}, lore={Lore}, style={Style}",
@@ -70,21 +81,21 @@ public static class ProfileEndpoints
 
             return Results.Ok(new
             {
-                status = "ok",
-                active_persona = persona,
-                active_lore = lore,
-                active_writing_style = style,
-                lore_files = 0,
+                Status = "ok",
+                ActivePersona = persona,
+                ActiveLore = lore,
+                ActiveWritingStyle = style,
+                LoreFiles = 0,
             });
         });
 
-        // Persona endpoints — matches Python response shape: { files: [...], persona_path: "..." }
+        // Persona endpoints
         app.MapGet("/api/persona", (AppConfig config) =>
         {
             var personaDir = Path.Combine(contentRoot, "persona");
             if (!Directory.Exists(personaDir))
             {
-                return Results.Ok(new { files = Array.Empty<object>(), persona_path = personaDir });
+                return Results.Ok(new { Files = Array.Empty<object>(), PersonaPath = personaDir });
             }
 
             var files = new List<object>();
@@ -92,10 +103,10 @@ public static class ProfileEndpoints
             {
                 var rel = Path.GetRelativePath(personaDir, p);
                 var content = File.ReadAllText(p);
-                files.Add(new { path = rel, tokens = content.Length / 4, size = content.Length });
+                files.Add(new { Path = rel, Tokens = content.Length / 4, Size = content.Length });
             }
 
-            return Results.Ok(new { files, persona_path = personaDir });
+            return Results.Ok(new { Files = files, PersonaPath = personaDir });
         });
 
         app.MapGet("/api/persona/{**filePath}", async (string filePath, CancellationToken ct) =>
@@ -103,19 +114,19 @@ public static class ProfileEndpoints
             var resolved = Path.GetFullPath(Path.Combine(contentRoot, "persona", filePath));
             if (!resolved.StartsWith(Path.Combine(contentRoot, "persona")) || !File.Exists(resolved))
             {
-                return Results.NotFound(new { error = "File not found" });
+                return Results.NotFound(new { Error = "File not found" });
             }
             var content = await File.ReadAllTextAsync(resolved, ct);
-            return Results.Ok(new { path = filePath, content, tokens = content.Length / 4 });
+            return Results.Ok(new { Path = filePath, Content = content, Tokens = content.Length / 4 });
         });
 
-        // Writing style endpoints — matches Python: { files: [...], active: "..." }
+        // Writing style endpoints
         app.MapGet("/api/writing-styles", (AppConfig config) =>
         {
             var stylesDir = Path.Combine(contentRoot, "writing-styles");
             if (!Directory.Exists(stylesDir))
             {
-                return Results.Ok(new { files = Array.Empty<object>(), active = config.WritingStyle.Active });
+                return Results.Ok(new { Files = Array.Empty<object>(), Active = config.WritingStyle.Active });
             }
 
             var files = new List<object>();
@@ -124,30 +135,75 @@ public static class ProfileEndpoints
                 var content = File.ReadAllText(p);
                 files.Add(new
                 {
-                    path = Path.GetFileName(p),
-                    name = Path.GetFileNameWithoutExtension(p),
-                    tokens = content.Length / 4,
-                    size = content.Length,
+                    Path = Path.GetFileName(p),
+                    Name = Path.GetFileNameWithoutExtension(p),
+                    Tokens = content.Length / 4,
+                    Size = content.Length,
                 });
             }
 
-            return Results.Ok(new { files, active = config.WritingStyle.Active });
+            return Results.Ok(new { Files = files, Active = config.WritingStyle.Active });
         });
 
         app.MapGet("/api/writing-styles/{name}", async (string name, IWritingStyleStore store, CancellationToken ct) =>
         {
             var content = await store.LoadAsync(name, ct);
-            return Results.Ok(new { path = name, content, tokens = content.Length / 4 });
+            return Results.Ok(new { Path = name, Content = content, Tokens = content.Length / 4 });
         });
 
-        // Layout switch
+        // Layout switch — persists to config.yaml via profiles/switch
         app.MapPost("/api/layout", async (
             HttpContext httpContext,
+            AppConfig config,
+            AtomicFileWriter writer,
+            ILogger<ConfigurationLoader> logger,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
-            var layout = GetString(body.RootElement, "layout", "name", "active") ?? "default";
-            return Results.Ok(new { layout });
+            var layout = body.RootElement.TryGetProperty("layout", out var el) ? el.GetString() ?? "default" : "default";
+
+            var configPath = Path.Combine(contentRoot, "config.yaml");
+            var loader = new ConfigurationLoader(logger);
+            var current = loader.Load(configPath);
+
+            var yaml =
+                $"models:\n" +
+                $"  orchestrator: {config.Models.Orchestrator}\n" +
+                $"  prose_writer: {config.Models.ProseWriter}\n" +
+                $"  librarian: {config.Models.Librarian}\n" +
+                $"  forge_writer: {config.Models.ForgeWriter}\n" +
+                $"  forge_planner: {config.Models.ForgePlanner}\n" +
+                $"  forge_reviewer: {config.Models.ForgeReviewer}\n" +
+                $"persona:\n" +
+                $"  active: {config.Persona.Active}\n" +
+                $"  max_tokens: {config.Persona.MaxTokens}\n" +
+                $"lore:\n" +
+                $"  active: {config.Lore.Active}\n" +
+                $"writing_style:\n" +
+                $"  active: {config.WritingStyle.Active}\n" +
+                $"layout:\n" +
+                $"  active: {layout}\n" +
+                $"roleplay:\n" +
+                $"  ai_character: {config.Roleplay.AiCharacter ?? ""}\n" +
+                $"  user_character: {config.Roleplay.UserCharacter ?? ""}\n" +
+                $"forge:\n" +
+                $"  review_pass_threshold: {config.Forge.ReviewPassThreshold}\n" +
+                $"  max_revisions: {config.Forge.MaxRevisions}\n" +
+                $"  pause_after_chapter1: {config.Forge.PauseAfterChapter1.ToString().ToLowerInvariant()}\n" +
+                $"  stage_timeout_minutes: {config.Forge.StageTimeoutMinutes}\n" +
+                $"web_search:\n" +
+                $"  enabled: {config.WebSearch.Enabled.ToString().ToLowerInvariant()}\n" +
+                $"  provider: {config.WebSearch.Provider}\n" +
+                $"  searxng_url: {config.WebSearch.SearxngUrl ?? ""}\n" +
+                $"  max_results: {config.WebSearch.MaxResults}\n";
+
+            await writer.WriteAsync(configPath, yaml, ct);
+
+            // Reload the singleton so all endpoints see the new layout
+            var reloaded = loader.Load(configPath);
+            config.Layout = reloaded.Layout;
+
+            return Results.Ok(new { Layout = layout });
         });
 
         // Forge prompts
@@ -161,11 +217,11 @@ public static class ProfileEndpoints
                 try
                 {
                     var content = await fileService.ReadAsync(file, ct);
-                    prompts.Add(new { name, content });
+                    prompts.Add(new { Name = name, Content = content });
                 }
                 catch { }
             }
-            return Results.Ok(new { prompts });
+            return Results.Ok(new { Prompts = prompts });
         });
 
         // Prompts (council advisors) endpoint
@@ -179,11 +235,11 @@ public static class ProfileEndpoints
                 try
                 {
                     var content = await fileService.ReadAsync(file, ct);
-                    advisors.Add(new { name, content });
+                    advisors.Add(new { Name = name, Content = content });
                 }
                 catch { /* skip unreadable */ }
             }
-            return Results.Ok(new { advisors });
+            return Results.Ok(new { Advisors = advisors });
         });
 
         // Portraits
@@ -192,7 +248,7 @@ public static class ProfileEndpoints
             var dir = Path.Combine(contentRoot, "character-cards");
             if (!Directory.Exists(dir))
             {
-                return Results.Ok(new { portraits = Array.Empty<object>(), current = (string?)null });
+                return Results.Ok(new { Portraits = Array.Empty<object>(), Current = (string?)null });
             }
 
             var portraits = Directory.GetFiles(dir, "*.png")
@@ -200,12 +256,12 @@ public static class ProfileEndpoints
                 .Concat(Directory.GetFiles(dir, "*.webp"))
                 .Select(f => new
                 {
-                    filename = Path.GetFileName(f),
-                    url = $"/content/character-cards/{Path.GetFileName(f)}",
+                    Filename = Path.GetFileName(f),
+                    Url = $"/content/character-cards/{Path.GetFileName(f)}",
                 })
                 .ToList();
 
-            return Results.Ok(new { portraits, current = (string?)null });
+            return Results.Ok(new { Portraits = portraits, Current = (string?)null });
         });
 
         // Character cards
@@ -214,14 +270,14 @@ public static class ProfileEndpoints
             var dir = Path.Combine(contentRoot, "character-cards");
             if (!Directory.Exists(dir))
             {
-                return Results.Ok(new { cards = Array.Empty<object>() });
+                return Results.Ok(new { Cards = Array.Empty<object>() });
             }
 
             var cards = Directory.GetFiles(dir, "*.json")
-                .Select(f => new { name = Path.GetFileNameWithoutExtension(f) })
+                .Select(f => new { Name = Path.GetFileNameWithoutExtension(f) })
                 .ToList();
 
-            return Results.Ok(new { cards });
+            return Results.Ok(new { Cards = cards });
         });
 
         // Conversation history (the frontend calls this instead of sessions/load)
@@ -233,8 +289,8 @@ public static class ProfileEndpoints
             // Return empty history if no active session
             return Results.Ok(new
             {
-                messages = Array.Empty<object>(),
-                session_id = (string?)null,
+                Messages = Array.Empty<object>(),
+                SessionId = (string?)null,
             });
         });
 
@@ -246,12 +302,12 @@ public static class ProfileEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var url = GetString(root, "url", "base_url", "baseUrl") ?? "";
-            var apiKey = GetString(root, "api_key", "apiKey", "key") ?? "";
+            var url = root.TryGetProperty("url", out var urlEl) ? urlEl.GetString() ?? "" : "";
+            var apiKey = root.TryGetProperty("apiKey", out var keyEl) ? keyEl.GetString() ?? "" : "";
 
             if (string.IsNullOrEmpty(url))
             {
-                return Results.Ok(new { models = Array.Empty<object>() });
+                return Results.Ok(new { Models = Array.Empty<object>() });
             }
 
             try
@@ -279,7 +335,7 @@ public static class ProfileEndpoints
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return Results.Ok(new { models = Array.Empty<object>(), error = $"{response.StatusCode}" });
+                    return Results.Ok(new { Models = Array.Empty<object>(), Error = $"{response.StatusCode}" });
                 }
 
                 var json = await response.Content.ReadAsStringAsync(ct);
@@ -291,7 +347,7 @@ public static class ProfileEndpoints
                     var models = data.EnumerateArray()
                         .Select(m => m.GetProperty("id").GetString())
                         .ToList();
-                    return Results.Ok(new { models });
+                    return Results.Ok(new { Models = models });
                 }
 
                 // Ollama format
@@ -300,14 +356,14 @@ public static class ProfileEndpoints
                     var models = ollamaModels.EnumerateArray()
                         .Select(m => m.GetProperty("name").GetString())
                         .ToList();
-                    return Results.Ok(new { models });
+                    return Results.Ok(new { Models = models });
                 }
 
-                return Results.Ok(new { models = Array.Empty<object>() });
+                return Results.Ok(new { Models = Array.Empty<object>() });
             }
             catch (Exception ex)
             {
-                return Results.Ok(new { models = Array.Empty<object>(), error = ex.Message });
+                return Results.Ok(new { Models = Array.Empty<object>(), Error = ex.Message });
             }
         });
 
@@ -322,7 +378,7 @@ public static class ProfileEndpoints
                 "New Session",
                 loggerFactory.CreateLogger<QuillForge.Core.Models.ConversationTree>());
             await store.SaveAsync(tree, ct);
-            return Results.Ok(new { session_id = tree.SessionId, name = tree.Name });
+            return Results.Ok(new { SessionId = tree.SessionId, Name = tree.Name });
         });
 
         // Forge create
@@ -332,38 +388,26 @@ public static class ProfileEndpoints
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
-            var name = GetString(body.RootElement, "name", "project", "project_name") ?? "untitled";
+            var name = body.RootElement.TryGetProperty("name", out var el) ? el.GetString() ?? "untitled" : "untitled";
 
             // Create the forge project directory structure
             await fileService.WriteAsync($"forge/{name}/plan/.gitkeep", "", ct);
             await fileService.WriteAsync($"forge/{name}/drafts/.gitkeep", "", ct);
             await fileService.WriteAsync($"forge/{name}/output/.gitkeep", "", ct);
 
-            return Results.Ok(new { name, created = true });
+            return Results.Ok(new { Name = name, Created = true });
         });
 
         // Projects (story projects)
         app.MapGet("/api/projects", async (IStoryStore store, CancellationToken ct) =>
         {
             var projects = await store.ListProjectsAsync(ct);
-            return Results.Ok(new { projects });
+            return Results.Ok(new { Projects = projects });
         });
 
         // Stub endpoints that return empty data to prevent 404/405 crashes
-        app.MapGet("/api/artifact/current", () => Results.Ok(new { artifact = (object?)null }));
-        app.MapGet("/api/artifact/formats", () => Results.Ok(new { formats = Array.Empty<string>() }));
-        app.MapGet("/api/tts/providers", () => Results.Ok(new { providers = Array.Empty<object>() }));
-    }
-
-    private static string? GetString(JsonElement root, params string[] names)
-    {
-        foreach (var name in names)
-        {
-            if (root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String)
-            {
-                return el.GetString();
-            }
-        }
-        return null;
+        app.MapGet("/api/artifact/current", () => Results.Ok(new { Artifact = (object?)null }));
+        app.MapGet("/api/artifact/formats", () => Results.Ok(new { Formats = Array.Empty<string>() }));
+        app.MapGet("/api/tts/providers", () => Results.Ok(new { Providers = Array.Empty<object>() }));
     }
 }

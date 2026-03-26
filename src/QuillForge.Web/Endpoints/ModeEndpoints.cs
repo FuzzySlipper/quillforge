@@ -14,9 +14,9 @@ public static class ModeEndpoints
         {
             return Results.Ok(new
             {
-                mode = orchestrator.ActiveModeName,
-                project = orchestrator.ProjectName,
-                file = orchestrator.CurrentFile,
+                Mode = orchestrator.ActiveModeName,
+                Project = orchestrator.ProjectName,
+                File = orchestrator.CurrentFile,
             });
         });
 
@@ -43,7 +43,7 @@ public static class ModeEndpoints
                 LastFile = file,
             }, ct);
 
-            return Results.Ok(new { mode, project, file });
+            return Results.Ok(new { Mode = mode, Project = project, File = file });
         });
 
         app.MapGet("/api/profiles", async (
@@ -59,12 +59,12 @@ public static class ModeEndpoints
 
             return Results.Ok(new
             {
-                personas,
-                lore_sets = loreSets,
-                writing_styles = styles,
-                active_persona = config.Persona.Active,
-                active_lore = config.Lore.Active,
-                active_writing_style = config.WritingStyle.Active,
+                Personas = personas,
+                LoreSets = loreSets,
+                WritingStyles = styles,
+                ActivePersona = config.Persona.Active,
+                ActiveLore = config.Lore.Active,
+                ActiveWritingStyle = config.WritingStyle.Active,
             });
         });
 
@@ -72,11 +72,11 @@ public static class ModeEndpoints
         {
             return Results.Ok(new
             {
-                assignments = new
+                Assignments = new
                 {
-                    orchestrator = config.Models.Orchestrator,
-                    prose_writer = config.Models.ProseWriter,
-                    librarian = config.Models.Librarian,
+                    Orchestrator = config.Models.Orchestrator,
+                    ProseWriter = config.Models.ProseWriter,
+                    Librarian = config.Models.Librarian,
                 }
             });
         });

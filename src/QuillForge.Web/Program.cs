@@ -92,6 +92,23 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<AtomicFileWriter>(),
         sp.GetRequiredService<ILogger<RuntimeStateStore>>()));
 
+// --- Provider persistence (encrypted API key storage) ---
+builder.Services.AddSingleton<EncryptedKeyStore>(sp =>
+{
+    var store = new EncryptedKeyStore(
+        Path.Combine(contentRoot, "data"),
+        sp.GetRequiredService<AtomicFileWriter>(),
+        sp.GetRequiredService<ILogger<EncryptedKeyStore>>());
+    store.Initialize();
+    return store;
+});
+builder.Services.AddSingleton(sp =>
+    new ProviderConfigStore(
+        contentRoot,
+        sp.GetRequiredService<EncryptedKeyStore>(),
+        sp.GetRequiredService<AtomicFileWriter>(),
+        sp.GetRequiredService<ILogger<ProviderConfigStore>>()));
+
 // --- Provider registry and default completion service ---
 builder.Services.AddSingleton<ProviderFactory>();
 builder.Services.AddSingleton<ProviderRegistry>();
@@ -153,6 +170,12 @@ builder.Services.AddCors(options =>
     });
 });
 
+// --- Global JSON serialization: camelCase for all API responses ---
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+});
+
 var app = builder.Build();
 
 app.UseCors();
@@ -170,6 +193,61 @@ if (!string.IsNullOrEmpty(runtimeState.LastMode))
     catch (Exception ex)
     {
         app.Logger.LogWarning(ex, "Failed to restore last mode '{Mode}'", runtimeState.LastMode);
+    }
+}
+
+// --- Load persisted providers ---
+{
+    var providerStore = app.Services.GetRequiredService<ProviderConfigStore>();
+    var registry = app.Services.GetRequiredService<ProviderRegistry>();
+    var loadedConfigs = providerStore.Load();
+
+    foreach (var dto in loadedConfigs)
+    {
+        if (!Enum.TryParse<ProviderType>(dto.Type, ignoreCase: true, out var providerType))
+        {
+            app.Logger.LogWarning("Unknown provider type '{Type}' for alias '{Alias}', skipping", dto.Type, dto.Alias);
+            continue;
+        }
+
+        registry.Register(new ProviderConfig
+        {
+            Alias = dto.Alias,
+            Type = providerType,
+            ApiKey = dto.ApiKey ?? "",
+            BaseUrl = dto.BaseUrl,
+            DefaultModel = dto.DefaultModel,
+        });
+    }
+
+    app.Logger.LogInformation("Loaded {Count} persisted providers", loadedConfigs.Count);
+
+    // Bootstrap: if no providers and ANTHROPIC_API_KEY env var is set, create a default
+    if (loadedConfigs.Count == 0)
+    {
+        var anthropicKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+        if (!string.IsNullOrEmpty(anthropicKey))
+        {
+            registry.Register(new ProviderConfig
+            {
+                Alias = "claude",
+                Type = ProviderType.Anthropic,
+                ApiKey = anthropicKey,
+                DefaultModel = "claude-sonnet-4-20250514",
+            });
+
+            var dtos = registry.GetAllConfigs().Select(c => new ProviderConfigDto
+            {
+                Alias = c.Alias,
+                Type = c.Type.ToString(),
+                ApiKey = c.ApiKey,
+                BaseUrl = c.BaseUrl,
+                DefaultModel = c.DefaultModel,
+            }).ToList();
+            providerStore.SaveAsync(dtos).GetAwaiter().GetResult();
+
+            app.Logger.LogInformation("Bootstrapped default 'claude' provider from ANTHROPIC_API_KEY env var");
+        }
     }
 }
 

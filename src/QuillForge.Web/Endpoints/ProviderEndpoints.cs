@@ -1,5 +1,6 @@
 using System.Text.Json;
 using QuillForge.Providers.Registry;
+using QuillForge.Storage.FileSystem;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -17,28 +18,28 @@ public static class ProviderEndpoints
                     var config = registry.GetConfig(p.Alias);
                     return new
                     {
-                        alias = p.Alias,
-                        name = p.Alias,
-                        type = p.Type.ToString(),
-                        defaultModel = config?.DefaultModel,
-                        baseUrl = config?.BaseUrl,
-                        used_by = Array.Empty<string>(),
+                        Alias = p.Alias,
+                        Name = p.Alias,
+                        Type = p.Type.ToString(),
+                        DefaultModel = config?.DefaultModel,
+                        BaseUrl = config?.BaseUrl,
+                        ApiKeySet = !string.IsNullOrEmpty(config?.ApiKey),
+                        UsedBy = Array.Empty<string>(),
                     };
                 });
-            return Results.Ok(new { providers });
+            return Results.Ok(new { Providers = providers });
         });
 
-        group.MapPost("/", async (HttpContext httpContext, ProviderRegistry registry, ILogger<ProviderRegistry> logger) =>
+        group.MapPost("/", async (HttpContext httpContext, ProviderRegistry registry, ProviderConfigStore store, ILogger<ProviderRegistry> logger) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body);
             var root = body.RootElement;
 
-            // Accept both Python-style and C#-style field names
-            var alias = GetString(root, "alias", "name") ?? "unnamed";
-            var typeStr = GetString(root, "type", "provider_type") ?? "Custom";
-            var apiKey = GetString(root, "apiKey", "api_key", "key") ?? "";
-            var baseUrl = GetString(root, "baseUrl", "base_url", "url");
-            var defaultModel = GetString(root, "defaultModel", "default_model", "model");
+            var alias = root.TryGetProperty("alias", out var aliasEl) ? aliasEl.GetString() ?? "unnamed" : "unnamed";
+            var typeStr = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() ?? "Custom" : "Custom";
+            var apiKey = root.TryGetProperty("apiKey", out var keyEl) ? keyEl.GetString() ?? "" : "";
+            var baseUrl = root.TryGetProperty("baseUrl", out var urlEl) ? urlEl.GetString() : null;
+            var defaultModel = root.TryGetProperty("defaultModel", out var modelEl) ? modelEl.GetString() : null;
 
             if (!Enum.TryParse<ProviderType>(typeStr, ignoreCase: true, out var providerType))
             {
@@ -69,10 +70,11 @@ public static class ProviderEndpoints
                 alias, providerType, baseUrl, defaultModel);
 
             registry.Register(config);
-            return Results.Ok(new { registered = config.Alias });
+            await SaveProvidersToDisk(registry, store);
+            return Results.Ok(new { Registered = config.Alias });
         });
 
-        group.MapPut("/{alias}", async (string alias, HttpContext httpContext, ProviderRegistry registry) =>
+        group.MapPut("/{alias}", async (string alias, HttpContext httpContext, ProviderRegistry registry, ProviderConfigStore store) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body);
             var root = body.RootElement;
@@ -80,39 +82,47 @@ public static class ProviderEndpoints
             var existing = registry.GetConfig(alias);
             if (existing is null)
             {
-                return Results.NotFound(new { error = $"Provider '{alias}' not found" });
+                return Results.NotFound(new { Error = $"Provider '{alias}' not found" });
             }
+
+            // Keep existing API key if not provided (don't overwrite with blank)
+            var newApiKey = root.TryGetProperty("apiKey", out var keyEl) ? keyEl.GetString() : null;
 
             var config = existing with
             {
-                ApiKey = GetString(root, "apiKey", "api_key", "key") ?? existing.ApiKey,
-                BaseUrl = GetString(root, "baseUrl", "base_url") ?? existing.BaseUrl,
-                DefaultModel = GetString(root, "defaultModel", "default_model", "model") ?? existing.DefaultModel,
+                ApiKey = !string.IsNullOrEmpty(newApiKey) ? newApiKey : existing.ApiKey,
+                BaseUrl = root.TryGetProperty("baseUrl", out var urlEl) ? urlEl.GetString() ?? existing.BaseUrl : existing.BaseUrl,
+                DefaultModel = root.TryGetProperty("defaultModel", out var modelEl) ? modelEl.GetString() ?? existing.DefaultModel : existing.DefaultModel,
             };
 
             registry.Register(config);
-            return Results.Ok(new { updated = alias });
+            await SaveProvidersToDisk(registry, store);
+            return Results.Ok(new { Updated = alias });
         });
 
-        group.MapDelete("/{alias}", (string alias, ProviderRegistry registry) =>
+        group.MapDelete("/{alias}", async (string alias, ProviderRegistry registry, ProviderConfigStore store) =>
         {
             var removed = registry.Remove(alias);
-            return removed ? Results.Ok(new { deleted = alias }) : Results.NotFound();
+            if (removed)
+            {
+                await SaveProvidersToDisk(registry, store);
+            }
+            return removed ? Results.Ok(new { Deleted = alias }) : Results.NotFound();
         });
 
         group.MapPost("/test", async (HttpContext httpContext, ProviderRegistry registry, CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
-            var alias = GetString(body.RootElement, "alias", "name") ?? "";
+            var alias = body.RootElement.TryGetProperty("alias", out var aliasEl) ? aliasEl.GetString() ?? "" : "";
 
             try
             {
                 var success = await registry.TestConnectionAsync(alias, ct);
-                return Results.Ok(new { alias, success });
+                return Results.Ok(new { Alias = alias, Success = success });
             }
             catch (Exception ex)
             {
-                return Results.Ok(new { alias, success = false, error = ex.Message });
+                return Results.Ok(new { Alias = alias, Success = false, Error = ex.Message });
             }
         });
 
@@ -121,7 +131,7 @@ public static class ProviderEndpoints
             var config = registry.GetConfig(alias);
             if (config is null)
             {
-                return Results.NotFound(new { error = $"Provider '{alias}' not found" });
+                return Results.NotFound(new { Error = $"Provider '{alias}' not found" });
             }
 
             try
@@ -135,20 +145,16 @@ public static class ProviderEndpoints
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        return Results.Ok(new { models = Array.Empty<object>(), error = $"Ollama returned {response.StatusCode}" });
+                        return Results.Ok(new { Models = Array.Empty<string>(), Error = $"Ollama returned {response.StatusCode}" });
                     }
 
                     var json = await response.Content.ReadAsStringAsync(ct);
                     using var doc = JsonDocument.Parse(json);
                     var models = doc.RootElement.GetProperty("models").EnumerateArray()
-                        .Select(m => new
-                        {
-                            id = m.GetProperty("name").GetString(),
-                            name = m.GetProperty("name").GetString(),
-                        })
+                        .Select(m => m.GetProperty("name").GetString())
                         .ToList();
 
-                    return Results.Ok(new { models });
+                    return Results.Ok(new { Models = models });
                 }
 
                 // For OpenAI-compatible providers, try the /v1/models endpoint
@@ -165,20 +171,16 @@ public static class ProviderEndpoints
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        return Results.Ok(new { models = Array.Empty<object>(), error = $"API returned {response.StatusCode}" });
+                        return Results.Ok(new { Models = Array.Empty<string>(), Error = $"API returned {response.StatusCode}" });
                     }
 
                     var json = await response.Content.ReadAsStringAsync(ct);
                     using var doc = JsonDocument.Parse(json);
                     var models = doc.RootElement.GetProperty("data").EnumerateArray()
-                        .Select(m => new
-                        {
-                            id = m.GetProperty("id").GetString(),
-                            name = m.GetProperty("id").GetString(),
-                        })
+                        .Select(m => m.GetProperty("id").GetString())
                         .ToList();
 
-                    return Results.Ok(new { models });
+                    return Results.Ok(new { Models = models });
                 }
 
                 // For Anthropic, return a static list (no list models API)
@@ -186,35 +188,34 @@ public static class ProviderEndpoints
                 {
                     var models = new[]
                     {
-                        new { id = "claude-opus-4-20250514", name = "Claude Opus 4" },
-                        new { id = "claude-sonnet-4-20250514", name = "Claude Sonnet 4" },
-                        new { id = "claude-haiku-4-20250414", name = "Claude Haiku 4" },
+                        "claude-opus-4-20250514",
+                        "claude-sonnet-4-20250514",
+                        "claude-haiku-4-20250414",
                     };
-                    return Results.Ok(new { models });
+                    return Results.Ok(new { Models = models });
                 }
 
-                return Results.Ok(new { models = Array.Empty<object>() });
+                return Results.Ok(new { Models = Array.Empty<string>() });
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to fetch models for provider {Alias}", alias);
-                return Results.Ok(new { models = Array.Empty<object>(), error = ex.Message });
+                return Results.Ok(new { Models = Array.Empty<object>(), Error = ex.Message });
             }
         });
     }
 
-    /// <summary>
-    /// Tries multiple property names and returns the first match found.
-    /// </summary>
-    private static string? GetString(JsonElement root, params string[] names)
+    private static async Task SaveProvidersToDisk(ProviderRegistry registry, ProviderConfigStore store)
     {
-        foreach (var name in names)
+        var configs = registry.GetAllConfigs();
+        var dtos = configs.Select(c => new ProviderConfigDto
         {
-            if (root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String)
-            {
-                return el.GetString();
-            }
-        }
-        return null;
+            Alias = c.Alias,
+            Type = c.Type.ToString(),
+            ApiKey = c.ApiKey,
+            BaseUrl = c.BaseUrl,
+            DefaultModel = c.DefaultModel,
+        }).ToList();
+        await store.SaveAsync(dtos);
     }
 }

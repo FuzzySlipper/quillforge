@@ -7,6 +7,11 @@ namespace QuillForge.Web.Endpoints;
 
 public static class ChatEndpoints
 {
+    private static readonly JsonSerializerOptions s_jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     public static void MapChatEndpoints(this WebApplication app)
     {
         app.MapPost("/api/chat/stream", async (
@@ -67,10 +72,10 @@ public static class ChatEndpoints
             {
                 var eventData = evt switch
                 {
-                    TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new { type = "text_delta", text = text.Text })}\n\n",
-                    ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new { type = "tool_call", name = tool.ToolName, id = tool.ToolId })}\n\n",
-                    DoneEvent done => $"data: {JsonSerializer.Serialize(new { type = "done", stopReason = done.StopReason, usage = new { input = done.Usage.InputTokens, output = done.Usage.OutputTokens } })}\n\n",
-                    ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new { type = "reasoning_delta", text = reasoning.Text })}\n\n",
+                    TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new { Type = "text_delta", Text = text.Text }, s_jsonOptions)}\n\n",
+                    ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new { Type = "tool_call", Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
+                    DoneEvent done => $"data: {JsonSerializer.Serialize(new { Type = "done", StopReason = done.StopReason, Usage = new { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens } }, s_jsonOptions)}\n\n",
+                    ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new { Type = "reasoning_delta", Text = reasoning.Text }, s_jsonOptions)}\n\n",
                     _ => null,
                 };
 
