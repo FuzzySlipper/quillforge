@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+      - run: dotnet restore QuillForge.slnx
+      - run: dotnet build QuillForge.slnx --no-restore -c Release
+      - run: dotnet test QuillForge.slnx --no-build -c Release
+
+  publish:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact: quillforge-linux-x64
+          - os: windows-latest
+            rid: win-x64
+            artifact: quillforge-win-x64
+          - os: macos-latest
+            rid: osx-arm64
+            artifact: quillforge-osx-arm64
+          - os: macos-13
+            rid: osx-x64
+            artifact: quillforge-osx-x64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Publish
+        run: >
+          dotnet publish src/QuillForge.Web/QuillForge.Web.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: publish/
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Package artifacts
+        run: |
+          cd artifacts
+          for dir in */; do
+            name="${dir%/}"
+            tar -czf "../${name}.tar.gz" -C "$dir" .
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.tar.gz'
+          generate_release_notes: true

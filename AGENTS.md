@@ -167,10 +167,12 @@ Stages: Planning → Design → Writing → Review → Assembly. Each stage is i
 ## Build & Test
 
 ```bash
-dotnet restore QuillForge.sln
-dotnet build QuillForge.sln
-dotnet test QuillForge.sln
+dotnet restore QuillForge.slnx
+dotnet build QuillForge.slnx
+dotnet test QuillForge.slnx    # 114 tests as of Task 7 completion
 ```
+
+**Note:** The Web project and Architecture.Tests require `AllowMissingPrunePackageData=true` due to a .NET 10 preview SDK issue with the ASP.NET Core framework reference.
 
 ### Publishing
 

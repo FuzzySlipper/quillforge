@@ -1,0 +1,138 @@
+using Microsoft.Extensions.Logging;
+
+namespace QuillForge.Storage.Configuration;
+
+/// <summary>
+/// Detects fresh installations and creates the default build/ directory structure.
+/// Populates from dev/defaults if available, otherwise creates minimal stubs.
+/// </summary>
+public sealed class FirstRunSetup
+{
+    private readonly ILogger<FirstRunSetup> _logger;
+
+    private static readonly string[] ContentDirectories =
+    [
+        "lore/default",
+        "persona",
+        "writing-styles",
+        "story",
+        "writing",
+        "chats",
+        "forge",
+        "forge-prompts",
+        "council",
+        "layouts",
+        "character-cards",
+        "backgrounds",
+        "generated-images",
+        "data/sessions",
+        "data/llm-debug",
+    ];
+
+    public FirstRunSetup(ILogger<FirstRunSetup> logger)
+    {
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Ensures the content directory structure exists. Creates missing directories and defaults.
+    /// Returns true if this was a first run (no existing content directory).
+    /// </summary>
+    public bool EnsureContentDirectory(string contentRoot, string? defaultsPath = null)
+    {
+        var isFirstRun = !Directory.Exists(contentRoot);
+
+        foreach (var dir in ContentDirectories)
+        {
+            var path = Path.Combine(contentRoot, dir);
+            if (!Directory.Exists(path))
+            {
+                Directory.CreateDirectory(path);
+                _logger.LogDebug("Created directory: {Path}", path);
+            }
+        }
+
+        if (isFirstRun)
+        {
+            _logger.LogInformation("First run detected. Created content directory at {Path}", contentRoot);
+
+            if (defaultsPath is not null && Directory.Exists(defaultsPath))
+            {
+                CopyDefaults(defaultsPath, contentRoot);
+            }
+            else
+            {
+                CreateMinimalDefaults(contentRoot);
+            }
+
+            // Always create config.yaml if missing
+            var configPath = Path.Combine(contentRoot, "config.yaml");
+            if (!File.Exists(configPath))
+            {
+                var configLoader = new ConfigurationLoader(
+                    Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance
+                        .CreateLogger<ConfigurationLoader>());
+                configLoader.WriteDefaults(configPath);
+            }
+        }
+
+        return isFirstRun;
+    }
+
+    /// <summary>
+    /// Copies the full dev/defaults directory tree into the content root.
+    /// Preserves directory structure. Skips files that already exist.
+    /// </summary>
+    private void CopyDefaults(string defaultsPath, string contentRoot)
+    {
+        var fileCount = 0;
+
+        foreach (var sourceFile in Directory.GetFiles(defaultsPath, "*", SearchOption.AllDirectories))
+        {
+            var relativePath = Path.GetRelativePath(defaultsPath, sourceFile);
+            var targetPath = Path.Combine(contentRoot, relativePath);
+
+            if (File.Exists(targetPath))
+                continue;
+
+            var targetDir = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrEmpty(targetDir))
+                Directory.CreateDirectory(targetDir);
+
+            File.Copy(sourceFile, targetPath);
+            fileCount++;
+        }
+
+        _logger.LogInformation(
+            "Copied {Count} default files from {Source} to {Target}",
+            fileCount, defaultsPath, contentRoot);
+    }
+
+    /// <summary>
+    /// Creates minimal stub files when no defaults directory is available.
+    /// </summary>
+    private void CreateMinimalDefaults(string contentRoot)
+    {
+        WriteIfMissing(Path.Combine(contentRoot, "persona", "default.md"), """
+            You are a creative writing assistant. You help authors build rich fictional worlds,
+            write compelling prose, and manage their creative projects. You are knowledgeable,
+            imaginative, and attentive to detail.
+            """);
+
+        WriteIfMissing(Path.Combine(contentRoot, "writing-styles", "default.md"), """
+            Write in a clear, engaging literary style. Use vivid sensory details and strong verbs.
+            Vary sentence length for rhythm. Show, don't tell. Use dialogue to reveal character.
+            Maintain a consistent narrative voice throughout.
+            """);
+
+        _logger.LogInformation("Created minimal default content files");
+    }
+
+    private static void WriteIfMissing(string path, string content)
+    {
+        if (File.Exists(path)) return;
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+        File.WriteAllText(path, content);
+    }
+}

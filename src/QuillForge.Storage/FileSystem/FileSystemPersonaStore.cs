@@ -5,6 +5,8 @@ namespace QuillForge.Storage.FileSystem;
 
 /// <summary>
 /// Loads persona/character definitions from the file system.
+/// A persona can be either a single .md file or a directory containing multiple .md files
+/// (which are concatenated in alphabetical order).
 /// </summary>
 public sealed class FileSystemPersonaStore : IPersonaStore
 {
@@ -19,16 +21,37 @@ public sealed class FileSystemPersonaStore : IPersonaStore
 
     public async Task<string> LoadAsync(string personaName, CancellationToken ct = default)
     {
-        var path = FindPersonaFile(personaName);
-        _logger.LogDebug("Loading persona: {Path}", path);
+        _logger.LogDebug("Loading persona: {Name}", personaName);
 
-        if (!File.Exists(path))
+        // Check for a directory-based persona first
+        var dirPath = Path.Combine(_personaPath, personaName);
+        if (Directory.Exists(dirPath))
         {
-            _logger.LogWarning("Persona not found: {Name}, returning empty", personaName);
-            return "";
+            var files = Directory.GetFiles(dirPath, "*.md", SearchOption.TopDirectoryOnly)
+                .OrderBy(f => f)
+                .ToList();
+
+            if (files.Count > 0)
+            {
+                var parts = new List<string>();
+                foreach (var file in files)
+                {
+                    parts.Add(await File.ReadAllTextAsync(file, ct));
+                }
+                _logger.LogDebug("Loaded persona {Name} from {Count} files in directory", personaName, files.Count);
+                return string.Join("\n\n", parts);
+            }
         }
 
-        return await File.ReadAllTextAsync(path, ct);
+        // Fall back to single file
+        var filePath = Path.Combine(_personaPath, personaName + ".md");
+        if (File.Exists(filePath))
+        {
+            return await File.ReadAllTextAsync(filePath, ct);
+        }
+
+        _logger.LogWarning("Persona not found: {Name}, returning empty", personaName);
+        return "";
     }
 
     public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
@@ -38,19 +61,21 @@ public sealed class FileSystemPersonaStore : IPersonaStore
             return Task.FromResult<IReadOnlyList<string>>([]);
         }
 
-        var personas = Directory.GetFiles(_personaPath, "*.md")
-            .Select(f => Path.GetFileNameWithoutExtension(f))
-            .OrderBy(n => n)
-            .ToList();
+        var personas = new HashSet<string>();
 
-        return Task.FromResult<IReadOnlyList<string>>(personas);
-    }
+        // Add directory-based personas
+        foreach (var dir in Directory.GetDirectories(_personaPath))
+        {
+            personas.Add(Path.GetFileName(dir));
+        }
 
-    private string FindPersonaFile(string personaName)
-    {
-        var exact = Path.Combine(_personaPath, personaName);
-        if (File.Exists(exact)) return exact;
+        // Add single-file personas
+        foreach (var file in Directory.GetFiles(_personaPath, "*.md"))
+        {
+            personas.Add(Path.GetFileNameWithoutExtension(file));
+        }
 
-        return Path.Combine(_personaPath, personaName + ".md");
+        var sorted = personas.OrderBy(n => n).ToList();
+        return Task.FromResult<IReadOnlyList<string>>(sorted);
     }
 }
