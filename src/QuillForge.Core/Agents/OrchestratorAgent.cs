@@ -87,7 +87,7 @@ public sealed class OrchestratorAgent
             "Orchestrator handling message in {Mode} mode, session {SessionId}",
             _activeMode.Name, context.SessionId);
 
-        var persona = await _personaStore.LoadAsync(personaName, ct);
+        var persona = await _personaStore.LoadAsync(personaName, ct: ct);
         var effectiveModeContext = modeContext ?? new ModeContext
         {
             ProjectName = _projectName,
@@ -151,7 +151,7 @@ public sealed class OrchestratorAgent
         ModeContext modeContext,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        var persona = await _personaStore.LoadAsync(personaName, ct);
+        var persona = await _personaStore.LoadAsync(personaName, ct: ct);
         var systemPrompt = BuildSystemPrompt(persona, modeContext);
 
         var config = new AgentConfig

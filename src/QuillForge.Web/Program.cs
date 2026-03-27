@@ -1,11 +1,14 @@
 using QuillForge.Core.Agents;
 using QuillForge.Core.Agents.Modes;
 using QuillForge.Core.Agents.Tools;
+using QuillForge.Core.Diagnostics;
 using QuillForge.Core.Models;
 using QuillForge.Core.Pipeline;
 using QuillForge.Core.Services;
 using QuillForge.Providers.Adapters;
+using QuillForge.Providers.ImageGen;
 using QuillForge.Providers.Registry;
+using QuillForge.Providers.Tts;
 using QuillForge.Storage.Configuration;
 using QuillForge.Storage.FileSystem;
 using QuillForge.Storage.Utilities;
@@ -58,6 +61,9 @@ builder.Services.AddSingleton(appConfig);
 // --- Utilities ---
 builder.Services.AddSingleton<AtomicFileWriter>();
 
+// --- LLM debug logging ---
+builder.Services.AddSingleton<ILlmDebugLogger>(new LlmDebugLogger(Path.Combine(contentRoot, "data")));
+
 // --- Storage services (explicit registration, no scanning) ---
 builder.Services.AddSingleton<IContentFileService>(sp =>
     new FileSystemContentService(contentRoot,
@@ -77,9 +83,21 @@ builder.Services.AddSingleton<IWritingStyleStore>(sp =>
     new FileSystemWritingStyleStore(Path.Combine(contentRoot, "writing-styles"),
         sp.GetRequiredService<ILogger<FileSystemWritingStyleStore>>()));
 
+builder.Services.AddSingleton<IArtifactService>(sp =>
+    new FileSystemArtifactService(Path.Combine(contentRoot, "artifacts"),
+        sp.GetRequiredService<AtomicFileWriter>(),
+        sp.GetRequiredService<ILogger<FileSystemArtifactService>>()));
+
 builder.Services.AddSingleton<IPersonaStore>(sp =>
     new FileSystemPersonaStore(Path.Combine(contentRoot, "persona"),
         sp.GetRequiredService<ILogger<FileSystemPersonaStore>>()));
+
+builder.Services.AddSingleton<ICharacterCardStore>(sp =>
+    new FileSystemCharacterCardStore(
+        Path.Combine(contentRoot, "character-cards"),
+        Path.Combine(contentRoot, "character-cards"),
+        sp.GetRequiredService<AtomicFileWriter>(),
+        sp.GetRequiredService<ILogger<FileSystemCharacterCardStore>>()));
 
 builder.Services.AddSingleton<ISessionStore>(sp =>
     new FileSystemSessionStore(Path.Combine(contentRoot, "data", "sessions"),
@@ -131,6 +149,16 @@ builder.Services.AddSingleton<ProseWriterAgent>(sp =>
         sp.GetRequiredService<ILogger<ProseWriterAgent>>());
 });
 
+builder.Services.AddSingleton<DelegatePool>(sp =>
+{
+    var registry = sp.GetRequiredService<ProviderRegistry>();
+    var logger = sp.GetRequiredService<ILogger<DelegatePool>>();
+    return new DelegatePool(alias => registry.GetCompletionService(alias), logger);
+});
+
+builder.Services.AddSingleton<ICouncilService, CouncilService>();
+builder.Services.AddSingleton<RunCouncilHandler>();
+
 builder.Services.AddSingleton<ForgePlannerAgent>();
 builder.Services.AddSingleton<ForgeWriterAgent>();
 builder.Services.AddSingleton<ForgeReviewerAgent>(sp =>
@@ -156,10 +184,105 @@ builder.Services.AddSingleton<IPipelineStage, ReviewStage>();
 builder.Services.AddSingleton<IPipelineStage, AssemblyStage>();
 builder.Services.AddSingleton<ForgePipeline>();
 
+// --- Web search provider ---
+if (appConfig.WebSearch.Enabled)
+{
+    builder.Services.AddSingleton<IWebSearchService>(sp =>
+    {
+        var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
+        var cfg = sp.GetRequiredService<AppConfig>().WebSearch;
+        var provider = cfg.Provider.ToLowerInvariant();
+
+        return provider switch
+        {
+            "tavily" => new QuillForge.Providers.WebSearch.TavilySearchProvider(
+                httpFactory.CreateClient("WebSearch"),
+                cfg.TavilyApiKey ?? throw new InvalidOperationException("WebSearch provider 'tavily' requires TavilyApiKey"),
+                cfg.MaxResults,
+                sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.TavilySearchProvider>>()),
+
+            "brave" => new QuillForge.Providers.WebSearch.BraveSearchProvider(
+                httpFactory.CreateClient("WebSearch"),
+                cfg.BraveApiKey ?? throw new InvalidOperationException("WebSearch provider 'brave' requires BraveApiKey"),
+                cfg.MaxResults,
+                sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.BraveSearchProvider>>()),
+
+            "google" => new QuillForge.Providers.WebSearch.GoogleSearchProvider(
+                httpFactory.CreateClient("WebSearch"),
+                cfg.GoogleApiKey ?? throw new InvalidOperationException("WebSearch provider 'google' requires GoogleApiKey"),
+                cfg.GoogleCxId ?? throw new InvalidOperationException("WebSearch provider 'google' requires GoogleCxId"),
+                cfg.MaxResults,
+                sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.GoogleSearchProvider>>()),
+
+            _ => new QuillForge.Providers.WebSearch.SearxngSearchProvider(
+                httpFactory.CreateClient("WebSearch"),
+                cfg.SearxngUrl ?? throw new InvalidOperationException("WebSearch provider 'searxng' requires SearxngUrl"),
+                cfg.MaxResults,
+                sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.SearxngSearchProvider>>()),
+        };
+    });
+}
+
 // --- Auto-update checker ---
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<QuillForge.Web.Services.AutoUpdateService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<QuillForge.Web.Services.AutoUpdateService>());
+
+// --- Image generation providers ---
+{
+    var imageProviders = new List<IImageGenerator>();
+    var imageOutputDir = Path.Combine(contentRoot, "generated-images");
+
+    // ComfyUI (local)
+    var comfyUrl = Environment.GetEnvironmentVariable("COMFYUI_URL");
+    if (!string.IsNullOrEmpty(comfyUrl))
+    {
+        imageProviders.Add(new ComfyUiImageGenerator(new HttpClient(), comfyUrl, imageOutputDir,
+            LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ComfyUiImageGenerator>()));
+    }
+
+    // OpenAI DALL-E
+    var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+    if (!string.IsNullOrEmpty(openAiKey))
+    {
+        imageProviders.Add(new OpenAiImageGenerator(new HttpClient(), openAiKey, imageOutputDir,
+            LoggerFactory.Create(b => b.AddConsole()).CreateLogger<OpenAiImageGenerator>()));
+    }
+
+    if (imageProviders.Count > 0)
+    {
+        builder.Services.AddSingleton<IImageGenerator>(sp =>
+            new FallbackImageGenerator(imageProviders,
+                sp.GetRequiredService<ILogger<FallbackImageGenerator>>()));
+    }
+}
+
+// --- TTS providers (register if keys are available) ---
+{
+    var ttsProviders = new List<ITtsGenerator>();
+    var ttsOutputDir = Path.Combine(contentRoot, "generated-audio");
+
+    var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+    if (!string.IsNullOrEmpty(openAiKey))
+    {
+        ttsProviders.Add(new OpenAiTtsGenerator(new HttpClient(), openAiKey, ttsOutputDir,
+            LoggerFactory.Create(b => b.AddConsole()).CreateLogger<OpenAiTtsGenerator>()));
+    }
+
+    var elevenLabsKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY");
+    if (!string.IsNullOrEmpty(elevenLabsKey))
+    {
+        ttsProviders.Add(new ElevenLabsTtsGenerator(new HttpClient(), elevenLabsKey, ttsOutputDir,
+            LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ElevenLabsTtsGenerator>()));
+    }
+
+    if (ttsProviders.Count > 0)
+    {
+        builder.Services.AddSingleton<ITtsGenerator>(sp =>
+            new FallbackTtsGenerator(ttsProviders,
+                sp.GetRequiredService<ILogger<FallbackTtsGenerator>>()));
+    }
+}
 
 // --- CORS for local development ---
 builder.Services.AddCors(options =>
@@ -216,7 +339,17 @@ if (!string.IsNullOrEmpty(runtimeState.LastMode))
             Type = providerType,
             ApiKey = dto.ApiKey ?? "",
             BaseUrl = dto.BaseUrl,
+            ModelsUrl = dto.ModelsUrl,
             DefaultModel = dto.DefaultModel,
+            ContextLimit = dto.ContextLimit,
+            Options = dto.Options is not null ? new ProviderOptions
+            {
+                Temperature = dto.Options.Temperature,
+                TopP = dto.Options.TopP,
+                TopK = dto.Options.TopK,
+                FrequencyPenalty = dto.Options.FrequencyPenalty,
+                PresencePenalty = dto.Options.PresencePenalty,
+            } : null,
         });
     }
 
@@ -264,6 +397,12 @@ app.MapProviderEndpoints();
 app.MapForgeEndpoints();
 app.MapContentEndpoints(contentRoot);
 app.MapProfileEndpoints(contentRoot);
+
+// --- Debug bridge (Development only) ---
+if (app.Environment.IsDevelopment())
+{
+    app.MapDebugBridgeEndpoints();
+}
 
 // --- SPA fallback ---
 app.MapFallbackToFile("index.html");

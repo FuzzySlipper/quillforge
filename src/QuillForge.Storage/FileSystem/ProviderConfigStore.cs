@@ -15,8 +15,23 @@ public sealed class ProviderConfigDto
     public required string Type { get; init; }
     public string? ApiKey { get; init; }
     public string? BaseUrl { get; init; }
+    public string? ModelsUrl { get; init; }
     public string? DefaultModel { get; init; }
+    public int? ContextLimit { get; init; }
     public IReadOnlyDictionary<string, string>? ExtraSettings { get; init; }
+    public ProviderOptionsDto? Options { get; init; }
+}
+
+/// <summary>
+/// Per-provider sampling parameters DTO (Storage layer mirror of Providers.ProviderOptions).
+/// </summary>
+public sealed class ProviderOptionsDto
+{
+    public float? Temperature { get; init; }
+    public float? TopP { get; init; }
+    public int? TopK { get; init; }
+    public float? FrequencyPenalty { get; init; }
+    public float? PresencePenalty { get; init; }
 }
 
 /// <summary>
@@ -86,8 +101,11 @@ public sealed class ProviderConfigStore
                     Type = sp.Type,
                     ApiKey = apiKey,
                     BaseUrl = sp.BaseUrl,
+                    ModelsUrl = sp.ModelsUrl,
                     DefaultModel = sp.DefaultModel,
+                    ContextLimit = sp.ContextLimit,
                     ExtraSettings = sp.ExtraSettings,
+                    Options = sp.Options,
                 });
             }
 
@@ -114,8 +132,11 @@ public sealed class ProviderConfigStore
                 Type = c.Type,
                 EncryptedApiKey = !string.IsNullOrEmpty(c.ApiKey) ? _keyStore.Encrypt(c.ApiKey) : null,
                 BaseUrl = c.BaseUrl,
+                ModelsUrl = c.ModelsUrl,
                 DefaultModel = c.DefaultModel,
+                ContextLimit = c.ContextLimit,
                 ExtraSettings = c.ExtraSettings,
+                Options = c.Options,
             }).ToList(),
         };
 
@@ -137,7 +158,10 @@ public sealed class ProviderConfigStore
         public required string Type { get; set; }
         public string? EncryptedApiKey { get; set; }
         public string? BaseUrl { get; set; }
+        public string? ModelsUrl { get; set; }
         public string? DefaultModel { get; set; }
+        public int? ContextLimit { get; set; }
         public IReadOnlyDictionary<string, string>? ExtraSettings { get; set; }
+        public ProviderOptionsDto? Options { get; set; }
     }
 }

@@ -66,6 +66,10 @@ public sealed record WebSearchConfig
     public bool Enabled { get; set; }
     public string Provider { get; set; } = "searxng";
     public string? SearxngUrl { get; set; }
+    public string? TavilyApiKey { get; set; }
+    public string? BraveApiKey { get; set; }
+    public string? GoogleApiKey { get; set; }
+    public string? GoogleCxId { get; set; }
     public int MaxResults { get; set; } = 50;
 }
 

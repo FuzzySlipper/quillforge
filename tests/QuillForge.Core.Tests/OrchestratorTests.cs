@@ -118,7 +118,7 @@ public class OrchestratorTests
 /// </summary>
 internal sealed class FakePersonaStore : QuillForge.Core.Services.IPersonaStore
 {
-    public Task<string> LoadAsync(string personaName, CancellationToken ct = default)
+    public Task<string> LoadAsync(string personaName, int? maxTokens = null, CancellationToken ct = default)
     {
         return Task.FromResult("You are a test persona. Be helpful and creative.");
     }

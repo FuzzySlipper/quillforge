@@ -29,51 +29,12 @@ public static class ProfileEndpoints
             var style = root.TryGetProperty("writingStyle", out var sEl) ? sEl.GetString() ?? config.WritingStyle.Active : config.WritingStyle.Active;
             var layout = root.TryGetProperty("layout", out var layEl) ? layEl.GetString() ?? config.Layout.Active : config.Layout.Active;
 
-            // Build YAML without leading indentation
-            var yaml =
-                $"models:\n" +
-                $"  orchestrator: {config.Models.Orchestrator}\n" +
-                $"  prose_writer: {config.Models.ProseWriter}\n" +
-                $"  librarian: {config.Models.Librarian}\n" +
-                $"  forge_writer: {config.Models.ForgeWriter}\n" +
-                $"  forge_planner: {config.Models.ForgePlanner}\n" +
-                $"  forge_reviewer: {config.Models.ForgeReviewer}\n" +
-                $"persona:\n" +
-                $"  active: {persona}\n" +
-                $"  max_tokens: {config.Persona.MaxTokens}\n" +
-                $"lore:\n" +
-                $"  active: {lore}\n" +
-                $"writing_style:\n" +
-                $"  active: {style}\n" +
-                $"layout:\n" +
-                $"  active: {layout}\n" +
-                $"roleplay:\n" +
-                $"  ai_character: {config.Roleplay.AiCharacter ?? ""}\n" +
-                $"  user_character: {config.Roleplay.UserCharacter ?? ""}\n" +
-                $"forge:\n" +
-                $"  review_pass_threshold: {config.Forge.ReviewPassThreshold}\n" +
-                $"  max_revisions: {config.Forge.MaxRevisions}\n" +
-                $"  pause_after_chapter1: {config.Forge.PauseAfterChapter1.ToString().ToLowerInvariant()}\n" +
-                $"  stage_timeout_minutes: {config.Forge.StageTimeoutMinutes}\n" +
-                $"web_search:\n" +
-                $"  enabled: {config.WebSearch.Enabled.ToString().ToLowerInvariant()}\n" +
-                $"  provider: {config.WebSearch.Provider}\n" +
-                $"  searxng_url: {config.WebSearch.SearxngUrl ?? ""}\n" +
-                $"  max_results: {config.WebSearch.MaxResults}\n";
+            config.Persona = config.Persona with { Active = persona };
+            config.Lore = new LoreConfig { Active = lore };
+            config.WritingStyle = new WritingStyleConfig { Active = style };
+            config.Layout = new LayoutConfig { Active = layout };
 
-            await writer.WriteAsync(configPath, yaml, ct);
-
-            // Reload the singleton so all endpoints see the new values
-            var reloaded = loader.Load(configPath);
-            config.Models = reloaded.Models;
-            config.Persona = reloaded.Persona;
-            config.Lore = reloaded.Lore;
-            config.WritingStyle = reloaded.WritingStyle;
-            config.Layout = reloaded.Layout;
-            config.Roleplay = reloaded.Roleplay;
-            config.Forge = reloaded.Forge;
-            config.WebSearch = reloaded.WebSearch;
-            config.Email = reloaded.Email;
+            await writer.WriteAsync(configPath, ConfigurationLoader.Serialize(config), ct);
 
             logger.LogInformation(
                 "Profile switched: persona={Persona}, lore={Lore}, style={Style}",
@@ -151,7 +112,7 @@ public static class ProfileEndpoints
             return Results.Ok(new { Path = name, Content = content, Tokens = content.Length / 4 });
         });
 
-        // Layout switch — persists to config.yaml via profiles/switch
+        // Layout switch — persists to config.yaml
         app.MapPost("/api/layout", async (
             HttpContext httpContext,
             AppConfig config,
@@ -160,48 +121,21 @@ public static class ProfileEndpoints
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
-            var layout = body.RootElement.TryGetProperty("layout", out var el) ? el.GetString() ?? "default" : "default";
+            var root = body.RootElement;
+
+            // Accept both "name" (frontend) and "layout" (API) property names
+            var layout = "default";
+            if (root.TryGetProperty("name", out var nameEl) && nameEl.GetString() is { } nameVal)
+                layout = nameVal;
+            else if (root.TryGetProperty("layout", out var layEl) && layEl.GetString() is { } layVal)
+                layout = layVal;
+
+            config.Layout = new LayoutConfig { Active = layout };
 
             var configPath = Path.Combine(contentRoot, "config.yaml");
-            var loader = new ConfigurationLoader(logger);
-            var current = loader.Load(configPath);
+            await writer.WriteAsync(configPath, ConfigurationLoader.Serialize(config), ct);
 
-            var yaml =
-                $"models:\n" +
-                $"  orchestrator: {config.Models.Orchestrator}\n" +
-                $"  prose_writer: {config.Models.ProseWriter}\n" +
-                $"  librarian: {config.Models.Librarian}\n" +
-                $"  forge_writer: {config.Models.ForgeWriter}\n" +
-                $"  forge_planner: {config.Models.ForgePlanner}\n" +
-                $"  forge_reviewer: {config.Models.ForgeReviewer}\n" +
-                $"persona:\n" +
-                $"  active: {config.Persona.Active}\n" +
-                $"  max_tokens: {config.Persona.MaxTokens}\n" +
-                $"lore:\n" +
-                $"  active: {config.Lore.Active}\n" +
-                $"writing_style:\n" +
-                $"  active: {config.WritingStyle.Active}\n" +
-                $"layout:\n" +
-                $"  active: {layout}\n" +
-                $"roleplay:\n" +
-                $"  ai_character: {config.Roleplay.AiCharacter ?? ""}\n" +
-                $"  user_character: {config.Roleplay.UserCharacter ?? ""}\n" +
-                $"forge:\n" +
-                $"  review_pass_threshold: {config.Forge.ReviewPassThreshold}\n" +
-                $"  max_revisions: {config.Forge.MaxRevisions}\n" +
-                $"  pause_after_chapter1: {config.Forge.PauseAfterChapter1.ToString().ToLowerInvariant()}\n" +
-                $"  stage_timeout_minutes: {config.Forge.StageTimeoutMinutes}\n" +
-                $"web_search:\n" +
-                $"  enabled: {config.WebSearch.Enabled.ToString().ToLowerInvariant()}\n" +
-                $"  provider: {config.WebSearch.Provider}\n" +
-                $"  searxng_url: {config.WebSearch.SearxngUrl ?? ""}\n" +
-                $"  max_results: {config.WebSearch.MaxResults}\n";
-
-            await writer.WriteAsync(configPath, yaml, ct);
-
-            // Reload the singleton so all endpoints see the new layout
-            var reloaded = loader.Load(configPath);
-            config.Layout = reloaded.Layout;
+            logger.LogInformation("Layout switched to {Layout}", layout);
 
             return Results.Ok(new { Layout = layout });
         });
@@ -264,20 +198,17 @@ public static class ProfileEndpoints
             return Results.Ok(new { Portraits = portraits, Current = (string?)null });
         });
 
-        // Character cards
-        app.MapGet("/api/character-cards", () =>
+        // Character cards (YAML-backed via ICharacterCardStore)
+        app.MapGet("/api/character-cards", async (ICharacterCardStore store, CancellationToken ct) =>
         {
-            var dir = Path.Combine(contentRoot, "character-cards");
-            if (!Directory.Exists(dir))
-            {
-                return Results.Ok(new { Cards = Array.Empty<object>() });
-            }
-
-            var cards = Directory.GetFiles(dir, "*.json")
-                .Select(f => new { Name = Path.GetFileNameWithoutExtension(f) })
-                .ToList();
-
+            var cards = await store.ListAsync(ct);
             return Results.Ok(new { Cards = cards });
+        });
+
+        app.MapGet("/api/character-cards/{name}", async (string name, ICharacterCardStore store, CancellationToken ct) =>
+        {
+            var card = await store.LoadAsync(name, ct);
+            return card is not null ? Results.Ok(card) : Results.NotFound();
         });
 
         // Conversation history (the frontend calls this instead of sessions/load)
@@ -302,7 +233,9 @@ public static class ProfileEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var url = root.TryGetProperty("url", out var urlEl) ? urlEl.GetString() ?? "" : "";
+            var url = root.TryGetProperty("baseUrl", out var urlEl) ? urlEl.GetString() ?? "" : "";
+            if (string.IsNullOrEmpty(url))
+                url = root.TryGetProperty("url", out var urlEl2) ? urlEl2.GetString() ?? "" : "";
             var apiKey = root.TryGetProperty("apiKey", out var keyEl) ? keyEl.GetString() ?? "" : "";
 
             if (string.IsNullOrEmpty(url))
@@ -405,9 +338,86 @@ public static class ProfileEndpoints
             return Results.Ok(new { Projects = projects });
         });
 
-        // Stub endpoints that return empty data to prevent 404/405 crashes
-        app.MapGet("/api/artifact/current", () => Results.Ok(new { Artifact = (object?)null }));
-        app.MapGet("/api/artifact/formats", () => Results.Ok(new { Formats = Array.Empty<string>() }));
-        app.MapGet("/api/tts/providers", () => Results.Ok(new { Providers = Array.Empty<object>() }));
+        // Artifact endpoints
+        app.MapGet("/api/artifact/current", (IArtifactService artifacts) =>
+        {
+            var current = artifacts.GetCurrent();
+            return Results.Ok(new { Artifact = current });
+        });
+
+        app.MapGet("/api/artifact/formats", (IArtifactService artifacts) =>
+        {
+            var formats = artifacts.GetFormatInstructions()
+                .Select(kvp => new { Name = kvp.Key.ToString().ToLowerInvariant(), Description = kvp.Value })
+                .ToList();
+            return Results.Ok(new { Formats = formats });
+        });
+
+        app.MapGet("/api/artifacts", async (IArtifactService artifacts, CancellationToken ct) =>
+        {
+            var list = await artifacts.ListAsync(ct);
+            return Results.Ok(new { Artifacts = list });
+        });
+
+        app.MapPost("/api/artifact/clear", (IArtifactService artifacts) =>
+        {
+            artifacts.ClearCurrent();
+            return Results.Ok(new { Status = "cleared" });
+        });
+        app.MapGet("/api/tts/providers", (IServiceProvider sp) =>
+        {
+            var tts = sp.GetService<ITtsGenerator>();
+            if (tts is QuillForge.Providers.Tts.FallbackTtsGenerator fallback)
+            {
+                var providerNames = fallback.Providers
+                    .Select(p => p.GetType().Name.Replace("TtsGenerator", ""))
+                    .ToList();
+                return Results.Ok(new { Available = true, Providers = providerNames });
+            }
+
+            return Results.Ok(new { Available = tts is not null, Providers = Array.Empty<string>() });
+        });
+
+        app.MapPost("/api/tts/generate", async (
+            HttpContext httpContext,
+            IServiceProvider sp,
+            CancellationToken ct) =>
+        {
+            var tts = sp.GetService<ITtsGenerator>();
+            if (tts is null)
+            {
+                return Results.BadRequest(new { Error = "No TTS provider configured. Set OPENAI_API_KEY or ELEVENLABS_API_KEY." });
+            }
+
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var root = body.RootElement;
+
+            var text = root.TryGetProperty("text", out var textEl) ? textEl.GetString() ?? "" : "";
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return Results.BadRequest(new { Error = "Text is required." });
+            }
+
+            var options = new TtsOptions
+            {
+                Voice = root.TryGetProperty("voice", out var voiceEl) ? voiceEl.GetString() : null,
+                Speed = root.TryGetProperty("speed", out var speedEl) && speedEl.TryGetDouble(out var spd) ? spd : null,
+            };
+
+            try
+            {
+                var result = await tts.GenerateAsync(text, options, ct);
+                return Results.Ok(new
+                {
+                    FilePath = result.FilePath,
+                    Duration = result.Duration.TotalSeconds,
+                    FileName = Path.GetFileName(result.FilePath),
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(detail: ex.Message, statusCode: 502, title: "TTS generation failed");
+            }
+        });
     }
 }

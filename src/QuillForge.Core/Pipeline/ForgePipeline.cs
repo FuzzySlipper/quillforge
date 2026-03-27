@@ -55,6 +55,9 @@ public sealed class ForgePipeline : IDiagnosticSource
         _activeContext = context;
         _pauseRequested = false;
 
+        // Auto-repair: normalize the manifest before running
+        context.Manifest = ForgeManifestRepair.Normalize(context.Manifest, _logger);
+
         _logger.LogInformation(
             "Forge pipeline starting for project {Project}, current stage={Stage}",
             context.Manifest.ProjectName, context.Manifest.Stage);
@@ -172,6 +175,20 @@ public sealed class ForgePipeline : IDiagnosticSource
     {
         _pauseRequested = true;
         _logger.LogInformation("Pause requested for forge pipeline");
+    }
+
+    /// <summary>
+    /// Rebuilds a project manifest by scanning files on disk.
+    /// Used when the manifest is corrupted or missing.
+    /// </summary>
+    public async Task<ForgeManifest> RebuildManifestAsync(string projectName, CancellationToken ct = default)
+    {
+        var manifest = await ForgeManifestRepair.RebuildFromFilesAsync(projectName, _fileService, _logger, ct);
+        var manifestPath = $"forge/{projectName}/manifest.json";
+        var json = JsonSerializer.Serialize(manifest, JsonOptions);
+        await _fileService.WriteAsync(manifestPath, json, ct);
+        _logger.LogInformation("Rebuilt and persisted manifest for project {Project}", projectName);
+        return manifest;
     }
 
     private async IAsyncEnumerable<ForgeEvent> ExecuteStageWithTimeout(

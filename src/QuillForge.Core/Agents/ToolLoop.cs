@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using QuillForge.Core.Diagnostics;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 
@@ -15,15 +16,18 @@ public sealed class ToolLoop
     private readonly ICompletionService _completionService;
     private readonly ContinuationStrategy _continuationStrategy;
     private readonly ILogger<ToolLoop> _logger;
+    private readonly ILlmDebugLogger? _debugLogger;
 
     public ToolLoop(
         ICompletionService completionService,
         ContinuationStrategy continuationStrategy,
-        ILogger<ToolLoop> logger)
+        ILogger<ToolLoop> logger,
+        ILlmDebugLogger? debugLogger = null)
     {
         _completionService = completionService;
         _continuationStrategy = continuationStrategy;
         _logger = logger;
+        _debugLogger = debugLogger;
     }
 
     /// <summary>
@@ -57,12 +61,39 @@ public sealed class ToolLoop
                 Messages = messages,
                 Tools = toolDefs.Count > 0 ? toolDefs : null,
                 Temperature = config.Temperature,
+                CacheSystemPrompt = config.CacheSystemPrompt,
             };
 
             _logger.LogDebug("ToolLoop round {Round}: calling completion service", round);
 
-            var response = await _completionService.CompleteAsync(request, ct);
+            _debugLogger?.LogRequest(
+                agent: "ToolLoop",
+                model: config.Model,
+                maxTokens: config.MaxTokens,
+                systemPreview: config.SystemPrompt ?? "",
+                messagesCount: messages.Count,
+                toolsCount: toolDefs.Count);
+
+            CompletionResponse response;
+            try
+            {
+                response = await _completionService.CompleteAsync(request, ct);
+            }
+            catch (Exception ex)
+            {
+                _debugLogger?.LogError("ToolLoop", config.Model, ex.Message);
+                throw;
+            }
+
             totalUsage = _continuationStrategy.AggregateUsage(totalUsage, response.Usage);
+
+            _debugLogger?.LogResponse(
+                agent: "ToolLoop",
+                model: config.Model,
+                stopReason: response.StopReason,
+                contentPreview: response.Content.GetText(),
+                inputTokens: response.Usage.InputTokens,
+                outputTokens: response.Usage.OutputTokens);
 
             _logger.LogDebug(
                 "ToolLoop round {Round}: stop_reason={StopReason}, usage={InputTokens}in/{OutputTokens}out",
@@ -159,12 +190,21 @@ public sealed class ToolLoop
                 Messages = messages,
                 Tools = toolDefs.Count > 0 ? toolDefs : null,
                 Temperature = config.Temperature,
+                CacheSystemPrompt = config.CacheSystemPrompt,
             };
 
             // For intermediate rounds (tool dispatch), use non-streaming
             // For the final round (no more tools), we stream to caller
             // We don't know in advance which round is final, so we always try streaming
             // and collect tool calls if they appear.
+
+            _debugLogger?.LogRequest(
+                agent: "ToolLoop.Stream",
+                model: config.Model,
+                maxTokens: config.MaxTokens,
+                systemPreview: config.SystemPrompt ?? "",
+                messagesCount: messages.Count,
+                toolsCount: toolDefs.Count);
 
             var collectedText = new List<string>();
             var collectedToolCalls = new List<ToolCallEvent>();
@@ -195,6 +235,14 @@ public sealed class ToolLoop
                         break;
                 }
             }
+
+            _debugLogger?.LogResponse(
+                agent: "ToolLoop.Stream",
+                model: config.Model,
+                stopReason: stopReason,
+                contentPreview: string.Join("", collectedText),
+                inputTokens: usage?.InputTokens ?? 0,
+                outputTokens: usage?.OutputTokens ?? 0);
 
             // If no tool calls, we're done
             if (collectedToolCalls.Count == 0 ||

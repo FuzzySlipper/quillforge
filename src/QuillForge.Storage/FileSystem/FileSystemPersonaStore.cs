@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Services;
+using QuillForge.Core.Utilities;
 
 namespace QuillForge.Storage.FileSystem;
 
@@ -19,14 +20,20 @@ public sealed class FileSystemPersonaStore : IPersonaStore
         _logger = logger;
     }
 
-    public async Task<string> LoadAsync(string personaName, CancellationToken ct = default)
+    public async Task<string> LoadAsync(string personaName, int? maxTokens = null, CancellationToken ct = default)
     {
-        _logger.LogDebug("Loading persona: {Name}", personaName);
+        _logger.LogDebug("Loading persona: {Name}, budget: {Budget} tokens", personaName, maxTokens ?? -1);
 
-        // Check for a directory-based persona first
         var dirPath = Path.Combine(_personaPath, personaName);
         if (Directory.Exists(dirPath))
         {
+            // If budget is set, load files in tier order with budget enforcement
+            if (maxTokens.HasValue)
+            {
+                return await LoadTieredAsync(dirPath, maxTokens.Value, ct);
+            }
+
+            // No budget — load all files alphabetically (existing behavior)
             var files = Directory.GetFiles(dirPath, "*.md", SearchOption.TopDirectoryOnly)
                 .OrderBy(f => f)
                 .ToList();
@@ -52,6 +59,64 @@ public sealed class FileSystemPersonaStore : IPersonaStore
 
         _logger.LogWarning("Persona not found: {Name}, returning empty", personaName);
         return "";
+    }
+
+    private async Task<string> LoadTieredAsync(string dirPath, int budget, CancellationToken ct)
+    {
+        // Priority tiers — loaded in order, stop when budget exceeded
+        var tiers = new[] { "core.md", "quirks.md", "references.md", "extended.md" };
+
+        var parts = new List<string>();
+        var totalTokens = 0;
+
+        // First pass: load tiered files in priority order
+        foreach (var tierFile in tiers)
+        {
+            var path = Path.Combine(dirPath, tierFile);
+            if (!File.Exists(path)) continue;
+
+            var content = await File.ReadAllTextAsync(path, ct);
+            var tokens = TokenEstimator.Estimate(content);
+
+            if (totalTokens + tokens > budget)
+            {
+                _logger.LogDebug(
+                    "Persona tier {Tier} skipped: would exceed budget ({Current} + {FileTokens} > {Budget})",
+                    tierFile, totalTokens, tokens, budget);
+                break;
+            }
+
+            parts.Add(content);
+            totalTokens += tokens;
+            _logger.LogDebug("Loaded persona tier {Tier}: {Tokens} tokens (total: {Total}/{Budget})",
+                tierFile, tokens, totalTokens, budget);
+        }
+
+        // Second pass: load any non-tier files alphabetically if budget remains
+        var allFiles = Directory.GetFiles(dirPath, "*.md", SearchOption.TopDirectoryOnly)
+            .OrderBy(f => f);
+        var tierSet = new HashSet<string>(tiers, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in allFiles)
+        {
+            var fileName = Path.GetFileName(file);
+            if (tierSet.Contains(fileName)) continue;
+
+            var content = await File.ReadAllTextAsync(file, ct);
+            var tokens = TokenEstimator.Estimate(content);
+
+            if (totalTokens + tokens > budget)
+            {
+                _logger.LogDebug("Persona file {File} skipped: would exceed budget", fileName);
+                continue;
+            }
+
+            parts.Add(content);
+            totalTokens += tokens;
+        }
+
+        _logger.LogDebug("Loaded persona with {Parts} parts, {Tokens}/{Budget} tokens", parts.Count, totalTokens, budget);
+        return string.Join("\n\n", parts);
     }
 
     public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)

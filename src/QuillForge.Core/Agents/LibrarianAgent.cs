@@ -43,6 +43,7 @@ public sealed class LibrarianAgent
             MaxTokens = 4096,
             SystemPrompt = systemPrompt,
             MaxToolRounds = 1,
+            CacheSystemPrompt = true,  // Lore corpus is large and stable; cache to save input tokens
         };
 
         var messages = new List<CompletionMessage>

@@ -10,6 +10,13 @@ public sealed record AgentConfig
     public required string SystemPrompt { get; init; }
     public int MaxToolRounds { get; init; } = 10;
     public double? Temperature { get; init; }
+
+    /// <summary>
+    /// When true, the system prompt will be marked for prompt caching on providers
+    /// that support it (Anthropic). This is useful for agents with large, stable
+    /// system prompts (e.g. the Librarian's lore corpus) to reduce input token costs.
+    /// </summary>
+    public bool CacheSystemPrompt { get; init; }
 }
 
 /// <summary>
@@ -21,6 +28,8 @@ public sealed record AgentResponse
     public required string StopReason { get; init; }
     public required TokenUsage Usage { get; init; }
     public required int ToolRoundsUsed { get; init; }
+    public ResponseType ResponseType { get; init; } = ResponseType.Discussion;
+    public IReadOnlyList<string>? SuggestedNext { get; init; }
 }
 
 /// <summary>

@@ -93,12 +93,20 @@ public sealed class ConfigurationLoader
     }
 
     /// <summary>
+    /// Serializes an AppConfig to a YAML string.
+    /// Use this instead of hand-building YAML to ensure all fields round-trip correctly.
+    /// </summary>
+    public static string Serialize(AppConfig config)
+    {
+        return Serializer.Serialize(config);
+    }
+
+    /// <summary>
     /// Creates a default config.yaml at the given path.
     /// </summary>
     public void WriteDefaults(string configPath)
     {
-        var defaultConfig = new AppConfig();
-        var yaml = Serializer.Serialize(defaultConfig);
+        var yaml = Serialize(new AppConfig());
         File.WriteAllText(configPath, yaml);
         _logger.LogInformation("Created default config at {Path}", configPath);
     }

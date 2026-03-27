@@ -23,8 +23,18 @@ public static class ProviderEndpoints
                         Type = p.Type.ToString(),
                         DefaultModel = config?.DefaultModel,
                         BaseUrl = config?.BaseUrl,
+                        ModelsUrl = config?.ModelsUrl ?? DefaultModelsUrl(config),
+                        ContextLimit = config?.ContextLimit,
                         ApiKeySet = !string.IsNullOrEmpty(config?.ApiKey),
                         UsedBy = Array.Empty<string>(),
+                        Options = config?.Options is not null ? new
+                        {
+                            config.Options.Temperature,
+                            config.Options.TopP,
+                            config.Options.TopK,
+                            config.Options.FrequencyPenalty,
+                            config.Options.PresencePenalty,
+                        } : null,
                     };
                 });
             return Results.Ok(new { Providers = providers });
@@ -40,6 +50,8 @@ public static class ProviderEndpoints
             var apiKey = root.TryGetProperty("apiKey", out var keyEl) ? keyEl.GetString() ?? "" : "";
             var baseUrl = root.TryGetProperty("baseUrl", out var urlEl) ? urlEl.GetString() : null;
             var defaultModel = root.TryGetProperty("defaultModel", out var modelEl) ? modelEl.GetString() : null;
+            var modelsUrl = root.TryGetProperty("modelsUrl", out var muEl) ? muEl.GetString() : null;
+            var contextLimit = root.TryGetProperty("contextLimit", out var clEl) && clEl.TryGetInt32(out var clVal) ? clVal : (int?)null;
 
             if (!Enum.TryParse<ProviderType>(typeStr, ignoreCase: true, out var providerType))
             {
@@ -56,13 +68,18 @@ public static class ProviderEndpoints
                 };
             }
 
+            var options = ParseProviderOptions(root);
+
             var config = new ProviderConfig
             {
                 Alias = alias,
                 Type = providerType,
                 ApiKey = apiKey,
                 BaseUrl = baseUrl,
+                ModelsUrl = modelsUrl,
                 DefaultModel = defaultModel,
+                ContextLimit = contextLimit,
+                Options = options,
             };
 
             logger.LogInformation(
@@ -88,11 +105,16 @@ public static class ProviderEndpoints
             // Keep existing API key if not provided (don't overwrite with blank)
             var newApiKey = root.TryGetProperty("apiKey", out var keyEl) ? keyEl.GetString() : null;
 
+            var newOptions = root.TryGetProperty("options", out _) ? ParseProviderOptions(root) : existing.Options;
+
             var config = existing with
             {
                 ApiKey = !string.IsNullOrEmpty(newApiKey) ? newApiKey : existing.ApiKey,
                 BaseUrl = root.TryGetProperty("baseUrl", out var urlEl) ? urlEl.GetString() ?? existing.BaseUrl : existing.BaseUrl,
                 DefaultModel = root.TryGetProperty("defaultModel", out var modelEl) ? modelEl.GetString() ?? existing.DefaultModel : existing.DefaultModel,
+                ModelsUrl = root.TryGetProperty("modelsUrl", out var muEl) ? muEl.GetString() ?? existing.ModelsUrl : existing.ModelsUrl,
+                ContextLimit = root.TryGetProperty("contextLimit", out var clEl) && clEl.TryGetInt32(out var clVal) ? clVal : existing.ContextLimit,
+                Options = newOptions,
             };
 
             registry.Register(config);
@@ -160,14 +182,28 @@ public static class ProviderEndpoints
                 // For OpenAI-compatible providers, try the /v1/models endpoint
                 if (config.Type is ProviderType.OpenAI or ProviderType.OpenRouter or ProviderType.Custom or ProviderType.AzureOpenAI)
                 {
-                    var baseUrl = config.Type == ProviderType.OpenRouter
-                        ? "https://openrouter.ai/api"
-                        : config.BaseUrl ?? "https://api.openai.com";
+                    // Use explicit modelsUrl if stored, otherwise derive from baseUrl
+                    var modelsUrl = config.ModelsUrl;
+                    if (string.IsNullOrEmpty(modelsUrl))
+                    {
+                        var baseUrl = config.Type == ProviderType.OpenRouter
+                            ? "https://openrouter.ai/api"
+                            : config.BaseUrl ?? "https://api.openai.com";
+
+                        modelsUrl = baseUrl.TrimEnd('/');
+                        // Avoid doubling /v1 when baseUrl already ends with it
+                        if (!modelsUrl.EndsWith("/v1/models", StringComparison.OrdinalIgnoreCase))
+                        {
+                            modelsUrl = modelsUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
+                                ? modelsUrl + "/models"
+                                : modelsUrl + "/v1/models";
+                        }
+                    }
 
                     using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
                     httpClient.DefaultRequestHeaders.Authorization = new("Bearer", config.ApiKey);
 
-                    var response = await httpClient.GetAsync($"{baseUrl.TrimEnd('/')}/v1/models", ct);
+                    var response = await httpClient.GetAsync(modelsUrl, ct);
 
                     if (!response.IsSuccessStatusCode)
                     {
@@ -214,8 +250,58 @@ public static class ProviderEndpoints
             Type = c.Type.ToString(),
             ApiKey = c.ApiKey,
             BaseUrl = c.BaseUrl,
+            ModelsUrl = c.ModelsUrl,
             DefaultModel = c.DefaultModel,
+            ContextLimit = c.ContextLimit,
+            Options = c.Options is not null ? new ProviderOptionsDto
+            {
+                Temperature = c.Options.Temperature,
+                TopP = c.Options.TopP,
+                TopK = c.Options.TopK,
+                FrequencyPenalty = c.Options.FrequencyPenalty,
+                PresencePenalty = c.Options.PresencePenalty,
+            } : null,
         }).ToList();
         await store.SaveAsync(dtos);
+    }
+
+    private static ProviderOptions? ParseProviderOptions(JsonElement root)
+    {
+        if (!root.TryGetProperty("options", out var optEl) || optEl.ValueKind != JsonValueKind.Object)
+            return null;
+
+        float? temperature = optEl.TryGetProperty("temperature", out var tEl) && tEl.ValueKind == JsonValueKind.Number ? tEl.GetSingle() : null;
+        float? topP = optEl.TryGetProperty("topP", out var tpEl) && tpEl.ValueKind == JsonValueKind.Number ? tpEl.GetSingle() : null;
+        int? topK = optEl.TryGetProperty("topK", out var tkEl) && tkEl.TryGetInt32(out var tkVal) ? tkVal : null;
+        float? frequencyPenalty = optEl.TryGetProperty("frequencyPenalty", out var fpEl) && fpEl.ValueKind == JsonValueKind.Number ? fpEl.GetSingle() : null;
+        float? presencePenalty = optEl.TryGetProperty("presencePenalty", out var ppEl) && ppEl.ValueKind == JsonValueKind.Number ? ppEl.GetSingle() : null;
+
+        // Return null if all values are null (no options provided)
+        if (temperature is null && topP is null && topK is null && frequencyPenalty is null && presencePenalty is null)
+            return null;
+
+        return new ProviderOptions
+        {
+            Temperature = temperature,
+            TopP = topP,
+            TopK = topK,
+            FrequencyPenalty = frequencyPenalty,
+            PresencePenalty = presencePenalty,
+        };
+    }
+
+    private static string? DefaultModelsUrl(ProviderConfig? config)
+    {
+        if (config is null) return null;
+        return config.Type switch
+        {
+            ProviderType.Ollama => (config.BaseUrl ?? "http://localhost:11434").TrimEnd('/') + "/api/tags",
+            ProviderType.OpenAI => "https://api.openai.com/v1/models",
+            ProviderType.OpenRouter => "https://openrouter.ai/api/v1/models",
+            ProviderType.Anthropic => null, // Anthropic has no list models API
+            ProviderType.AzureOpenAI => config.BaseUrl is not null ? config.BaseUrl.TrimEnd('/') + "/v1/models" : null,
+            ProviderType.Custom => config.BaseUrl is not null ? config.BaseUrl.TrimEnd('/') + "/v1/models" : null,
+            _ => null,
+        };
     }
 }

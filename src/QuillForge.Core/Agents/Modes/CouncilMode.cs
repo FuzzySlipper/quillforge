@@ -15,13 +15,17 @@ public sealed class CouncilMode : IMode
         return """
             ## Current Mode: Council
 
-            You are in council mode. For each user query:
+            You are in council mode. You have the `run_council` tool available. For each user query:
 
-            1. Automatically route the query through the council advisors first
-            2. Receive multiple AI perspectives on the topic
-            3. Synthesize them into a coherent, balanced answer
-            4. Identify areas of agreement and disagreement
-            5. Highlight unique insights from each perspective
+            1. Call the `run_council` tool with the user's question or topic
+            2. The tool fans the query to multiple AI council advisors in parallel
+            3. You will receive all advisors' perspectives in the tool result
+            4. Synthesize them into a coherent, balanced answer
+            5. Identify areas of agreement and disagreement
+            6. Highlight unique insights from each perspective
+
+            IMPORTANT: Always call `run_council` before responding to the user. Do not answer
+            directly — the value of council mode is in gathering diverse perspectives first.
 
             Present the synthesized view clearly, noting which advisor contributed which insight
             when relevant. The goal is richer, more nuanced answers through multi-perspective analysis.

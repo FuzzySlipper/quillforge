@@ -18,6 +18,14 @@ public sealed record CompletionRequest
     public required IReadOnlyList<CompletionMessage> Messages { get; init; }
     public IReadOnlyList<ToolDefinition>? Tools { get; init; }
     public double? Temperature { get; init; }
+
+    /// <summary>
+    /// When true, signals that the system prompt should be cached for repeated use
+    /// (Anthropic prompt caching). This avoids re-charging input tokens when the
+    /// same large system prompt (e.g. lore corpus) is sent across multiple requests.
+    /// Non-Anthropic providers silently ignore this flag.
+    /// </summary>
+    public bool CacheSystemPrompt { get; init; }
 }
 
 /// <summary>

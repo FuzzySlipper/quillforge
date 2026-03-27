@@ -5,6 +5,6 @@ namespace QuillForge.Core.Services;
 /// </summary>
 public interface IPersonaStore
 {
-    Task<string> LoadAsync(string personaName, CancellationToken ct = default);
+    Task<string> LoadAsync(string personaName, int? maxTokens = null, CancellationToken ct = default);
     Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default);
 }

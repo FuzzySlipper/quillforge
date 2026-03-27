@@ -72,5 +72,22 @@ public static class ForgeEndpoints
             pipeline.RequestPause();
             return Results.Ok(new { Paused = name });
         });
+
+        group.MapPost("/projects/{name}/rebuild-manifest", async (
+            string name,
+            ForgePipeline pipeline,
+            CancellationToken ct) =>
+        {
+            var manifest = await pipeline.RebuildManifestAsync(name, ct);
+            return Results.Ok(new
+            {
+                manifest.ProjectName,
+                Stage = manifest.Stage.ToString(),
+                manifest.ChapterCount,
+                Chapters = manifest.Chapters.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value.State.ToString()),
+            });
+        });
     }
 }

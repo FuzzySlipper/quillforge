@@ -52,6 +52,20 @@ public static class ChatEndpoints
             // Append user message
             tree.Append(tree.ActiveLeafId, "user", new MessageContent(message));
 
+            // Auto-name session from first user message
+            if (tree.Name == "Chat Session" || tree.Name == "New Session")
+            {
+                var autoName = message.Length <= 50
+                    ? message
+                    : message.LastIndexOf(' ', 50) is var idx and > 0 ? message[..idx] + "…" : message[..50] + "…";
+                // Clean up: remove newlines, trim
+                autoName = autoName.ReplaceLineEndings(" ").Trim();
+                if (!string.IsNullOrWhiteSpace(autoName))
+                {
+                    tree.Name = autoName;
+                }
+            }
+
             // Build conversation messages for the tool loop
             var messages = tree.ToFlatThread()
                 .Select(n => new CompletionMessage(n.Role, n.Content))
@@ -74,7 +88,7 @@ public static class ChatEndpoints
                 {
                     TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new { Type = "text_delta", Text = text.Text }, s_jsonOptions)}\n\n",
                     ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new { Type = "tool_call", Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
-                    DoneEvent done => $"data: {JsonSerializer.Serialize(new { Type = "done", StopReason = done.StopReason, Usage = new { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens } }, s_jsonOptions)}\n\n",
+                    DoneEvent done => $"data: {JsonSerializer.Serialize(new { Type = "done", StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens } }, s_jsonOptions)}\n\n",
                     ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new { Type = "reasoning_delta", Text = reasoning.Text }, s_jsonOptions)}\n\n",
                     _ => null,
                 };

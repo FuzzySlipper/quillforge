@@ -39,10 +39,20 @@ public sealed class ProviderFactory
 
     private IChatClient CreateOpenAIClient(ProviderConfig config)
     {
-        var client = new OpenAIClient(new ApiKeyCredential(config.ApiKey));
+        OpenAIClient client;
+        if (config.BaseUrl is not null)
+        {
+            var options = new OpenAIClientOptions { Endpoint = new Uri(config.BaseUrl) };
+            client = new OpenAIClient(new ApiKeyCredential(config.ApiKey), options);
+        }
+        else
+        {
+            client = new OpenAIClient(new ApiKeyCredential(config.ApiKey));
+        }
+
         var model = config.DefaultModel ?? "gpt-4o";
 
-        _logger.LogDebug("Created OpenAI client, default model={Model}", model);
+        _logger.LogDebug("Created OpenAI client at {BaseUrl}, model={Model}", config.BaseUrl ?? "https://api.openai.com", model);
         return client.GetChatClient(model).AsIChatClient();
     }
 

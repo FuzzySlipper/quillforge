@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Anthropic;
+using Anthropic.Models.Messages;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
@@ -15,16 +17,18 @@ public sealed class ChatClientCompletionService : ICompletionService
 {
     private readonly IChatClient _client;
     private readonly ILogger<ChatClientCompletionService> _logger;
+    private readonly bool _isAnthropic;
 
     public ChatClientCompletionService(IChatClient client, ILogger<ChatClientCompletionService> logger)
     {
         _client = client;
         _logger = logger;
+        _isAnthropic = client.GetService<IAnthropicClient>() is not null;
     }
 
     public async Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
     {
-        var chatMessages = ConvertMessages(request);
+        var chatMessages = ConvertMessages(request, _isAnthropic);
         var options = BuildOptions(request);
 
         _logger.LogDebug(
@@ -44,7 +48,7 @@ public sealed class ChatClientCompletionService : ICompletionService
         CompletionRequest request,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var chatMessages = ConvertMessages(request);
+        var chatMessages = ConvertMessages(request, _isAnthropic);
         var options = BuildOptions(request);
 
         _logger.LogDebug("Starting streaming completion request");
@@ -102,13 +106,13 @@ public sealed class ChatClientCompletionService : ICompletionService
             new TokenUsage(inputTokens, outputTokens));
     }
 
-    private static List<ChatMessage> ConvertMessages(CompletionRequest request)
+    private static List<ChatMessage> ConvertMessages(CompletionRequest request, bool isAnthropic)
     {
         var messages = new List<ChatMessage>();
 
         if (!string.IsNullOrEmpty(request.SystemPrompt))
         {
-            messages.Add(new ChatMessage(ChatRole.System, request.SystemPrompt));
+            messages.Add(BuildSystemMessage(request.SystemPrompt, request.CacheSystemPrompt && isAnthropic));
         }
 
         foreach (var msg in request.Messages)
@@ -145,11 +149,35 @@ public sealed class ChatClientCompletionService : ICompletionService
         return messages;
     }
 
+    /// <summary>
+    /// Builds the system ChatMessage, optionally marking it for Anthropic prompt caching.
+    /// When caching is enabled, the TextContent's RawRepresentation is set to an Anthropic
+    /// TextBlockParam with cache_control: { type: "ephemeral" }. The Anthropic IChatClient
+    /// adapter recognizes this raw representation and passes it directly to the API,
+    /// preserving the cache_control annotation. Non-Anthropic clients ignore RawRepresentation.
+    /// </summary>
+    private static ChatMessage BuildSystemMessage(string systemPrompt, bool enableCaching)
+    {
+        var textContent = new TextContent(systemPrompt);
+
+        if (enableCaching)
+        {
+            textContent.RawRepresentation = new TextBlockParam(systemPrompt)
+            {
+                CacheControl = new CacheControlEphemeral(),
+            };
+        }
+
+        return new ChatMessage(ChatRole.System, [textContent]);
+    }
+
     private static ChatOptions BuildOptions(CompletionRequest request)
     {
         var options = new ChatOptions
         {
-            ModelId = request.Model,
+            // Only override ModelId when a specific model is requested.
+            // "default" means "use whatever model the IChatClient was created with".
+            ModelId = string.Equals(request.Model, "default", StringComparison.OrdinalIgnoreCase) ? null : request.Model,
             MaxOutputTokens = request.MaxTokens,
             Temperature = request.Temperature is not null ? (float)request.Temperature.Value : null,
         };

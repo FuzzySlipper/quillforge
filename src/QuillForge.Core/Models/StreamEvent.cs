@@ -40,4 +40,5 @@ public sealed class DoneEvent(string stopReason, TokenUsage usage) : StreamEvent
 {
     public string StopReason { get; } = stopReason;
     public TokenUsage Usage { get; } = usage;
+    public ResponseType ResponseType { get; init; } = ResponseType.Discussion;
 }
