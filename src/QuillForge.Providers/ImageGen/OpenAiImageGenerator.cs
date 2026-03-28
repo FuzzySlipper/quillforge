@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 
 namespace QuillForge.Providers.ImageGen;
@@ -7,29 +8,29 @@ public sealed class OpenAiImageGenerator : IImageGenerator
 {
     private readonly HttpClient _httpClient;
     private readonly string _outputDir;
-    private readonly string _defaultModel;
     private readonly ILogger<OpenAiImageGenerator> _logger;
+    private readonly OpenAiImageConfig _config;
 
-    public OpenAiImageGenerator(HttpClient httpClient, string apiKey, string outputDir, ILogger<OpenAiImageGenerator> logger, string model = "dall-e-3")
+    public OpenAiImageGenerator(HttpClient httpClient, string apiKey, string outputDir, OpenAiImageConfig config, ILogger<OpenAiImageGenerator> logger)
     {
         _httpClient = httpClient;
         _httpClient.BaseAddress = new Uri("https://api.openai.com/");
         _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
         _outputDir = outputDir;
-        _defaultModel = model;
         _logger = logger;
+        _config = config;
     }
 
     public async Task<ImageResult> GenerateAsync(string prompt, ImageOptions? options = null, CancellationToken ct = default)
     {
         Directory.CreateDirectory(_outputDir);
 
-        var width = options?.Width ?? 1024;
-        var height = options?.Height ?? 1024;
+        var width = options?.Width ?? _config.Width;
+        var height = options?.Height ?? _config.Height;
         var size = $"{width}x{height}";
 
         // DALL-E 3 only supports specific sizes
-        if (_defaultModel == "dall-e-3")
+        if (_config.Model == "dall-e-3")
         {
             size = (width, height) switch
             {
@@ -41,11 +42,11 @@ public sealed class OpenAiImageGenerator : IImageGenerator
 
         var payload = new
         {
-            model = _defaultModel,
+            model = _config.Model,
             prompt,
             n = 1,
             size,
-            quality = "standard",
+            quality = _config.Quality,
             response_format = "url",
         };
 

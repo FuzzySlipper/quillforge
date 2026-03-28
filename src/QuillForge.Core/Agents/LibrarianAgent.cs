@@ -16,6 +16,7 @@ public sealed class LibrarianAgent
     private readonly ILoreStore _loreStore;
     private readonly ILogger<LibrarianAgent> _logger;
     private readonly string _model;
+    private readonly LibrarianBudget _budget;
 
     public LibrarianAgent(ToolLoop toolLoop, ILoreStore loreStore, AppConfig appConfig, ILogger<LibrarianAgent> logger)
     {
@@ -23,6 +24,7 @@ public sealed class LibrarianAgent
         _loreStore = loreStore;
         _logger = logger;
         _model = appConfig.Models.Librarian;
+        _budget = appConfig.Agents.Librarian;
     }
 
     /// <summary>
@@ -44,10 +46,10 @@ public sealed class LibrarianAgent
         var config = new AgentConfig
         {
             Model = _model,
-            MaxTokens = 4096,
+            MaxTokens = _budget.MaxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = 1,
-            CacheSystemPrompt = true,  // Lore corpus is large and stable; cache to save input tokens
+            MaxToolRounds = _budget.MaxToolRounds,
+            CacheSystemPrompt = _budget.CacheSystemPrompt,
         };
 
         var messages = new List<CompletionMessage>

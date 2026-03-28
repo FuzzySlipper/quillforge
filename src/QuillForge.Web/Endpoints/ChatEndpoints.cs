@@ -198,6 +198,7 @@ public static class ChatEndpoints
             HttpContext httpContext,
             ICompletionService completionService,
             IArtifactService artifactService,
+            AppConfig appConfig,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -220,8 +221,8 @@ public static class ChatEndpoints
 
             var request = new CompletionRequest
             {
-                Model = "default",
-                MaxTokens = 4096,
+                Model = appConfig.Models.Artifact,
+                MaxTokens = appConfig.Agents.Artifact.MaxTokens,
                 SystemPrompt = systemPrompt,
                 Messages = [new CompletionMessage("user", new MessageContent(prompt))],
             };

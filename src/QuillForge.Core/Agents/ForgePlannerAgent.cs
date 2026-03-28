@@ -13,12 +13,14 @@ public sealed class ForgePlannerAgent
     private readonly ToolLoop _toolLoop;
     private readonly ILogger<ForgePlannerAgent> _logger;
     private readonly string _model;
+    private readonly ForgePlannerBudget _budget;
 
     public ForgePlannerAgent(ToolLoop toolLoop, AppConfig appConfig, ILogger<ForgePlannerAgent> logger)
     {
         _toolLoop = toolLoop;
         _logger = logger;
         _model = appConfig.Models.ForgePlanner;
+        _budget = appConfig.Agents.ForgePlanner;
     }
 
     /// <summary>
@@ -39,9 +41,9 @@ public sealed class ForgePlannerAgent
         var config = new AgentConfig
         {
             Model = _model,
-            MaxTokens = 8192,
+            MaxTokens = _budget.MaxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = 30,
+            MaxToolRounds = _budget.MaxToolRounds,
         };
 
         var messages = new List<CompletionMessage>

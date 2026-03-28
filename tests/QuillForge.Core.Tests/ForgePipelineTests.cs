@@ -37,7 +37,7 @@ public class ForgePipelineTests
             ProjectPath = "forge/test-project",
             Planner = new ForgePlannerAgent(toolLoop, new AppConfig(), LogFactory.CreateLogger<ForgePlannerAgent>()),
             Writer = new ForgeWriterAgent(toolLoop, new AppConfig(), LogFactory.CreateLogger<ForgeWriterAgent>()),
-            Reviewer = new ForgeReviewerAgent(fakeCompletionForReviewer, LogFactory.CreateLogger<ForgeReviewerAgent>()),
+            Reviewer = new ForgeReviewerAgent(fakeCompletionForReviewer, new AppConfig(), LogFactory.CreateLogger<ForgeReviewerAgent>()),
             WriterTools = [],
             FileService = fileService,
             AgentContext = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = "forge" },

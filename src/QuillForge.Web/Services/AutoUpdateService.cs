@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using QuillForge.Core.Models;
 
 namespace QuillForge.Web.Services;
 
@@ -11,22 +12,25 @@ public sealed class AutoUpdateService : BackgroundService
 {
     private readonly ILogger<AutoUpdateService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly TimeSpan _checkInterval = TimeSpan.FromHours(6);
+    private readonly TimeSpan _checkInterval;
+    private readonly TimeSpan _startupDelay;
 
     public string? LatestVersion { get; private set; }
     public string? DownloadUrl { get; private set; }
     public bool UpdateAvailable { get; private set; }
 
-    public AutoUpdateService(ILogger<AutoUpdateService> logger, IHttpClientFactory httpClientFactory)
+    public AutoUpdateService(ILogger<AutoUpdateService> logger, IHttpClientFactory httpClientFactory, AppConfig appConfig)
     {
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+        _checkInterval = TimeSpan.FromHours(appConfig.Timeouts.UpdateCheckHours);
+        _startupDelay = TimeSpan.FromSeconds(appConfig.Timeouts.UpdateStartupDelaySeconds);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Wait a bit before first check so the app starts fast
-        await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+        await Task.Delay(_startupDelay, stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {

@@ -9,12 +9,14 @@ public sealed class CouncilService : ICouncilService
     private readonly IContentFileService _fileService;
     private readonly DelegatePool _pool;
     private readonly ILogger<CouncilService> _logger;
+    private readonly CouncilBudget _budget;
 
-    public CouncilService(IContentFileService fileService, DelegatePool pool, ILogger<CouncilService> logger)
+    public CouncilService(IContentFileService fileService, DelegatePool pool, AppConfig appConfig, ILogger<CouncilService> logger)
     {
         _fileService = fileService;
         _pool = pool;
         _logger = logger;
+        _budget = appConfig.Agents.Council;
     }
 
     public async Task<IReadOnlyList<CouncilMember>> LoadMembersAsync(CancellationToken ct = default)
@@ -54,8 +56,8 @@ public sealed class CouncilService : ICouncilService
             UserPrompt = query,
             ProviderAlias = m.ProviderAlias ?? "default",
             ModelOverride = m.Model,
-            Temperature = 0.7f,
-            MaxTokens = 1024,
+            Temperature = (float)_budget.Temperature,
+            MaxTokens = _budget.MaxTokens,
         });
 
         _logger.LogInformation("Running council with {Count} members", members.Count);

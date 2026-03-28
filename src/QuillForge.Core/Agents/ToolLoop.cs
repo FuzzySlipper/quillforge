@@ -18,6 +18,7 @@ public sealed class ToolLoop
     private readonly ILogger<ToolLoop> _logger;
     private readonly ILlmDebugLogger? _debugLogger;
     private readonly bool _diagnosticsEnabled;
+    private readonly int _toolTimeoutSeconds;
 
     public ToolLoop(
         ICompletionService completionService,
@@ -31,6 +32,7 @@ public sealed class ToolLoop
         _logger = logger;
         _debugLogger = debugLogger;
         _diagnosticsEnabled = appConfig.Diagnostics.LivePanel;
+        _toolTimeoutSeconds = appConfig.Timeouts.ToolExecutionSeconds;
     }
 
     /// <summary>
@@ -343,7 +345,7 @@ public sealed class ToolLoop
             _logger.LogDebug("Dispatching tool {ToolName} (id={ToolId})", toolCall.Name, toolCall.Id);
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeoutCts.CancelAfter(TimeSpan.FromSeconds(120));
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(_toolTimeoutSeconds));
 
             var result = await handler.HandleAsync(toolCall.Input, context, timeoutCts.Token);
             _logger.LogDebug(
@@ -353,8 +355,8 @@ public sealed class ToolLoop
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            _logger.LogWarning("Tool {ToolName} timed out after 120s", toolCall.Name);
-            return ToolResult.Fail($"Tool '{toolCall.Name}' timed out after 120 seconds.");
+            _logger.LogWarning("Tool {ToolName} timed out after {Timeout}s", toolCall.Name, _toolTimeoutSeconds);
+            return ToolResult.Fail($"Tool '{toolCall.Name}' timed out after {_toolTimeoutSeconds} seconds.");
         }
         catch (Exception ex)
         {

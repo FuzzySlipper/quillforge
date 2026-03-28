@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuillForge.Core.Models;
 using QuillForge.Providers.Registry;
 using QuillForge.Storage.FileSystem;
 
@@ -161,7 +162,7 @@ public static class ProviderEndpoints
             }
         });
 
-        group.MapGet("/{alias}/models", async (string alias, ProviderRegistry registry, ILogger<ProviderRegistry> logger, CancellationToken ct) =>
+        group.MapGet("/{alias}/models", async (string alias, ProviderRegistry registry, AppConfig appConfig, ILogger<ProviderRegistry> logger, CancellationToken ct) =>
         {
             var config = registry.GetConfig(alias);
             if (config is null)
@@ -175,7 +176,7 @@ public static class ProviderEndpoints
                 if (config.Type == ProviderType.Ollama)
                 {
                     var baseUrl = config.BaseUrl ?? "http://localhost:11434";
-                    using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                    using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(appConfig.Timeouts.ProviderHttpSeconds) };
                     var response = await httpClient.GetAsync($"{baseUrl}/api/tags", ct);
 
                     if (!response.IsSuccessStatusCode)
@@ -213,7 +214,7 @@ public static class ProviderEndpoints
                         }
                     }
 
-                    using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                    using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(appConfig.Timeouts.ProviderHttpSeconds) };
                     httpClient.DefaultRequestHeaders.Authorization = new("Bearer", config.ApiKey);
 
                     var response = await httpClient.GetAsync(modelsUrl, ct);

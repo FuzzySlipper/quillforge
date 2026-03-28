@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 
 namespace QuillForge.Providers.Tts;
@@ -7,30 +8,30 @@ public sealed class ElevenLabsTtsGenerator : ITtsGenerator
 {
     private readonly HttpClient _httpClient;
     private readonly string _outputDir;
-    private readonly string _defaultVoiceId;
     private readonly ILogger<ElevenLabsTtsGenerator> _logger;
+    private readonly ElevenLabsConfig _config;
 
-    public ElevenLabsTtsGenerator(HttpClient httpClient, string apiKey, string outputDir, ILogger<ElevenLabsTtsGenerator> logger, string voiceId = "21m00Tcm4TlvDq8ikWAM")
+    public ElevenLabsTtsGenerator(HttpClient httpClient, string apiKey, string outputDir, ElevenLabsConfig config, ILogger<ElevenLabsTtsGenerator> logger)
     {
         _httpClient = httpClient;
         _httpClient.BaseAddress = new Uri("https://api.elevenlabs.io/");
         _httpClient.DefaultRequestHeaders.Add("xi-api-key", apiKey);
         _outputDir = outputDir;
-        _defaultVoiceId = voiceId;
         _logger = logger;
+        _config = config;
     }
 
     public async Task<TtsResult> GenerateAsync(string text, TtsOptions? options = null, CancellationToken ct = default)
     {
         Directory.CreateDirectory(_outputDir);
 
-        var voiceId = options?.Voice ?? _defaultVoiceId;
+        var voiceId = options?.Voice ?? _config.VoiceId;
 
         var payload = new
         {
             text,
-            model_id = "eleven_monolingual_v1",
-            voice_settings = new { stability = 0.5, similarity_boost = 0.75 },
+            model_id = _config.ModelId,
+            voice_settings = new { stability = _config.Stability, similarity_boost = _config.SimilarityBoost },
         };
 
         var json = System.Text.Json.JsonSerializer.Serialize(payload);

@@ -15,6 +15,7 @@ public sealed class ProseWriterAgent
     private readonly IWritingStyleStore _writingStyleStore;
     private readonly ILogger<ProseWriterAgent> _logger;
     private readonly string _model;
+    private readonly ProseWriterBudget _budget;
 
     public ProseWriterAgent(
         ToolLoop toolLoop,
@@ -28,6 +29,7 @@ public sealed class ProseWriterAgent
         _writingStyleStore = writingStyleStore;
         _logger = logger;
         _model = appConfig.Models.ProseWriter;
+        _budget = appConfig.Agents.ProseWriter;
     }
 
     /// <summary>
@@ -50,9 +52,9 @@ public sealed class ProseWriterAgent
         var config = new AgentConfig
         {
             Model = _model,
-            MaxTokens = 8192,
+            MaxTokens = _budget.MaxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = 10,
+            MaxToolRounds = _budget.MaxToolRounds,
         };
 
         var messages = new List<CompletionMessage>

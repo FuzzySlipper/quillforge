@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 
 namespace QuillForge.Providers.ImageGen;
@@ -10,21 +11,23 @@ public sealed class ComfyUiImageGenerator : IImageGenerator
     private readonly string _outputDir;
     private readonly string _baseUrl;
     private readonly ILogger<ComfyUiImageGenerator> _logger;
+    private readonly ComfyUiConfig _config;
 
-    public ComfyUiImageGenerator(HttpClient httpClient, string baseUrl, string outputDir, ILogger<ComfyUiImageGenerator> logger)
+    public ComfyUiImageGenerator(HttpClient httpClient, string baseUrl, string outputDir, ComfyUiConfig config, ILogger<ComfyUiImageGenerator> logger)
     {
         _httpClient = httpClient;
         _baseUrl = baseUrl.TrimEnd('/');
         _outputDir = outputDir;
         _logger = logger;
+        _config = config;
     }
 
     public async Task<ImageResult> GenerateAsync(string prompt, ImageOptions? options = null, CancellationToken ct = default)
     {
         Directory.CreateDirectory(_outputDir);
 
-        var width = options?.Width ?? 512;
-        var height = options?.Height ?? 512;
+        var width = options?.Width ?? _config.Width;
+        var height = options?.Height ?? _config.Height;
 
         // Build a minimal ComfyUI workflow API payload
         var workflow = BuildWorkflow(prompt, width, height);
@@ -44,9 +47,9 @@ public sealed class ComfyUiImageGenerator : IImageGenerator
         // Poll for completion
         string? outputFileName = null;
         string? subfolder = null;
-        for (int i = 0; i < 120; i++) // Max 2 minutes
+        for (int i = 0; i < _config.MaxPollIterations; i++)
         {
-            await Task.Delay(1000, ct);
+            await Task.Delay(_config.PollIntervalMs, ct);
 
             var historyResponse = await _httpClient.GetAsync($"{_baseUrl}/history/{promptId}", ct);
             if (!historyResponse.IsSuccessStatusCode) continue;
@@ -86,14 +89,14 @@ public sealed class ComfyUiImageGenerator : IImageGenerator
         return new ImageResult(filePath, width, height);
     }
 
-    private static JsonElement BuildWorkflow(string prompt, int width, int height)
+    private JsonElement BuildWorkflow(string prompt, int width, int height)
     {
-        // Minimal txt2img workflow
+        // Minimal txt2img workflow with configurable parameters
         var workflowJson = $$"""
         {
             "1": {
                 "class_type": "CheckpointLoaderSimple",
-                "inputs": { "ckpt_name": "sd_xl_base_1.0.safetensors" }
+                "inputs": { "ckpt_name": "{{_config.Checkpoint}}" }
             },
             "2": {
                 "class_type": "CLIPTextEncode",
@@ -112,8 +115,8 @@ public sealed class ComfyUiImageGenerator : IImageGenerator
                 "inputs": {
                     "model": ["1", 0], "positive": ["2", 0], "negative": ["3", 0],
                     "latent_image": ["4", 0], "seed": {{Random.Shared.NextInt64()}},
-                    "steps": 20, "cfg": 7.0, "sampler_name": "euler",
-                    "scheduler": "normal", "denoise": 1.0
+                    "steps": {{_config.Steps}}, "cfg": {{_config.CfgScale}}, "sampler_name": "{{_config.Sampler}}",
+                    "scheduler": "{{_config.Scheduler}}", "denoise": 1.0
                 }
             },
             "6": {

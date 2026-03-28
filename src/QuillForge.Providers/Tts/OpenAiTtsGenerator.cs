@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 
 namespace QuillForge.Providers.Tts;
@@ -7,31 +8,29 @@ public sealed class OpenAiTtsGenerator : ITtsGenerator
 {
     private readonly HttpClient _httpClient;
     private readonly string _outputDir;
-    private readonly string _defaultModel;
-    private readonly string _defaultVoice;
     private readonly ILogger<OpenAiTtsGenerator> _logger;
+    private readonly OpenAiTtsConfig _config;
 
-    public OpenAiTtsGenerator(HttpClient httpClient, string apiKey, string outputDir, ILogger<OpenAiTtsGenerator> logger, string model = "tts-1", string voice = "alloy")
+    public OpenAiTtsGenerator(HttpClient httpClient, string apiKey, string outputDir, OpenAiTtsConfig config, ILogger<OpenAiTtsGenerator> logger)
     {
         _httpClient = httpClient;
         _httpClient.BaseAddress = new Uri("https://api.openai.com/");
         _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
         _outputDir = outputDir;
-        _defaultModel = model;
-        _defaultVoice = voice;
         _logger = logger;
+        _config = config;
     }
 
     public async Task<TtsResult> GenerateAsync(string text, TtsOptions? options = null, CancellationToken ct = default)
     {
         Directory.CreateDirectory(_outputDir);
 
-        var voice = options?.Voice ?? _defaultVoice;
-        var speed = options?.Speed ?? 1.0;
+        var voice = options?.Voice ?? _config.Voice;
+        var speed = options?.Speed ?? _config.Speed;
 
         var payload = new
         {
-            model = _defaultModel,
+            model = _config.Model,
             input = text,
             voice,
             speed,

@@ -171,6 +171,7 @@ builder.Services.AddSingleton<ForgeWriterAgent>();
 builder.Services.AddSingleton<ForgeReviewerAgent>(sp =>
     new ForgeReviewerAgent(
         sp.GetRequiredService<ICompletionService>(),
+        sp.GetRequiredService<AppConfig>(),
         sp.GetRequiredService<ILogger<ForgeReviewerAgent>>()));
 
 // --- Tool handlers (available to orchestrator in all modes) ---
@@ -312,7 +313,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<QuillForge.Web.Ser
     var comfyUrl = Environment.GetEnvironmentVariable("COMFYUI_URL");
     if (!string.IsNullOrEmpty(comfyUrl))
     {
-        imageProviders.Add(new ComfyUiImageGenerator(new HttpClient(), comfyUrl, imageOutputDir,
+        imageProviders.Add(new ComfyUiImageGenerator(new HttpClient(), comfyUrl, imageOutputDir, appConfig.ImageGen.ComfyUi,
             LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ComfyUiImageGenerator>()));
     }
 
@@ -320,7 +321,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<QuillForge.Web.Ser
     var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
     if (!string.IsNullOrEmpty(openAiKey))
     {
-        imageProviders.Add(new OpenAiImageGenerator(new HttpClient(), openAiKey, imageOutputDir,
+        imageProviders.Add(new OpenAiImageGenerator(new HttpClient(), openAiKey, imageOutputDir, appConfig.ImageGen.OpenAi,
             LoggerFactory.Create(b => b.AddConsole()).CreateLogger<OpenAiImageGenerator>()));
     }
 
@@ -340,14 +341,14 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<QuillForge.Web.Ser
     var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
     if (!string.IsNullOrEmpty(openAiKey))
     {
-        ttsProviders.Add(new OpenAiTtsGenerator(new HttpClient(), openAiKey, ttsOutputDir,
+        ttsProviders.Add(new OpenAiTtsGenerator(new HttpClient(), openAiKey, ttsOutputDir, appConfig.Tts.OpenAi,
             LoggerFactory.Create(b => b.AddConsole()).CreateLogger<OpenAiTtsGenerator>()));
     }
 
     var elevenLabsKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY");
     if (!string.IsNullOrEmpty(elevenLabsKey))
     {
-        ttsProviders.Add(new ElevenLabsTtsGenerator(new HttpClient(), elevenLabsKey, ttsOutputDir,
+        ttsProviders.Add(new ElevenLabsTtsGenerator(new HttpClient(), elevenLabsKey, ttsOutputDir, appConfig.Tts.ElevenLabs,
             LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ElevenLabsTtsGenerator>()));
     }
 

@@ -90,6 +90,26 @@ public sealed class ConfigurationLoader
                 "persona.max_tokens ({Value}) seems too low",
                 config.Persona.MaxTokens);
         }
+
+        // Agent budget validation
+        var agents = config.Agents;
+        if (agents.Orchestrator.MaxToolRounds < 1)
+            _logger.LogWarning("agents.orchestrator.max_tool_rounds ({Value}) must be at least 1", agents.Orchestrator.MaxToolRounds);
+        if (agents.Librarian.MaxTokens < 256)
+            _logger.LogWarning("agents.librarian.max_tokens ({Value}) seems too low", agents.Librarian.MaxTokens);
+        if (agents.ProseWriter.MaxTokens < 256)
+            _logger.LogWarning("agents.prose_writer.max_tokens ({Value}) seems too low", agents.ProseWriter.MaxTokens);
+        if (agents.Council.Temperature is < 0 or > 2)
+            _logger.LogWarning("agents.council.temperature ({Value}) should be between 0 and 2", agents.Council.Temperature);
+
+        // Timeout validation
+        var timeouts = config.Timeouts;
+        if (timeouts.ToolExecutionSeconds < 5)
+            _logger.LogWarning("timeouts.tool_execution_seconds ({Value}) seems too low, tools may time out prematurely", timeouts.ToolExecutionSeconds);
+        if (timeouts.ProviderHttpSeconds < 1)
+            _logger.LogWarning("timeouts.provider_http_seconds ({Value}) must be at least 1", timeouts.ProviderHttpSeconds);
+        if (timeouts.UpdateCheckHours < 1)
+            _logger.LogWarning("timeouts.update_check_hours ({Value}) must be at least 1", timeouts.UpdateCheckHours);
     }
 
     /// <summary>

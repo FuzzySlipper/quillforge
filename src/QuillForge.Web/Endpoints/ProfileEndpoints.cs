@@ -379,6 +379,7 @@ public static class ProfileEndpoints
         // Provider model fetching (the frontend calls this global endpoint)
         app.MapPost("/api/providers/fetch-models", async (
             HttpContext httpContext,
+            AppConfig appConfig,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -396,7 +397,7 @@ public static class ProfileEndpoints
 
             try
             {
-                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(appConfig.Timeouts.ProviderHttpSeconds) };
                 if (!string.IsNullOrEmpty(apiKey))
                 {
                     httpClient.DefaultRequestHeaders.Authorization = new("Bearer", apiKey);

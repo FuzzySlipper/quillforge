@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Agents;
+using QuillForge.Core.Models;
 
 namespace QuillForge.Core.Tests;
 
@@ -10,6 +11,7 @@ public class ForgeReviewerTests
     {
         return new ForgeReviewerAgent(
             null!, // Not used for parsing tests
+            new AppConfig(),
             NullLoggerFactory.Instance.CreateLogger<ForgeReviewerAgent>())
         { PassThreshold = passThreshold };
     }

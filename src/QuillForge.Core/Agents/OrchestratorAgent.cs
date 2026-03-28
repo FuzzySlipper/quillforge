@@ -15,6 +15,7 @@ public sealed class OrchestratorAgent
     private readonly IReadOnlyDictionary<string, IMode> _modes;
     private readonly IPersonaStore _personaStore;
     private readonly ILogger<OrchestratorAgent> _logger;
+    private readonly int _maxToolRounds;
 
     private IMode _activeMode;
     private string? _projectName;
@@ -25,8 +26,10 @@ public sealed class OrchestratorAgent
         ToolLoop toolLoop,
         IEnumerable<IMode> modes,
         IPersonaStore personaStore,
+        AppConfig appConfig,
         ILogger<OrchestratorAgent> logger)
     {
+        _maxToolRounds = appConfig.Agents.Orchestrator.MaxToolRounds;
         _toolLoop = toolLoop;
         _personaStore = personaStore;
         _logger = logger;
@@ -110,7 +113,7 @@ public sealed class OrchestratorAgent
             Model = model,
             MaxTokens = maxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = 15,
+            MaxToolRounds = _maxToolRounds,
         };
 
         var response = await _toolLoop.RunAsync(config, tools, messages, context, ct);
@@ -168,7 +171,7 @@ public sealed class OrchestratorAgent
             Model = model,
             MaxTokens = maxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = 15,
+            MaxToolRounds = _maxToolRounds,
         };
 
         await foreach (var evt in _toolLoop.RunStreamAsync(config, tools, messages, context, ct))

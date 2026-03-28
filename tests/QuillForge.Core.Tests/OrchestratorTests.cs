@@ -27,7 +27,7 @@ public class OrchestratorTests
 
         var personaStore = new FakePersonaStore();
 
-        return new OrchestratorAgent(toolLoop, modes, personaStore, LogFactory.CreateLogger<OrchestratorAgent>());
+        return new OrchestratorAgent(toolLoop, modes, personaStore, new AppConfig(), LogFactory.CreateLogger<OrchestratorAgent>());
     }
 
     [Fact]
