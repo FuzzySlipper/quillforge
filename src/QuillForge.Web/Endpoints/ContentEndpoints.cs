@@ -94,12 +94,34 @@ public static class ContentEndpoints
             });
         });
 
+        app.MapPost("/api/lore/projects", async (
+            HttpContext httpContext,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var name = body.RootElement.TryGetProperty("name", out var el) ? el.GetString() ?? "" : "";
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return Results.BadRequest(new { Error = "Project name is required" });
+            }
+
+            var projectDir = Path.Combine(contentRoot, "lore", name);
+            if (Directory.Exists(projectDir))
+            {
+                return Results.Conflict(new { Error = $"Lore project '{name}' already exists" });
+            }
+
+            Directory.CreateDirectory(projectDir);
+            return Results.Ok(new { Status = "ok", Name = name });
+        });
+
         // Individual lore file CRUD (catch-all must come AFTER /api/lore/projects)
         app.MapGet("/api/lore/{**filePath}", async (string filePath, AppConfig config, CancellationToken ct) =>
         {
             var resolved = Path.GetFullPath(Path.Combine(contentRoot, "lore", config.Lore.Active, filePath));
             var loreDir = Path.Combine(contentRoot, "lore", config.Lore.Active);
-            if (!resolved.StartsWith(loreDir) || !File.Exists(resolved))
+            if (!resolved.StartsWith(loreDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(resolved))
             {
                 return Results.NotFound(new { Error = "File not found" });
             }
@@ -119,7 +141,7 @@ public static class ContentEndpoints
 
             var resolved = Path.GetFullPath(Path.Combine(contentRoot, "lore", config.Lore.Active, filePath));
             var loreDir = Path.Combine(contentRoot, "lore", config.Lore.Active);
-            if (!resolved.StartsWith(loreDir))
+            if (!resolved.StartsWith(loreDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
                 return Results.BadRequest(new { Error = "Invalid path" });
             }
@@ -136,7 +158,7 @@ public static class ContentEndpoints
         {
             var resolved = Path.GetFullPath(Path.Combine(contentRoot, "lore", config.Lore.Active, filePath));
             var loreDir = Path.Combine(contentRoot, "lore", config.Lore.Active);
-            if (!resolved.StartsWith(loreDir) || !File.Exists(resolved))
+            if (!resolved.StartsWith(loreDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(resolved))
             {
                 return Results.NotFound(new { Error = "File not found" });
             }
@@ -148,7 +170,10 @@ public static class ContentEndpoints
         app.MapGet("/content/{**path}", (string path) =>
         {
             var fullPath = Path.GetFullPath(Path.Combine(contentRoot, path));
-            if (!fullPath.StartsWith(contentRoot) || !File.Exists(fullPath))
+            var rootWithSep = contentRoot.EndsWith(Path.DirectorySeparatorChar)
+                ? contentRoot
+                : contentRoot + Path.DirectorySeparatorChar;
+            if (!fullPath.StartsWith(rootWithSep, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath))
             {
                 return Results.NotFound();
             }

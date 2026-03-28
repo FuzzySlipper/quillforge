@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getMode, getStatus, newSession, sendChatStream, setMode as apiSetMode, conversationDelete, conversationFork, conversationUpdate } from "./api";
+import { getMode, getStatus, newSession, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork, conversationRegenerate } from "./api";
 import type { Message, MessageVariant, Mode, Status } from "./types";
 import { parseCommand, executeCommand } from "./commands";
 import type { CommandContext } from "./commands";
@@ -38,6 +38,7 @@ const uuid = (): string =>
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [mode, setMode] = useState<Mode>("general");
   const [layout, setLayout] = useState<LayoutConfig>(layoutManager.getLayout());
@@ -180,6 +181,10 @@ function App() {
       await sendChatStream(
         text,
         (event) => {
+          // Capture session ID from first done event
+          if (event.type === "done" && event.data.sessionId) {
+            setCurrentSessionId(event.data.sessionId as string);
+          }
           if (event.type === "status") {
             setStreamStatus(event.data.message as string);
           } else if (event.type === "tool") {
@@ -273,6 +278,7 @@ function App() {
           }
         },
         abort.signal,
+        currentSessionId,
       );
     } catch (err) {
       if (streamingStarted) {
@@ -318,6 +324,7 @@ function App() {
         newSession: async () => {
           await newSession();
           setMessages([]);
+          setCurrentSessionId(null);
           setHasPending(false);
           refreshStatus();
         },
@@ -501,26 +508,21 @@ function App() {
   }
 
   async function handleDeleteMessage(id: string) {
-    // Find the message's backend index (only user+assistant messages count)
-    const nonSystemMessages = messages.filter((m) => m.role !== "system");
-    const backendIdx = nonSystemMessages.findIndex((m) => m.id === id);
-    if (backendIdx === -1) return;
+    if (!currentSessionId) return;
 
     try {
-      await conversationDelete(backendIdx);
-      // Remove from frontend: delete user+assistant pair
+      await conversationDeleteMessage(currentSessionId, id);
+      // Remove from frontend: delete the message and its pair
       const msg = messages.find((m) => m.id === id);
       if (!msg) return;
       setMessages((prev) => {
         const msgIdx = prev.findIndex((m) => m.id === id);
         if (msgIdx === -1) return prev;
         if (msg.role === "user") {
-          // Delete user and following assistant (if exists)
           const next = prev[msgIdx + 1];
           const end = next && next.role === "assistant" ? msgIdx + 2 : msgIdx + 1;
           return [...prev.slice(0, msgIdx), ...prev.slice(end)];
         } else {
-          // Delete assistant and preceding user (if exists)
           const prev2 = prev[msgIdx - 1];
           const start = prev2 && prev2.role === "user" ? msgIdx - 1 : msgIdx;
           return [...prev.slice(0, start), ...prev.slice(msgIdx + 1)];
@@ -533,32 +535,13 @@ function App() {
   }
 
   async function handleForkMessage(id: string) {
-    const nonSystemMessages = messages.filter((m) => m.role !== "system");
-    const backendIdx = nonSystemMessages.findIndex((m) => m.id === id);
-    if (backendIdx === -1) return;
+    if (!currentSessionId) return;
 
     try {
-      const result = await conversationFork(backendIdx);
-      addSystemMessage(`Forked conversation saved as session (${result.turns} turns). Open Sessions to load it.`);
+      const result = await conversationFork(currentSessionId, id);
+      addSystemMessage(`Forked conversation saved as session (${result.messageCount} turns). Open Sessions to load it.`);
     } catch {
       addSystemMessage("Failed to fork conversation.");
-    }
-  }
-
-  /**
-   * When the user sends a new message, sync any active variant selections
-   * to the backend so it uses the right content in history.
-   */
-  async function syncVariantSelections() {
-    const nonSystem = messages.filter((m) => m.role !== "system");
-    for (let i = 0; i < nonSystem.length; i++) {
-      const m = nonSystem[i];
-      if (m.variants && m.variants.length > 1 && m.activeVariant !== undefined) {
-        const selected = m.variants[m.activeVariant];
-        // Only sync if the selected variant differs from what the backend has
-        // (backend always has the last response, but we may have swiped)
-        await conversationUpdate(i, selected.content).catch(() => {});
-      }
     }
   }
 
@@ -583,6 +566,7 @@ function App() {
         onNewSession={async () => {
           await newSession();
           setMessages([]);
+          setCurrentSessionId(null);
           setHasPending(false);
           refreshStatus();
         }}
@@ -702,15 +686,16 @@ function App() {
       <SessionBrowser
         open={sessionsOpen}
         onClose={() => setSessionsOpen(false)}
-        onLoad={(msgs, _loadedMode) => {
-          // Convert backend messages to frontend Message objects
-          const restored: Message[] = msgs.map((m, i) => ({
-            id: uuid(),
+        onLoad={(sessionId, msgs) => {
+          // Convert backend messages to frontend Message objects using real GUID IDs
+          const restored: Message[] = msgs.map((m) => ({
+            id: m.id,
             role: m.role as "user" | "assistant",
             content: m.content,
-            timestamp: Date.now() - (msgs.length - i) * 1000,
+            timestamp: new Date(m.createdAt).getTime() || Date.now(),
           }));
           setMessages(restored);
+          setCurrentSessionId(sessionId);
           setHasPending(false);
           refreshStatus();
         }}

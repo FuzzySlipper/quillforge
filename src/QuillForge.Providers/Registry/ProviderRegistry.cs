@@ -63,9 +63,30 @@ public sealed class ProviderRegistry : IDiagnosticSource
 
     /// <summary>
     /// Gets an ICompletionService for a provider alias.
+    /// Uses ReasoningCompletionService for reasoning-enabled models that require
+    /// provider-specific field preservation during tool loop round-trips.
     /// </summary>
     public ICompletionService GetCompletionService(string alias)
     {
+        lock (_lock)
+        {
+            if (!_configs.TryGetValue(alias, out var config))
+            {
+                throw new KeyNotFoundException($"No provider registered with alias '{alias}'.");
+            }
+
+            if (config.RequiresReasoning ?? ProviderFactory.IsReasoningModel(config.DefaultModel ?? ""))
+            {
+                _logger.LogDebug("Using ReasoningCompletionService for {Alias} (model={Model})", alias, config.DefaultModel);
+                return new ReasoningCompletionService(
+                    new HttpClient(),
+                    config.BaseUrl ?? "https://api.openai.com/v1",
+                    config.ApiKey,
+                    config.DefaultModel ?? "default",
+                    _loggerFactory.CreateLogger<ReasoningCompletionService>());
+            }
+        }
+
         var client = GetOrCreateClient(alias);
         return new ChatClientCompletionService(
             client,

@@ -110,6 +110,12 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<AtomicFileWriter>(),
         sp.GetRequiredService<ILogger<RuntimeStateStore>>()));
 
+builder.Services.AddSingleton<IStoryStateService>(sp =>
+    new FileSystemStoryStateService(
+        Path.Combine(contentRoot, "story"),
+        sp.GetRequiredService<AtomicFileWriter>(),
+        sp.GetRequiredService<ILogger<FileSystemStoryStateService>>()));
+
 // --- Provider persistence (encrypted API key storage) ---
 builder.Services.AddSingleton<EncryptedKeyStore>(sp =>
 {
@@ -165,6 +171,74 @@ builder.Services.AddSingleton<ForgeReviewerAgent>(sp =>
     new ForgeReviewerAgent(
         sp.GetRequiredService<ICompletionService>(),
         sp.GetRequiredService<ILogger<ForgeReviewerAgent>>()));
+
+// --- Tool handlers (available to orchestrator in all modes) ---
+builder.Services.AddSingleton<IToolHandler>(sp => new QueryLoreHandler(
+    sp.GetRequiredService<LibrarianAgent>(),
+    sp.GetRequiredService<AppConfig>().Lore.Active,
+    sp.GetRequiredService<ILogger<QueryLoreHandler>>()));
+builder.Services.AddSingleton<IToolHandler>(sp => new WriteProseHandler(
+    sp.GetRequiredService<ProseWriterAgent>(),
+    sp.GetRequiredService<AppConfig>().WritingStyle.Active,
+    () => "",
+    sp.GetRequiredService<ILogger<WriteProseHandler>>()));
+builder.Services.AddSingleton<IToolHandler, RollDiceHandler>();
+builder.Services.AddSingleton<IToolHandler, ReadFileHandler>();
+builder.Services.AddSingleton<IToolHandler, WriteFileHandler>();
+builder.Services.AddSingleton<IToolHandler, ListFilesHandler>();
+builder.Services.AddSingleton<IToolHandler, SearchFilesHandler>();
+builder.Services.AddSingleton<IToolHandler, DelegateTechnicalHandler>();
+builder.Services.AddSingleton<IToolHandler, RequestCodeChangeHandler>();
+builder.Services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<RunCouncilHandler>());
+if (appConfig.WebSearch.Enabled)
+{
+    builder.Services.AddSingleton<IToolHandler, WebSearchHandler>();
+}
+builder.Services.AddSingleton<IToolHandler>(sp =>
+{
+    var orchestrator = new Lazy<OrchestratorAgent>(() => sp.GetRequiredService<OrchestratorAgent>());
+    Func<string> statePathProvider = () =>
+    {
+        var project = orchestrator.Value.ProjectName ?? "default";
+        return $"{project}/.state.yaml";
+    };
+    return new GetStoryStateHandler(
+        sp.GetRequiredService<IStoryStateService>(),
+        statePathProvider,
+        sp.GetRequiredService<ILogger<GetStoryStateHandler>>());
+});
+builder.Services.AddSingleton<IToolHandler>(sp =>
+{
+    var orchestrator = new Lazy<OrchestratorAgent>(() => sp.GetRequiredService<OrchestratorAgent>());
+    Func<string> statePathProvider = () =>
+    {
+        var project = orchestrator.Value.ProjectName ?? "default";
+        return $"{project}/.state.yaml";
+    };
+    return new UpdateStoryStateHandler(
+        sp.GetRequiredService<IStoryStateService>(),
+        statePathProvider,
+        sp.GetRequiredService<ILogger<UpdateStoryStateHandler>>());
+});
+builder.Services.AddSingleton<IToolHandler>(sp =>
+{
+    var imageGen = sp.GetService<IImageGenerator>();
+    // Use a no-op generator if none configured — the handler will return an error message
+    return new GenerateImageHandler(
+        imageGen ?? new QuillForge.Providers.ImageGen.FallbackImageGenerator([],
+            sp.GetRequiredService<ILogger<FallbackImageGenerator>>()),
+        sp.GetRequiredService<ILogger<GenerateImageHandler>>());
+});
+if (!string.IsNullOrEmpty(appConfig.Email.ResendApiKey) && !string.IsNullOrEmpty(appConfig.Email.DeveloperEmail))
+{
+    builder.Services.AddSingleton<IEmailService>(sp =>
+        new QuillForge.Providers.Email.ResendEmailService(
+            new HttpClient(),
+            appConfig.Email.ResendApiKey,
+            appConfig.Email.DeveloperEmail,
+            sp.GetRequiredService<ILogger<QuillForge.Providers.Email.ResendEmailService>>()));
+    builder.Services.AddSingleton<IToolHandler, EmailDeveloperHandler>();
+}
 
 // --- Modes (explicit, no scanning) ---
 builder.Services.AddSingleton<IMode, GeneralMode>();
@@ -310,7 +384,7 @@ if (!string.IsNullOrEmpty(runtimeState.LastMode))
     try
     {
         var orchestrator = app.Services.GetRequiredService<OrchestratorAgent>();
-        orchestrator.SetMode(runtimeState.LastMode, runtimeState.LastProject, runtimeState.LastFile);
+        orchestrator.SetMode(runtimeState.LastMode, runtimeState.LastProject, runtimeState.LastFile, runtimeState.LastCharacter);
         app.Logger.LogInformation("Restored last mode: {Mode}", runtimeState.LastMode);
     }
     catch (Exception ex)
@@ -342,6 +416,7 @@ if (!string.IsNullOrEmpty(runtimeState.LastMode))
             ModelsUrl = dto.ModelsUrl,
             DefaultModel = dto.DefaultModel,
             ContextLimit = dto.ContextLimit,
+            RequiresReasoning = dto.RequiresReasoning,
             Options = dto.Options is not null ? new ProviderOptions
             {
                 Temperature = dto.Options.Temperature,

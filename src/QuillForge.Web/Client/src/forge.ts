@@ -68,7 +68,8 @@ async function _streamForgeEndpoint(
       } else if (line.startsWith("data: ")) {
         try {
           const data = JSON.parse(line.slice(6));
-          const mapped = _mapForgeEvent(currentEventType, data, progressLog);
+          const eventType = (data.type as string) ?? currentEventType;
+          const mapped = _mapForgeEvent(eventType, data, progressLog);
           onEvent(mapped);
         } catch {
           // Skip malformed data

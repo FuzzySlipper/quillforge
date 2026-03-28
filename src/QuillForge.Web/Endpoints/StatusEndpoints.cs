@@ -9,11 +9,33 @@ public static class StatusEndpoints
 {
     public static void MapStatusEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/status", (
+        app.MapGet("/api/status", async (
             OrchestratorAgent orchestrator,
             AutoUpdateService updateService,
-            AppConfig config) =>
+            AppConfig config,
+            ILoreStore loreStore,
+            IPersonaStore personaStore,
+            CancellationToken ct) =>
         {
+            // Calculate real token/file counts
+            var loreFiles = 0;
+            var loreTokens = 0;
+            try
+            {
+                var loreSet = await loreStore.LoadLoreSetAsync(config.Lore.Active, ct);
+                loreFiles = loreSet.Count;
+                loreTokens = loreSet.Values.Sum(v => v.Length) / 4; // rough token estimate
+            }
+            catch { /* lore set may not exist */ }
+
+            var personaTokens = 0;
+            try
+            {
+                var persona = await personaStore.LoadAsync(config.Persona.Active, config.Persona.MaxTokens, ct);
+                personaTokens = persona.Length / 4;
+            }
+            catch { /* persona may not exist */ }
+
             return Results.Ok(new
             {
                 Status = "ready",
@@ -29,12 +51,12 @@ public static class StatusEndpoints
                 Layout = config.Layout.Active,
                 AiCharacter = config.Roleplay.AiCharacter ?? "",
                 UserCharacter = config.Roleplay.UserCharacter ?? "",
-                ConversationTurns = 0,
-                LoreFiles = 0,
-                ContextLimit = 0,
-                LoreTokens = 0,
-                PersonaTokens = 0,
-                HistoryTokens = 0,
+                ConversationTurns = 0, // requires active session tracking (Task 28)
+                LoreFiles = loreFiles,
+                ContextLimit = 0, // provider-specific, needs registry lookup
+                LoreTokens = loreTokens,
+                PersonaTokens = personaTokens,
+                HistoryTokens = 0, // requires active session tracking (Task 28)
                 Update = updateService.UpdateAvailable ? new
                 {
                     Available = true,

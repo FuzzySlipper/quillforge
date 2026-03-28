@@ -25,6 +25,7 @@ public static class ProviderEndpoints
                         BaseUrl = config?.BaseUrl,
                         ModelsUrl = config?.ModelsUrl ?? DefaultModelsUrl(config),
                         ContextLimit = config?.ContextLimit,
+                        RequiresReasoning = config?.RequiresReasoning ?? ProviderFactory.IsReasoningModel(config?.DefaultModel ?? ""),
                         ApiKeySet = !string.IsNullOrEmpty(config?.ApiKey),
                         UsedBy = Array.Empty<string>(),
                         Options = config?.Options is not null ? new
@@ -70,6 +71,12 @@ public static class ProviderEndpoints
 
             var options = ParseProviderOptions(root);
 
+            var requiresReasoning = root.TryGetProperty("requiresReasoning", out var rrEl) && rrEl.ValueKind == JsonValueKind.True
+                ? true
+                : root.TryGetProperty("requiresReasoning", out var rrEl2) && rrEl2.ValueKind == JsonValueKind.False
+                    ? false
+                    : (bool?)null;
+
             var config = new ProviderConfig
             {
                 Alias = alias,
@@ -79,6 +86,7 @@ public static class ProviderEndpoints
                 ModelsUrl = modelsUrl,
                 DefaultModel = defaultModel,
                 ContextLimit = contextLimit,
+                RequiresReasoning = requiresReasoning,
                 Options = options,
             };
 
@@ -107,6 +115,10 @@ public static class ProviderEndpoints
 
             var newOptions = root.TryGetProperty("options", out _) ? ParseProviderOptions(root) : existing.Options;
 
+            var newRequiresReasoning = root.TryGetProperty("requiresReasoning", out var rrEl3)
+                ? rrEl3.ValueKind == JsonValueKind.True ? true : rrEl3.ValueKind == JsonValueKind.False ? false : existing.RequiresReasoning
+                : existing.RequiresReasoning;
+
             var config = existing with
             {
                 ApiKey = !string.IsNullOrEmpty(newApiKey) ? newApiKey : existing.ApiKey,
@@ -114,6 +126,7 @@ public static class ProviderEndpoints
                 DefaultModel = root.TryGetProperty("defaultModel", out var modelEl) ? modelEl.GetString() ?? existing.DefaultModel : existing.DefaultModel,
                 ModelsUrl = root.TryGetProperty("modelsUrl", out var muEl) ? muEl.GetString() ?? existing.ModelsUrl : existing.ModelsUrl,
                 ContextLimit = root.TryGetProperty("contextLimit", out var clEl) && clEl.TryGetInt32(out var clVal) ? clVal : existing.ContextLimit,
+                RequiresReasoning = newRequiresReasoning,
                 Options = newOptions,
             };
 
@@ -253,6 +266,7 @@ public static class ProviderEndpoints
             ModelsUrl = c.ModelsUrl,
             DefaultModel = c.DefaultModel,
             ContextLimit = c.ContextLimit,
+            RequiresReasoning = c.RequiresReasoning,
             Options = c.Options is not null ? new ProviderOptionsDto
             {
                 Temperature = c.Options.Temperature,

@@ -73,12 +73,26 @@ public static class ProfileEndpoints
         app.MapGet("/api/persona/{**filePath}", async (string filePath, CancellationToken ct) =>
         {
             var resolved = Path.GetFullPath(Path.Combine(contentRoot, "persona", filePath));
-            if (!resolved.StartsWith(Path.Combine(contentRoot, "persona")) || !File.Exists(resolved))
+            var personaRoot = Path.Combine(contentRoot, "persona") + Path.DirectorySeparatorChar;
+            if (!resolved.StartsWith(personaRoot, StringComparison.OrdinalIgnoreCase) || !File.Exists(resolved))
             {
                 return Results.NotFound(new { Error = "File not found" });
             }
             var content = await File.ReadAllTextAsync(resolved, ct);
             return Results.Ok(new { Path = filePath, Content = content, Tokens = content.Length / 4 });
+        });
+
+        app.MapPut("/api/persona/{**filePath}", async (
+            string filePath,
+            HttpContext httpContext,
+            IContentFileService fileService,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var content = body.RootElement.TryGetProperty("content", out var el) ? el.GetString() ?? "" : "";
+
+            await fileService.WriteAsync($"persona/{filePath}", content, ct);
+            return Results.Ok(new { Path = filePath, Status = "ok" });
         });
 
         // Writing style endpoints
@@ -110,6 +124,19 @@ public static class ProfileEndpoints
         {
             var content = await store.LoadAsync(name, ct);
             return Results.Ok(new { Path = name, Content = content, Tokens = content.Length / 4 });
+        });
+
+        app.MapPut("/api/writing-styles/{name}", async (
+            string name,
+            HttpContext httpContext,
+            IContentFileService fileService,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var content = body.RootElement.TryGetProperty("content", out var el) ? el.GetString() ?? "" : "";
+
+            await fileService.WriteAsync($"writing-styles/{name}.md", content, ct);
+            return Results.Ok(new { Name = name, Status = "ok" });
         });
 
         // Layout switch — persists to config.yaml
@@ -209,6 +236,130 @@ public static class ProfileEndpoints
         {
             var card = await store.LoadAsync(name, ct);
             return card is not null ? Results.Ok(card) : Results.NotFound();
+        });
+
+        app.MapPost("/api/character-cards", async (
+            HttpContext httpContext,
+            ICharacterCardStore store,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var root = body.RootElement;
+
+            var name = root.GetProperty("name").GetString() ?? "New Character";
+            var card = new CharacterCard
+            {
+                Name = name,
+                Portrait = root.TryGetProperty("portrait", out var p) ? p.GetString() : null,
+                Personality = root.TryGetProperty("personality", out var per) ? per.GetString() : null,
+                Description = root.TryGetProperty("description", out var d) ? d.GetString() : null,
+                Scenario = root.TryGetProperty("scenario", out var s) ? s.GetString() : null,
+                Greeting = root.TryGetProperty("greeting", out var g) ? g.GetString() : null,
+            };
+
+            var fileName = store.NewTemplate(name).FileName!;
+            await store.SaveAsync(fileName, card, ct);
+            return Results.Ok(new { Status = "ok", Filename = fileName });
+        });
+
+        app.MapPut("/api/character-cards/{name}", async (
+            string name,
+            HttpContext httpContext,
+            ICharacterCardStore store,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var root = body.RootElement;
+
+            var card = new CharacterCard
+            {
+                Name = root.TryGetProperty("name", out var n) ? n.GetString() ?? name : name,
+                Portrait = root.TryGetProperty("portrait", out var p) ? p.GetString() : null,
+                Personality = root.TryGetProperty("personality", out var per) ? per.GetString() : null,
+                Description = root.TryGetProperty("description", out var d) ? d.GetString() : null,
+                Scenario = root.TryGetProperty("scenario", out var s) ? s.GetString() : null,
+                Greeting = root.TryGetProperty("greeting", out var g) ? g.GetString() : null,
+                FileName = name,
+            };
+
+            await store.SaveAsync(name, card, ct);
+            return Results.Ok(new { Status = "ok" });
+        });
+
+        app.MapDelete("/api/character-cards/{name}", (string name, ICharacterCardStore store) =>
+        {
+            var cardsDir = Path.Combine(contentRoot, "character-cards");
+            var path = Path.Combine(cardsDir, name + ".yaml");
+            if (!File.Exists(path))
+            {
+                return Results.NotFound(new { Error = "Card not found" });
+            }
+            File.Delete(path);
+            return Results.Ok(new { Deleted = name });
+        });
+
+        app.MapPost("/api/character-cards/activate", async (
+            HttpContext httpContext,
+            AppConfig config,
+            AtomicFileWriter writer,
+            ILogger<ConfigurationLoader> logger,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var root = body.RootElement;
+
+            var aiCharacter = root.TryGetProperty("aiCharacter", out var ai) ? ai.GetString() : config.Roleplay.AiCharacter;
+            var userCharacter = root.TryGetProperty("userCharacter", out var user) ? user.GetString() : config.Roleplay.UserCharacter;
+
+            config.Roleplay = new RoleplayConfig
+            {
+                AiCharacter = aiCharacter,
+                UserCharacter = userCharacter,
+            };
+
+            var configPath = Path.Combine(contentRoot, "config.yaml");
+            await writer.WriteAsync(configPath, ConfigurationLoader.Serialize(config), ct);
+
+            return Results.Ok(new { Status = "ok", AiCharacter = aiCharacter, UserCharacter = userCharacter });
+        });
+
+        app.MapPost("/api/character-cards/import", async (
+            HttpContext httpContext,
+            ICharacterCardStore store,
+            CancellationToken ct) =>
+        {
+            if (!httpContext.Request.HasFormContentType)
+            {
+                return Results.BadRequest(new { Error = "Expected multipart form data" });
+            }
+
+            var form = await httpContext.Request.ReadFormAsync(ct);
+            var file = form.Files.GetFile("file");
+            if (file is null || file.Length == 0)
+            {
+                return Results.BadRequest(new { Error = "No file uploaded" });
+            }
+
+            // Save to temp file for import
+            var tempPath = Path.Combine(Path.GetTempPath(), $"card-import-{Guid.NewGuid():N}.png");
+            try
+            {
+                await using (var stream = File.Create(tempPath))
+                {
+                    await file.CopyToAsync(stream, ct);
+                }
+
+                var card = await store.ImportTavernCardAsync(tempPath, ct);
+                return Results.Ok(new
+                {
+                    Status = "ok",
+                    Card = new { Filename = card.FileName, card.Name, card.Portrait },
+                });
+            }
+            finally
+            {
+                try { File.Delete(tempPath); } catch { /* best effort */ }
+            }
         });
 
         // Conversation history (the frontend calls this instead of sessions/load)
@@ -364,6 +515,49 @@ public static class ProfileEndpoints
             artifacts.ClearCurrent();
             return Results.Ok(new { Status = "cleared" });
         });
+        // TTS — returns audio blob directly (matches frontend expectation)
+        app.MapPost("/api/tts", async (
+            HttpContext httpContext,
+            IServiceProvider sp,
+            CancellationToken ct) =>
+        {
+            var tts = sp.GetService<ITtsGenerator>();
+            if (tts is null)
+            {
+                return Results.BadRequest(new { Error = "No TTS provider configured." });
+            }
+
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var text = body.RootElement.TryGetProperty("text", out var textEl) ? textEl.GetString() ?? "" : "";
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return Results.BadRequest(new { Error = "Text is required." });
+            }
+
+            var options = new TtsOptions
+            {
+                Voice = body.RootElement.TryGetProperty("voice", out var v) ? v.GetString() : null,
+                Speed = body.RootElement.TryGetProperty("speed", out var s) && s.TryGetDouble(out var spd) ? spd : null,
+            };
+
+            try
+            {
+                var result = await tts.GenerateAsync(text, options, ct);
+                var ext = Path.GetExtension(result.FilePath).ToLowerInvariant();
+                var contentType = ext switch
+                {
+                    ".wav" => "audio/wav",
+                    ".ogg" => "audio/ogg",
+                    _ => "audio/mpeg",
+                };
+                return Results.File(result.FilePath, contentType);
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(detail: ex.Message, statusCode: 502, title: "TTS generation failed");
+            }
+        });
+
         app.MapGet("/api/tts/providers", (IServiceProvider sp) =>
         {
             var tts = sp.GetService<ITtsGenerator>();

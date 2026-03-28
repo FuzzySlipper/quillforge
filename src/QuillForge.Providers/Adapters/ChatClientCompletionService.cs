@@ -117,15 +117,21 @@ public sealed class ChatClientCompletionService : ICompletionService
 
         foreach (var msg in request.Messages)
         {
-            var role = msg.Role.ToLowerInvariant() switch
-            {
-                "user" => ChatRole.User,
-                "assistant" => ChatRole.Assistant,
-                "system" => ChatRole.System,
-                _ => ChatRole.User,
-            };
+            // Detect tool result messages: if any blocks are ToolResultBlock, use Tool role
+            var hasToolResults = msg.Content.Blocks.Any(b => b is Core.Models.ToolResultBlock);
+
+            var role = hasToolResults
+                ? ChatRole.Tool
+                : msg.Role.ToLowerInvariant() switch
+                {
+                    "user" => ChatRole.User,
+                    "assistant" => ChatRole.Assistant,
+                    "system" => ChatRole.System,
+                    _ => ChatRole.User,
+                };
 
             var contents = new List<AIContent>();
+
             foreach (var block in msg.Content.Blocks)
             {
                 switch (block)

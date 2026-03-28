@@ -42,11 +42,14 @@ export async function sendChatStream(
   message: string,
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
+  sessionId?: string | null,
 ): Promise<void> {
+  const payload: Record<string, unknown> = { message };
+  if (sessionId) payload.sessionId = sessionId;
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(payload),
     signal,
   });
 
@@ -77,7 +80,8 @@ export async function sendChatStream(
       } else if (line.startsWith("data: ")) {
         try {
           const data = JSON.parse(line.slice(6));
-          onEvent({ type: currentEvent as StreamEvent["type"], data });
+          const type = (data.type ?? currentEvent) as StreamEvent["type"];
+          onEvent({ type, data });
         } catch {
           // Skip malformed data
         }
@@ -123,7 +127,8 @@ export async function sendCouncilStream(
       } else if (line.startsWith("data: ")) {
         try {
           const data = JSON.parse(line.slice(6));
-          onEvent({ type: currentEvent as StreamEvent["type"], data });
+          const type = (data.type ?? currentEvent) as StreamEvent["type"];
+          onEvent({ type, data });
         } catch {
           // Skip malformed data
         }
@@ -186,10 +191,9 @@ export async function newSession(): Promise<unknown> {
 export interface SessionInfo {
   id: string;
   name: string;
-  mode: string;
-  turns: number;
+  lastMode: string | null;
+  messageCount: number;
   updatedAt: string;
-  isCurrent: boolean;
 }
 
 export async function listSessions(): Promise<{ sessions: SessionInfo[] }> {
@@ -198,7 +202,7 @@ export async function listSessions(): Promise<{ sessions: SessionInfo[] }> {
 
 export async function loadSession(
   id: string,
-): Promise<{ status: string; messages: Array<{ role: string; content: string }>; mode: string }> {
+): Promise<{ sessionId: string; name: string; messages: Array<{ id: string; role: string; content: string; createdAt: string }> }> {
   return request(`/api/sessions/${encodeURIComponent(id)}/load`, { method: "POST" });
 }
 
@@ -206,26 +210,33 @@ export async function deleteSession(id: string): Promise<unknown> {
   return request(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-// ── Conversation manipulation ──
+// ── Conversation manipulation (GUID-based, session-scoped) ──
 
-export async function conversationDelete(index: number): Promise<{ status: string; turns: number }> {
-  return request("/api/conversation/delete", {
-    method: "POST",
-    body: JSON.stringify({ index }),
+export async function conversationDeleteMessage(
+  sessionId: string,
+  messageId: string,
+): Promise<{ removed: number }> {
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}`, {
+    method: "DELETE",
   });
 }
 
-export async function conversationFork(upToIndex: number): Promise<{ status: string; sessionId: string; turns: number }> {
-  return request("/api/conversation/fork", {
+export async function conversationFork(
+  sessionId: string,
+  messageId?: string,
+): Promise<{ sessionId: string; name: string; messageCount: number }> {
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/fork`, {
     method: "POST",
-    body: JSON.stringify({ upToIndex }),
+    body: JSON.stringify({ messageId }),
   });
 }
 
-export async function conversationUpdate(index: number, content: string): Promise<{ status: string }> {
-  return request("/api/conversation/update", {
+export async function conversationRegenerate(
+  sessionId: string,
+  messageId: string,
+): Promise<{ parentId: string; message: string }> {
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/regenerate`, {
     method: "POST",
-    body: JSON.stringify({ index, content }),
   });
 }
 
@@ -470,6 +481,9 @@ export interface AgentAssignments {
   orchestrator: string;
   proseWriter: string;
   librarian: string;
+  forgeWriter: string;
+  forgePlanner: string;
+  forgeReviewer: string;
 }
 
 export async function getAgentModels(): Promise<{ assignments: AgentAssignments }> {

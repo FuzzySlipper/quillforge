@@ -31,7 +31,15 @@ public sealed record CompletionRequest
 /// <summary>
 /// A message in the completion request's conversation history.
 /// </summary>
-public sealed record CompletionMessage(string Role, MessageContent Content);
+public sealed record CompletionMessage(string Role, MessageContent Content)
+{
+    /// <summary>
+    /// Opaque provider-specific message data for lossless round-tripping.
+    /// Used by ReasoningCompletionService to preserve raw JSON (including reasoning_content)
+    /// during tool loop round-trips. Ignored by ChatClientCompletionService.
+    /// </summary>
+    public object? RawProviderMessage { get; init; }
+}
 
 /// <summary>
 /// Response from an LLM completion service.
@@ -41,7 +49,14 @@ public sealed record CompletionResponse
     public required MessageContent Content { get; init; }
     public required string StopReason { get; init; }
     public required TokenUsage Usage { get; init; }
+    /// <summary>
+    /// Reasoning/thinking content from the model (for UI display).
+    /// </summary>
     public string? Reasoning { get; init; }
+    /// <summary>
+    /// Opaque provider-specific message data for lossless round-tripping.
+    /// </summary>
+    public object? RawProviderMessage { get; init; }
 }
 
 /// <summary>

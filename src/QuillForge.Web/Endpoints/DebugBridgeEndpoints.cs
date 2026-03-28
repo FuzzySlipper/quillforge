@@ -20,6 +20,7 @@ public static class DebugBridgeEndpoints
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
             ISessionStore sessionStore,
+            IEnumerable<IToolHandler> toolHandlers,
             ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
@@ -60,8 +61,9 @@ public static class DebugBridgeEndpoints
                 ActiveMode = orchestrator.ActiveModeName,
             };
 
+            var tools = toolHandlers.ToList();
             var response = await orchestrator.HandleAsync(
-                persona, model, maxTokens, [], messages, context, ct: ct);
+                persona, model, maxTokens, tools, messages, context, ct: ct);
 
             // Append assistant response to the tree
             tree.Append(tree.ActiveLeafId, "assistant", response.Content, new MessageMetadata

@@ -70,10 +70,11 @@ export async function generateArtifact(
       } else if (line.startsWith("data: ")) {
         try {
           const data = JSON.parse(line.slice(6));
-          onEvent({ type: currentEvent as StreamEvent["type"], data });
+          const type = (data.type ?? currentEvent) as StreamEvent["type"];
+          onEvent({ type, data });
 
           // Update local state when artifact is done
-          if (currentEvent === "done" && data.content) {
+          if (type === "done" && data.content) {
             setArtifact({
               content: data.content,
               format: format,

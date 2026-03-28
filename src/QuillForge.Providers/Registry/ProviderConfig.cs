@@ -12,6 +12,13 @@ public sealed record ProviderConfig
     public string? ModelsUrl { get; init; }
     public string? DefaultModel { get; init; }
     public int? ContextLimit { get; init; }
+    /// <summary>
+    /// When true, uses ReasoningCompletionService (raw HTTP) instead of IChatClient
+    /// for this provider. Required for reasoning-enabled models (Kimi K2, DeepSeek-R, QwQ)
+    /// that need reasoning_content preserved during tool loop round-trips.
+    /// Auto-detected from model name if not explicitly set.
+    /// </summary>
+    public bool? RequiresReasoning { get; init; }
     public IReadOnlyDictionary<string, string>? ExtraSettings { get; init; }
     public ProviderOptions? Options { get; init; }
 }

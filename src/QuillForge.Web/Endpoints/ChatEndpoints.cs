@@ -18,6 +18,9 @@ public static class ChatEndpoints
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
             ISessionStore sessionStore,
+            IEnumerable<IToolHandler> toolHandlers,
+            ICharacterCardStore cardStore,
+            AppConfig appConfig,
             ILoggerFactory loggerFactory,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -77,18 +80,35 @@ public static class ChatEndpoints
                 ActiveMode = orchestrator.ActiveModeName,
             };
 
-            // Stream SSE response
+            // Stream SSE response, collecting assistant text for persistence
             httpContext.Response.ContentType = "text/event-stream";
             httpContext.Response.Headers.CacheControl = "no-cache";
 
+            var assistantText = new System.Text.StringBuilder();
+            string? stopReason = null;
+            int inputTokens = 0, outputTokens = 0;
+
+            var tools = toolHandlers.ToList();
             await foreach (var evt in orchestrator.HandleStreamAsync(
-                persona, model, maxTokens, [], messages, context, ct: ct))
+                persona, model, maxTokens, tools, messages, context, ct: ct))
             {
+                switch (evt)
+                {
+                    case TextDeltaEvent text:
+                        assistantText.Append(text.Text);
+                        break;
+                    case DoneEvent done:
+                        stopReason = done.StopReason;
+                        inputTokens = done.Usage.InputTokens;
+                        outputTokens = done.Usage.OutputTokens;
+                        break;
+                }
+
                 var eventData = evt switch
                 {
                     TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new { Type = "text_delta", Text = text.Text }, s_jsonOptions)}\n\n",
-                    ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new { Type = "tool_call", Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
-                    DoneEvent done => $"data: {JsonSerializer.Serialize(new { Type = "done", StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens } }, s_jsonOptions)}\n\n",
+                    ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new { Type = "tool", Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
+                    DoneEvent done => $"data: {JsonSerializer.Serialize(new { Type = "done", SessionId = sessionId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = GetPortraitUrl(appConfig.Roleplay.AiCharacter, cardStore), User_portrait = GetPortraitUrl(appConfig.Roleplay.UserCharacter, cardStore) }, s_jsonOptions)}\n\n",
                     ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new { Type = "reasoning_delta", Text = reasoning.Text }, s_jsonOptions)}\n\n",
                     _ => null,
                 };
@@ -100,10 +120,140 @@ public static class ChatEndpoints
                 }
             }
 
-            // Save session after completion
+            // Persist the assistant reply into the conversation tree
+            if (assistantText.Length > 0)
+            {
+                tree.Append(tree.ActiveLeafId, "assistant",
+                    new MessageContent(assistantText.ToString()),
+                    new MessageMetadata
+                    {
+                        Model = model,
+                        InputTokens = inputTokens,
+                        OutputTokens = outputTokens,
+                        StopReason = stopReason,
+                    });
+            }
+
             await sessionStore.SaveAsync(tree, ct);
 
             logger.LogInformation("Chat completed for session {SessionId}", sessionId);
         });
+
+        // POST /api/council — run council advisors and stream results as SSE
+        app.MapPost("/api/council", async (
+            HttpContext httpContext,
+            ICouncilService councilService,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var query = body.RootElement.TryGetProperty("query", out var q)
+                ? q.GetString() ?? ""
+                : "";
+
+            httpContext.Response.ContentType = "text/event-stream";
+            httpContext.Response.Headers.CacheControl = "no-cache";
+
+            var result = await councilService.RunCouncilAsync(query, ct);
+
+            // Stream each member's response as a text_delta, then done
+            foreach (var member in result.Members)
+            {
+                var memberEvent = JsonSerializer.Serialize(new
+                {
+                    Type = "text_delta",
+                    Text = $"**{member.Name}** ({member.Model}):\n{member.Content}\n\n",
+                }, s_jsonOptions);
+                await httpContext.Response.WriteAsync($"data: {memberEvent}\n\n", ct);
+                await httpContext.Response.Body.FlushAsync(ct);
+            }
+
+            var fullContent = string.Join("\n\n", result.Members.Select(m =>
+                $"**{m.Name}** ({m.Model}):\n{m.Content}"));
+            var doneEvent = JsonSerializer.Serialize(new
+            {
+                Type = "done",
+                Content = fullContent,
+                StopReason = "end_turn",
+            }, s_jsonOptions);
+            await httpContext.Response.WriteAsync($"data: {doneEvent}\n\n", ct);
+            await httpContext.Response.Body.FlushAsync(ct);
+        });
+
+        // POST /api/artifact — generate an artifact via SSE streaming
+        app.MapPost("/api/artifact", async (
+            HttpContext httpContext,
+            ICompletionService completionService,
+            IArtifactService artifactService,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var root = body.RootElement;
+
+            var prompt = root.TryGetProperty("prompt", out var pEl) ? pEl.GetString() ?? "" : "";
+            var formatStr = root.TryGetProperty("format", out var fEl) ? fEl.GetString() ?? "prose" : "prose";
+
+            if (!Enum.TryParse<ArtifactFormat>(formatStr, ignoreCase: true, out var format))
+            {
+                format = ArtifactFormat.Prose;
+            }
+
+            var systemPrompt = artifactService.BuildPrompt(prompt, format);
+
+            httpContext.Response.ContentType = "text/event-stream";
+            httpContext.Response.Headers.CacheControl = "no-cache";
+
+            var artifactText = new System.Text.StringBuilder();
+
+            var request = new CompletionRequest
+            {
+                Model = "default",
+                MaxTokens = 4096,
+                SystemPrompt = systemPrompt,
+                Messages = [new CompletionMessage("user", new MessageContent(prompt))],
+            };
+
+            await foreach (var evt in completionService.StreamAsync(request, ct))
+            {
+                switch (evt)
+                {
+                    case TextDeltaEvent text:
+                        artifactText.Append(text.Text);
+                        var textEvent = JsonSerializer.Serialize(new { Type = "text_delta", Text = text.Text }, s_jsonOptions);
+                        await httpContext.Response.WriteAsync($"data: {textEvent}\n\n", ct);
+                        await httpContext.Response.Body.FlushAsync(ct);
+                        break;
+                }
+            }
+
+            // Save the artifact
+            var content = artifactText.ToString();
+            if (!string.IsNullOrWhiteSpace(content))
+            {
+                var artifact = new Artifact
+                {
+                    Format = format,
+                    Content = content,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                };
+                artifactService.SetCurrent(artifact);
+                await artifactService.SaveAsync(artifact, ct);
+            }
+
+            var done = JsonSerializer.Serialize(new
+            {
+                Type = "done",
+                Content = content,
+                StopReason = "end_turn",
+            }, s_jsonOptions);
+            await httpContext.Response.WriteAsync($"data: {done}\n\n", ct);
+            await httpContext.Response.Body.FlushAsync(ct);
+        });
+    }
+
+    private static string? GetPortraitUrl(string? characterName, ICharacterCardStore cardStore)
+    {
+        if (string.IsNullOrEmpty(characterName)) return null;
+        var card = cardStore.LoadAsync(characterName).GetAwaiter().GetResult();
+        return card?.Portrait is not null ? $"/content/character-cards/{card.Portrait}" : null;
     }
 }

@@ -35,7 +35,11 @@ public sealed class WebSearchHandler : IToolHandler
 
     public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
     {
-        var query = input.GetProperty("query").GetString() ?? "";
+        var query = input.TryGetProperty("query", out var q) ? q.GetString() ?? "" : "";
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return ToolResult.Fail("Missing required parameter: query");
+        }
         _logger.LogDebug("WebSearchHandler: searching for \"{Query}\"", query);
 
         var results = await _webSearch.SearchAsync(query, ct);

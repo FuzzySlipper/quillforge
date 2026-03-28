@@ -5,7 +5,7 @@ import { listSessions, loadSession, deleteSession, type SessionInfo } from "../a
 interface SessionBrowserProps {
   open: boolean;
   onClose: () => void;
-  onLoad: (messages: Array<{ role: string; content: string }>, mode: string) => void;
+  onLoad: (sessionId: string, messages: Array<{ id: string; role: string; content: string }>) => void;
 }
 
 function timeAgo(iso: string): string {
@@ -44,7 +44,7 @@ export default function SessionBrowser({ open, onClose, onLoad }: SessionBrowser
     setError(null);
     try {
       const data = await loadSession(id);
-      onLoad(data.messages, data.mode);
+      onLoad(data.sessionId, data.messages);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load session");
@@ -71,29 +71,26 @@ export default function SessionBrowser({ open, onClose, onLoad }: SessionBrowser
           sessions.map((s) => (
             <div
               key={s.id}
-              className={`flex items-start justify-between gap-2 px-3 py-2.5 rounded-lg bg-input-bg/50 border ${
-                s.isCurrent ? "border-accent/40" : "border-border/50"
-              }`}
+              className="flex items-start justify-between gap-2 px-3 py-2.5 rounded-lg bg-input-bg/50 border border-border/50"
             >
               <button
                 onClick={() => handleLoad(s.id)}
-                disabled={loading || s.isCurrent}
+                disabled={loading}
                 className="flex-1 min-w-0 text-left disabled:opacity-60"
               >
                 <div className="text-sm text-text truncate">{s.name}</div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] uppercase tracking-wider text-accent/70 bg-accent/10 px-1.5 py-0.5 rounded">
-                    {s.mode}
-                  </span>
+                  {s.lastMode && (
+                    <span className="text-[10px] uppercase tracking-wider text-accent/70 bg-accent/10 px-1.5 py-0.5 rounded">
+                      {s.lastMode}
+                    </span>
+                  )}
                   <span className="text-[11px] text-text-muted">
-                    {s.turns} turn{s.turns !== 1 ? "s" : ""}
+                    {s.messageCount} turn{s.messageCount !== 1 ? "s" : ""}
                   </span>
                   <span className="text-[11px] text-text-muted">
                     {timeAgo(s.updatedAt)}
                   </span>
-                  {s.isCurrent && (
-                    <span className="text-[10px] text-accent">current</span>
-                  )}
                 </div>
               </button>
               <button

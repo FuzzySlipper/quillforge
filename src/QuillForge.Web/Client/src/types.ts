@@ -57,7 +57,8 @@ export interface ModeInfo {
   mode: Mode;
   project: string | null;
   file: string | null;
-  pendingContent: boolean;
+  character: string | null;
+  pendingContent: string | null;
 }
 
 export interface ProjectEntry {

@@ -18,6 +18,7 @@ public sealed class ProviderConfigDto
     public string? ModelsUrl { get; init; }
     public string? DefaultModel { get; init; }
     public int? ContextLimit { get; init; }
+    public bool? RequiresReasoning { get; init; }
     public IReadOnlyDictionary<string, string>? ExtraSettings { get; init; }
     public ProviderOptionsDto? Options { get; init; }
 }
@@ -104,6 +105,7 @@ public sealed class ProviderConfigStore
                     ModelsUrl = sp.ModelsUrl,
                     DefaultModel = sp.DefaultModel,
                     ContextLimit = sp.ContextLimit,
+                    RequiresReasoning = sp.RequiresReasoning,
                     ExtraSettings = sp.ExtraSettings,
                     Options = sp.Options,
                 });
@@ -135,6 +137,7 @@ public sealed class ProviderConfigStore
                 ModelsUrl = c.ModelsUrl,
                 DefaultModel = c.DefaultModel,
                 ContextLimit = c.ContextLimit,
+                RequiresReasoning = c.RequiresReasoning,
                 ExtraSettings = c.ExtraSettings,
                 Options = c.Options,
             }).ToList(),
@@ -161,6 +164,7 @@ public sealed class ProviderConfigStore
         public string? ModelsUrl { get; set; }
         public string? DefaultModel { get; set; }
         public int? ContextLimit { get; set; }
+        public bool? RequiresReasoning { get; set; }
         public IReadOnlyDictionary<string, string>? ExtraSettings { get; set; }
         public ProviderOptionsDto? Options { get; set; }
     }

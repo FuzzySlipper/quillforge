@@ -19,6 +19,8 @@ public static class ModeEndpoints
                 Mode = orchestrator.ActiveModeName,
                 Project = orchestrator.ProjectName,
                 File = orchestrator.CurrentFile,
+                Character = orchestrator.Character,
+                PendingContent = orchestrator.WriterPendingContent,
             });
         });
 
@@ -34,8 +36,9 @@ public static class ModeEndpoints
             var mode = root.GetProperty("mode").GetString() ?? "general";
             var project = root.TryGetProperty("project", out var p) ? p.GetString() : null;
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
+            var character = root.TryGetProperty("character", out var c) ? c.GetString() : null;
 
-            orchestrator.SetMode(mode, project, file);
+            orchestrator.SetMode(mode, project, file, character);
 
             // Persist so it survives refresh/restart
             await stateStore.SaveAsync(new RuntimeState
@@ -43,9 +46,10 @@ public static class ModeEndpoints
                 LastMode = mode,
                 LastProject = project,
                 LastFile = file,
+                LastCharacter = character,
             }, ct);
 
-            return Results.Ok(new { Mode = mode, Project = project, File = file });
+            return Results.Ok(new { Mode = mode, Project = project, File = file, Character = character });
         });
 
         app.MapGet("/api/profiles", async (

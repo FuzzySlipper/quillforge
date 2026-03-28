@@ -81,9 +81,12 @@ public sealed class FileSystemContentService : IContentFileService
 
     private string ResolvePath(string relativePath)
     {
-        // Prevent path traversal
+        // Prevent path traversal — use separator-aware check to block sibling-prefix escapes
         var resolved = Path.GetFullPath(Path.Combine(_basePath, relativePath));
-        if (!resolved.StartsWith(_basePath, StringComparison.OrdinalIgnoreCase))
+        var root = _basePath.EndsWith(Path.DirectorySeparatorChar)
+            ? _basePath
+            : _basePath + Path.DirectorySeparatorChar;
+        if (!resolved.StartsWith(root, StringComparison.OrdinalIgnoreCase))
         {
             throw new ArgumentException($"Path traversal detected: {relativePath}");
         }

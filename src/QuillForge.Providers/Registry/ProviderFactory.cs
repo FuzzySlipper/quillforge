@@ -56,6 +56,16 @@ public sealed class ProviderFactory
         return client.GetChatClient(model).AsIChatClient();
     }
 
+    /// <summary>
+    /// Detects reasoning-enabled models that require reasoning_content preservation.
+    /// </summary>
+    public static bool IsReasoningModel(string model)
+    {
+        var m = model.ToLowerInvariant();
+        return m.Contains("kimi-k2") || m.Contains("deepseek-r") || m.Contains("qwq")
+            || m.Contains("o1") || m.Contains("o3") || m.Contains("o4");
+    }
+
     private IChatClient CreateAnthropicClient(ProviderConfig config)
     {
         var options = new Anthropic.Core.ClientOptions { ApiKey = config.ApiKey };

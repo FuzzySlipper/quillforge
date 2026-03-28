@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Pipeline;
 using QuillForge.Core.Services;
@@ -16,6 +17,7 @@ public static class ForgeEndpoints
     {
         var group = app.MapGroup("/api/forge");
 
+        // /api/forge/projects used by commands.ts for listing
         group.MapGet("/projects", async (IContentFileService fileService, CancellationToken ct) =>
         {
             var files = await fileService.ListAsync("forge", "manifest.json", ct);
@@ -45,35 +47,158 @@ public static class ForgeEndpoints
             return Results.Ok(projects);
         });
 
-        group.MapPost("/projects/{name}/run", async (
+        // POST /api/forge/projects/{name}/start — run full pipeline with SSE streaming
+        group.MapPost("/{name}/start", async (
             string name,
             HttpContext httpContext,
             ForgePipeline pipeline,
+            ForgePlannerAgent planner,
+            ForgeWriterAgent writer,
+            ForgeReviewerAgent reviewer,
+            IContentFileService fileService,
+            AppConfig config,
             ILogger<ForgePipeline> logger,
             CancellationToken ct) =>
         {
-            // SSE streaming for pipeline events
             httpContext.Response.ContentType = "text/event-stream";
             httpContext.Response.Headers.CacheControl = "no-cache";
 
-            logger.LogInformation("Forge pipeline run requested for project {Name}", name);
+            var context = await BuildForgeContextAsync(name, pipeline, planner, writer, reviewer,
+                fileService, config, logger, ct);
 
-            // The actual ForgeContext creation requires runtime config assembly.
-            // This endpoint serves as the SSE streaming scaffold.
-            // Full wiring happens during the configuration task.
+            // Unpause if resuming
+            context.Manifest = context.Manifest with { Paused = false };
 
-            await httpContext.Response.WriteAsync(
-                $"data: {JsonSerializer.Serialize(new { Type = "info", Message = $"Pipeline endpoint ready for project {name}" }, s_jsonOptions)}\n\n", ct);
+            await foreach (var evt in pipeline.RunAsync(context, ct))
+            {
+                var sseData = MapForgeEventToSse(evt);
+                await httpContext.Response.WriteAsync($"data: {sseData}\n\n", ct);
+                await httpContext.Response.Body.FlushAsync(ct);
+            }
+        });
+
+        // POST /api/forge/projects/{name}/design — run only planning stage
+        group.MapPost("/{name}/design", async (
+            string name,
+            HttpContext httpContext,
+            ForgePipeline pipeline,
+            ForgePlannerAgent planner,
+            ForgeWriterAgent writer,
+            ForgeReviewerAgent reviewer,
+            IContentFileService fileService,
+            AppConfig config,
+            ILogger<ForgePipeline> logger,
+            CancellationToken ct) =>
+        {
+            httpContext.Response.ContentType = "text/event-stream";
+            httpContext.Response.Headers.CacheControl = "no-cache";
+
+            var context = await BuildForgeContextAsync(name, pipeline, planner, writer, reviewer,
+                fileService, config, logger, ct);
+
+            // Design runs the pipeline but requests pause after planning completes
+            pipeline.RequestPause();
+            context.Manifest = context.Manifest with
+            {
+                Stage = ForgeStage.Planning,
+                Paused = false,
+            };
+
+            await foreach (var evt in pipeline.RunAsync(context, ct))
+            {
+                var sseData = MapForgeEventToSse(evt);
+                await httpContext.Response.WriteAsync($"data: {sseData}\n\n", ct);
+                await httpContext.Response.Body.FlushAsync(ct);
+            }
+
+            // Send complete event
+            var done = JsonSerializer.Serialize(new { Type = "complete", Message = "Design phase complete." }, s_jsonOptions);
+            await httpContext.Response.WriteAsync($"data: {done}\n\n", ct);
             await httpContext.Response.Body.FlushAsync(ct);
         });
 
-        group.MapPost("/projects/{name}/pause", (string name, ForgePipeline pipeline) =>
+        // GET /api/forge/projects/{name}/status — current pipeline state
+        group.MapGet("/{name}/status", async (
+            string name,
+            IContentFileService fileService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var json = await fileService.ReadAsync($"forge/{name}/manifest.json", ct);
+                var manifest = JsonSerializer.Deserialize<ForgeManifest>(json,
+                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+                if (manifest is null)
+                    return Results.NotFound(new { Error = "Manifest not found" });
+
+                return Results.Ok(new
+                {
+                    manifest.ProjectName,
+                    Stage = manifest.Stage.ToString(),
+                    manifest.ChapterCount,
+                    manifest.Paused,
+                    Chapters = manifest.Chapters.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => new
+                        {
+                            State = kvp.Value.State.ToString(),
+                            kvp.Value.RevisionCount,
+                            kvp.Value.WordCount,
+                        }),
+                    manifest.Stats,
+                });
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { Error = $"Project '{name}' not found" });
+            }
+        });
+
+        // POST /api/forge/projects/{name}/approve — resume from pause
+        group.MapPost("/{name}/approve", async (
+            string name,
+            HttpContext httpContext,
+            ForgePipeline pipeline,
+            ForgePlannerAgent planner,
+            ForgeWriterAgent writer,
+            ForgeReviewerAgent reviewer,
+            IContentFileService fileService,
+            AppConfig config,
+            ILogger<ForgePipeline> logger,
+            CancellationToken ct) =>
+        {
+            httpContext.Response.ContentType = "text/event-stream";
+            httpContext.Response.Headers.CacheControl = "no-cache";
+
+            var context = await BuildForgeContextAsync(name, pipeline, planner, writer, reviewer,
+                fileService, config, logger, ct);
+
+            if (!context.Manifest.Paused)
+            {
+                var err = JsonSerializer.Serialize(new { Type = "error", Message = "Pipeline is not paused" }, s_jsonOptions);
+                await httpContext.Response.WriteAsync($"data: {err}\n\n", ct);
+                await httpContext.Response.Body.FlushAsync(ct);
+                return;
+            }
+
+            context.Manifest = context.Manifest with { Paused = false };
+
+            await foreach (var evt in pipeline.RunAsync(context, ct))
+            {
+                var sseData = MapForgeEventToSse(evt);
+                await httpContext.Response.WriteAsync($"data: {sseData}\n\n", ct);
+                await httpContext.Response.Body.FlushAsync(ct);
+            }
+        });
+
+        group.MapPost("/{name}/pause", (string name, ForgePipeline pipeline) =>
         {
             pipeline.RequestPause();
             return Results.Ok(new { Paused = name });
         });
 
-        group.MapPost("/projects/{name}/rebuild-manifest", async (
+        group.MapPost("/{name}/rebuild-manifest", async (
             string name,
             ForgePipeline pipeline,
             CancellationToken ct) =>
@@ -89,5 +214,100 @@ public static class ForgeEndpoints
                     kvp => kvp.Value.State.ToString()),
             });
         });
+    }
+
+    /// <summary>
+    /// Build a ForgeContext from an existing manifest or create a fresh one.
+    /// </summary>
+    private static async Task<ForgeContext> BuildForgeContextAsync(
+        string projectName,
+        ForgePipeline pipeline,
+        ForgePlannerAgent planner,
+        ForgeWriterAgent writer,
+        ForgeReviewerAgent reviewer,
+        IContentFileService fileService,
+        AppConfig config,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        ForgeManifest manifest;
+        var manifestPath = $"forge/{projectName}/manifest.json";
+
+        try
+        {
+            var json = await fileService.ReadAsync(manifestPath, ct);
+            manifest = JsonSerializer.Deserialize<ForgeManifest>(json,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+                ?? CreateNewManifest(projectName, config);
+        }
+        catch (FileNotFoundException)
+        {
+            manifest = CreateNewManifest(projectName, config);
+            var json = JsonSerializer.Serialize(manifest,
+                new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            await fileService.WriteAsync(manifestPath, json, ct);
+        }
+
+        return new ForgeContext
+        {
+            Manifest = manifest,
+            ProjectPath = $"forge/{projectName}",
+            Planner = planner,
+            Writer = writer,
+            Reviewer = reviewer,
+            WriterTools = [],
+            FileService = fileService,
+            AgentContext = new AgentContext
+            {
+                SessionId = Guid.CreateVersion7(),
+                ActiveMode = "forge",
+            },
+            ReviewPassThreshold = config.Forge.ReviewPassThreshold,
+            MaxRevisions = config.Forge.MaxRevisions,
+        };
+    }
+
+    private static ForgeManifest CreateNewManifest(string projectName, AppConfig config)
+    {
+        return new ForgeManifest
+        {
+            ProjectName = projectName,
+            Stage = ForgeStage.Planning,
+            PauseAfterChapter1 = config.Forge.PauseAfterChapter1,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+    }
+
+    /// <summary>
+    /// Maps ForgeEvent objects to SSE JSON payloads with event types the frontend expects.
+    /// </summary>
+    private static string MapForgeEventToSse(ForgeEvent evt)
+    {
+        return evt switch
+        {
+            StageStartedEvent stage => JsonSerializer.Serialize(
+                new { Type = "stage", Message = $"{stage.StageName} started" }, s_jsonOptions),
+
+            StageCompletedEvent stage => JsonSerializer.Serialize(
+                new { Type = "stage", Message = $"{stage.StageName} complete" }, s_jsonOptions),
+
+            ChapterProgressEvent ch => JsonSerializer.Serialize(
+                new { Type = "chapter", Chapter = ch.ChapterId, Status = ch.Status, WordCount = 0, Detail = ch.Detail }, s_jsonOptions),
+
+            ForgeErrorEvent err => JsonSerializer.Serialize(
+                new { Type = "error", Message = err.Message, Stage = err.StageName }, s_jsonOptions),
+
+            ForgeCompletedEvent done => JsonSerializer.Serialize(
+                new
+                {
+                    Type = "complete",
+                    Message = "Pipeline complete",
+                    ChaptersComplete = done.Stats.AgentCalls,
+                    TotalTokens = done.Stats.TotalInputTokens + done.Stats.TotalOutputTokens,
+                }, s_jsonOptions),
+
+            _ => JsonSerializer.Serialize(new { Type = "ping" }, s_jsonOptions),
+        };
     }
 }

@@ -19,6 +19,7 @@ public sealed class OrchestratorAgent
     private IMode _activeMode;
     private string? _projectName;
     private string? _currentFile;
+    private string? _character;
 
     public OrchestratorAgent(
         ToolLoop toolLoop,
@@ -44,11 +45,18 @@ public sealed class OrchestratorAgent
     public string ActiveModeName => _activeMode.Name;
     public string? ProjectName => _projectName;
     public string? CurrentFile => _currentFile;
+    public string? Character => _character;
+
+    /// <summary>
+    /// Returns pending content if the active mode is Writer and has content awaiting review.
+    /// </summary>
+    public string? WriterPendingContent =>
+        _activeMode is WriterMode w ? w.PendingContent : null;
 
     /// <summary>
     /// Switches to a new mode. Resets mode-specific state.
     /// </summary>
-    public void SetMode(string modeName, string? projectName = null, string? fileName = null)
+    public void SetMode(string modeName, string? projectName = null, string? fileName = null, string? character = null)
     {
         if (!_modes.TryGetValue(modeName, out var mode))
         {
@@ -68,6 +76,7 @@ public sealed class OrchestratorAgent
         _activeMode = mode;
         _projectName = projectName;
         _currentFile = fileName;
+        _character = character;
     }
 
     /// <summary>

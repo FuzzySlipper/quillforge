@@ -137,8 +137,13 @@ public sealed class ToolLoop
                 return BuildResponse(response.Content, "max_rounds", totalUsage, round);
             }
 
-            // Append assistant message with tool_use blocks
-            messages.Add(new CompletionMessage("assistant", response.Content));
+            // Append assistant message with tool_use blocks.
+            // RawProviderMessage carries provider-specific data (e.g., reasoning_content JSON)
+            // for adapters that need lossless round-tripping. Ignored by the default adapter.
+            messages.Add(new CompletionMessage("assistant", response.Content)
+            {
+                RawProviderMessage = response.RawProviderMessage,
+            });
 
             // Execute all tool calls and build results
             var resultBlocks = new List<ContentBlock>();
