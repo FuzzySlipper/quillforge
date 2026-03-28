@@ -12,11 +12,13 @@ public sealed class ForgePlannerAgent
 {
     private readonly ToolLoop _toolLoop;
     private readonly ILogger<ForgePlannerAgent> _logger;
+    private readonly string _model;
 
-    public ForgePlannerAgent(ToolLoop toolLoop, ILogger<ForgePlannerAgent> logger)
+    public ForgePlannerAgent(ToolLoop toolLoop, AppConfig appConfig, ILogger<ForgePlannerAgent> logger)
     {
         _toolLoop = toolLoop;
         _logger = logger;
+        _model = appConfig.Models.ForgePlanner;
     }
 
     /// <summary>
@@ -36,7 +38,7 @@ public sealed class ForgePlannerAgent
 
         var config = new AgentConfig
         {
-            Model = "default",
+            Model = _model,
             MaxTokens = 8192,
             SystemPrompt = systemPrompt,
             MaxToolRounds = 30,

@@ -17,17 +17,20 @@ public sealed class ToolLoop
     private readonly ContinuationStrategy _continuationStrategy;
     private readonly ILogger<ToolLoop> _logger;
     private readonly ILlmDebugLogger? _debugLogger;
+    private readonly bool _diagnosticsEnabled;
 
     public ToolLoop(
         ICompletionService completionService,
         ContinuationStrategy continuationStrategy,
         ILogger<ToolLoop> logger,
+        AppConfig appConfig,
         ILlmDebugLogger? debugLogger = null)
     {
         _completionService = completionService;
         _continuationStrategy = continuationStrategy;
         _logger = logger;
         _debugLogger = debugLogger;
+        _diagnosticsEnabled = appConfig.Diagnostics.LivePanel;
     }
 
     /// <summary>
@@ -183,6 +186,10 @@ public sealed class ToolLoop
             "ToolLoop (streaming) starting for session {SessionId}, model {Model}",
             context.SessionId, config.Model);
 
+        if (_diagnosticsEnabled)
+            yield return new DiagnosticEvent("stream",
+                $"Starting stream: model={config.Model}, tools={toolDefs.Count}, maxRounds={config.MaxToolRounds}");
+
         while (true)
         {
             ct.ThrowIfCancellationRequested();
@@ -198,10 +205,9 @@ public sealed class ToolLoop
                 CacheSystemPrompt = config.CacheSystemPrompt,
             };
 
-            // For intermediate rounds (tool dispatch), use non-streaming
-            // For the final round (no more tools), we stream to caller
-            // We don't know in advance which round is final, so we always try streaming
-            // and collect tool calls if they appear.
+            if (_diagnosticsEnabled)
+                yield return new DiagnosticEvent("llm",
+                    $"Round {round}: calling {config.Model} ({messages.Count} messages, {toolDefs.Count} tools)");
 
             _debugLogger?.LogRequest(
                 agent: "ToolLoop.Stream",
@@ -253,6 +259,16 @@ public sealed class ToolLoop
             if (collectedToolCalls.Count == 0 ||
                 string.Equals(stopReason, "end_turn", StringComparison.OrdinalIgnoreCase))
             {
+                if (_diagnosticsEnabled)
+                {
+                    if (collectedText.Count == 0)
+                        yield return new DiagnosticEvent("warning",
+                            "Stream completed with no text content", DiagnosticLevel.Warning);
+
+                    yield return new DiagnosticEvent("stream",
+                        $"Stream complete: stop={stopReason ?? "end_turn"}, tokens={usage?.InputTokens ?? 0}in/{usage?.OutputTokens ?? 0}out");
+                }
+
                 yield return new DoneEvent(stopReason ?? "end_turn", usage ?? new TokenUsage(0, 0));
                 yield break;
             }
@@ -262,6 +278,9 @@ public sealed class ToolLoop
             if (round > config.MaxToolRounds)
             {
                 _logger.LogWarning("ToolLoop (streaming) hit max rounds ({MaxRounds})", config.MaxToolRounds);
+                if (_diagnosticsEnabled)
+                    yield return new DiagnosticEvent("warning",
+                        $"Hit max tool rounds ({config.MaxToolRounds})", DiagnosticLevel.Warning);
                 yield return new DoneEvent("max_rounds", usage ?? new TokenUsage(0, 0));
                 yield break;
             }
@@ -282,8 +301,19 @@ public sealed class ToolLoop
             var resultBlocks = new List<ContentBlock>();
             foreach (var tc in collectedToolCalls)
             {
+                if (_diagnosticsEnabled)
+                    yield return new DiagnosticEvent("tool", $"Dispatching {tc.ToolName}");
+
                 var fakeToolUse = new ToolUseBlock(tc.ToolId, tc.ToolName, tc.Input);
                 var result = await DispatchToolAsync(toolMap, fakeToolUse, context, ct);
+
+                if (_diagnosticsEnabled)
+                    yield return new DiagnosticEvent("tool",
+                        result.Success
+                            ? $"{tc.ToolName} completed ({result.Content.Length} chars)"
+                            : $"{tc.ToolName} failed: {result.Error}",
+                        result.Success ? DiagnosticLevel.Info : DiagnosticLevel.Error);
+
                 resultBlocks.Add(new ToolResultBlock(
                     tc.ToolId,
                     result.Success ? result.Content : result.Error ?? "Unknown error",
@@ -311,11 +341,20 @@ public sealed class ToolLoop
         try
         {
             _logger.LogDebug("Dispatching tool {ToolName} (id={ToolId})", toolCall.Name, toolCall.Id);
-            var result = await handler.HandleAsync(toolCall.Input, context, ct);
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(120));
+
+            var result = await handler.HandleAsync(toolCall.Input, context, timeoutCts.Token);
             _logger.LogDebug(
                 "Tool {ToolName} completed: success={Success}, content length={Length}",
                 toolCall.Name, result.Success, result.Success ? result.Content.Length : 0);
             return result;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Tool {ToolName} timed out after 120s", toolCall.Name);
+            return ToolResult.Fail($"Tool '{toolCall.Name}' timed out after 120 seconds.");
         }
         catch (Exception ex)
         {

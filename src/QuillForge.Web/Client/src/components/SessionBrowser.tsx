@@ -5,7 +5,7 @@ import { listSessions, loadSession, deleteSession, type SessionInfo } from "../a
 interface SessionBrowserProps {
   open: boolean;
   onClose: () => void;
-  onLoad: (sessionId: string, messages: Array<{ id: string; role: string; content: string }>) => void;
+  onLoad: (sessionId: string, messages: Array<{ id: string; role: string; content: string; createdAt: string }>) => void;
 }
 
 function timeAgo(iso: string): string {

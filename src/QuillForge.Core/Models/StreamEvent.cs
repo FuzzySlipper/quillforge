@@ -42,3 +42,21 @@ public sealed class DoneEvent(string stopReason, TokenUsage usage) : StreamEvent
     public TokenUsage Usage { get; } = usage;
     public ResponseType ResponseType { get; init; } = ResponseType.Discussion;
 }
+
+/// <summary>
+/// A diagnostic entry for the live diagnostics panel.
+/// Ephemeral display only — not persisted into sessions or chat history.
+/// </summary>
+public sealed class DiagnosticEvent(string category, string message, DiagnosticLevel level = DiagnosticLevel.Info) : StreamEvent
+{
+    public string Category { get; } = category;
+    public string Message { get; } = message;
+    public DiagnosticLevel Level { get; } = level;
+}
+
+public enum DiagnosticLevel
+{
+    Info,
+    Warning,
+    Error,
+}

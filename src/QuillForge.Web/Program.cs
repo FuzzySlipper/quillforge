@@ -152,6 +152,7 @@ builder.Services.AddSingleton<ProseWriterAgent>(sp =>
         sp.GetRequiredService<ILogger<QueryLoreHandler>>());
     return new ProseWriterAgent(toolLoop, queryLore,
         sp.GetRequiredService<IWritingStyleStore>(),
+        config,
         sp.GetRequiredService<ILogger<ProseWriterAgent>>());
 });
 

@@ -40,7 +40,7 @@ export default function HeaderBar({ status, layoutName, onOpenProfile, onOpenMod
   return (
     <header className="flex items-center justify-between px-4 py-3 bg-surface border-b border-border shrink-0">
       <div className="flex items-center gap-3">
-        <h1 className="text-base font-semibold">Narrative System</h1>
+        <h1 className="text-base font-semibold">Quill Forge</h1>
         {ready && (
           <button
             onClick={onOpenMode}

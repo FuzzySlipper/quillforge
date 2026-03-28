@@ -14,7 +14,7 @@ public class OrchestratorTests
     private static OrchestratorAgent CreateOrchestrator(FakeCompletionService fake)
     {
         var continuation = new ContinuationStrategy(LogFactory.CreateLogger<ContinuationStrategy>());
-        var toolLoop = new ToolLoop(fake, continuation, LogFactory.CreateLogger<ToolLoop>());
+        var toolLoop = new ToolLoop(fake, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
 
         IMode[] modes =
         [

@@ -110,6 +110,7 @@ public static class ChatEndpoints
                     ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new { Type = "tool", Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
                     DoneEvent done => $"data: {JsonSerializer.Serialize(new { Type = "done", SessionId = sessionId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = GetPortraitUrl(appConfig.Roleplay.AiCharacter, cardStore), User_portrait = GetPortraitUrl(appConfig.Roleplay.UserCharacter, cardStore) }, s_jsonOptions)}\n\n",
                     ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new { Type = "reasoning_delta", Text = reasoning.Text }, s_jsonOptions)}\n\n",
+                    DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new { Type = "diagnostic", Category = diag.Category, Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
                     _ => null,
                 };
 
@@ -118,6 +119,19 @@ public static class ChatEndpoints
                     await httpContext.Response.WriteAsync(eventData, ct);
                     await httpContext.Response.Body.FlushAsync(ct);
                 }
+            }
+
+            // Guard: if stream completed with no visible text, surface a fallback
+            if (assistantText.Length == 0)
+            {
+                if (appConfig.Diagnostics.LivePanel)
+                {
+                    var diagWarning = $"data: {JsonSerializer.Serialize(new { Type = "diagnostic", Category = "warning", Message = "Response completed with empty content — model returned no visible text", Level = "warning" }, s_jsonOptions)}\n\n";
+                    await httpContext.Response.WriteAsync(diagWarning, ct);
+                    await httpContext.Response.Body.FlushAsync(ct);
+                }
+
+                logger.LogWarning("Chat stream completed with empty assistant text for session {SessionId}", sessionId);
             }
 
             // Persist the assistant reply into the conversation tree

@@ -28,7 +28,7 @@ public class ToolLoopTests
         var continuation = new ContinuationStrategy(
             loggerFactory.CreateLogger<ContinuationStrategy>());
         return new ToolLoop(fakeService, continuation,
-            loggerFactory.CreateLogger<ToolLoop>());
+            loggerFactory.CreateLogger<ToolLoop>(), new AppConfig());
     }
 
     [Fact]

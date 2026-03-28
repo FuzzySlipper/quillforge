@@ -15,12 +15,14 @@ public sealed class LibrarianAgent
     private readonly ToolLoop _toolLoop;
     private readonly ILoreStore _loreStore;
     private readonly ILogger<LibrarianAgent> _logger;
+    private readonly string _model;
 
-    public LibrarianAgent(ToolLoop toolLoop, ILoreStore loreStore, ILogger<LibrarianAgent> logger)
+    public LibrarianAgent(ToolLoop toolLoop, ILoreStore loreStore, AppConfig appConfig, ILogger<LibrarianAgent> logger)
     {
         _toolLoop = toolLoop;
         _loreStore = loreStore;
         _logger = logger;
+        _model = appConfig.Models.Librarian;
     }
 
     /// <summary>
@@ -37,9 +39,11 @@ public sealed class LibrarianAgent
         var loreContent = await _loreStore.LoadLoreSetAsync(loreSetName, ct);
         var systemPrompt = BuildSystemPrompt(loreContent);
 
+        _logger.LogInformation("Librarian using model {Model}", _model);
+
         var config = new AgentConfig
         {
-            Model = "default",  // Resolved by provider at runtime
+            Model = _model,
             MaxTokens = 4096,
             SystemPrompt = systemPrompt,
             MaxToolRounds = 1,

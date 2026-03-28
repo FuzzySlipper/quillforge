@@ -13,11 +13,13 @@ public sealed class ForgeWriterAgent
 {
     private readonly ToolLoop _toolLoop;
     private readonly ILogger<ForgeWriterAgent> _logger;
+    private readonly string _model;
 
-    public ForgeWriterAgent(ToolLoop toolLoop, ILogger<ForgeWriterAgent> logger)
+    public ForgeWriterAgent(ToolLoop toolLoop, AppConfig appConfig, ILogger<ForgeWriterAgent> logger)
     {
         _toolLoop = toolLoop;
         _logger = logger;
+        _model = appConfig.Models.ForgeWriter;
     }
 
     /// <summary>
@@ -38,7 +40,7 @@ public sealed class ForgeWriterAgent
 
         var config = new AgentConfig
         {
-            Model = "default",
+            Model = _model,
             MaxTokens = 8192,
             SystemPrompt = systemPrompt,
             MaxToolRounds = 15,

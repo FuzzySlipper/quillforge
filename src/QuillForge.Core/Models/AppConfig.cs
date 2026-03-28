@@ -14,6 +14,7 @@ public sealed record AppConfig
     public ForgeConfig Forge { get; set; } = new();
     public WebSearchConfig WebSearch { get; set; } = new();
     public EmailConfig Email { get; set; } = new();
+    public DiagnosticsConfig Diagnostics { get; set; } = new();
 }
 
 public sealed record ModelsConfig
@@ -77,4 +78,9 @@ public sealed record EmailConfig
 {
     public string? ResendApiKey { get; set; }
     public string? DeveloperEmail { get; set; }
+}
+
+public sealed record DiagnosticsConfig
+{
+    public bool LivePanel { get; set; } = false;
 }

@@ -17,7 +17,7 @@ public class ForgePipelineTests
         ForgeManifest? manifest = null)
     {
         var continuation = new ContinuationStrategy(LogFactory.CreateLogger<ContinuationStrategy>());
-        var toolLoop = new ToolLoop(completionService, continuation, LogFactory.CreateLogger<ToolLoop>());
+        var toolLoop = new ToolLoop(completionService, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
 
         var fakeCompletionForReviewer = new FakeCompletionService();
 
@@ -35,8 +35,8 @@ public class ForgePipelineTests
                 CreatedAt = DateTimeOffset.UtcNow,
             },
             ProjectPath = "forge/test-project",
-            Planner = new ForgePlannerAgent(toolLoop, LogFactory.CreateLogger<ForgePlannerAgent>()),
-            Writer = new ForgeWriterAgent(toolLoop, LogFactory.CreateLogger<ForgeWriterAgent>()),
+            Planner = new ForgePlannerAgent(toolLoop, new AppConfig(), LogFactory.CreateLogger<ForgePlannerAgent>()),
+            Writer = new ForgeWriterAgent(toolLoop, new AppConfig(), LogFactory.CreateLogger<ForgeWriterAgent>()),
             Reviewer = new ForgeReviewerAgent(fakeCompletionForReviewer, LogFactory.CreateLogger<ForgeReviewerAgent>()),
             WriterTools = [],
             FileService = fileService,

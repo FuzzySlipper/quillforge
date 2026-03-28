@@ -57,6 +57,7 @@ public static class StatusEndpoints
                 LoreTokens = loreTokens,
                 PersonaTokens = personaTokens,
                 HistoryTokens = 0, // requires active session tracking (Task 28)
+                DiagnosticsLivePanel = config.Diagnostics.LivePanel,
                 Update = updateService.UpdateAvailable ? new
                 {
                     Available = true,

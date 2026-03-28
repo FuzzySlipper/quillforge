@@ -42,6 +42,13 @@ export interface Status {
   loreTokens: number;
   personaTokens: number;
   historyTokens: number;
+  diagnosticsLivePanel?: boolean;
+}
+
+export interface DiagnosticEntry {
+  category: string;
+  message: string;
+  level: "info" | "warning" | "error";
 }
 
 export interface Profiles {

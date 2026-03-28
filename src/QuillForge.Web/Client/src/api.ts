@@ -34,7 +34,7 @@ export async function sendChat(
 }
 
 export interface StreamEvent {
-  type: "status" | "tool" | "done" | "error" | "text_delta" | "reasoning_delta";
+  type: "status" | "tool" | "done" | "error" | "text_delta" | "reasoning_delta" | "diagnostic";
   data: Record<string, unknown>;
 }
 

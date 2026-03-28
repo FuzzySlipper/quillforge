@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getMode, getStatus, newSession, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork, conversationRegenerate } from "./api";
-import type { Message, MessageVariant, Mode, Status } from "./types";
+import { getMode, getStatus, newSession, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork } from "./api";
+import type { Message, MessageVariant, Mode, Status, DiagnosticEntry } from "./types";
 import { parseCommand, executeCommand } from "./commands";
 import type { CommandContext } from "./commands";
 import * as tts from "./tts";
@@ -24,6 +24,7 @@ import ProviderManager from "./components/ProviderManager";
 import SessionBrowser from "./components/SessionBrowser";
 import CharacterCards from "./components/CharacterCards";
 import TextThemePicker from "./components/TextThemePicker";
+import DiagnosticsPanel from "./components/DiagnosticsPanel";
 import * as textTheme from "./textTheme";
 import type { TextTheme } from "./textTheme";
 
@@ -65,6 +66,7 @@ function App() {
   const addAsVariantRef = useRef(false);
   const [elapsed, setElapsed] = useState(0);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [diagnosticEntries, setDiagnosticEntries] = useState<DiagnosticEntry[]>([]);
 
   const refreshStatus = useCallback(() => {
     getStatus()
@@ -74,7 +76,7 @@ function App() {
       })
       .catch(() => setStatus(null));
     getMode()
-      .then((m) => setHasPending(m.pendingContent))
+      .then((m) => setHasPending(!!m.pendingContent))
       .catch(() => {});
   }, []);
 
@@ -99,7 +101,7 @@ function App() {
         layoutManager.init();
       });
     getMode()
-      .then((m) => setHasPending(m.pendingContent))
+      .then((m) => setHasPending(!!m.pendingContent))
       .catch(() => {});
     fetch("/api/portraits")
       .then((r) => r.json())
@@ -166,6 +168,7 @@ function App() {
     setSending(true);
     setStreamStatus("Connecting...");
     setElapsed(0);
+    setDiagnosticEntries([]);
     if (elapsedRef.current) clearInterval(elapsedRef.current);
     elapsedRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
     const abort = new AbortController();
@@ -236,6 +239,12 @@ function App() {
                 ),
               );
             }
+          } else if (event.type === "diagnostic") {
+            setDiagnosticEntries((prev) => [...prev, {
+              category: event.data.category as string,
+              message: event.data.message as string,
+              level: (event.data.level as "info" | "warning" | "error") || "info",
+            }]);
           } else if (event.type === "done") {
             // Remove streaming message and add final one
             if (streamingStarted) {
@@ -417,8 +426,7 @@ function App() {
       return;
     }
 
-    // Normal LLM message — sync variant selections first
-    await syncVariantSelections();
+    // Normal LLM message
     const userMsg: Message = {
       id: uuid(),
       role: "user",
@@ -602,6 +610,7 @@ function App() {
           />
           );
         })}
+        <DiagnosticsPanel entries={diagnosticEntries} enabled={!!status?.diagnosticsLivePanel} />
         {sending && (
           <div className="flex items-center gap-2 text-text-muted italic text-sm px-4 py-2">
             <span className="inline-block w-2 h-2 rounded-full bg-accent animate-pulse" />
