@@ -83,7 +83,8 @@ public sealed class ReasoningCompletionService : ICompletionService
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(ct);
-            _logger.LogError("ReasoningCompletionService stream error: {Status}", response.StatusCode);
+            _logger.LogError("ReasoningCompletionService stream error: {Status}: {Body}",
+                response.StatusCode, errorBody[..Math.Min(500, errorBody.Length)]);
             yield return new DoneEvent("error", new TokenUsage(0, 0));
             yield break;
         }
@@ -93,6 +94,11 @@ public sealed class ReasoningCompletionService : ICompletionService
 
         int inputTokens = 0, outputTokens = 0;
         string? finishReason = null;
+        var textAccumulator = new StringBuilder();
+        var reasoningAccumulator = new StringBuilder();
+        var toolCallIds = new Dictionary<int, string>();
+        var toolCallNames = new Dictionary<int, string>();
+        var toolCallArgs = new Dictionary<int, StringBuilder>();
 
         string? line;
         while ((line = await reader.ReadLineAsync(ct)) is not null)
@@ -117,6 +123,7 @@ public sealed class ReasoningCompletionService : ICompletionService
                 var text = contentEl.GetString();
                 if (!string.IsNullOrEmpty(text))
                 {
+                    textAccumulator.Append(text);
                     yield return new TextDeltaEvent(text);
                 }
             }
@@ -127,7 +134,36 @@ public sealed class ReasoningCompletionService : ICompletionService
                 var reasoning = reasoningEl.GetString();
                 if (!string.IsNullOrEmpty(reasoning))
                 {
+                    reasoningAccumulator.Append(reasoning);
                     yield return new ReasoningDeltaEvent(reasoning);
+                }
+            }
+
+            // Tool call deltas (accumulated incrementally by index)
+            if (delta.TryGetProperty("tool_calls", out var toolCallsEl))
+            {
+                foreach (var tc in toolCallsEl.EnumerateArray())
+                {
+                    var index = tc.GetProperty("index").GetInt32();
+
+                    if (tc.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String)
+                        toolCallIds[index] = idEl.GetString()!;
+
+                    if (tc.TryGetProperty("function", out var fnEl))
+                    {
+                        if (fnEl.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
+                            toolCallNames[index] = nameEl.GetString()!;
+
+                        if (fnEl.TryGetProperty("arguments", out var argsEl) && argsEl.ValueKind == JsonValueKind.String)
+                        {
+                            if (!toolCallArgs.TryGetValue(index, out var sb))
+                            {
+                                sb = new StringBuilder();
+                                toolCallArgs[index] = sb;
+                            }
+                            sb.Append(argsEl.GetString());
+                        }
+                    }
                 }
             }
 
@@ -151,7 +187,63 @@ public sealed class ReasoningCompletionService : ICompletionService
             }
         }
 
-        yield return new DoneEvent(finishReason ?? "end_turn", new TokenUsage(inputTokens, outputTokens));
+        // Yield accumulated tool calls
+        foreach (var index in toolCallIds.Keys.OrderBy(k => k))
+        {
+            if (toolCallIds.TryGetValue(index, out var id) && toolCallNames.TryGetValue(index, out var name))
+            {
+                var argsJson = toolCallArgs.TryGetValue(index, out var sb) && sb.Length > 0
+                    ? sb.ToString() : "{}";
+                JsonElement argsElement;
+                try
+                {
+                    argsElement = JsonDocument.Parse(argsJson).RootElement.Clone();
+                }
+                catch (JsonException)
+                {
+                    _logger.LogWarning("Failed to parse streamed tool call arguments for {Name}: {Json}", name, argsJson);
+                    argsElement = JsonDocument.Parse("{}").RootElement.Clone();
+                }
+                yield return new ToolCallEvent(name, id, argsElement);
+            }
+        }
+
+        // Build raw provider message for lossless round-tripping of reasoning_content
+        JsonObject? rawMessage = null;
+        if (toolCallIds.Count > 0 || reasoningAccumulator.Length > 0)
+        {
+            rawMessage = new JsonObject { ["role"] = "assistant" };
+
+            var fullText = textAccumulator.Length > 0 ? textAccumulator.ToString() : null;
+            rawMessage["content"] = fullText is not null ? (JsonNode)fullText : null;
+
+            if (reasoningAccumulator.Length > 0)
+                rawMessage["reasoning_content"] = reasoningAccumulator.ToString();
+
+            if (toolCallIds.Count > 0)
+            {
+                var tcArray = new JsonArray();
+                foreach (var index in toolCallIds.Keys.OrderBy(k => k))
+                {
+                    tcArray.Add(new JsonObject
+                    {
+                        ["id"] = toolCallIds[index],
+                        ["type"] = "function",
+                        ["function"] = new JsonObject
+                        {
+                            ["name"] = toolCallNames.GetValueOrDefault(index, ""),
+                            ["arguments"] = toolCallArgs.TryGetValue(index, out var argSb) ? argSb.ToString() : "{}",
+                        },
+                    });
+                }
+                rawMessage["tool_calls"] = tcArray;
+            }
+        }
+
+        yield return new DoneEvent(finishReason ?? "end_turn", new TokenUsage(inputTokens, outputTokens))
+        {
+            RawProviderMessage = rawMessage,
+        };
     }
 
     private string BuildRequestJson(CompletionRequest request, bool stream = false)

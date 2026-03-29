@@ -223,6 +223,7 @@ public sealed class ToolLoop
             var collectedToolCalls = new List<ToolCallEvent>();
             string? stopReason = null;
             TokenUsage? usage = null;
+            object? rawProviderMessage = null;
 
             await foreach (var evt in _completionService.StreamAsync(request, ct))
             {
@@ -241,6 +242,7 @@ public sealed class ToolLoop
                     case DoneEvent done:
                         stopReason = done.StopReason;
                         usage = done.Usage;
+                        rawProviderMessage = done.RawProviderMessage;
                         break;
 
                     default:
@@ -300,6 +302,7 @@ public sealed class ToolLoop
 
                 stopReason = recoveryResponse.StopReason;
                 usage = recoveryResponse.Usage;
+                rawProviderMessage = recoveryResponse.RawProviderMessage;
                 collectedText.Clear();
                 collectedToolCalls.Clear();
 
@@ -365,7 +368,12 @@ public sealed class ToolLoop
             {
                 assistantBlocks.Add(new ToolUseBlock(tc.ToolId, tc.ToolName, tc.Input));
             }
-            messages.Add(new CompletionMessage("assistant", new MessageContent(assistantBlocks)));
+            // RawProviderMessage carries provider-specific data (e.g., reasoning_content JSON)
+            // for adapters that need lossless round-tripping. Ignored by the default adapter.
+            messages.Add(new CompletionMessage("assistant", new MessageContent(assistantBlocks))
+            {
+                RawProviderMessage = rawProviderMessage,
+            });
 
             // Execute tools
             var resultBlocks = new List<ContentBlock>();

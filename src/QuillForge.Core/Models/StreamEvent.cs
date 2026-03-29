@@ -41,6 +41,13 @@ public sealed class DoneEvent(string stopReason, TokenUsage usage) : StreamEvent
     public string StopReason { get; } = stopReason;
     public TokenUsage Usage { get; } = usage;
     public ResponseType ResponseType { get; init; } = ResponseType.Discussion;
+
+    /// <summary>
+    /// Opaque provider-specific message data for lossless round-tripping during streaming.
+    /// Used by ReasoningCompletionService to preserve reasoning_content and tool_calls
+    /// across tool loop rounds. Null for providers that don't need it.
+    /// </summary>
+    public object? RawProviderMessage { get; init; }
 }
 
 /// <summary>
