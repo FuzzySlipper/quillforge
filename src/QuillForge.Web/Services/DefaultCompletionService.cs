@@ -24,23 +24,28 @@ public sealed class DefaultCompletionService : ICompletionService
 
     public async Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
     {
-        var service = ResolveService(request.Model);
-        return await service.CompleteAsync(request, ct);
+        var (service, effectiveRequest) = ResolveService(request);
+        return await service.CompleteAsync(effectiveRequest, ct);
     }
 
     public IAsyncEnumerable<StreamEvent> StreamAsync(CompletionRequest request, CancellationToken ct = default)
     {
-        var service = ResolveService(request.Model);
-        return service.StreamAsync(request, ct);
+        var (service, effectiveRequest) = ResolveService(request);
+        return service.StreamAsync(effectiveRequest, ct);
     }
 
-    private ICompletionService ResolveService(string model)
+    private (ICompletionService Service, CompletionRequest Request) ResolveService(CompletionRequest request)
     {
-        // If model is a registered provider alias, use that directly
+        var model = request.Model;
+
+        // If model is a registered provider alias, use that provider
+        // and normalize the model to "default" so the provider uses its configured model
+        // instead of passing the alias as a literal model name to the API.
         if (_registry.GetConfig(model) is not null)
         {
             _logger.LogDebug("Resolving completion service for provider alias: {Model}", model);
-            return _registry.GetCompletionService(model);
+            var service = _registry.GetCompletionService(model);
+            return (service, request with { Model = "default" });
         }
 
         // Otherwise, use the first registered provider
@@ -53,6 +58,6 @@ public sealed class DefaultCompletionService : ICompletionService
 
         var defaultAlias = providers[0].Alias;
         _logger.LogDebug("Resolving completion service via default provider: {Alias}", defaultAlias);
-        return _registry.GetCompletionService(defaultAlias);
+        return (_registry.GetCompletionService(defaultAlias), request);
     }
 }

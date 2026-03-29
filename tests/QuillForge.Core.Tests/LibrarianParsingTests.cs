@@ -101,12 +101,13 @@ public class LibrarianParsingTests
             ["locations/castle.md"] = "The castle is ancient.",
         };
 
-        var prompt = LibrarianAgent.BuildSystemPrompt(lore);
+        var prompt = LibrarianAgent.BuildSystemPrompt(lore, "test-lore");
 
         Assert.Contains("### File: characters/elena.md", prompt);
         Assert.Contains("Elena is brave.", prompt);
         Assert.Contains("### File: locations/castle.md", prompt);
         Assert.Contains("The castle is ancient.", prompt);
         Assert.Contains("Librarian", prompt);
+        Assert.Contains("test-lore", prompt);
     }
 }

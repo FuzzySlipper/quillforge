@@ -102,7 +102,8 @@ public sealed class OrchestratorAgent
             activeMode.Name, context.SessionId);
 
         var persona = await _personaStore.LoadAsync(personaName, ct: ct);
-        var effectiveModeContext = modeContext ?? await HydrateModeContextAsync(state, ct);
+        var effectiveModeContext = (modeContext ?? await HydrateModeContextAsync(state, ct))
+            with { ActiveLoreSet = context.ActiveLoreSet };
 
         var systemPrompt = BuildSystemPrompt(persona, activeMode, effectiveModeContext);
 
@@ -162,7 +163,8 @@ public sealed class OrchestratorAgent
     {
         var activeMode = ResolveMode(state.Mode.ActiveModeName);
         var persona = await _personaStore.LoadAsync(personaName, ct: ct);
-        var effectiveModeContext = modeContext ?? await HydrateModeContextAsync(state, ct);
+        var effectiveModeContext = (modeContext ?? await HydrateModeContextAsync(state, ct))
+            with { ActiveLoreSet = context.ActiveLoreSet };
         var systemPrompt = BuildSystemPrompt(persona, activeMode, effectiveModeContext);
 
         var config = new AgentConfig
@@ -263,6 +265,12 @@ public sealed class OrchestratorAgent
             ? ""
             : $"\n\n## Current Story State\n\n{modeContext.StoryStateSummary}";
 
-        return $"{persona}\n\n{modeSection}{stateSummary}";
+        var loreSection = string.IsNullOrWhiteSpace(modeContext.ActiveLoreSet)
+            ? ""
+            : $"\n\n## Active Lore Set\n\nThe current lore set is \"{modeContext.ActiveLoreSet}\". "
+              + "When using `query_lore`, results come from this lore set. "
+              + "Ground your lore references and world-building in this set's content.";
+
+        return $"{persona}\n\n{modeSection}{stateSummary}{loreSection}";
     }
 }

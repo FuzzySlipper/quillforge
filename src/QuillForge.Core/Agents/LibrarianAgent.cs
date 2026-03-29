@@ -39,7 +39,7 @@ public sealed class LibrarianAgent
         _logger.LogInformation("Librarian query: \"{Query}\" against lore set \"{LoreSet}\"", query, loreSetName);
 
         var loreContent = await _loreStore.LoadLoreSetAsync(loreSetName, ct);
-        var systemPrompt = BuildSystemPrompt(loreContent);
+        var systemPrompt = BuildSystemPrompt(loreContent, loreSetName);
 
         _logger.LogInformation("Librarian using model {Model}", _model);
 
@@ -71,7 +71,7 @@ public sealed class LibrarianAgent
         return bundle;
     }
 
-    internal static string BuildSystemPrompt(IReadOnlyDictionary<string, string> loreContent)
+    internal static string BuildSystemPrompt(IReadOnlyDictionary<string, string> loreContent, string loreSetName)
     {
         var sections = loreContent
             .Select(kvp => $"### File: {kvp.Key}\n\n{kvp.Value}")
@@ -88,10 +88,10 @@ public sealed class LibrarianAgent
             """;
 
         return $"""
-            You are the Librarian, a precise lore retrieval specialist. Your ONLY job is to find and return
-            relevant information from the lore corpus below. Follow these rules strictly:
+            You are the Librarian, a precise lore retrieval specialist working with the "{loreSetName}" lore set.
+            Your ONLY job is to find and return relevant information from this lore corpus. Follow these rules strictly:
 
-            1. ONLY return information that exists in the lore corpus. Never invent or extrapolate.
+            1. ONLY return information that exists in this lore corpus. Never invent or extrapolate.
             2. Include source file attribution for every passage you return.
             3. Rate your confidence: "high" if the lore directly answers the query, "medium" if partially
                relevant, "low" if only tangentially related.
@@ -100,7 +100,7 @@ public sealed class LibrarianAgent
             Respond ONLY with a JSON object in this exact format:
             {jsonExample}
 
-            ## Lore Corpus
+            ## Lore Corpus ({loreSetName})
 
             {joinedLore}
             """;

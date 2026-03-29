@@ -98,6 +98,7 @@ public class OrchestratorTests
         {
             ProjectName = "test-project",
             StoryStateSummary = "Tension is high. The dragon approaches.",
+            ActiveLoreSet = "builder",
         };
 
         var generalMode = orchestrator.ResolveMode("general");
@@ -106,6 +107,7 @@ public class OrchestratorTests
         Assert.Contains("I am a helpful persona.", prompt);
         Assert.Contains("General", prompt);
         Assert.Contains("dragon approaches", prompt);
+        Assert.Contains("builder", prompt);
     }
 
     [Fact]
