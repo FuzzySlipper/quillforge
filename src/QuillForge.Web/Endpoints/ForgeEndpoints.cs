@@ -261,6 +261,8 @@ public static class ForgeEndpoints
             {
                 SessionId = Guid.CreateVersion7(),
                 ActiveMode = "forge",
+                ActiveLoreSet = config.Lore.Active,
+                ActiveWritingStyle = config.WritingStyle.Active,
             },
             ReviewPassThreshold = config.Forge.ReviewPassThreshold,
             MaxRevisions = config.Forge.MaxRevisions,

@@ -113,14 +113,14 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamStatus]);
 
-  function addResponseMessage(content: string, responseType: string, portrait?: string | null, reasoning?: string | null) {
+  function addResponseMessage(content: string, responseType: string, portrait?: string | null, reasoning?: string | null, parentId?: string | null) {
     if (addAsVariantRef.current) {
       // Add as a variant to the last assistant message
       addAsVariantRef.current = false;
       setMessages((prev) => {
         const lastIdx = [...prev].reverse().findIndex((m) => m.role === "assistant");
         if (lastIdx === -1) {
-          return [...prev, makeAssistantMsg(content, responseType, portrait, reasoning)];
+          return [...prev, makeAssistantMsg(content, responseType, portrait, reasoning, parentId)];
         }
         const idx = prev.length - 1 - lastIdx;
         const msg = prev[idx];
@@ -146,13 +146,13 @@ function App() {
         ];
       });
     } else {
-      setMessages((prev) => [...prev, makeAssistantMsg(content, responseType, portrait, reasoning)]);
+      setMessages((prev) => [...prev, makeAssistantMsg(content, responseType, portrait, reasoning, parentId)]);
     }
     // Auto TTS for new assistant messages
     tts.onAssistantMessage(content);
   }
 
-  function makeAssistantMsg(content: string, responseType: string, portrait?: string | null, reasoning?: string | null): Message {
+  function makeAssistantMsg(content: string, responseType: string, portrait?: string | null, reasoning?: string | null, parentId?: string | null): Message {
     return {
       id: uuid(),
       role: "assistant",
@@ -160,11 +160,12 @@ function App() {
       responseType,
       portrait,
       reasoning,
+      parentId,
       timestamp: Date.now(),
     };
   }
 
-  async function doSend(text: string) {
+  async function doSend(text: string, regenerateParentId?: string | null) {
     setSending(true);
     setStreamStatus("Connecting...");
     setElapsed(0);
@@ -275,6 +276,7 @@ function App() {
               msg.responseType || "discussion",
               msg.portrait,
               msg.reasoning,
+              event.data.parentId as string | null | undefined,
             );
             setStreamStatus(null);
             refreshStatus();
@@ -288,6 +290,7 @@ function App() {
         },
         abort.signal,
         currentSessionId,
+        regenerateParentId,
       );
     } catch (err) {
       if (streamingStarted) {
@@ -470,8 +473,12 @@ function App() {
       setMessages((prev) => prev.slice(0, idx + 1));
       addAsVariantRef.current = false;
       await doSend(msg.content);
+    } else if (msg.role === "assistant" && msg.parentId) {
+      // Retry as a swipeable variant using the backend parentId
+      addAsVariantRef.current = true;
+      await doSend("", msg.parentId);
     } else if (msg.role === "assistant") {
-      // Retry as a swipeable variant — keep the message, add new response as variant
+      // Fallback for messages without parentId (legacy): send "regenerate" text
       addAsVariantRef.current = true;
       await doSend("regenerate");
     }
@@ -501,8 +508,15 @@ function App() {
   }
 
   async function handleRegenerate() {
+    // Find the last assistant message's parentId for regeneration
+    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
     addAsVariantRef.current = true;
-    await doSend("regenerate");
+    if (lastAssistant?.parentId) {
+      await doSend("", lastAssistant.parentId);
+    } else {
+      // Fallback for messages without parentId
+      await doSend("regenerate");
+    }
   }
 
   async function handleDeleteLast() {

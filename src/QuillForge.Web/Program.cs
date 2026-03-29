@@ -110,6 +110,11 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<AtomicFileWriter>(),
         sp.GetRequiredService<ILogger<RuntimeStateStore>>()));
 
+builder.Services.AddSingleton<ISessionRuntimeStore>(sp =>
+    new FileSystemSessionRuntimeStore(contentRoot,
+        sp.GetRequiredService<AtomicFileWriter>(),
+        sp.GetRequiredService<ILogger<FileSystemSessionRuntimeStore>>()));
+
 builder.Services.AddSingleton<IStoryStateService>(sp =>
     new FileSystemStoryStateService(
         Path.Combine(contentRoot, "story"),
@@ -148,7 +153,6 @@ builder.Services.AddSingleton<ProseWriterAgent>(sp =>
     var config = sp.GetRequiredService<AppConfig>();
     var queryLore = new QueryLoreHandler(
         sp.GetRequiredService<LibrarianAgent>(),
-        config.Lore.Active,
         sp.GetRequiredService<ILogger<QueryLoreHandler>>());
     return new ProseWriterAgent(toolLoop, queryLore,
         sp.GetRequiredService<IWritingStyleStore>(),
@@ -177,11 +181,9 @@ builder.Services.AddSingleton<ForgeReviewerAgent>(sp =>
 // --- Tool handlers (available to orchestrator in all modes) ---
 builder.Services.AddSingleton<IToolHandler>(sp => new QueryLoreHandler(
     sp.GetRequiredService<LibrarianAgent>(),
-    sp.GetRequiredService<AppConfig>().Lore.Active,
     sp.GetRequiredService<ILogger<QueryLoreHandler>>()));
 builder.Services.AddSingleton<IToolHandler>(sp => new WriteProseHandler(
     sp.GetRequiredService<ProseWriterAgent>(),
-    sp.GetRequiredService<AppConfig>().WritingStyle.Active,
     () => "",
     sp.GetRequiredService<ILogger<WriteProseHandler>>()));
 builder.Services.AddSingleton<IToolHandler, RollDiceHandler>();
@@ -196,12 +198,15 @@ if (appConfig.WebSearch.Enabled)
 {
     builder.Services.AddSingleton<IToolHandler, WebSearchHandler>();
 }
+// Story state handlers use a path provider that resolves the active project at call time.
+// For now, they load the default (null) session state. Task 39 will make this session-aware.
 builder.Services.AddSingleton<IToolHandler>(sp =>
 {
-    var orchestrator = new Lazy<OrchestratorAgent>(() => sp.GetRequiredService<OrchestratorAgent>());
+    var store = new Lazy<ISessionRuntimeStore>(() => sp.GetRequiredService<ISessionRuntimeStore>());
     Func<string> statePathProvider = () =>
     {
-        var project = orchestrator.Value.ProjectName ?? "default";
+        var state = store.Value.LoadAsync(null).GetAwaiter().GetResult();
+        var project = state.Mode.ProjectName ?? "default";
         return $"{project}/.state.yaml";
     };
     return new GetStoryStateHandler(
@@ -211,10 +216,11 @@ builder.Services.AddSingleton<IToolHandler>(sp =>
 });
 builder.Services.AddSingleton<IToolHandler>(sp =>
 {
-    var orchestrator = new Lazy<OrchestratorAgent>(() => sp.GetRequiredService<OrchestratorAgent>());
+    var store = new Lazy<ISessionRuntimeStore>(() => sp.GetRequiredService<ISessionRuntimeStore>());
     Func<string> statePathProvider = () =>
     {
-        var project = orchestrator.Value.ProjectName ?? "default";
+        var state = store.Value.LoadAsync(null).GetAwaiter().GetResult();
+        var project = state.Mode.ProjectName ?? "default";
         return $"{project}/.state.yaml";
     };
     return new UpdateStoryStateHandler(
@@ -379,19 +385,19 @@ var app = builder.Build();
 
 app.UseCors();
 
-// --- Restore last mode from runtime state ---
-var runtimeState = app.Services.GetRequiredService<RuntimeStateStore>().Load();
-if (!string.IsNullOrEmpty(runtimeState.LastMode))
+// --- Migrate legacy runtime state to session-scoped store ---
 {
-    try
+    var legacy = app.Services.GetRequiredService<RuntimeStateStore>().Load();
+    if (!string.IsNullOrEmpty(legacy.LastMode))
     {
-        var orchestrator = app.Services.GetRequiredService<OrchestratorAgent>();
-        orchestrator.SetMode(runtimeState.LastMode, runtimeState.LastProject, runtimeState.LastFile, runtimeState.LastCharacter);
-        app.Logger.LogInformation("Restored last mode: {Mode}", runtimeState.LastMode);
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogWarning(ex, "Failed to restore last mode '{Mode}'", runtimeState.LastMode);
+        var sessionStore = app.Services.GetRequiredService<ISessionRuntimeStore>();
+        var defaultState = await sessionStore.LoadAsync(null);
+        defaultState.Mode.ActiveModeName = legacy.LastMode;
+        defaultState.Mode.ProjectName = legacy.LastProject;
+        defaultState.Mode.CurrentFile = legacy.LastFile;
+        defaultState.Mode.Character = legacy.LastCharacter;
+        await sessionStore.SaveAsync(defaultState);
+        app.Logger.LogInformation("Migrated legacy runtime state: mode={Mode}", legacy.LastMode);
     }
 }
 

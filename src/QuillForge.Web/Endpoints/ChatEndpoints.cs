@@ -17,6 +17,7 @@ public static class ChatEndpoints
         app.MapPost("/api/chat/stream", async (
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
+            ISessionRuntimeStore runtimeStore,
             ISessionStore sessionStore,
             IEnumerable<IToolHandler> toolHandlers,
             ICharacterCardStore cardStore,
@@ -31,10 +32,11 @@ public static class ChatEndpoints
             var sessionId = root.TryGetProperty("sessionId", out var sid)
                 ? Guid.Parse(sid.GetString()!)
                 : Guid.CreateVersion7();
-            var message = root.GetProperty("message").GetString() ?? "";
+            var message = root.TryGetProperty("message", out var msgEl) ? msgEl.GetString() ?? "" : "";
             var model = root.TryGetProperty("model", out var m) ? m.GetString() ?? "default" : "default";
             var persona = root.TryGetProperty("persona", out var p) ? p.GetString() ?? "default" : "default";
             var maxTokens = root.TryGetProperty("maxTokens", out var mt) ? mt.GetInt32() : 4096;
+            var parentId = root.TryGetProperty("parentId", out var pid) ? Guid.Parse(pid.GetString()!) : (Guid?)null;
 
             logger.LogInformation(
                 "Chat request: session={SessionId}, model={Model}, message length={Length}",
@@ -52,32 +54,50 @@ public static class ChatEndpoints
                     loggerFactory.CreateLogger<ConversationTree>());
             }
 
-            // Append user message
-            tree.Append(tree.ActiveLeafId, "user", new MessageContent(message));
-
-            // Auto-name session from first user message
-            if (tree.Name == "Chat Session" || tree.Name == "New Session")
+            // Regeneration mode: parentId means "generate a new variant as a child of this node"
+            // Normal mode: append the user message first, then generate
+            Guid appendParentId;
+            if (parentId.HasValue)
             {
-                var autoName = message.Length <= 50
-                    ? message
-                    : message.LastIndexOf(' ', 50) is var idx and > 0 ? message[..idx] + "…" : message[..50] + "…";
-                // Clean up: remove newlines, trim
-                autoName = autoName.ReplaceLineEndings(" ").Trim();
-                if (!string.IsNullOrWhiteSpace(autoName))
+                // Variant/regenerate: don't append a user message.
+                // Build the thread up to (and including) parentId, then generate a new assistant sibling.
+                appendParentId = parentId.Value;
+                tree.ActiveLeafId = parentId.Value;
+            }
+            else
+            {
+                // Normal: append user message to the current active leaf
+                tree.Append(tree.ActiveLeafId, "user", new MessageContent(message));
+                appendParentId = tree.ActiveLeafId;
+
+                // Auto-name session from first user message
+                if (tree.Name == "Chat Session" || tree.Name == "New Session")
                 {
-                    tree.Name = autoName;
+                    var autoName = message.Length <= 50
+                        ? message
+                        : message.LastIndexOf(' ', 50) is var idx and > 0 ? message[..idx] + "…" : message[..50] + "…";
+                    autoName = autoName.ReplaceLineEndings(" ").Trim();
+                    if (!string.IsNullOrWhiteSpace(autoName))
+                    {
+                        tree.Name = autoName;
+                    }
                 }
             }
 
-            // Build conversation messages for the tool loop
+            // Build conversation messages from the thread up to the current position
             var messages = tree.ToFlatThread()
                 .Select(n => new CompletionMessage(n.Role, n.Content))
                 .ToList();
 
+            // Load per-session runtime state
+            var sessionState = await runtimeStore.LoadAsync(sessionId, ct);
+
             var context = new AgentContext
             {
                 SessionId = sessionId,
-                ActiveMode = orchestrator.ActiveModeName,
+                ActiveMode = sessionState.Mode.ActiveModeName,
+                ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? appConfig.Lore.Active,
+                ActiveWritingStyle = sessionState.Profile.ActiveWritingStyle ?? appConfig.WritingStyle.Active,
             };
 
             // Stream SSE response, collecting assistant text for persistence
@@ -90,7 +110,7 @@ public static class ChatEndpoints
 
             var tools = toolHandlers.ToList();
             await foreach (var evt in orchestrator.HandleStreamAsync(
-                persona, model, maxTokens, tools, messages, context, ct: ct))
+                sessionState, persona, model, maxTokens, tools, messages, context, ct: ct))
             {
                 switch (evt)
                 {
@@ -108,7 +128,7 @@ public static class ChatEndpoints
                 {
                     TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new { Type = "text_delta", Text = text.Text }, s_jsonOptions)}\n\n",
                     ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new { Type = "tool", Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
-                    DoneEvent done => $"data: {JsonSerializer.Serialize(new { Type = "done", SessionId = sessionId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = GetPortraitUrl(appConfig.Roleplay.AiCharacter, cardStore), User_portrait = GetPortraitUrl(appConfig.Roleplay.UserCharacter, cardStore) }, s_jsonOptions)}\n\n",
+                    DoneEvent done => $"data: {JsonSerializer.Serialize(new { Type = "done", SessionId = sessionId, ParentId = appendParentId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = GetPortraitUrl(appConfig.Roleplay.AiCharacter, cardStore), User_portrait = GetPortraitUrl(appConfig.Roleplay.UserCharacter, cardStore) }, s_jsonOptions)}\n\n",
                     ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new { Type = "reasoning_delta", Text = reasoning.Text }, s_jsonOptions)}\n\n",
                     DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new { Type = "diagnostic", Category = diag.Category, Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
                     _ => null,
@@ -135,9 +155,10 @@ public static class ChatEndpoints
             }
 
             // Persist the assistant reply into the conversation tree
+            Guid? assistantNodeId = null;
             if (assistantText.Length > 0)
             {
-                tree.Append(tree.ActiveLeafId, "assistant",
+                var assistantNode = tree.Append(appendParentId, "assistant",
                     new MessageContent(assistantText.ToString()),
                     new MessageMetadata
                     {
@@ -146,9 +167,11 @@ public static class ChatEndpoints
                         OutputTokens = outputTokens,
                         StopReason = stopReason,
                     });
+                assistantNodeId = assistantNode.Id;
             }
 
             await sessionStore.SaveAsync(tree, ct);
+            await runtimeStore.SaveAsync(sessionState, ct);
 
             logger.LogInformation("Chat completed for session {SessionId}", sessionId);
         });

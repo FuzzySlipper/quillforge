@@ -7,18 +7,17 @@ namespace QuillForge.Core.Agents.Tools;
 
 /// <summary>
 /// Delegates lore queries to the Librarian agent.
-/// Used by ProseWriter, ForgeWriter, and the Orchestrator.
+/// Resolves the active lore set from AgentContext at call time,
+/// not from a value captured at construction.
 /// </summary>
 public sealed class QueryLoreHandler : IToolHandler
 {
     private readonly LibrarianAgent _librarian;
-    private readonly string _activeLoreSet;
     private readonly ILogger<QueryLoreHandler> _logger;
 
-    public QueryLoreHandler(LibrarianAgent librarian, string activeLoreSet, ILogger<QueryLoreHandler> logger)
+    public QueryLoreHandler(LibrarianAgent librarian, ILogger<QueryLoreHandler> logger)
     {
         _librarian = librarian;
-        _activeLoreSet = activeLoreSet;
         _logger = logger;
     }
 
@@ -47,9 +46,9 @@ public sealed class QueryLoreHandler : IToolHandler
             return ToolResult.Fail("Query is required.");
         }
 
-        _logger.LogDebug("QueryLoreHandler: querying \"{Query}\"", query);
+        _logger.LogDebug("QueryLoreHandler: querying \"{Query}\" in lore set \"{LoreSet}\"", query, context.ActiveLoreSet);
 
-        var bundle = await _librarian.QueryAsync(query, _activeLoreSet, context, ct);
+        var bundle = await _librarian.QueryAsync(query, context.ActiveLoreSet, context, ct);
         return ToolResult.Ok(JsonSerializer.Serialize(bundle));
     }
 }

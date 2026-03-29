@@ -32,16 +32,38 @@ public static class SessionEndpoints
             {
                 var tree = await store.LoadAsync(id, ct);
                 var thread = tree.ToFlatThread();
+                var snapshot = tree.GetSnapshot();
                 return Results.Ok(new
                 {
                     SessionId = tree.SessionId,
                     Name = tree.Name,
-                    Messages = thread.Select(n => new
+                    Messages = thread.Select(n =>
                     {
-                        Id = n.Id,
-                        Role = n.Role,
-                        Content = n.Content.GetText(),
-                        CreatedAt = n.CreatedAt,
+                        // Find sibling variants: other children of the same parent with the same role
+                        List<object>? variants = null;
+                        if (n.ParentId.HasValue && snapshot.TryGetValue(n.ParentId.Value, out var parent))
+                        {
+                            var siblings = parent.ChildIds
+                                .Where(sibId => sibId != n.Id && snapshot.TryGetValue(sibId, out var sib) && sib.Role == n.Role)
+                                .Select(sibId => snapshot[sibId])
+                                .ToList();
+                            if (siblings.Count > 0)
+                            {
+                                variants = [
+                                    new { Content = n.Content.GetText(), CreatedAt = n.CreatedAt },
+                                    .. siblings.Select(s => (object)new { Content = s.Content.GetText(), CreatedAt = s.CreatedAt })
+                                ];
+                            }
+                        }
+
+                        return new
+                        {
+                            Id = n.Id,
+                            Role = n.Role,
+                            Content = n.Content.GetText(),
+                            CreatedAt = n.CreatedAt,
+                            Variants = variants,
+                        };
                     }),
                 });
             }
@@ -121,12 +143,17 @@ public static class SessionEndpoints
                 return Results.NotFound(new { Error = $"Message {messageId} not found" });
             }
 
-            // Create a variant — the actual regeneration (calling the LLM) happens via chat/stream
-            // This endpoint just prepares the tree for a new variant
+            if (node.ParentId is null)
+            {
+                return Results.BadRequest(new { Error = "Cannot regenerate the root node" });
+            }
+
+            // Return the parentId so the caller can use chat/stream with parentId
+            // to create a new variant sibling of this message
             return Results.Ok(new
             {
                 ParentId = node.ParentId,
-                Message = "Use chat/stream with parentId to generate a new variant",
+                SessionId = id,
             });
         });
     }

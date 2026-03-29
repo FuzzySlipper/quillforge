@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
+using QuillForge.Core.Services;
 using QuillForge.Core.Tests.Fakes;
 
 namespace QuillForge.Core.Tests;
@@ -22,12 +23,12 @@ public class ToolLoopStreamingTests
         ActiveMode = "general",
     };
 
-    private static ToolLoop CreateLoop(FakeCompletionService fakeService)
+    private static ToolLoop CreateLoop(ICompletionService completionService)
     {
         var loggerFactory = NullLoggerFactory.Instance;
         var continuation = new ContinuationStrategy(
             loggerFactory.CreateLogger<ContinuationStrategy>());
-        return new ToolLoop(fakeService, continuation,
+        return new ToolLoop(completionService, continuation,
             loggerFactory.CreateLogger<ToolLoop>(), new AppConfig());
     }
 
@@ -112,5 +113,73 @@ public class ToolLoopStreamingTests
 
         var done = events.OfType<DoneEvent>().Last();
         Assert.Equal("max_rounds", done.StopReason);
+    }
+
+    [Fact]
+    public async Task StreamToolUseWithoutToolPayload_RetriesNonStreamingAndDispatches()
+    {
+        var fake = new RecoveryStreamingCompletionService();
+        var handler = new FakeToolHandler("my_tool");
+        var loop = CreateLoop(fake);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("use tool")),
+        };
+
+        var events = new List<StreamEvent>();
+        await foreach (var evt in loop.RunStreamAsync(DefaultConfig, [handler], messages, DefaultContext))
+        {
+            events.Add(evt);
+        }
+
+        Assert.Contains(events, e => e is TextDeltaEvent td && td.Text == "result after tool");
+        Assert.True(fake.StreamRequests.Count >= 1);
+        Assert.True(fake.NonStreamingRequests.Count >= 1);
+    }
+
+    private sealed class RecoveryStreamingCompletionService : ICompletionService
+    {
+        public List<CompletionRequest> StreamRequests { get; } = [];
+        public List<CompletionRequest> NonStreamingRequests { get; } = [];
+
+        public Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
+        {
+            NonStreamingRequests.Add(request);
+
+            if (NonStreamingRequests.Count == 1)
+            {
+                var toolInput = System.Text.Json.JsonDocument.Parse("{}").RootElement.Clone();
+                return Task.FromResult(new CompletionResponse
+                {
+                    Content = new MessageContent([new ToolUseBlock("call_1", "my_tool", toolInput)]),
+                    StopReason = "tool_use",
+                    Usage = new TokenUsage(10, 20),
+                });
+            }
+
+            return Task.FromResult(new CompletionResponse
+            {
+                Content = new MessageContent("result after tool"),
+                StopReason = "end_turn",
+                Usage = new TokenUsage(10, 20),
+            });
+        }
+
+        public async IAsyncEnumerable<StreamEvent> StreamAsync(
+            CompletionRequest request,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            StreamRequests.Add(request);
+
+            if (StreamRequests.Count == 1)
+            {
+                yield return new DoneEvent("tool_use", new TokenUsage(10, 20));
+                yield break;
+            }
+
+            yield return new TextDeltaEvent("result after tool");
+            yield return new DoneEvent("end_turn", new TokenUsage(10, 20));
+            await Task.CompletedTask;
+        }
     }
 }

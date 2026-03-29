@@ -24,6 +24,8 @@ export interface Message {
   variants?: MessageVariant[];
   /** Currently displayed variant index (0-based). */
   activeVariant?: number;
+  /** Backend parent node ID — used for regeneration via parentId. */
+  parentId?: string | null;
 }
 
 export interface Status {

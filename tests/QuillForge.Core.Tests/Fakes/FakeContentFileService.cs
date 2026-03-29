@@ -44,4 +44,20 @@ public sealed class FakeContentFileService : IContentFileService
         _files.Remove(relativePath);
         return Task.CompletedTask;
     }
+
+    public Task<IReadOnlyList<(string FilePath, string Snippet)>> SearchAsync(
+        string directory, string query, CancellationToken ct = default)
+    {
+        var results = _files
+            .Where(kv => kv.Key.StartsWith(directory, StringComparison.OrdinalIgnoreCase)
+                && kv.Value.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Select(kv =>
+            {
+                var line = kv.Value.Split('\n')
+                    .FirstOrDefault(l => l.Contains(query, StringComparison.OrdinalIgnoreCase)) ?? "";
+                return (kv.Key, line.Trim());
+            })
+            .ToList();
+        return Task.FromResult<IReadOnlyList<(string, string)>>(results);
+    }
 }

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Agents.Modes;
 using QuillForge.Core.Models;
+using QuillForge.Core.Services;
 using QuillForge.Core.Tests.Fakes;
 
 namespace QuillForge.Core.Tests;
@@ -26,16 +27,20 @@ public class OrchestratorTests
         ];
 
         var personaStore = new FakePersonaStore();
+        var characterStore = new FakeCharacterCardStore();
+        var storyStateService = new FakeStoryStateService();
+        var contentFileService = new FakeContentFileService();
 
-        return new OrchestratorAgent(toolLoop, modes, personaStore, new AppConfig(), LogFactory.CreateLogger<OrchestratorAgent>());
+        return new OrchestratorAgent(
+            toolLoop, modes, personaStore, characterStore, storyStateService,
+            contentFileService, new AppConfig(), LogFactory.CreateLogger<OrchestratorAgent>());
     }
 
     [Fact]
-    public void DefaultMode_IsGeneral()
+    public void DefaultState_IsGeneral()
     {
-        var fake = new FakeCompletionService();
-        var orchestrator = CreateOrchestrator(fake);
-        Assert.Equal("general", orchestrator.ActiveModeName);
+        var state = new SessionRuntimeState();
+        Assert.Equal("general", state.Mode.ActiveModeName);
     }
 
     [Fact]
@@ -43,12 +48,13 @@ public class OrchestratorTests
     {
         var fake = new FakeCompletionService();
         var orchestrator = CreateOrchestrator(fake);
+        var state = new SessionRuntimeState();
 
-        orchestrator.SetMode("writer", "my-novel", "chapter1.md");
+        orchestrator.SetMode(state, "writer", "my-novel", "chapter1.md");
 
-        Assert.Equal("writer", orchestrator.ActiveModeName);
-        Assert.Equal("my-novel", orchestrator.ProjectName);
-        Assert.Equal("chapter1.md", orchestrator.CurrentFile);
+        Assert.Equal("writer", state.Mode.ActiveModeName);
+        Assert.Equal("my-novel", state.Mode.ProjectName);
+        Assert.Equal("chapter1.md", state.Mode.CurrentFile);
     }
 
     [Fact]
@@ -56,8 +62,9 @@ public class OrchestratorTests
     {
         var fake = new FakeCompletionService();
         var orchestrator = CreateOrchestrator(fake);
+        var state = new SessionRuntimeState();
 
-        Assert.Throws<ArgumentException>(() => orchestrator.SetMode("nonexistent"));
+        Assert.Throws<ArgumentException>(() => orchestrator.SetMode(state, "nonexistent"));
     }
 
     [Fact]
@@ -66,6 +73,7 @@ public class OrchestratorTests
         var fake = new FakeCompletionService();
         fake.EnqueueText("Hello from the orchestrator!");
         var orchestrator = CreateOrchestrator(fake);
+        var state = new SessionRuntimeState();
 
         var messages = new List<CompletionMessage>
         {
@@ -73,7 +81,7 @@ public class OrchestratorTests
         };
         var context = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = "general" };
 
-        await orchestrator.HandleAsync("default", "test-model", 1024, [], messages, context);
+        await orchestrator.HandleAsync(state, "default", "test-model", 1024, [], messages, context);
 
         var request = fake.ReceivedRequests[0];
         Assert.Contains("test persona", request.SystemPrompt!);
@@ -92,7 +100,8 @@ public class OrchestratorTests
             StoryStateSummary = "Tension is high. The dragon approaches.",
         };
 
-        var prompt = orchestrator.BuildSystemPrompt("I am a helpful persona.", modeContext);
+        var generalMode = orchestrator.ResolveMode("general");
+        var prompt = orchestrator.BuildSystemPrompt("I am a helpful persona.", generalMode, modeContext);
 
         Assert.Contains("I am a helpful persona.", prompt);
         Assert.Contains("General", prompt);
@@ -104,12 +113,13 @@ public class OrchestratorTests
     {
         var fake = new FakeCompletionService();
         var orchestrator = CreateOrchestrator(fake);
+        var state = new SessionRuntimeState();
 
-        orchestrator.SetMode("writer", "novel");
+        orchestrator.SetMode(state, "writer", "novel");
         // Switching away from writer should reset its state
-        orchestrator.SetMode("general");
+        orchestrator.SetMode(state, "general");
 
-        Assert.Equal("general", orchestrator.ActiveModeName);
+        Assert.Equal("general", state.Mode.ActiveModeName);
     }
 }
 
@@ -127,4 +137,42 @@ internal sealed class FakePersonaStore : QuillForge.Core.Services.IPersonaStore
     {
         return Task.FromResult<IReadOnlyList<string>>(["default"]);
     }
+}
+
+internal sealed class FakeCharacterCardStore : ICharacterCardStore
+{
+    public Task<CharacterCard?> LoadAsync(string fileName, CancellationToken ct = default)
+        => Task.FromResult<CharacterCard?>(null);
+
+    public Task SaveAsync(string fileName, CharacterCard card, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task<IReadOnlyList<CharacterCard>> ListAsync(CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<CharacterCard>>([]);
+
+    public string CardToPrompt(CharacterCard card) => $"Character: {card.Name}";
+
+    public CharacterCard NewTemplate(string name = "New Character")
+        => new() { Name = name };
+
+    public Task<CharacterCard> ImportTavernCardAsync(string pngPath, CancellationToken ct = default)
+        => Task.FromResult(new CharacterCard { Name = "Imported" });
+}
+
+internal sealed class FakeStoryStateService : IStoryStateService
+{
+    public Task<IReadOnlyDictionary<string, object>> LoadAsync(string stateFilePath, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyDictionary<string, object>>(new Dictionary<string, object>());
+
+    public Task SaveAsync(string stateFilePath, IReadOnlyDictionary<string, object> state, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task<IReadOnlyDictionary<string, object>> MergeAsync(string stateFilePath, IReadOnlyDictionary<string, object> updates, CancellationToken ct = default)
+        => Task.FromResult(updates);
+
+    public Task IncrementCounterAsync(string stateFilePath, string counterKey, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task RemoveKeyAsync(string stateFilePath, string key, CancellationToken ct = default)
+        => Task.CompletedTask;
 }

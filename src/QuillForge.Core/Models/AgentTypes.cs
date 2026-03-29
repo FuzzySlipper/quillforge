@@ -39,4 +39,17 @@ public sealed record AgentContext
 {
     public required Guid SessionId { get; init; }
     public required string ActiveMode { get; init; }
+
+    /// <summary>
+    /// Active lore set for this request. Resolved from session profile state,
+    /// falling back to global AppConfig. Tool handlers use this instead of
+    /// capturing the lore set at construction time.
+    /// </summary>
+    public string ActiveLoreSet { get; init; } = "default";
+
+    /// <summary>
+    /// Active writing style for this request. Resolved from session profile state,
+    /// falling back to global AppConfig.
+    /// </summary>
+    public string ActiveWritingStyle { get; init; } = "default";
 }

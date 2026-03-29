@@ -12,22 +12,28 @@ public static class ModeEndpoints
 {
     public static void MapModeEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/mode", (OrchestratorAgent orchestrator) =>
+        app.MapGet("/api/mode", async (
+            ISessionRuntimeStore runtimeStore,
+            HttpContext httpContext,
+            CancellationToken ct) =>
         {
+            var sessionId = TryGetSessionId(httpContext);
+            var state = await runtimeStore.LoadAsync(sessionId, ct);
             return Results.Ok(new
             {
-                Mode = orchestrator.ActiveModeName,
-                Project = orchestrator.ProjectName,
-                File = orchestrator.CurrentFile,
-                Character = orchestrator.Character,
-                PendingContent = orchestrator.WriterPendingContent,
+                Mode = state.Mode.ActiveModeName,
+                Project = state.Mode.ProjectName,
+                File = state.Mode.CurrentFile,
+                Character = state.Mode.Character,
+                PendingContent = state.Writer.PendingContent,
             });
         });
 
         app.MapPost("/api/mode", async (
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
-            RuntimeStateStore stateStore,
+            ISessionRuntimeStore runtimeStore,
+            RuntimeStateStore legacyStore,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -37,11 +43,14 @@ public static class ModeEndpoints
             var project = root.TryGetProperty("project", out var p) ? p.GetString() : null;
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
             var character = root.TryGetProperty("character", out var c) ? c.GetString() : null;
+            var sessionId = root.TryGetProperty("sessionId", out var sid) ? Guid.Parse(sid.GetString()!) : (Guid?)null;
 
-            orchestrator.SetMode(mode, project, file, character);
+            var state = await runtimeStore.LoadAsync(sessionId, ct);
+            orchestrator.SetMode(state, mode, project, file, character);
+            await runtimeStore.SaveAsync(state, ct);
 
-            // Persist so it survives refresh/restart
-            await stateStore.SaveAsync(new RuntimeState
+            // Also persist to legacy store for backward compat during transition
+            await legacyStore.SaveAsync(new RuntimeState
             {
                 LastMode = mode,
                 LastProject = project,
@@ -100,7 +109,6 @@ public static class ModeEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            // Apply updates — keep existing values for fields not provided
             if (root.TryGetProperty("orchestrator", out var o) && o.GetString() is { } orch)
                 config.Models.Orchestrator = orch;
             if (root.TryGetProperty("proseWriter", out var pw) && pw.GetString() is { } prose)
@@ -114,7 +122,6 @@ public static class ModeEndpoints
             if (root.TryGetProperty("forgeReviewer", out var fr) && fr.GetString() is { } fReviewer)
                 config.Models.ForgeReviewer = fReviewer;
 
-            // Persist to config.yaml
             var solutionRoot = FindSolutionRoot(AppContext.BaseDirectory)
                 ?? FindSolutionRoot(Directory.GetCurrentDirectory());
             var contentRoot = solutionRoot is not null
@@ -142,6 +149,20 @@ public static class ModeEndpoints
                 }
             });
         });
+    }
+
+    /// <summary>
+    /// Tries to extract a session ID from query string or header.
+    /// Returns null if not provided (uses default/global state).
+    /// </summary>
+    private static Guid? TryGetSessionId(HttpContext httpContext)
+    {
+        if (httpContext.Request.Query.TryGetValue("sessionId", out var sid)
+            && Guid.TryParse(sid, out var parsed))
+        {
+            return parsed;
+        }
+        return null;
     }
 
     private static string? FindSolutionRoot(string startDir)

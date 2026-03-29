@@ -125,16 +125,16 @@ public sealed class ListFilesHandler : IToolHandler
 }
 
 /// <summary>
-/// Searches file contents across a directory.
+/// Searches file contents across a content directory.
 /// </summary>
 public sealed class SearchFilesHandler : IToolHandler
 {
-    private readonly ILoreStore _loreStore;
+    private readonly IContentFileService _fileService;
     private readonly ILogger<SearchFilesHandler> _logger;
 
-    public SearchFilesHandler(ILoreStore loreStore, ILogger<SearchFilesHandler> logger)
+    public SearchFilesHandler(IContentFileService fileService, ILogger<SearchFilesHandler> logger)
     {
-        _loreStore = loreStore;
+        _fileService = fileService;
         _logger = logger;
     }
 
@@ -158,7 +158,7 @@ public sealed class SearchFilesHandler : IToolHandler
         var dir = input.GetProperty("directory").GetString() ?? "";
         var query = input.GetProperty("query").GetString() ?? "";
         _logger.LogDebug("SearchFilesHandler: searching {Dir} for \"{Query}\"", dir, query);
-        var results = await _loreStore.SearchAsync(dir, query, ct);
+        var results = await _fileService.SearchAsync(dir, query, ct);
         var formatted = results.Select(r => new { file = r.FilePath, snippet = r.Snippet });
         return ToolResult.Ok(JsonSerializer.Serialize(formatted));
     }

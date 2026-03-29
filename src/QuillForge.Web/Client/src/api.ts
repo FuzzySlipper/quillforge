@@ -43,9 +43,11 @@ export async function sendChatStream(
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
   sessionId?: string | null,
+  parentId?: string | null,
 ): Promise<void> {
   const payload: Record<string, unknown> = { message };
   if (sessionId) payload.sessionId = sessionId;
+  if (parentId) payload.parentId = parentId;
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -234,7 +236,7 @@ export async function conversationFork(
 export async function conversationRegenerate(
   sessionId: string,
   messageId: string,
-): Promise<{ parentId: string; message: string }> {
+): Promise<{ parentId: string; sessionId: string }> {
   return request(`/api/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/regenerate`, {
     method: "POST",
   });

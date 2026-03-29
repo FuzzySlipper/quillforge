@@ -257,6 +257,74 @@ public sealed class ToolLoop
                 inputTokens: usage?.InputTokens ?? 0,
                 outputTokens: usage?.OutputTokens ?? 0);
 
+            if (collectedToolCalls.Count == 0 &&
+                string.Equals(stopReason, "tool_use", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning(
+                    "ToolLoop (streaming) received stop_reason=tool_use without streamed tool calls; retrying non-streaming recovery");
+
+                if (_diagnosticsEnabled)
+                {
+                    yield return new DiagnosticEvent(
+                        "warning",
+                        "Stream ended with tool_use but no tool call payloads; retrying non-streaming recovery",
+                        DiagnosticLevel.Warning);
+                }
+
+                CompletionResponse? recoveryResponse = null;
+                Exception? recoveryException = null;
+                try
+                {
+                    recoveryResponse = await _completionService.CompleteAsync(request, ct);
+                }
+                catch (Exception ex)
+                {
+                    recoveryException = ex;
+                    _logger.LogError(ex,
+                        "ToolLoop (streaming) recovery request failed after missing streamed tool calls");
+                }
+
+                if (recoveryException is not null || recoveryResponse is null)
+                {
+                    if (_diagnosticsEnabled)
+                    {
+                        yield return new DiagnosticEvent(
+                            "warning",
+                            "Tool recovery failed after an incomplete streamed tool call response",
+                            DiagnosticLevel.Error);
+                    }
+
+                    yield return new DoneEvent("error", usage ?? new TokenUsage(0, 0));
+                    yield break;
+                }
+
+                stopReason = recoveryResponse.StopReason;
+                usage = recoveryResponse.Usage;
+                collectedText.Clear();
+                collectedToolCalls.Clear();
+
+                foreach (var toolCall in recoveryResponse.Content.GetToolCalls())
+                {
+                    collectedToolCalls.Add(new ToolCallEvent(toolCall.Name, toolCall.Id, toolCall.Input));
+                }
+
+                var recoveredText = recoveryResponse.Content.GetText();
+                if (!string.IsNullOrEmpty(recoveredText))
+                {
+                    collectedText.Add(recoveredText);
+                }
+
+                if (_diagnosticsEnabled)
+                {
+                    yield return new DiagnosticEvent(
+                        "tool",
+                        collectedToolCalls.Count > 0
+                            ? $"Recovered {collectedToolCalls.Count} tool call(s) via non-streaming retry"
+                            : "Non-streaming retry also returned no tool calls",
+                        collectedToolCalls.Count > 0 ? DiagnosticLevel.Info : DiagnosticLevel.Warning);
+                }
+            }
+
             // If no tool calls, we're done
             if (collectedToolCalls.Count == 0 ||
                 string.Equals(stopReason, "end_turn", StringComparison.OrdinalIgnoreCase))

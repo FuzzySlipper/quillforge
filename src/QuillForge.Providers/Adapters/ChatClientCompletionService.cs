@@ -53,14 +53,15 @@ public sealed class ChatClientCompletionService : ICompletionService
 
         _logger.LogDebug("Starting streaming completion request");
 
-        // Collect the full streaming response, yielding text deltas as they arrive
-        var toolCalls = new Dictionary<string, (string Name, List<string> JsonParts)>();
+        // Accumulate partial tool calls across streaming updates.
+        // Some providers emit FunctionCallContent incrementally (name first, then argument chunks).
+        var pendingToolCalls = new Dictionary<string, (string Name, List<string> JsonParts)>();
+        var emittedToolCallIds = new HashSet<string>();
         int inputTokens = 0, outputTokens = 0;
         string? finishReason = null;
 
         await foreach (var update in _client.GetStreamingResponseAsync(chatMessages, options, ct))
         {
-            // Process each content item in the update
             if (update.Contents is not null)
             {
                 foreach (var content in update.Contents)
@@ -72,33 +73,71 @@ public sealed class ChatClientCompletionService : ICompletionService
                             break;
 
                         case FunctionCallContent funcCall:
-                            yield return new ToolCallEvent(
-                                funcCall.Name,
-                                funcCall.CallId ?? Guid.NewGuid().ToString(),
-                                SerializeArguments(funcCall.Arguments));
+                        {
+                            var callId = funcCall.CallId ?? Guid.NewGuid().ToString();
+                            if (funcCall.Arguments is { Count: > 0 })
+                            {
+                                // Complete tool call — emit immediately
+                                emittedToolCallIds.Add(callId);
+                                yield return new ToolCallEvent(
+                                    funcCall.Name,
+                                    callId,
+                                    SerializeArguments(funcCall.Arguments));
+                            }
+                            else if (!string.IsNullOrEmpty(funcCall.Name))
+                            {
+                                // Partial: name arrived but no arguments yet — accumulate
+                                if (!pendingToolCalls.ContainsKey(callId))
+                                {
+                                    pendingToolCalls[callId] = (funcCall.Name, []);
+                                }
+                            }
+                            break;
+                        }
+
+                        case UsageContent usage:
+                            inputTokens = (int)(usage.Details.InputTokenCount ?? inputTokens);
+                            outputTokens = (int)(usage.Details.OutputTokenCount ?? outputTokens);
+                            break;
+
+                        default:
+                            _logger.LogDebug(
+                                "Streaming: unhandled content type {ContentType}: {Content}",
+                                content.GetType().Name, content);
                             break;
                     }
                 }
             }
 
-            // Track usage and finish reason from the update
             if (update.FinishReason is not null)
             {
                 finishReason = ConvertFinishReason(update.FinishReason.Value);
             }
+        }
 
-            // Check for usage in content items
-            if (update.Contents is not null)
+        // Emit any accumulated tool calls that weren't emitted during streaming
+        foreach (var (callId, (name, jsonParts)) in pendingToolCalls)
+        {
+            if (emittedToolCallIds.Contains(callId)) continue;
+
+            _logger.LogDebug("Emitting accumulated tool call {Name} (id={CallId})", name, callId);
+            var argsJson = jsonParts.Count > 0 ? string.Concat(jsonParts) : "{}";
+            JsonElement args;
+            try
             {
-                foreach (var content in update.Contents)
-                {
-                    if (content is UsageContent usage)
-                    {
-                        inputTokens = (int)(usage.Details.InputTokenCount ?? inputTokens);
-                        outputTokens = (int)(usage.Details.OutputTokenCount ?? outputTokens);
-                    }
-                }
+                args = JsonDocument.Parse(argsJson).RootElement.Clone();
             }
+            catch (JsonException)
+            {
+                _logger.LogWarning("Failed to parse accumulated tool call arguments for {Name}: {Json}", name, argsJson);
+                args = JsonDocument.Parse("{}").RootElement.Clone();
+            }
+            yield return new ToolCallEvent(name, callId, args);
+        }
+
+        if (finishReason == "tool_use" && emittedToolCallIds.Count == 0 && pendingToolCalls.Count == 0)
+        {
+            _logger.LogWarning("Stream ended with tool_use finish reason but no tool calls were captured");
         }
 
         yield return new DoneEvent(
@@ -190,16 +229,6 @@ public sealed class ChatClientCompletionService : ICompletionService
 
         if (request.Tools is { Count: > 0 })
         {
-            options.Tools = request.Tools.Select(t => (AITool)AIFunctionFactory.Create(
-                (string input) => input,
-                new AIFunctionFactoryOptions
-                {
-                    Name = t.Name,
-                    Description = t.Description,
-                })).ToList();
-
-            // Actually, we need to pass the JSON schema properly.
-            // Let's use a different approach — build AIFunction with the schema.
             options.Tools = request.Tools.Select(ConvertToolDefinition).ToList();
         }
 
@@ -208,13 +237,29 @@ public sealed class ChatClientCompletionService : ICompletionService
 
     private static AITool ConvertToolDefinition(Core.Models.ToolDefinition tool)
     {
-        return AIFunctionFactory.Create(
-            (string input) => input,
-            new AIFunctionFactoryOptions
-            {
-                Name = tool.Name,
-                Description = tool.Description,
-            });
+        return new SchemaPreservingTool(tool.Name, tool.Description, tool.InputSchema);
+    }
+
+    /// <summary>
+    /// Declaration-only AITool that preserves the full JSON schema from our ToolDefinition.
+    /// Not invocable — actual tool execution goes through our ToolLoop.
+    /// </summary>
+    private sealed class SchemaPreservingTool : AIFunctionDeclaration
+    {
+        private readonly string _name;
+        private readonly string _description;
+        private readonly JsonElement _schema;
+
+        public SchemaPreservingTool(string name, string description, JsonElement schema)
+        {
+            _name = name;
+            _description = description;
+            _schema = schema;
+        }
+
+        public override string Name => _name;
+        public override string Description => _description;
+        public override JsonElement JsonSchema => _schema;
     }
 
     private static CompletionResponse ConvertResponse(ChatResponse response)
@@ -287,16 +332,21 @@ public sealed class ChatClientCompletionService : ICompletionService
         var dict = new Dictionary<string, object?>();
         foreach (var prop in input.EnumerateObject())
         {
-            dict[prop.Name] = prop.Value.ValueKind switch
-            {
-                JsonValueKind.String => prop.Value.GetString(),
-                JsonValueKind.Number => prop.Value.GetDouble(),
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                JsonValueKind.Null => null,
-                _ => prop.Value.GetRawText(),
-            };
+            dict[prop.Name] = ConvertJsonValue(prop.Value);
         }
         return dict;
     }
+
+    private static object? ConvertJsonValue(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.String => element.GetString(),
+        JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Null => null,
+        JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonValue).ToList(),
+        JsonValueKind.Object => element.EnumerateObject()
+            .ToDictionary(p => p.Name, p => ConvertJsonValue(p.Value)),
+        _ => element.GetRawText(),
+    };
 }

@@ -79,6 +79,46 @@ public sealed class FileSystemContentService : IContentFileService
         return Task.CompletedTask;
     }
 
+    public Task<IReadOnlyList<(string FilePath, string Snippet)>> SearchAsync(
+        string directory, string query, CancellationToken ct = default)
+    {
+        var fullPath = ResolvePath(directory);
+        _logger.LogDebug("Searching files in: {Path} for \"{Query}\"", fullPath, query);
+
+        if (!Directory.Exists(fullPath))
+        {
+            return Task.FromResult<IReadOnlyList<(string, string)>>([]);
+        }
+
+        var results = new List<(string FilePath, string Snippet)>();
+        var files = Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories);
+
+        foreach (var file in files)
+        {
+            ct.ThrowIfCancellationRequested();
+            var relativeName = Path.GetRelativePath(_basePath, file);
+            try
+            {
+                var lines = File.ReadLines(file);
+                foreach (var line in lines)
+                {
+                    if (line.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var snippet = line.Length > 200 ? line[..200] + "…" : line;
+                        results.Add((relativeName, snippet.Trim()));
+                        break; // one match per file
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogDebug("Skipping unsearchable file {File}: {Error}", file, ex.Message);
+            }
+        }
+
+        return Task.FromResult<IReadOnlyList<(string, string)>>(results);
+    }
+
     private string ResolvePath(string relativePath)
     {
         // Prevent path traversal — use separator-aware check to block sibling-prefix escapes

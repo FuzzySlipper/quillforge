@@ -10,4 +10,6 @@ public interface IContentFileService
     Task<IReadOnlyList<string>> ListAsync(string directory, string? pattern = null, CancellationToken ct = default);
     Task<bool> ExistsAsync(string relativePath, CancellationToken ct = default);
     Task DeleteAsync(string relativePath, CancellationToken ct = default);
+    Task<IReadOnlyList<(string FilePath, string Snippet)>> SearchAsync(
+        string directory, string query, CancellationToken ct = default);
 }

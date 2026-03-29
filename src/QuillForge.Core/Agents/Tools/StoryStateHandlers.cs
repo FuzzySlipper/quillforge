@@ -95,7 +95,7 @@ public sealed class UpdateStoryStateHandler : IToolHandler
             var dict = new Dictionary<string, object>();
             foreach (var prop in updates.EnumerateObject())
             {
-                dict[prop.Name] = prop.Value.ToString();
+                dict[prop.Name] = ConvertJsonElement(prop.Value);
             }
             await _storyState.MergeAsync(path, dict, ct);
         }
@@ -107,4 +107,16 @@ public sealed class UpdateStoryStateHandler : IToolHandler
 
         return ToolResult.Ok("State updated.");
     }
+
+    private static object ConvertJsonElement(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.String => element.GetString()!,
+        JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElement).ToList(),
+        JsonValueKind.Object => element.EnumerateObject()
+            .ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value)),
+        _ => element.ToString(),
+    };
 }

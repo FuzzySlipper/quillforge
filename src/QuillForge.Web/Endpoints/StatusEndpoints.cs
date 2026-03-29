@@ -10,13 +10,14 @@ public static class StatusEndpoints
     public static void MapStatusEndpoints(this WebApplication app)
     {
         app.MapGet("/api/status", async (
-            OrchestratorAgent orchestrator,
+            ISessionRuntimeStore runtimeStore,
             AutoUpdateService updateService,
             AppConfig config,
             ILoreStore loreStore,
             IPersonaStore personaStore,
             CancellationToken ct) =>
         {
+            var chatState = await runtimeStore.LoadAsync(null, ct);
             // Calculate real token/file counts
             var loreFiles = 0;
             var loreTokens = 0;
@@ -41,9 +42,9 @@ public static class StatusEndpoints
                 Status = "ready",
                 Version = BuildInfo.Version,
                 Build = BuildInfo.InformationalVersion,
-                Mode = orchestrator.ActiveModeName,
-                Project = orchestrator.ProjectName,
-                File = orchestrator.CurrentFile,
+                Mode = chatState.Mode.ActiveModeName,
+                Project = chatState.Mode.ProjectName,
+                File = chatState.Mode.CurrentFile,
                 LoreSet = config.Lore.Active,
                 Persona = config.Persona.Active,
                 WritingStyle = config.WritingStyle.Active,

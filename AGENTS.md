@@ -6,24 +6,22 @@ QuillForge is an AI-powered creative writing system — a conversational interfa
 
 This is a **ground-up rewrite in C#/.NET 10** of an existing Python/FastAPI application (see `../librarian-agent/` for the original). The rewrite prioritizes testability, clean architecture, robust session management, and simplified deployment.
 
-**PRD:** `.taskmaster/docs/prd.md` — the full product requirements document with architecture details, data models, API contracts, and testing strategy.
+**PRD:** `docs/prd.md` — the full product requirements document with architecture details, data models, API contracts, and testing strategy.
 
 ## Task Management
 
-Tasks are tracked in `.taskmaster/tasks/tasks.json` via the TaskMaster MCP server.
+Tasks are tracked via the Den MCP server (project ID: `quillforge`).
 
 **Available MCP tools:**
 
-- `mcp__taskmaster-ai__get_tasks` — list all tasks and status
-- `mcp__taskmaster-ai__get_task` — get details on a specific task
-- `mcp__taskmaster-ai__next_task` — find the next unblocked task to work on
-- `mcp__taskmaster-ai__set_task_status` — mark tasks done/in-progress/blocked etc.
-- `mcp__taskmaster-ai__parse_prd` — generate tasks from a PRD document (use `append: true` to add without replacing)
-- `mcp__taskmaster-ai__expand_all` / `mcp__taskmaster-ai__expand_task` — break tasks into subtasks
-- `mcp__taskmaster-ai__update_subtask` — update subtask details
-- `mcp__taskmaster-ai__analyze_project_complexity` / `mcp__taskmaster-ai__complexity_report`
-
-**To add a task:** use `parse_prd` with `append: true` on a small markdown snippet, or edit `.taskmaster/tasks/tasks.json` directly (ensure unique ID, valid dependency IDs, valid status value).
+- `mcp__den__list_tasks` — list all tasks and status
+- `mcp__den__get_task` — get full task details including dependencies and subtasks
+- `mcp__den__next_task` — find the next unblocked task to work on
+- `mcp__den__create_task` — create a new task or subtask
+- `mcp__den__update_task` — update task fields and status (requires agent identity)
+- `mcp__den__add_dependency` / `mcp__den__remove_dependency` — manage task dependencies
+- `mcp__den__send_message` — send a message on a task or thread
+- `mcp__den__store_document` / `mcp__den__search_documents` — store and search project documents
 
 ## Hard Architectural Rules
 
@@ -174,6 +172,104 @@ dotnet test QuillForge.slnx    # 114 tests as of Task 7 completion
 ```
 
 **Note:** The Web project and Architecture.Tests require `AllowMissingPrunePackageData=true` due to a .NET 10 preview SDK issue with the ASP.NET Core framework reference.
+
+## Synthetic User Build Test
+
+When the user asks to "perform a synthetic user build test", "run a manual build test", or similar, do not stop at unit/integration tests. Treat it as a live-build exercise using the Development-only debug bridge plus normal UI/manual verification.
+
+### Goal
+
+Simulate a careful human tester using the running app end-to-end, with emphasis on frontend/backend contract mismatches, stale runtime state, streaming/tool-loop failures, and features that only break in a live build.
+
+### Required Approach
+
+1. Build and run the app in Development.
+2. Use the debug bridge endpoints for deterministic backend/manual probing:
+   - `POST /api/debug/bridge/session/reset`
+   - `POST /api/debug/bridge/mode`
+   - `POST /api/debug/bridge/chat`
+   - `GET /api/debug/bridge/session/{id}`
+   - `GET /api/debug/bridge/state`
+3. Also exercise the real web UI and normal endpoints when the bug could be in the frontend contract, SSE handling, or browser behavior. Do not rely only on the debug bridge.
+4. Prefer short realistic user messages and commands over synthetic no-op prompts. Make the app actually use tools, mode state, sessions, and profile selection.
+5. For every failure, capture:
+   - exact action taken
+   - endpoint or UI surface used
+   - expected behavior
+   - actual behavior
+   - the smallest code-path evidence you can find afterward
+6. If the repo uses Den and the user is asking for bug discovery rather than an immediate fix, add or update concrete tasks instead of leaving only prose notes.
+
+### Minimum Coverage Checklist
+
+A synthetic user build test should cover all of these unless the user explicitly narrows scope:
+
+- App boots successfully and `/api/status` reports sane values.
+- Normal chat streaming via `/api/chat/stream` produces visible assistant output.
+- A prompt that should invoke `query_lore` actually routes through the orchestrator and returns lore-backed content.
+- Session continuity works across multiple turns in the same session.
+- Session reload shows persisted assistant turns, not just user turns.
+- Profile switching changes active persona, lore set, and writing style in runtime behavior, not just in saved config.
+- General mode works.
+- Writer mode works, including pending-content accept/reject/regenerate behavior if applicable.
+- Roleplay mode works, including character selection if applicable.
+- Council mode works.
+- Artifact generation works if available.
+- Forge endpoints at least smoke-test successfully if they are part of the current build.
+- Diagnostics panel/debug output surfaces tool calls, warnings, and empty-response cases instead of failing silently.
+- At least one message deletion/fork/regenerate flow is exercised when the UI exposes it.
+- At least one content-browsing/editing flow is exercised for persona, lore, writing style, or related files.
+
+### Required Chat Prompts
+
+During the run, include prompts that are likely to force real behavior instead of shallow happy-path text:
+
+- A lore question that should obviously trigger the librarian.
+- A writer-mode scene request that should use lore and writing-style context.
+- A roleplay prompt that depends on the selected character/profile.
+- A council-style question that should produce multi-member output.
+- A prompt that creates or mutates session state, then a follow-up that verifies the state was preserved.
+
+### Default Deliverable
+
+When asked for a synthetic user build test, the expected output is:
+
+1. Findings first, ordered by severity.
+2. Clear reproduction steps for each confirmed bug.
+3. File/endpoint evidence for the mismatch.
+4. Den tasks added or updated, if bug logging was requested.
+5. A short coverage note listing what was exercised and what could not be tested.
+
+### Reusable Prompt
+
+Use this as the default internal prompt/checklist for future agents:
+
+```text
+Perform a synthetic user build test of QuillForge against a live Development build.
+
+Do not stop at dotnet test. Start the app, use the debug bridge endpoints for deterministic probing, and also use the real UI/endpoints for any feature where frontend/backend contract mismatches, SSE parsing, session persistence, or browser behavior could hide bugs.
+
+Cover at minimum:
+- status/bootstrap
+- normal chat streaming
+- lore lookup through the orchestrator
+- session continuity and reload
+- profile switching (persona/lore/writing style)
+- general mode
+- writer mode
+- roleplay mode
+- council mode
+- artifact generation if available
+- forge smoke paths if available
+- diagnostics visibility
+- one message delete/fork/regenerate flow
+- one content browsing/editing flow
+
+Use realistic prompts that force tool use and stateful behavior, not just “say hello”.
+For every failure, capture the exact action, expected vs actual behavior, and then trace it back to the smallest relevant code path.
+If the request is bug-hunting rather than immediate implementation, add/update Den tasks with concrete acceptance tests.
+Return findings first, then coverage notes, then any task IDs created.
+```
 
 ### Publishing
 

@@ -7,6 +7,8 @@ namespace QuillForge.Core.Tests;
 
 public class WriterModeTests
 {
+    private static readonly ILogger Logger = NullLoggerFactory.Instance.CreateLogger<WriterMode>();
+
     private static WriterMode CreateMode()
     {
         return new WriterMode(NullLoggerFactory.Instance.CreateLogger<WriterMode>());
@@ -15,15 +17,15 @@ public class WriterModeTests
     [Fact]
     public void InitialState_IsIdle()
     {
-        var mode = CreateMode();
-        Assert.Equal(WriterState.Idle, mode.State);
-        Assert.Null(mode.PendingContent);
+        var state = new WriterRuntimeState();
+        Assert.Equal(WriterState.Idle, state.State);
+        Assert.Null(state.PendingContent);
     }
 
     [Fact]
-    public async Task LongResponse_TransitionsToPendingReview()
+    public void LongResponse_TransitionsToPendingReview()
     {
-        var mode = CreateMode();
+        var state = new WriterRuntimeState();
         var longText = new string('x', 300);
         var response = new AgentResponse
         {
@@ -33,16 +35,16 @@ public class WriterModeTests
             ToolRoundsUsed = 0,
         };
 
-        await mode.OnResponseAsync(response, new ModeContext());
+        WriterMode.CaptureIfPending(response, state, Logger);
 
-        Assert.Equal(WriterState.PendingReview, mode.State);
-        Assert.Equal(longText, mode.PendingContent);
+        Assert.Equal(WriterState.PendingReview, state.State);
+        Assert.Equal(longText, state.PendingContent);
     }
 
     [Fact]
-    public async Task ShortResponse_StaysIdle()
+    public void ShortResponse_StaysIdle()
     {
-        var mode = CreateMode();
+        var state = new WriterRuntimeState();
         var response = new AgentResponse
         {
             Content = new MessageContent("Sure, I'll write that for you."),
@@ -51,16 +53,16 @@ public class WriterModeTests
             ToolRoundsUsed = 0,
         };
 
-        await mode.OnResponseAsync(response, new ModeContext());
+        WriterMode.CaptureIfPending(response, state, Logger);
 
-        Assert.Equal(WriterState.Idle, mode.State);
-        Assert.Null(mode.PendingContent);
+        Assert.Equal(WriterState.Idle, state.State);
+        Assert.Null(state.PendingContent);
     }
 
     [Fact]
-    public async Task Accept_ReturnsPendingContent_AndResetsToIdle()
+    public void Accept_ReturnsPendingContent_AndResetsToIdle()
     {
-        var mode = CreateMode();
+        var state = new WriterRuntimeState();
         var longText = new string('x', 300);
         var response = new AgentResponse
         {
@@ -69,26 +71,26 @@ public class WriterModeTests
             Usage = new TokenUsage(10, 20),
             ToolRoundsUsed = 0,
         };
-        await mode.OnResponseAsync(response, new ModeContext());
+        WriterMode.CaptureIfPending(response, state, Logger);
 
-        var accepted = mode.Accept();
+        var accepted = WriterMode.Accept(state, Logger);
 
         Assert.Equal(longText, accepted);
-        Assert.Equal(WriterState.Idle, mode.State);
-        Assert.Null(mode.PendingContent);
+        Assert.Equal(WriterState.Idle, state.State);
+        Assert.Null(state.PendingContent);
     }
 
     [Fact]
     public void Accept_WhenIdle_ReturnsNull()
     {
-        var mode = CreateMode();
-        Assert.Null(mode.Accept());
+        var state = new WriterRuntimeState();
+        Assert.Null(WriterMode.Accept(state, Logger));
     }
 
     [Fact]
-    public async Task Reject_ClearsPending_AndResetsToIdle()
+    public void Reject_ClearsPending_AndResetsToIdle()
     {
-        var mode = CreateMode();
+        var state = new WriterRuntimeState();
         var response = new AgentResponse
         {
             Content = new MessageContent(new string('x', 300)),
@@ -96,19 +98,18 @@ public class WriterModeTests
             Usage = new TokenUsage(10, 20),
             ToolRoundsUsed = 0,
         };
-        await mode.OnResponseAsync(response, new ModeContext());
+        WriterMode.CaptureIfPending(response, state, Logger);
 
-        mode.Reject();
+        WriterMode.Reject(state, Logger);
 
-        Assert.Equal(WriterState.Idle, mode.State);
-        Assert.Null(mode.PendingContent);
+        Assert.Equal(WriterState.Idle, state.State);
+        Assert.Null(state.PendingContent);
     }
 
     [Fact]
-    public async Task Reset_ClearsEverything()
+    public void Reset_ClearsEverything()
     {
-        var mode = CreateMode();
-        // Simulate having pending content
+        var state = new WriterRuntimeState();
         var longText = new string('x', 300);
         var response = new AgentResponse
         {
@@ -117,12 +118,12 @@ public class WriterModeTests
             Usage = new TokenUsage(10, 20),
             ToolRoundsUsed = 0,
         };
-        await mode.OnResponseAsync(response, new ModeContext());
+        WriterMode.CaptureIfPending(response, state, Logger);
 
-        mode.Reset();
+        WriterMode.Reset(state);
 
-        Assert.Equal(WriterState.Idle, mode.State);
-        Assert.Null(mode.PendingContent);
+        Assert.Equal(WriterState.Idle, state.State);
+        Assert.Null(state.PendingContent);
     }
 
     [Fact]
