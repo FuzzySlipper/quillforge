@@ -374,7 +374,7 @@ export async function writeWritingStyle(name: string, content: string): Promise<
 // ── Character cards ──
 
 export interface CharacterCardSummary {
-  filename: string;
+  fileName: string;
   name: string;
   portrait: string | null;
 }
@@ -426,6 +426,16 @@ export async function activateCharacterCards(config: {
   return request("/api/character-cards/activate", {
     method: "POST",
     body: JSON.stringify(config),
+  });
+}
+
+export async function importCharacterCardsFromDir(path: string): Promise<{
+  imported: { name: string; fileName: string; portrait: string }[];
+  skipped: { file: string; reason: string }[];
+}> {
+  return request("/api/character-cards/import-dir", {
+    method: "POST",
+    body: JSON.stringify({ path }),
   });
 }
 

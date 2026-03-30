@@ -146,10 +146,10 @@ export default function ModeSwitcher({ open, onClose, onSwitched }: ModeSwitcher
                 <div className="flex flex-col gap-1.5 mt-1">
                   {characters.map((c) => (
                     <button
-                      key={c.filename}
-                      onClick={() => setSelectedCharacter(c.filename)}
+                      key={c.fileName}
+                      onClick={() => setSelectedCharacter(c.fileName)}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                        selectedCharacter === c.filename
+                        selectedCharacter === c.fileName
                           ? "bg-accent/20 ring-1 ring-accent/50"
                           : "hover:bg-input-bg bg-input-bg/30"
                       }`}
@@ -165,7 +165,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched }: ModeSwitcher
                           ?
                         </div>
                       )}
-                      <span className={`text-sm ${selectedCharacter === c.filename ? "text-accent" : "text-text"}`}>
+                      <span className={`text-sm ${selectedCharacter === c.fileName ? "text-accent" : "text-text"}`}>
                         {c.name}
                       </span>
                     </button>

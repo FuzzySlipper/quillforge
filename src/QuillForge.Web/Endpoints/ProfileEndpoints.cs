@@ -386,6 +386,44 @@ public static class ProfileEndpoints
             return Results.Ok(new { Status = "ok", AiCharacter = aiCharacter, UserCharacter = userCharacter });
         });
 
+        // Bulk import: scan a directory for Tavern card PNGs
+        app.MapPost("/api/character-cards/import-dir", async (
+            HttpContext httpContext,
+            ICharacterCardStore store,
+            ILogger<ICharacterCardStore> logger,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var dir = body.RootElement.GetProperty("path").GetString();
+
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+                return Results.BadRequest(new { Error = $"Directory not found: {dir}" });
+
+            var pngs = Directory.GetFiles(dir, "*.png");
+            var imported = new List<object>();
+            var skipped = new List<object>();
+
+            foreach (var png in pngs)
+            {
+                try
+                {
+                    var card = await store.ImportTavernCardAsync(png, ct);
+                    imported.Add(new { card.Name, card.FileName, card.Portrait });
+                }
+                catch (InvalidOperationException)
+                {
+                    skipped.Add(new { File = Path.GetFileName(png), Reason = "No card data in PNG" });
+                }
+                catch (Exception ex)
+                {
+                    skipped.Add(new { File = Path.GetFileName(png), Reason = ex.Message });
+                    logger.LogWarning(ex, "Failed to import {File}", png);
+                }
+            }
+
+            return Results.Ok(new { Imported = imported, Skipped = skipped });
+        });
+
         app.MapPost("/api/character-cards/import", async (
             HttpContext httpContext,
             ICharacterCardStore store,
@@ -412,12 +450,19 @@ public static class ProfileEndpoints
                     await file.CopyToAsync(stream, ct);
                 }
 
-                var card = await store.ImportTavernCardAsync(tempPath, ct);
-                return Results.Ok(new
+                try
                 {
-                    Status = "ok",
-                    Card = new { Filename = card.FileName, card.Name, card.Portrait },
-                });
+                    var card = await store.ImportTavernCardAsync(tempPath, ct);
+                    return Results.Ok(new
+                    {
+                        Status = "ok",
+                        Card = new { Filename = card.FileName, card.Name, card.Portrait },
+                    });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.BadRequest(new { Error = ex.Message });
+                }
             }
             finally
             {

@@ -8,6 +8,7 @@ import {
   deleteCharacterCard,
   activateCharacterCards,
   importCharacterCard,
+  importCharacterCardsFromDir,
   type CharacterCardSummary,
   type CharacterCard,
 } from "../api";
@@ -36,6 +37,9 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
   const [form, setForm] = useState<CharacterCard>(EMPTY_CARD);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [bulkImportPath, setBulkImportPath] = useState("");
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ imported: number; skipped: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -133,13 +137,13 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
               <div className="flex flex-wrap gap-2 mt-1">
                 {portraits.map((p) => (
                   <button
-                    key={p.filename}
-                    onClick={() => setForm({ ...form, portrait: p.filename })}
+                    key={p.fileName}
+                    onClick={() => setForm({ ...form, portrait: p.fileName })}
                     className={`w-12 h-12 rounded-full overflow-hidden ring-2 transition-all ${
-                      form.portrait === p.filename ? "ring-accent" : "ring-transparent hover:ring-border"
+                      form.portrait === p.fileName ? "ring-accent" : "ring-transparent hover:ring-border"
                     }`}
                   >
-                    <img src={p.url} alt={p.filename} className="w-full h-full object-cover" />
+                    <img src={p.url} alt={p.fileName} className="w-full h-full object-cover" />
                   </button>
                 ))}
                 {form.portrait && (
@@ -241,7 +245,7 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
             >
               <option value="">(none)</option>
               {cards.map((c) => (
-                <option key={c.filename} value={c.filename}>{c.name}</option>
+                <option key={c.fileName} value={c.fileName}>{c.name}</option>
               ))}
             </select>
           </div>
@@ -254,7 +258,7 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
             >
               <option value="">(none)</option>
               {cards.map((c) => (
-                <option key={c.filename} value={c.filename}>{c.name}</option>
+                <option key={c.fileName} value={c.fileName}>{c.name}</option>
               ))}
             </select>
           </div>
@@ -269,9 +273,9 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
             <div className="flex flex-col gap-1.5">
               {cards.map((c) => (
                 <div
-                  key={c.filename}
+                  key={c.fileName}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg bg-input-bg/50 border ${
-                    c.filename === activeAi || c.filename === activeUser
+                    c.fileName === activeAi || c.fileName === activeUser
                       ? "border-accent/40"
                       : "border-border/50"
                   }`}
@@ -290,20 +294,20 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-text">{c.name}</div>
                     <div className="text-[10px] text-text-muted">
-                      {c.filename === activeAi && <span className="text-accent">AI character</span>}
-                      {c.filename === activeAi && c.filename === activeUser && " · "}
-                      {c.filename === activeUser && <span className="text-accent">User character</span>}
+                      {c.fileName === activeAi && <span className="text-accent">AI character</span>}
+                      {c.fileName === activeAi && c.fileName === activeUser && " · "}
+                      {c.fileName === activeUser && <span className="text-accent">User character</span>}
                     </div>
                   </div>
                   <div className="flex gap-1.5 shrink-0">
                     <button
-                      onClick={() => handleEdit(c.filename)}
+                      onClick={() => handleEdit(c.fileName)}
                       className="text-xs text-text-muted hover:text-text px-2 py-1 rounded bg-surface-alt"
                     >
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDelete(c.filename)}
+                      onClick={() => handleDelete(c.fileName)}
                       className="text-xs text-text-muted hover:text-red-400 px-2 py-1 rounded bg-surface-alt"
                     >
                       Del
@@ -343,18 +347,62 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
               try {
                 await importCharacterCard(file);
                 await refresh();
-                // Refresh portraits list too
                 onChanged();
               } catch (err) {
                 setError(err instanceof Error ? err.message : "Import failed");
               } finally {
                 setImporting(false);
-                // Reset input so the same file can be re-selected
                 if (fileInputRef.current) fileInputRef.current.value = "";
               }
             }}
           />
+          <span className="text-text-muted/30">|</span>
+          <button
+            onClick={() => { setBulkImportOpen(!bulkImportOpen); setBulkResult(null); setError(null); }}
+            className="text-sm text-accent hover:text-accent-hover"
+          >
+            Import from Dir
+          </button>
         </div>
+
+        {bulkImportOpen && (
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={bulkImportPath}
+              onChange={(e) => setBulkImportPath(e.target.value)}
+              placeholder="/path/to/sillytavern/characters/"
+              className="w-full bg-input-bg text-text border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+            />
+            <button
+              onClick={async () => {
+                if (!bulkImportPath.trim()) return;
+                setImporting(true);
+                setError(null);
+                setBulkResult(null);
+                try {
+                  const result = await importCharacterCardsFromDir(bulkImportPath.trim());
+                  setBulkResult({ imported: result.imported.length, skipped: result.skipped.length });
+                  await refresh();
+                  onChanged();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Bulk import failed");
+                } finally {
+                  setImporting(false);
+                }
+              }}
+              disabled={importing || !bulkImportPath.trim()}
+              className="text-sm bg-accent text-white rounded-lg px-4 py-1.5 disabled:opacity-50 self-start"
+            >
+              {importing ? "Importing..." : "Import All Cards"}
+            </button>
+            {bulkResult && (
+              <p className="text-xs text-text-muted">
+                {bulkResult.imported} imported, {bulkResult.skipped} skipped (no card data)
+              </p>
+            )}
+          </div>
+        )}
 
         {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
