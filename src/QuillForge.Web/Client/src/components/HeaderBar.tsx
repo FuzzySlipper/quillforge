@@ -1,8 +1,9 @@
-import type { Status } from "../types";
+import type { Status, Mode } from "../types";
 
 interface HeaderBarProps {
   status: Status | null;
   layoutName: string;
+  mode?: Mode;
   onOpenProfile: () => void;
   onOpenMode: () => void;
   onOpenContext: () => void;
@@ -10,6 +11,8 @@ interface HeaderBarProps {
   onOpenPrompts: () => void;
   onOpenLayout: () => void;
   onOpenProviders: () => void;
+  onOpenCouncilConfig?: () => void;
+  onOpenResearch?: () => void;
   onNewSession: () => void;
   onOpenSessions: () => void;
   onOpenCharacters: () => void;
@@ -34,7 +37,7 @@ function LabeledBtn({ label, onClick, title, children }: {
   );
 }
 
-export default function HeaderBar({ status, layoutName, onOpenProfile, onOpenMode, onOpenContext, onOpenLore, onOpenPrompts, onOpenLayout, onOpenProviders, onNewSession, onOpenSessions, onOpenCharacters, onOpenTextTheme, textThemeName }: HeaderBarProps) {
+export default function HeaderBar({ status, layoutName, mode, onOpenProfile, onOpenMode, onOpenContext, onOpenLore, onOpenPrompts, onOpenLayout, onOpenProviders, onOpenCouncilConfig, onOpenResearch, onNewSession, onOpenSessions, onOpenCharacters, onOpenTextTheme, textThemeName }: HeaderBarProps) {
   const ready = status?.status === "ready";
 
   return (
@@ -63,6 +66,16 @@ export default function HeaderBar({ status, layoutName, onOpenProfile, onOpenMod
             <LabeledBtn label="characters" onClick={onOpenCharacters} title="Character cards">chars</LabeledBtn>
             <LabeledBtn label="text" onClick={onOpenTextTheme} title="Text color theme">{textThemeName.toLowerCase()}</LabeledBtn>
             <LabeledBtn label="layout" onClick={onOpenLayout} title="Switch layout">{layoutName}</LabeledBtn>
+            {mode === "council" && onOpenCouncilConfig && (
+              <LabeledBtn label="council" onClick={onOpenCouncilConfig} title="Configure council members">
+                advisors
+              </LabeledBtn>
+            )}
+            {mode === "research" && onOpenResearch && (
+              <LabeledBtn label="research" onClick={onOpenResearch} title="Browse research projects">
+                projects
+              </LabeledBtn>
+            )}
             <LabeledBtn label="model" onClick={onOpenProviders} title="Configure AI providers">
               {status.model.split("-").slice(0, 2).join("-")}
             </LabeledBtn>

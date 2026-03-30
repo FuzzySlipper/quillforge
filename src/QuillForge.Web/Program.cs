@@ -248,12 +248,48 @@ if (!string.IsNullOrEmpty(appConfig.Email.ResendApiKey) && !string.IsNullOrEmpty
     builder.Services.AddSingleton<IToolHandler, EmailDeveloperHandler>();
 }
 
+// --- Research agents ---
+// Construct ResearchAgent's tools directly to avoid circular DI
+// (RunResearchHandler → ResearchPool → ResearchAgent → IEnumerable<IToolHandler> → RunResearchHandler)
+builder.Services.AddSingleton<ResearchAgent>(sp =>
+{
+    var tools = new List<IToolHandler>
+    {
+        new WriteFileHandler(sp.GetRequiredService<IContentFileService>(),
+            sp.GetRequiredService<ILogger<WriteFileHandler>>()),
+        new ReadFileHandler(sp.GetRequiredService<IContentFileService>(),
+            sp.GetRequiredService<ILogger<ReadFileHandler>>()),
+        new ListFilesHandler(sp.GetRequiredService<IContentFileService>(),
+            sp.GetRequiredService<ILogger<ListFilesHandler>>()),
+    };
+    if (appConfig.WebSearch.Enabled)
+    {
+        // Throttle web searches across all parallel research agents (1 req/sec for Brave, etc.)
+        var webSearch = new WebSearchHandler(
+            sp.GetRequiredService<IWebSearchService>(),
+            sp.GetRequiredService<ILogger<WebSearchHandler>>());
+        tools.Add(new ThrottledToolHandler(webSearch, TimeSpan.FromSeconds(1.5)));
+    }
+    return new ResearchAgent(
+        sp.GetRequiredService<ToolLoop>(),
+        tools,
+        sp.GetRequiredService<AppConfig>(),
+        sp.GetRequiredService<ILogger<ResearchAgent>>());
+});
+builder.Services.AddSingleton<ResearchPool>();
+builder.Services.AddSingleton<IToolHandler>(sp =>
+    new RunResearchHandler(
+        sp.GetRequiredService<ResearchPool>(),
+        sp.GetRequiredService<AppConfig>(),
+        sp.GetRequiredService<ILogger<RunResearchHandler>>()));
+
 // --- Modes (explicit, no scanning) ---
 builder.Services.AddSingleton<IMode, GeneralMode>();
 builder.Services.AddSingleton<IMode>(sp => new WriterMode(sp.GetRequiredService<ILogger<WriterMode>>()));
 builder.Services.AddSingleton<IMode, RoleplayMode>();
 builder.Services.AddSingleton<IMode, ForgeMode>();
 builder.Services.AddSingleton<IMode, CouncilMode>();
+builder.Services.AddSingleton<IMode, ResearchMode>();
 
 // --- Orchestrator ---
 builder.Services.AddSingleton<OrchestratorAgent>();
@@ -480,6 +516,7 @@ app.MapProviderEndpoints();
 app.MapForgeEndpoints();
 app.MapContentEndpoints(contentRoot);
 app.MapProfileEndpoints(contentRoot);
+app.MapResearchEndpoints(contentRoot);
 
 // --- Debug bridge (Development only) ---
 if (app.Environment.IsDevelopment())

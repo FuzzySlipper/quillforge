@@ -24,6 +24,8 @@ import ProviderManager from "./components/ProviderManager";
 import SessionBrowser from "./components/SessionBrowser";
 import CharacterCards from "./components/CharacterCards";
 import TextThemePicker from "./components/TextThemePicker";
+import CouncilConfigPanel from "./components/CouncilConfigPanel";
+import ResearchPanel from "./components/ResearchPanel";
 import DiagnosticsPanel from "./components/DiagnosticsPanel";
 import * as textTheme from "./textTheme";
 import type { TextTheme } from "./textTheme";
@@ -58,6 +60,8 @@ function App() {
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [charactersOpen, setCharactersOpen] = useState(false);
   const [textThemeOpen, setTextThemeOpen] = useState(false);
+  const [councilConfigOpen, setCouncilConfigOpen] = useState(false);
+  const [researchOpen, setResearchOpen] = useState(false);
   const [portraits, setPortraits] = useState<{ filename: string; url: string }[]>([]);
   const [currentTextTheme, setCurrentTextTheme] = useState<TextTheme>(textTheme.getTheme());
   const abortRef = useRef<AbortController | null>(null);
@@ -574,6 +578,7 @@ function App() {
       <HeaderBar
         status={status}
         layoutName={layout.name}
+        mode={mode}
         onOpenProfile={() => setProfileOpen(true)}
         onOpenMode={() => setModeOpen(true)}
         onOpenContext={() => setContextOpen(true)}
@@ -581,6 +586,8 @@ function App() {
         onOpenPrompts={() => setPromptsOpen(true)}
         onOpenLayout={() => setLayoutOpen(true)}
         onOpenProviders={() => setProviderOpen(true)}
+        onOpenCouncilConfig={() => setCouncilConfigOpen(true)}
+        onOpenResearch={() => setResearchOpen(true)}
         onOpenSessions={() => setSessionsOpen(true)}
         onOpenCharacters={() => setCharactersOpen(true)}
         onOpenTextTheme={() => setTextThemeOpen(true)}
@@ -705,6 +712,14 @@ function App() {
         open={textThemeOpen}
         onClose={() => setTextThemeOpen(false)}
         onChanged={() => setCurrentTextTheme(textTheme.getTheme())}
+      />
+      <CouncilConfigPanel
+        open={councilConfigOpen}
+        onClose={() => setCouncilConfigOpen(false)}
+      />
+      <ResearchPanel
+        open={researchOpen}
+        onClose={() => setResearchOpen(false)}
       />
       <SessionBrowser
         open={sessionsOpen}

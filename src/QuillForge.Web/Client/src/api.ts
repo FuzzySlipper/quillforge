@@ -139,6 +139,47 @@ export async function sendCouncilStream(
   }
 }
 
+// ── Council member management ──
+
+export interface CouncilMemberInfo {
+  name: string;
+  model: string | null;
+  providerAlias: string | null;
+  systemPrompt: string;
+}
+
+export async function listCouncilMembers(): Promise<{ members: CouncilMemberInfo[] }> {
+  return request("/api/council/members");
+}
+
+export async function createCouncilMember(member: {
+  name: string;
+  model?: string | null;
+  providerAlias?: string | null;
+  systemPrompt: string;
+}): Promise<unknown> {
+  return request("/api/council/members", {
+    method: "POST",
+    body: JSON.stringify(member),
+  });
+}
+
+export async function updateCouncilMember(
+  name: string,
+  updates: { model?: string | null; providerAlias?: string | null; systemPrompt?: string },
+): Promise<unknown> {
+  return request(`/api/council/members/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteCouncilMember(name: string): Promise<unknown> {
+  return request(`/api/council/members/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+}
+
 export async function requestImage(
   prompt: string,
 ): Promise<{ status: string; imageUrl?: string; error?: string; prompt: string }> {
@@ -460,6 +501,13 @@ export async function deleteProvider(alias: string): Promise<unknown> {
   });
 }
 
+export async function testProvider(alias: string): Promise<{ alias: string; success: boolean; error?: string }> {
+  return request("/api/providers/test", {
+    method: "POST",
+    body: JSON.stringify({ alias }),
+  });
+}
+
 export async function fetchProviderModels(alias: string): Promise<{ models: string[] }> {
   return request(`/api/providers/${encodeURIComponent(alias)}/models`);
 }
@@ -486,6 +534,7 @@ export interface AgentAssignments {
   forgeWriter: string;
   forgePlanner: string;
   forgeReviewer: string;
+  research: string;
 }
 
 export async function getAgentModels(): Promise<{ assignments: AgentAssignments }> {
@@ -498,5 +547,31 @@ export async function updateAgentModels(
   return request("/api/agents/models", {
     method: "PUT",
     body: JSON.stringify(updates),
+  });
+}
+
+// ── Research project management ──
+
+export async function listResearchProjects(): Promise<{ projects: string[] }> {
+  return request("/api/research/projects");
+}
+
+export async function listResearchFiles(project: string): Promise<{ files: { name: string; path: string }[] }> {
+  return request(`/api/research/projects/${encodeURIComponent(project)}`);
+}
+
+export async function readResearchFile(project: string, file: string): Promise<{ content: string }> {
+  return request(`/api/research/projects/${encodeURIComponent(project)}/${encodeURIComponent(file)}`);
+}
+
+export async function deleteResearchFile(project: string, file: string): Promise<unknown> {
+  return request(`/api/research/projects/${encodeURIComponent(project)}/${encodeURIComponent(file)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function deleteResearchProject(project: string): Promise<unknown> {
+  return request(`/api/research/projects/${encodeURIComponent(project)}`, {
+    method: "DELETE",
   });
 }

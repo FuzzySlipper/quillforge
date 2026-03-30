@@ -49,8 +49,8 @@ public static class BuildInfo
             .GetCustomAttribute<AssemblyMetadataAttribute>();
 
         // Fall back to the assembly file's last write time
-        var assemblyPath = typeof(BuildInfo).Assembly.Location;
-        if (!string.IsNullOrEmpty(assemblyPath) && File.Exists(assemblyPath))
+        var assemblyPath = Path.Combine(AppContext.BaseDirectory, typeof(BuildInfo).Assembly.GetName().Name + ".dll");
+        if (File.Exists(assemblyPath))
         {
             return new DateTimeOffset(File.GetLastWriteTimeUtc(assemblyPath), TimeSpan.Zero);
         }

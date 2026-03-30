@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Overlay from "./Overlay";
-import { getMode, getProjects, setMode, listCharacterCards, type CharacterCardSummary } from "../api";
+import { getMode, getProjects, setMode, listCharacterCards, listResearchProjects, type CharacterCardSummary } from "../api";
 import type { Mode, ModeInfo } from "../types";
 
 interface ModeSwitcherProps {
@@ -15,6 +15,7 @@ const MODE_LABELS: Record<Mode, string> = {
   roleplay: "Roleplay",
   forge: "Forge",
   council: "Council",
+  research: "Research",
 };
 
 const MODE_DESCRIPTIONS: Record<Mode, string> = {
@@ -23,6 +24,7 @@ const MODE_DESCRIPTIONS: Record<Mode, string> = {
   roleplay: "Chat-based roleplay with a character card.",
   forge: "Automated story generation pipeline with planning and chapter drafting.",
   council: "Every message is routed through the council for multiple perspectives before synthesis.",
+  research: "Multi-agent web research with parallel topic investigation and organized markdown findings.",
 };
 
 export default function ModeSwitcher({ open, onClose, onSwitched }: ModeSwitcherProps) {
@@ -53,6 +55,8 @@ export default function ModeSwitcher({ open, onClose, onSwitched }: ModeSwitcher
         setCharacters(data.cards);
         setSelectedCharacter(data.activeAi || "");
       });
+    } else if (selectedMode === "research") {
+      listResearchProjects().then((p) => setProjects(p.projects ?? []));
     } else if (selectedMode !== "general" && selectedMode !== "council") {
       // Fetch projects for writer/forge
       getProjects(selectedMode).then((p) => setProjects(p.projects ?? []));
@@ -74,7 +78,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched }: ModeSwitcher
     }
   }
 
-  const needsProject = selectedMode === "writer" || selectedMode === "forge";
+  const needsProject = selectedMode === "writer" || selectedMode === "forge" || selectedMode === "research";
   const needsCharacter = selectedMode === "roleplay";
   const canApply =
     selectedMode === "general" ||

@@ -95,6 +95,7 @@ public static class ModeEndpoints
                     ForgeWriter = config.Models.ForgeWriter,
                     ForgePlanner = config.Models.ForgePlanner,
                     ForgeReviewer = config.Models.ForgeReviewer,
+                    Research = config.Models.Research,
                 }
             });
         });
@@ -121,6 +122,8 @@ public static class ModeEndpoints
                 config.Models.ForgePlanner = fPlanner;
             if (root.TryGetProperty("forgeReviewer", out var fr) && fr.GetString() is { } fReviewer)
                 config.Models.ForgeReviewer = fReviewer;
+            if (root.TryGetProperty("research", out var rs) && rs.GetString() is { } research)
+                config.Models.Research = research;
 
             var solutionRoot = FindSolutionRoot(AppContext.BaseDirectory)
                 ?? FindSolutionRoot(Directory.GetCurrentDirectory());
@@ -146,6 +149,7 @@ public static class ModeEndpoints
                     ForgeWriter = config.Models.ForgeWriter,
                     ForgePlanner = config.Models.ForgePlanner,
                     ForgeReviewer = config.Models.ForgeReviewer,
+                    Research = config.Models.Research,
                 }
             });
         });

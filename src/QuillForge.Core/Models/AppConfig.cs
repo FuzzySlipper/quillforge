@@ -31,6 +31,7 @@ public sealed record ModelsConfig
     public string ForgeReviewer { get; set; } = "default";
     public string DelegateTechnical { get; set; } = "default";
     public string Artifact { get; set; } = "default";
+    public string Research { get; set; } = "default";
 }
 
 public sealed record PersonaConfig
@@ -102,6 +103,7 @@ public sealed record AgentsConfig
     public DelegateTechnicalBudget DelegateTechnical { get; set; } = new();
     public CouncilBudget Council { get; set; } = new();
     public ArtifactBudget Artifact { get; set; } = new();
+    public ResearchBudget Research { get; set; } = new();
 }
 
 public sealed record OrchestratorBudget
@@ -153,6 +155,14 @@ public sealed record CouncilBudget
 public sealed record ArtifactBudget
 {
     public int MaxTokens { get; set; } = 4096;
+}
+
+public sealed record ResearchBudget
+{
+    public int MaxTokens { get; set; } = 4096;
+    public int MaxToolRounds { get; set; } = 15;
+    public int MaxConcurrency { get; set; } = 4;
+    public double Temperature { get; set; } = 0.4;
 }
 
 public sealed record TimeoutsConfig

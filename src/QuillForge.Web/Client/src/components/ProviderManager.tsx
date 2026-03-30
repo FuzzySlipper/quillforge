@@ -5,6 +5,7 @@ import {
   createProvider,
   updateProvider,
   deleteProvider,
+  testProvider,
   fetchProviderModels,
   fetchModelsForNew,
   getAgentModels,
@@ -116,6 +117,8 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
   const [error, setError] = useState<string | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [optionsText, setOptionsText] = useState("{}");
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ alias: string; success: boolean; error?: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -269,6 +272,19 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleTest(alias: string) {
+    setTesting(alias);
+    setTestResult(null);
+    try {
+      const result = await testProvider(alias);
+      setTestResult(result);
+    } catch (err) {
+      setTestResult({ alias, success: false, error: err instanceof Error ? err.message : "Test failed" });
+    } finally {
+      setTesting(null);
     }
   }
 
@@ -509,6 +525,24 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                 </div>
                 <div className="flex gap-1.5 shrink-0">
                   <button
+                    onClick={() => handleTest(p.alias)}
+                    disabled={testing === p.alias}
+                    className={`text-xs px-2 py-1 rounded bg-surface-alt disabled:opacity-50 ${
+                      testResult?.alias === p.alias
+                        ? testResult.success
+                          ? "text-green-400"
+                          : "text-red-400"
+                        : "text-text-muted hover:text-accent"
+                    }`}
+                    title={testResult?.alias === p.alias && !testResult.success ? testResult.error : undefined}
+                  >
+                    {testing === p.alias
+                      ? "Testing..."
+                      : testResult?.alias === p.alias
+                        ? testResult.success ? "OK" : "Fail"
+                        : "Test"}
+                  </button>
+                  <button
                     onClick={() => handleEdit(p)}
                     className="text-xs text-text-muted hover:text-text px-2 py-1 rounded bg-surface-alt"
                   >
@@ -526,11 +560,17 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
           </div>
         )}
 
+        {testResult && !testResult.success && (
+          <p className="text-xs text-red-400 px-1">
+            {testResult.alias}: {testResult.error || "Connection failed"}
+          </p>
+        )}
+
         {assignments && providers.length > 0 && (
           <div>
             <div className="text-xs text-text-muted uppercase tracking-wider mb-2">Agent Assignments</div>
             <div className="flex flex-col gap-2">
-              {(["orchestrator", "proseWriter", "librarian"] as const).map((agent) => (
+              {(["orchestrator", "proseWriter", "librarian", "research"] as const).map((agent) => (
                 <div key={agent} className="flex items-center justify-between gap-3">
                   <span className="text-sm text-text min-w-[100px]">
                     {agent.replace(/([A-Z])/g, " $1").toLowerCase()}

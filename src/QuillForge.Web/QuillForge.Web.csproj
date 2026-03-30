@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
-    <Version>0.1.1</Version>
+    <Version>0.2.0</Version>
     <!-- Append git short hash to informational version -->
     <SourceRevisionId>unknown</SourceRevisionId>
   </PropertyGroup>

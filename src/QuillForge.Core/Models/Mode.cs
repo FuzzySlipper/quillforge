@@ -9,5 +9,6 @@ public enum Mode
     Writer,
     Roleplay,
     Forge,
-    Council
+    Council,
+    Research
 }
