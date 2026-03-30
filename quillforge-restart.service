@@ -1,0 +1,7 @@
+[Unit]
+Description=Restart QuillForge after binary update
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 2
+ExecStart=/bin/systemctl restart quillforge.service

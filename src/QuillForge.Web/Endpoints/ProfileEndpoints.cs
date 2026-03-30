@@ -289,10 +289,15 @@ public static class ProfileEndpoints
         });
 
         // Character cards (YAML-backed via ICharacterCardStore)
-        app.MapGet("/api/character-cards", async (ICharacterCardStore store, CancellationToken ct) =>
+        app.MapGet("/api/character-cards", async (ICharacterCardStore store, AppConfig config, CancellationToken ct) =>
         {
             var cards = await store.ListAsync(ct);
-            return Results.Ok(new { Cards = cards });
+            return Results.Ok(new
+            {
+                Cards = cards,
+                ActiveAi = config.Roleplay.AiCharacter,
+                ActiveUser = config.Roleplay.UserCharacter,
+            });
         });
 
         app.MapGet("/api/character-cards/{name}", async (string name, ICharacterCardStore store, CancellationToken ct) =>

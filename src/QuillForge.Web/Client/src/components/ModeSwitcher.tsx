@@ -156,7 +156,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched }: ModeSwitcher
                     >
                       {c.portrait ? (
                         <img
-                          src={`/portraits/${c.portrait}`}
+                          src={`/content/character-cards/${c.portrait}`}
                           alt=""
                           className="w-9 h-9 rounded-full object-cover ring-1 ring-border shrink-0"
                         />

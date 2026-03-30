@@ -137,13 +137,13 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
               <div className="flex flex-wrap gap-2 mt-1">
                 {portraits.map((p) => (
                   <button
-                    key={p.fileName}
-                    onClick={() => setForm({ ...form, portrait: p.fileName })}
+                    key={p.filename}
+                    onClick={() => setForm({ ...form, portrait: p.filename })}
                     className={`w-12 h-12 rounded-full overflow-hidden ring-2 transition-all ${
-                      form.portrait === p.fileName ? "ring-accent" : "ring-transparent hover:ring-border"
+                      form.portrait === p.filename ? "ring-accent" : "ring-transparent hover:ring-border"
                     }`}
                   >
-                    <img src={p.url} alt={p.fileName} className="w-full h-full object-cover" />
+                    <img src={p.url} alt={p.filename} className="w-full h-full object-cover" />
                   </button>
                 ))}
                 {form.portrait && (
@@ -282,7 +282,7 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
                 >
                   {c.portrait ? (
                     <img
-                      src={`/portraits/${c.portrait}`}
+                      src={`/content/character-cards/${c.portrait}`}
                       alt=""
                       className="w-10 h-10 rounded-full object-cover ring-1 ring-border shrink-0"
                     />

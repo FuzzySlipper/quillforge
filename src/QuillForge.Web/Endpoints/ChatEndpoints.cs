@@ -34,6 +34,9 @@ public static class ChatEndpoints
                 : Guid.CreateVersion7();
             var message = root.TryGetProperty("message", out var msgEl) ? msgEl.GetString() ?? "" : "";
             var model = root.TryGetProperty("model", out var m) ? m.GetString() ?? "default" : "default";
+            // Resolve "default" to the configured orchestrator model
+            if (string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
+                model = appConfig.Models.Orchestrator;
             var persona = root.TryGetProperty("persona", out var p) ? p.GetString() ?? "default" : "default";
             var maxTokens = root.TryGetProperty("maxTokens", out var mt) ? mt.GetInt32() : 4096;
             var parentId = root.TryGetProperty("parentId", out var pid) ? Guid.Parse(pid.GetString()!) : (Guid?)null;

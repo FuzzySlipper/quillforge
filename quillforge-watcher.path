@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch QuillForge binary for changes
+
+[Path]
+PathChanged=/mnt/den-data/dev/quillforge/release/QuillForge.Web
+Unit=quillforge-restart.service
+
+[Install]
+WantedBy=multi-user.target

@@ -25,6 +25,10 @@ public sealed class ProviderFactory
             "Creating chat client for provider {Alias} (type={Type})",
             config.Alias, config.Type);
 
+        // Ensure API key is never empty — local/self-hosted providers don't need one
+        // but the OpenAI SDK throws on empty string.
+        config = config with { ApiKey = string.IsNullOrEmpty(config.ApiKey) ? "no-key" : config.ApiKey };
+
         return config.Type switch
         {
             ProviderType.OpenAI => CreateOpenAIClient(config),

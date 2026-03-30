@@ -1,0 +1,17 @@
+[Unit]
+Description=QuillForge
+After=network.target
+
+[Service]
+Type=exec
+ExecStart=/mnt/den-data/dev/quillforge/release/QuillForge.Web
+WorkingDirectory=/mnt/den-data/dev/quillforge/release
+Restart=always
+RestartSec=5
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+User=patch
+Group=patch
+
+[Install]
+WantedBy=multi-user.target
