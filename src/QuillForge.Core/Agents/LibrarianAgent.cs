@@ -29,17 +29,20 @@ public sealed class LibrarianAgent
 
     /// <summary>
     /// Queries the lore corpus and returns structured results.
+    /// When supplementalLore is provided (e.g. run-specific lore from forge),
+    /// it is included alongside the main lore corpus.
     /// </summary>
     public async Task<LoreBundle> QueryAsync(
         string query,
         string loreSetName,
         AgentContext context,
+        string? supplementalLore = null,
         CancellationToken ct = default)
     {
         _logger.LogInformation("Librarian query: \"{Query}\" against lore set \"{LoreSet}\"", query, loreSetName);
 
         var loreContent = await _loreStore.LoadLoreSetAsync(loreSetName, ct);
-        var systemPrompt = BuildSystemPrompt(loreContent, loreSetName);
+        var systemPrompt = BuildSystemPrompt(loreContent, loreSetName, supplementalLore);
 
         _logger.LogInformation("Librarian using model {Model}", _model);
 
@@ -71,7 +74,10 @@ public sealed class LibrarianAgent
         return bundle;
     }
 
-    internal static string BuildSystemPrompt(IReadOnlyDictionary<string, string> loreContent, string loreSetName)
+    internal static string BuildSystemPrompt(
+        IReadOnlyDictionary<string, string> loreContent,
+        string loreSetName,
+        string? supplementalLore = null)
     {
         var sections = loreContent
             .Select(kvp => $"### File: {kvp.Key}\n\n{kvp.Value}")
@@ -87,12 +93,22 @@ public sealed class LibrarianAgent
             }
             """;
 
+        var supplementalSection = string.IsNullOrWhiteSpace(supplementalLore)
+            ? ""
+            : $"""
+
+            ## Run Lore (details from this writing run)
+
+            {supplementalLore}
+            """;
+
         return $"""
             You are the Librarian, a precise lore retrieval specialist working with the "{loreSetName}" lore set.
             Your ONLY job is to find and return relevant information from this lore corpus. Follow these rules strictly:
 
-            1. ONLY return information that exists in this lore corpus. Never invent or extrapolate.
+            1. ONLY return information that exists in this lore corpus or run lore. Never invent or extrapolate.
             2. Include source file attribution for every passage you return.
+               For run lore entries, use "run-lore" as the source file.
             3. Rate your confidence: "high" if the lore directly answers the query, "medium" if partially
                relevant, "low" if only tangentially related.
             4. If the lore contains no relevant information, return empty passages with "low" confidence.
@@ -103,6 +119,7 @@ public sealed class LibrarianAgent
             ## Lore Corpus ({loreSetName})
 
             {joinedLore}
+            {supplementalSection}
             """;
     }
 

@@ -61,7 +61,10 @@ public sealed class ReasoningCompletionService : ICompletionService
         {
             _logger.LogError("ReasoningCompletionService: API error {Status}: {Body}",
                 response.StatusCode, responseBody[..Math.Min(500, responseBody.Length)]);
-            throw new InvalidOperationException($"API error {response.StatusCode}: {responseBody}");
+            throw new HttpRequestException(
+                $"{response.StatusCode}: {responseBody[..Math.Min(500, responseBody.Length)]}",
+                inner: null,
+                statusCode: response.StatusCode);
         }
 
         return ParseResponse(responseBody);
@@ -85,8 +88,10 @@ public sealed class ReasoningCompletionService : ICompletionService
             var errorBody = await response.Content.ReadAsStringAsync(ct);
             _logger.LogError("ReasoningCompletionService stream error: {Status}: {Body}",
                 response.StatusCode, errorBody[..Math.Min(500, errorBody.Length)]);
-            yield return new DoneEvent("error", new TokenUsage(0, 0));
-            yield break;
+            throw new HttpRequestException(
+                $"{response.StatusCode}: {errorBody[..Math.Min(500, errorBody.Length)]}",
+                inner: null,
+                statusCode: response.StatusCode);
         }
 
         using var stream = await response.Content.ReadAsStreamAsync(ct);

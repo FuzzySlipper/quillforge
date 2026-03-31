@@ -124,6 +124,13 @@ public sealed class ReviewStage : IPipelineStage
                 }
             };
 
+            // Append extracted details to run-specific lore when a chapter passes
+            if (result.Passed && result.ExtractedDetails.Count > 0
+                && !string.IsNullOrEmpty(context.RunLorePath))
+            {
+                await AppendRunLoreAsync(context, chapterId, result.ExtractedDetails, ct);
+            }
+
             previousTail = GetTail(draft);
 
             yield return new ChapterProgressEvent(chapterId,
@@ -132,6 +139,34 @@ public sealed class ReviewStage : IPipelineStage
         }
 
         yield return new StageCompletedEvent(StageName);
+    }
+
+    private async Task AppendRunLoreAsync(
+        ForgeContext context,
+        string chapterId,
+        IReadOnlyList<string> details,
+        CancellationToken ct)
+    {
+        try
+        {
+            var existing = "";
+            try
+            {
+                existing = await context.FileService.ReadAsync(context.RunLorePath, ct);
+            }
+            catch (FileNotFoundException) { }
+
+            var section = $"\n## {chapterId}\n\n{string.Join("\n", details.Select(d => $"- {d}"))}\n";
+            await context.FileService.WriteAsync(context.RunLorePath, existing + section, ct);
+
+            _logger.LogInformation(
+                "Appended {Count} details from {Chapter} to run lore",
+                details.Count, chapterId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to append run lore for {Chapter}", chapterId);
+        }
     }
 
     private static string GetTail(string text, int length = 500)

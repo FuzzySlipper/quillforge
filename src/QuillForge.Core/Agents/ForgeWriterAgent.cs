@@ -26,10 +26,12 @@ public sealed class ForgeWriterAgent
 
     /// <summary>
     /// Writes a single chapter based on a brief and continuity context.
+    /// Receives the full previous chapter for detail-level continuity,
+    /// not just a tail snippet.
     /// </summary>
     public async Task<ProseResult> WriteChapterAsync(
         string chapterBrief,
-        string previousChapterTail,
+        string previousChapter,
         string writingStyle,
         IReadOnlyList<IToolHandler> tools,
         AgentContext context,
@@ -48,9 +50,9 @@ public sealed class ForgeWriterAgent
             MaxToolRounds = _budget.MaxToolRounds,
         };
 
-        var userPrompt = string.IsNullOrWhiteSpace(previousChapterTail)
+        var userPrompt = string.IsNullOrWhiteSpace(previousChapter)
             ? $"## Chapter Brief\n\n{chapterBrief}"
-            : $"## Previous Chapter Ending\n\n{previousChapterTail}\n\n## Chapter Brief\n\n{chapterBrief}";
+            : $"## Previous Chapter\n\n{previousChapter}\n\n## Chapter Brief\n\n{chapterBrief}";
 
         var messages = new List<CompletionMessage>
         {

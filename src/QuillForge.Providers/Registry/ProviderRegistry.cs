@@ -65,9 +65,12 @@ public sealed class ProviderRegistry : IDiagnosticSource
     /// Gets an ICompletionService for a provider alias.
     /// Uses ReasoningCompletionService for reasoning-enabled models that require
     /// provider-specific field preservation during tool loop round-trips.
+    /// All services are wrapped with RetryCompletionService for transient error handling.
     /// </summary>
     public ICompletionService GetCompletionService(string alias)
     {
+        ICompletionService inner;
+
         lock (_lock)
         {
             if (!_configs.TryGetValue(alias, out var config))
@@ -78,19 +81,25 @@ public sealed class ProviderRegistry : IDiagnosticSource
             if (config.RequiresReasoning ?? ProviderFactory.IsReasoningModel(config.DefaultModel ?? ""))
             {
                 _logger.LogDebug("Using ReasoningCompletionService for {Alias} (model={Model})", alias, config.DefaultModel);
-                return new ReasoningCompletionService(
+                inner = new ReasoningCompletionService(
                     new HttpClient(),
                     config.BaseUrl ?? "https://api.openai.com/v1",
                     config.ApiKey,
                     config.DefaultModel ?? "default",
                     _loggerFactory.CreateLogger<ReasoningCompletionService>());
+
+                return new RetryCompletionService(inner,
+                    _loggerFactory.CreateLogger<RetryCompletionService>());
             }
         }
 
         var client = GetOrCreateClient(alias);
-        return new ChatClientCompletionService(
+        inner = new ChatClientCompletionService(
             client,
             _loggerFactory.CreateLogger<ChatClientCompletionService>());
+
+        return new RetryCompletionService(inner,
+            _loggerFactory.CreateLogger<RetryCompletionService>());
     }
 
     /// <summary>

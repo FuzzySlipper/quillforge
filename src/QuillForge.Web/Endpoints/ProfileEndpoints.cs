@@ -593,7 +593,7 @@ public static class ProfileEndpoints
             await fileService.WriteAsync($"forge/{name}/drafts/.gitkeep", "", ct);
             await fileService.WriteAsync($"forge/{name}/output/.gitkeep", "", ct);
 
-            return Results.Ok(new { Name = name, Created = true });
+            return Results.Ok(new { Status = "ok", Name = name, Created = true });
         });
 
         // Projects (story projects)

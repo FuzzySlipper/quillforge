@@ -56,6 +56,9 @@ public static class ForgeEndpoints
             ForgeWriterAgent writer,
             ForgeReviewerAgent reviewer,
             IContentFileService fileService,
+            IEnumerable<IToolHandler> toolHandlers,
+            IWritingStyleStore writingStyleStore,
+            ILoreStore loreStore,
             AppConfig config,
             ILogger<ForgePipeline> logger,
             CancellationToken ct) =>
@@ -64,7 +67,7 @@ public static class ForgeEndpoints
             httpContext.Response.Headers.CacheControl = "no-cache";
 
             var context = await BuildForgeContextAsync(name, pipeline, planner, writer, reviewer,
-                fileService, config, logger, ct);
+                fileService, toolHandlers, writingStyleStore, loreStore, config, logger, ct);
 
             // Unpause if resuming
             context.Manifest = context.Manifest with { Paused = false };
@@ -86,6 +89,9 @@ public static class ForgeEndpoints
             ForgeWriterAgent writer,
             ForgeReviewerAgent reviewer,
             IContentFileService fileService,
+            IEnumerable<IToolHandler> toolHandlers,
+            IWritingStyleStore writingStyleStore,
+            ILoreStore loreStore,
             AppConfig config,
             ILogger<ForgePipeline> logger,
             CancellationToken ct) =>
@@ -94,7 +100,7 @@ public static class ForgeEndpoints
             httpContext.Response.Headers.CacheControl = "no-cache";
 
             var context = await BuildForgeContextAsync(name, pipeline, planner, writer, reviewer,
-                fileService, config, logger, ct);
+                fileService, toolHandlers, writingStyleStore, loreStore, config, logger, ct);
 
             // Design runs the pipeline but requests pause after planning completes
             pipeline.RequestPause();
@@ -164,6 +170,9 @@ public static class ForgeEndpoints
             ForgeWriterAgent writer,
             ForgeReviewerAgent reviewer,
             IContentFileService fileService,
+            IEnumerable<IToolHandler> toolHandlers,
+            IWritingStyleStore writingStyleStore,
+            ILoreStore loreStore,
             AppConfig config,
             ILogger<ForgePipeline> logger,
             CancellationToken ct) =>
@@ -172,7 +181,7 @@ public static class ForgeEndpoints
             httpContext.Response.Headers.CacheControl = "no-cache";
 
             var context = await BuildForgeContextAsync(name, pipeline, planner, writer, reviewer,
-                fileService, config, logger, ct);
+                fileService, toolHandlers, writingStyleStore, loreStore, config, logger, ct);
 
             if (!context.Manifest.Paused)
             {
@@ -217,6 +226,13 @@ public static class ForgeEndpoints
     }
 
     /// <summary>
+    /// Tool names the forge pipeline agents need.
+    /// Planner uses write_file/read_file/list_files; writer uses query_lore.
+    /// </summary>
+    private static readonly HashSet<string> ForgeToolNames =
+        ["write_file", "read_file", "list_files", "query_lore"];
+
+    /// <summary>
     /// Build a ForgeContext from an existing manifest or create a fresh one.
     /// </summary>
     private static async Task<ForgeContext> BuildForgeContextAsync(
@@ -226,6 +242,9 @@ public static class ForgeEndpoints
         ForgeWriterAgent writer,
         ForgeReviewerAgent reviewer,
         IContentFileService fileService,
+        IEnumerable<IToolHandler> toolHandlers,
+        IWritingStyleStore writingStyleStore,
+        ILoreStore loreStore,
         AppConfig config,
         ILogger logger,
         CancellationToken ct)
@@ -248,6 +267,39 @@ public static class ForgeEndpoints
             await fileService.WriteAsync(manifestPath, json, ct);
         }
 
+        // Wire up forge-relevant tools from the DI-registered handlers
+        var forgeTools = toolHandlers
+            .Where(t => ForgeToolNames.Contains(t.Name))
+            .ToList();
+
+        // Load writing style content
+        var writingStyle = "";
+        try
+        {
+            writingStyle = await writingStyleStore.LoadAsync(config.WritingStyle.Active, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not load writing style '{Style}' for forge run", config.WritingStyle.Active);
+        }
+
+        // Load lore context summary for the planner
+        var loreContext = "";
+        var activeLoreSet = config.Lore.Active;
+        if (!string.IsNullOrEmpty(activeLoreSet))
+        {
+            try
+            {
+                var loreFiles = await loreStore.LoadLoreSetAsync(activeLoreSet, ct);
+                loreContext = string.Join("\n\n---\n\n",
+                    loreFiles.Select(kvp => $"### {kvp.Key}\n\n{kvp.Value}"));
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not load lore set '{LoreSet}' for forge run", activeLoreSet);
+            }
+        }
+
         return new ForgeContext
         {
             Manifest = manifest,
@@ -255,15 +307,19 @@ public static class ForgeEndpoints
             Planner = planner,
             Writer = writer,
             Reviewer = reviewer,
-            WriterTools = [],
+            WriterTools = forgeTools,
             FileService = fileService,
             AgentContext = new AgentContext
             {
                 SessionId = Guid.CreateVersion7(),
                 ActiveMode = "forge",
-                ActiveLoreSet = config.Lore.Active,
+                ActiveLoreSet = activeLoreSet,
                 ActiveWritingStyle = config.WritingStyle.Active,
+                RunLorePath = $"forge/{projectName}/run-lore.md",
             },
+            WritingStyle = writingStyle,
+            LoreContext = loreContext,
+            RunLorePath = $"forge/{projectName}/run-lore.md",
             ReviewPassThreshold = config.Forge.ReviewPassThreshold,
             MaxRevisions = config.Forge.MaxRevisions,
         };

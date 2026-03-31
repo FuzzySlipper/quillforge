@@ -30,6 +30,13 @@ public sealed class ForgeContext
     public string LoreContext { get; set; } = "";
 
     /// <summary>
+    /// Path to the run-specific lore file (e.g. "forge/myproject/run-lore.md").
+    /// This file accumulates small details extracted from chapters during the current run
+    /// and is cleared at the start of each new pipeline run.
+    /// </summary>
+    public string RunLorePath { get; set; } = "";
+
+    /// <summary>
     /// Review pass threshold. Chapters scoring below this get revised.
     /// </summary>
     public double ReviewPassThreshold { get; init; } = 7.0;

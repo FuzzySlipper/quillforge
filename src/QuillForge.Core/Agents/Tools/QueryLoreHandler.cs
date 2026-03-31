@@ -13,11 +13,13 @@ namespace QuillForge.Core.Agents.Tools;
 public sealed class QueryLoreHandler : IToolHandler
 {
     private readonly LibrarianAgent _librarian;
+    private readonly IContentFileService _fileService;
     private readonly ILogger<QueryLoreHandler> _logger;
 
-    public QueryLoreHandler(LibrarianAgent librarian, ILogger<QueryLoreHandler> logger)
+    public QueryLoreHandler(LibrarianAgent librarian, IContentFileService fileService, ILogger<QueryLoreHandler> logger)
     {
         _librarian = librarian;
+        _fileService = fileService;
         _logger = logger;
     }
 
@@ -48,7 +50,21 @@ public sealed class QueryLoreHandler : IToolHandler
 
         _logger.LogDebug("QueryLoreHandler: querying \"{Query}\" in lore set \"{LoreSet}\"", query, context.ActiveLoreSet);
 
-        var bundle = await _librarian.QueryAsync(query, context.ActiveLoreSet, context, ct);
+        // Load run-specific lore if available (forge pipeline runs)
+        string? runLore = null;
+        if (!string.IsNullOrEmpty(context.RunLorePath))
+        {
+            try
+            {
+                runLore = await _fileService.ReadAsync(context.RunLorePath, ct);
+            }
+            catch (FileNotFoundException)
+            {
+                _logger.LogDebug("No run lore file at {Path}", context.RunLorePath);
+            }
+        }
+
+        var bundle = await _librarian.QueryAsync(query, context.ActiveLoreSet, context, runLore, ct);
         return ToolResult.Ok(JsonSerializer.Serialize(bundle));
     }
 }

@@ -126,6 +126,10 @@ public sealed class ForgeReviewerAgent
             var quality = GetDouble(root, "quality");
             var feedback = root.TryGetProperty("feedback", out var fb) ? fb.GetString() ?? "" : "";
 
+            var extractedDetails = root.TryGetProperty("extracted_details", out var detailsEl)
+                ? detailsEl.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => s.Length > 0).ToList()
+                : [];
+
             var overall =
                 continuity * ScoreWeights["continuity"] +
                 briefAdherence * ScoreWeights["brief_adherence"] +
@@ -141,6 +145,7 @@ public sealed class ForgeReviewerAgent
                 Overall = overall,
                 Feedback = feedback,
                 Passed = overall >= PassThreshold,
+                ExtractedDetails = extractedDetails,
             };
             return true;
         }
@@ -173,13 +178,25 @@ public sealed class ForgeReviewerAgent
 
         Pass threshold: weighted overall >= 7.0
 
+        ## Detail Extraction
+
+        Also extract small but important details from the chapter that future chapters need to
+        stay consistent on. Focus on specifics that are easy to lose track of:
+        - Physical descriptions (eye color, clothing, scars, etc.)
+        - New character or place names introduced
+        - Objects given, received, or described
+        - Relationship changes or revelations
+        - Timeline specifics (time of day, how many days have passed, etc.)
+        - Promises, plans, or commitments characters made
+
         Respond ONLY with a JSON object:
         {
           "continuity": <1-10>,
           "brief_adherence": <1-10>,
           "voice_consistency": <1-10>,
           "quality": <1-10>,
-          "feedback": "specific actionable feedback here"
+          "feedback": "specific actionable feedback here",
+          "extracted_details": ["detail 1", "detail 2", ...]
         }
         """;
 }

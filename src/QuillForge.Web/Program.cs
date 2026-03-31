@@ -153,6 +153,7 @@ builder.Services.AddSingleton<ProseWriterAgent>(sp =>
     var config = sp.GetRequiredService<AppConfig>();
     var queryLore = new QueryLoreHandler(
         sp.GetRequiredService<LibrarianAgent>(),
+        sp.GetRequiredService<IContentFileService>(),
         sp.GetRequiredService<ILogger<QueryLoreHandler>>());
     return new ProseWriterAgent(toolLoop, queryLore,
         sp.GetRequiredService<IWritingStyleStore>(),
@@ -181,6 +182,7 @@ builder.Services.AddSingleton<ForgeReviewerAgent>(sp =>
 // --- Tool handlers (available to orchestrator in all modes) ---
 builder.Services.AddSingleton<IToolHandler>(sp => new QueryLoreHandler(
     sp.GetRequiredService<LibrarianAgent>(),
+    sp.GetRequiredService<IContentFileService>(),
     sp.GetRequiredService<ILogger<QueryLoreHandler>>()));
 builder.Services.AddSingleton<IToolHandler>(sp => new WriteProseHandler(
     sp.GetRequiredService<ProseWriterAgent>(),

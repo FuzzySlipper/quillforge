@@ -52,4 +52,10 @@ public sealed record AgentContext
     /// falling back to global AppConfig.
     /// </summary>
     public string ActiveWritingStyle { get; init; } = "default";
+
+    /// <summary>
+    /// Path to the run-specific lore file for forge runs.
+    /// Null/empty outside of forge pipeline execution.
+    /// </summary>
+    public string? RunLorePath { get; init; }
 }

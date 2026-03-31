@@ -6,7 +6,7 @@ namespace QuillForge.Core.Pipeline;
 
 /// <summary>
 /// Stage 3: ForgeWriter drafts each chapter based on its brief.
-/// Processes chapters sequentially, passing previous chapter tail for continuity.
+/// Processes chapters sequentially, passing the full previous chapter for continuity.
 /// </summary>
 public sealed class WritingStage : IPipelineStage
 {
@@ -27,7 +27,7 @@ public sealed class WritingStage : IPipelineStage
         yield return new StageStartedEvent(StageName);
 
         var chapterIds = context.Manifest.Chapters.Keys.OrderBy(k => k).ToList();
-        var previousTail = "";
+        var previousChapter = "";
 
         foreach (var chapterId in chapterIds)
         {
@@ -35,17 +35,19 @@ public sealed class WritingStage : IPipelineStage
 
             var chapter = context.Manifest.Chapters[chapterId];
 
-            // Skip completed chapters (resume support)
-            if (chapter.State == ChapterState.Done)
+            // Skip completed or flagged chapters (resume support + don't re-write max-revision failures)
+            if (chapter.State is ChapterState.Done or ChapterState.Flagged)
             {
-                _logger.LogDebug("Skipping completed chapter {ChapterId}", chapterId);
+                _logger.LogDebug("Skipping {State} chapter {ChapterId}", chapter.State, chapterId);
                 var draftPath = $"forge/{context.Manifest.ProjectName}/drafts/{chapterId}.md";
                 try
                 {
-                    var existingDraft = await context.FileService.ReadAsync(draftPath, ct);
-                    previousTail = GetTail(existingDraft);
+                    previousChapter = await context.FileService.ReadAsync(draftPath, ct);
                 }
-                catch (FileNotFoundException) { }
+                catch (FileNotFoundException)
+                {
+                    previousChapter = "";
+                }
                 continue;
             }
 
@@ -65,7 +67,7 @@ public sealed class WritingStage : IPipelineStage
             }
 
             var result = await context.Writer.WriteChapterAsync(
-                brief, previousTail, context.WritingStyle,
+                brief, previousChapter, context.WritingStyle,
                 context.WriterTools, context.AgentContext, ct: ct);
 
             // Save draft
@@ -85,7 +87,7 @@ public sealed class WritingStage : IPipelineStage
                 }
             };
 
-            previousTail = GetTail(result.GeneratedText);
+            previousChapter = result.GeneratedText;
 
             yield return new ChapterProgressEvent(chapterId, "draft_complete",
                 $"{result.WordCount} words, {result.LoreQueriesMade.Count} lore queries");
@@ -96,13 +98,5 @@ public sealed class WritingStage : IPipelineStage
         }
 
         yield return new StageCompletedEvent(StageName);
-    }
-
-    /// <summary>
-    /// Gets the last ~500 characters of text for continuity context.
-    /// </summary>
-    private static string GetTail(string text, int length = 500)
-    {
-        return text.Length <= length ? text : text[^length..];
     }
 }

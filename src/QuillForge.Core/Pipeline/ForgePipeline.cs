@@ -62,6 +62,15 @@ public sealed class ForgePipeline : IDiagnosticSource
             "Forge pipeline starting for project {Project}, current stage={Stage}",
             context.Manifest.ProjectName, context.Manifest.Stage);
 
+        // Create or clear the run-specific lore file at the start of a fresh run.
+        // On resume (stage > Planning), preserve accumulated run lore.
+        if (!string.IsNullOrEmpty(context.RunLorePath) && context.Manifest.Stage <= ForgeStage.Planning)
+        {
+            await _fileService.WriteAsync(context.RunLorePath,
+                "# Run Lore\n\nDetails extracted from chapters during this builder run.\n\n", ct);
+            _logger.LogInformation("Initialized run lore file at {Path}", context.RunLorePath);
+        }
+
         var startStage = context.Manifest.Stage;
 
         foreach (var stage in _stages)
