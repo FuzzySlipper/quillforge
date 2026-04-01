@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Storage.Utilities;
@@ -11,7 +12,7 @@ public static class ContentEndpoints
     {
         app.MapGet("/api/layouts", (IContentFileService fileService, CancellationToken ct) =>
         {
-            var layoutsDir = Path.Combine(contentRoot, "layouts");
+            var layoutsDir = Path.Combine(contentRoot, ContentPaths.Layouts);
             if (!Directory.Exists(layoutsDir))
             {
                 return Results.Ok(new { Layouts = Array.Empty<string>() });
@@ -40,7 +41,7 @@ public static class ContentEndpoints
 
         app.MapGet("/api/backgrounds", () =>
         {
-            var bgDir = Path.Combine(contentRoot, "backgrounds");
+            var bgDir = Path.Combine(contentRoot, ContentPaths.Backgrounds);
             if (!Directory.Exists(bgDir))
             {
                 return Results.Ok(new { Backgrounds = Array.Empty<object>() });
@@ -106,7 +107,7 @@ public static class ContentEndpoints
                 return Results.BadRequest(new { Error = "Project name is required" });
             }
 
-            var projectDir = Path.Combine(contentRoot, "lore", name);
+            var projectDir = Path.Combine(contentRoot, ContentPaths.Lore, name);
             if (Directory.Exists(projectDir))
             {
                 return Results.Conflict(new { Error = $"Lore project '{name}' already exists" });
@@ -119,8 +120,8 @@ public static class ContentEndpoints
         // Individual lore file CRUD (catch-all must come AFTER /api/lore/projects)
         app.MapGet("/api/lore/{**filePath}", async (string filePath, AppConfig config, CancellationToken ct) =>
         {
-            var resolved = Path.GetFullPath(Path.Combine(contentRoot, "lore", config.Lore.Active, filePath));
-            var loreDir = Path.Combine(contentRoot, "lore", config.Lore.Active);
+            var resolved = Path.GetFullPath(Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active, filePath));
+            var loreDir = Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active);
             if (!resolved.StartsWith(loreDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(resolved))
             {
                 return Results.NotFound(new { Error = "File not found" });
@@ -139,8 +140,8 @@ public static class ContentEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var content = body.RootElement.TryGetProperty("content", out var el) ? el.GetString() ?? "" : "";
 
-            var resolved = Path.GetFullPath(Path.Combine(contentRoot, "lore", config.Lore.Active, filePath));
-            var loreDir = Path.Combine(contentRoot, "lore", config.Lore.Active);
+            var resolved = Path.GetFullPath(Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active, filePath));
+            var loreDir = Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active);
             if (!resolved.StartsWith(loreDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
                 return Results.BadRequest(new { Error = "Invalid path" });
@@ -156,8 +157,8 @@ public static class ContentEndpoints
 
         app.MapDelete("/api/lore/{**filePath}", (string filePath, AppConfig config) =>
         {
-            var resolved = Path.GetFullPath(Path.Combine(contentRoot, "lore", config.Lore.Active, filePath));
-            var loreDir = Path.Combine(contentRoot, "lore", config.Lore.Active);
+            var resolved = Path.GetFullPath(Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active, filePath));
+            var loreDir = Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active);
             if (!resolved.StartsWith(loreDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(resolved))
             {
                 return Results.NotFound(new { Error = "File not found" });

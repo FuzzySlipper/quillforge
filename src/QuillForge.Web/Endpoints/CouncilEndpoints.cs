@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuillForge.Core;
 using QuillForge.Core.Services;
 
 namespace QuillForge.Web.Endpoints;
@@ -10,7 +11,7 @@ public static class CouncilEndpoints
         // Prompts (council advisors) endpoint
         app.MapGet("/api/council", async (IContentFileService fileService, CancellationToken ct) =>
         {
-            var files = await fileService.ListAsync("council", "*.md", ct);
+            var files = await fileService.ListAsync(ContentPaths.Council, "*.md", ct);
             var advisors = new List<object>();
             foreach (var file in files)
             {

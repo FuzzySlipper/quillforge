@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using QuillForge.Core;
 
 namespace QuillForge.Storage.Configuration;
 
@@ -10,24 +11,7 @@ public sealed class FirstRunSetup
 {
     private readonly ILogger<FirstRunSetup> _logger;
 
-    private static readonly string[] ContentDirectories =
-    [
-        "lore/default",
-        "persona",
-        "writing-styles",
-        "story",
-        "writing",
-        "chats",
-        "forge",
-        "forge-prompts",
-        "council",
-        "layouts",
-        "character-cards",
-        "backgrounds",
-        "generated-images",
-        "data/sessions",
-        "data/llm-debug",
-    ];
+    private static readonly string[] ContentDirectories = ContentPaths.AllDirectories;
 
     public FirstRunSetup(ILogger<FirstRunSetup> logger)
     {
@@ -66,7 +50,7 @@ public sealed class FirstRunSetup
             }
 
             // Always create config.yaml if missing
-            var configPath = Path.Combine(contentRoot, "config.yaml");
+            var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
             if (!File.Exists(configPath))
             {
                 var configLoader = new ConfigurationLoader(

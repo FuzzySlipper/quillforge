@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
-    <Version>2.5.0</Version>
+    <Version>2.75.0</Version>
     <!-- Append git short hash to informational version -->
     <SourceRevisionId>unknown</SourceRevisionId>
   </PropertyGroup>
@@ -12,6 +12,14 @@
     <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true">
       <Output TaskParameter="ConsoleOutput" PropertyName="SourceRevisionId" />
     </Exec>
+  </Target>
+
+  <!-- Rebuild React frontend when client source files change -->
+  <Target Name="BuildClient" BeforeTargets="Build"
+          Inputs="Client/src/**;Client/package.json;Client/tsconfig.json;Client/vite.config.ts"
+          Outputs="wwwroot/assets/.build-marker">
+    <Exec Command="npm run build" WorkingDirectory="Client" />
+    <Touch Files="wwwroot/assets/.build-marker" AlwaysCreate="true" />
   </Target>
 
   <ItemGroup>

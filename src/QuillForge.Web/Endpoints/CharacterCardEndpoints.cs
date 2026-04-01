@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Storage.Configuration;
@@ -13,7 +14,7 @@ public static class CharacterCardEndpoints
         // Portraits
         app.MapGet("/api/portraits", () =>
         {
-            var dir = Path.Combine(contentRoot, "character-cards");
+            var dir = Path.Combine(contentRoot, ContentPaths.CharacterCards);
             if (!Directory.Exists(dir))
             {
                 return Results.Ok(new { Portraits = Array.Empty<object>(), Current = (string?)null });
@@ -100,7 +101,7 @@ public static class CharacterCardEndpoints
 
         app.MapDelete("/api/character-cards/{name}", (string name, ICharacterCardStore store) =>
         {
-            var cardsDir = Path.Combine(contentRoot, "character-cards");
+            var cardsDir = Path.Combine(contentRoot, ContentPaths.CharacterCards);
             var path = Path.Combine(cardsDir, name + ".yaml");
             if (!File.Exists(path))
             {
@@ -129,7 +130,7 @@ public static class CharacterCardEndpoints
                 UserCharacter = userCharacter,
             };
 
-            var configPath = Path.Combine(contentRoot, "config.yaml");
+            var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
             await writer.WriteAsync(configPath, ConfigurationLoader.Serialize(config), ct);
 
             return Results.Ok(new { Status = "ok", AiCharacter = aiCharacter, UserCharacter = userCharacter });

@@ -330,18 +330,34 @@ build/
 ├── lore/                     (world-building markdown, organized by lore set)
 ├── persona/                  (character/persona definitions)
 ├── writing-styles/           (prose style guides)
-├── story/                    (append-only chapter files)
+├── story/                    (append-only chapter files + .state.yaml per project)
 ├── writing/                  (workspace drafts)
 ├── chats/                    (roleplay session logs)
 ├── forge/                    (forge project directories)
 ├── forge-prompts/            (customizable forge stage prompts)
 ├── council/                  (advisor persona prompts)
 ├── layouts/                  (UI layout markdown files)
-├── character-cards/          (character card data)
+├── character-cards/          (character card data + portraits)
 ├── backgrounds/              (UI background images)
 ├── generated-images/         (AI-generated images)
+├── generated-audio/          (TTS-generated audio files)
+├── artifacts/                (generated in-world artifacts)
+├── research/                 (research agent output, organized by project)
 └── data/
+    ├── config.yaml           (app configuration)
     ├── providers.json        (encrypted API keys)
+    ├── runtime-state.json    (legacy runtime state, migrated to session-state on startup)
     ├── sessions/             (conversation history JSON)
-    └── llm-debug/            (debug logs for LLM calls)
+    ├── session-state/        (per-session runtime state JSON)
+    └── llm-debug/            (debug logs + probe reports)
 ```
+
+### Content Path Management
+
+**All content directory names are defined in `QuillForge.Core.ContentPaths`.** This is the single source of truth — never use bare string literals for content paths.
+
+Rules:
+- **Use `ContentPaths.*` constants** for all `Path.Combine(contentRoot, ...)` calls and `IContentFileService.ListAsync(...)` relative paths.
+- **New directories** must be added to both `ContentPaths` (the constant and `AllDirectories` array) so `FirstRunSetup` creates them on first run.
+- **Store abstractions** (`ILoreStore`, `IPersonaStore`, etc.) should own path construction for their domain. Endpoints should prefer calling store methods over constructing paths directly.
+- **`config.yaml` path** is always `Path.Combine(contentRoot, ContentPaths.ConfigFile)` — never hardcoded.

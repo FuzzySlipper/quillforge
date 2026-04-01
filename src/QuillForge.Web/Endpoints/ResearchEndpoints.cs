@@ -1,3 +1,4 @@
+using QuillForge.Core;
 using QuillForge.Core.Services;
 
 namespace QuillForge.Web.Endpoints;
@@ -11,7 +12,7 @@ public static class ResearchEndpoints
         // List research projects (subdirectories of research/)
         group.MapGet("/projects", (IContentFileService fileService, CancellationToken ct) =>
         {
-            var researchDir = Path.Combine(contentRoot, "research");
+            var researchDir = Path.Combine(contentRoot, ContentPaths.Research);
             if (!Directory.Exists(researchDir))
             {
                 return Results.Ok(new { Projects = Array.Empty<string>() });
@@ -64,7 +65,7 @@ public static class ResearchEndpoints
         // Delete an entire research project
         group.MapDelete("/projects/{project}", (string project) =>
         {
-            var dir = Path.Combine(contentRoot, "research", project);
+            var dir = Path.Combine(contentRoot, ContentPaths.Research, project);
             if (!Directory.Exists(dir))
                 return Results.NotFound(new { Error = "Project not found" });
 

@@ -1,3 +1,4 @@
+using QuillForge.Core;
 using QuillForge.Core.Agents.Tools;
 using QuillForge.Core.Diagnostics;
 using QuillForge.Core.Models;
@@ -23,36 +24,36 @@ public static class ServiceRegistration
                 sp.GetRequiredService<ILogger<FileSystemContentService>>()));
 
         services.AddSingleton<ILoreStore>(sp =>
-            new FileSystemLoreStore(Path.Combine(contentRoot, "lore"),
+            new FileSystemLoreStore(Path.Combine(contentRoot, ContentPaths.Lore),
                 sp.GetRequiredService<ILogger<FileSystemLoreStore>>()));
 
         services.AddSingleton<IStoryStore>(sp =>
-            new FileSystemStoryStore(Path.Combine(contentRoot, "story"),
+            new FileSystemStoryStore(Path.Combine(contentRoot, ContentPaths.Story),
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemStoryStore>>()));
 
         services.AddSingleton<IWritingStyleStore>(sp =>
-            new FileSystemWritingStyleStore(Path.Combine(contentRoot, "writing-styles"),
+            new FileSystemWritingStyleStore(Path.Combine(contentRoot, ContentPaths.WritingStyles),
                 sp.GetRequiredService<ILogger<FileSystemWritingStyleStore>>()));
 
         services.AddSingleton<IArtifactService>(sp =>
-            new FileSystemArtifactService(Path.Combine(contentRoot, "artifacts"),
+            new FileSystemArtifactService(Path.Combine(contentRoot, ContentPaths.Artifacts),
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemArtifactService>>()));
 
         services.AddSingleton<IPersonaStore>(sp =>
-            new FileSystemPersonaStore(Path.Combine(contentRoot, "persona"),
+            new FileSystemPersonaStore(Path.Combine(contentRoot, ContentPaths.Persona),
                 sp.GetRequiredService<ILogger<FileSystemPersonaStore>>()));
 
         services.AddSingleton<ICharacterCardStore>(sp =>
             new FileSystemCharacterCardStore(
-                Path.Combine(contentRoot, "character-cards"),
-                Path.Combine(contentRoot, "character-cards"),
+                Path.Combine(contentRoot, ContentPaths.CharacterCards),
+                Path.Combine(contentRoot, ContentPaths.CharacterCards),
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemCharacterCardStore>>()));
 
         services.AddSingleton<ISessionStore>(sp =>
-            new FileSystemSessionStore(Path.Combine(contentRoot, "data", "sessions"),
+            new FileSystemSessionStore(Path.Combine(contentRoot, ContentPaths.DataSessions),
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemSessionStore>>(),
                 sp.GetRequiredService<ILoggerFactory>()));
@@ -69,7 +70,7 @@ public static class ServiceRegistration
 
         services.AddSingleton<IStoryStateService>(sp =>
             new FileSystemStoryStateService(
-                Path.Combine(contentRoot, "story"),
+                Path.Combine(contentRoot, ContentPaths.Story),
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemStoryStateService>>()));
     }
@@ -122,7 +123,7 @@ public static class ServiceRegistration
         // Image generation providers
         {
             var imageProviders = new List<IImageGenerator>();
-            var imageOutputDir = Path.Combine(contentRoot, "generated-images");
+            var imageOutputDir = Path.Combine(contentRoot, ContentPaths.GeneratedImages);
 
             var comfyUrl = Environment.GetEnvironmentVariable("COMFYUI_URL");
             if (!string.IsNullOrEmpty(comfyUrl))
@@ -149,7 +150,7 @@ public static class ServiceRegistration
         // TTS providers
         {
             var ttsProviders = new List<ITtsGenerator>();
-            var ttsOutputDir = Path.Combine(contentRoot, "generated-audio");
+            var ttsOutputDir = Path.Combine(contentRoot, ContentPaths.GeneratedAudio);
 
             var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
             if (!string.IsNullOrEmpty(openAiKey))

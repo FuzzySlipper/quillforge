@@ -287,7 +287,7 @@ public static class ProviderEndpoints
 
         float? temperature = optEl.TryGetProperty("temperature", out var tEl) && tEl.ValueKind == JsonValueKind.Number ? tEl.GetSingle() : null;
         float? topP = optEl.TryGetProperty("topP", out var tpEl) && tpEl.ValueKind == JsonValueKind.Number ? tpEl.GetSingle() : null;
-        int? topK = optEl.TryGetProperty("topK", out var tkEl) && tkEl.TryGetInt32(out var tkVal) ? tkVal : null;
+        int? topK = optEl.TryGetProperty("topK", out var tkEl) && tkEl.ValueKind == JsonValueKind.Number ? tkEl.GetInt32() : null;
         float? frequencyPenalty = optEl.TryGetProperty("frequencyPenalty", out var fpEl) && fpEl.ValueKind == JsonValueKind.Number ? fpEl.GetSingle() : null;
         float? presencePenalty = optEl.TryGetProperty("presencePenalty", out var ppEl) && ppEl.ValueKind == JsonValueKind.Number ? ppEl.GetSingle() : null;
 

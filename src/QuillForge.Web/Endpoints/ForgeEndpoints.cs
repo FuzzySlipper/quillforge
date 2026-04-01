@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuillForge.Core;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Pipeline;
@@ -20,7 +21,7 @@ public static class ForgeEndpoints
         // /api/forge/projects used by commands.ts for listing
         group.MapGet("/projects", async (IContentFileService fileService, CancellationToken ct) =>
         {
-            var files = await fileService.ListAsync("forge", "manifest.json", ct);
+            var files = await fileService.ListAsync(ContentPaths.Forge, "manifest.json", ct);
             var projects = new List<object>();
 
             foreach (var file in files)
@@ -376,7 +377,7 @@ public static class ForgeEndpoints
     {
         app.MapGet("/api/forge/prompts", async (IContentFileService fileService, CancellationToken ct) =>
         {
-            var files = await fileService.ListAsync("forge-prompts", "*.md", ct);
+            var files = await fileService.ListAsync(ContentPaths.ForgePrompts, "*.md", ct);
             var prompts = new List<object>();
             foreach (var file in files)
             {

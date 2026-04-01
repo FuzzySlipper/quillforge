@@ -3,6 +3,7 @@ using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Storage.Configuration;
 using QuillForge.Storage.Utilities;
+using QuillForge.Core;
 using QuillForge.Web.Contracts;
 
 namespace QuillForge.Web.Endpoints;
@@ -22,7 +23,7 @@ public static class ProfileEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var configPath = Path.Combine(contentRoot, "config.yaml");
+            var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
             var loader = new ConfigurationLoader(logger);
 
             var persona = root.TryGetProperty("persona", out var pEl) ? pEl.GetString() ?? config.Persona.Active : config.Persona.Active;
@@ -53,7 +54,7 @@ public static class ProfileEndpoints
         // Persona endpoints
         app.MapGet("/api/persona", (AppConfig config) =>
         {
-            var personaDir = Path.Combine(contentRoot, "persona");
+            var personaDir = Path.Combine(contentRoot, ContentPaths.Persona);
             if (!Directory.Exists(personaDir))
             {
                 return Results.Ok(new { Files = Array.Empty<object>(), PersonaPath = personaDir });
@@ -72,8 +73,8 @@ public static class ProfileEndpoints
 
         app.MapGet("/api/persona/{**filePath}", async (string filePath, CancellationToken ct) =>
         {
-            var resolved = Path.GetFullPath(Path.Combine(contentRoot, "persona", filePath));
-            var personaRoot = Path.Combine(contentRoot, "persona") + Path.DirectorySeparatorChar;
+            var resolved = Path.GetFullPath(Path.Combine(contentRoot, ContentPaths.Persona, filePath));
+            var personaRoot = Path.Combine(contentRoot, ContentPaths.Persona) + Path.DirectorySeparatorChar;
             if (!resolved.StartsWith(personaRoot, StringComparison.OrdinalIgnoreCase) || !File.Exists(resolved))
             {
                 return Results.NotFound(new { Error = "File not found" });
@@ -98,7 +99,7 @@ public static class ProfileEndpoints
         // Writing style endpoints
         app.MapGet("/api/writing-styles", (AppConfig config) =>
         {
-            var stylesDir = Path.Combine(contentRoot, "writing-styles");
+            var stylesDir = Path.Combine(contentRoot, ContentPaths.WritingStyles);
             if (!Directory.Exists(stylesDir))
             {
                 return Results.Ok(new { Files = Array.Empty<object>(), Active = config.WritingStyle.Active });
@@ -159,7 +160,7 @@ public static class ProfileEndpoints
 
             config.Layout = new LayoutConfig { Active = layout };
 
-            var configPath = Path.Combine(contentRoot, "config.yaml");
+            var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
             await writer.WriteAsync(configPath, ConfigurationLoader.Serialize(config), ct);
 
             logger.LogInformation("Layout switched to {Layout}", layout);

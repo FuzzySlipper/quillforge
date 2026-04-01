@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using QuillForge.Core;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Agents.Modes;
 using QuillForge.Core.Models;
@@ -81,11 +82,10 @@ public static class ProbeEndpoints
             var request = new CompletionRequest
             {
                 Model = model,
-                MaxTokens = 4096,
+                MaxTokens = 14096,
                 SystemPrompt = null,
                 Messages = [new CompletionMessage("user", new MessageContent(probePrompt))],
                 Tools = null,
-                Temperature = 0.0,
             };
 
             await foreach (var evt in completionService.StreamAsync(request, ct))
@@ -111,7 +111,7 @@ public static class ProbeEndpoints
             var timestamp = DateTimeOffset.UtcNow;
             var sanitizedModel = model.Replace('/', '-').Replace(':', '-');
             var fileName = $"probe-{timestamp:yyyyMMdd-HHmmss}-{sanitizedModel}.md";
-            var reportPath = Path.Combine("data", "llm-debug", fileName);
+            var reportPath = Path.Combine(ContentPaths.DataLlmDebug, fileName);
 
             var report = new StringBuilder();
             report.AppendLine("---");
@@ -135,7 +135,7 @@ public static class ProbeEndpoints
 
             try
             {
-                var fullDir = Path.Combine(contentRoot, "data", "llm-debug");
+                var fullDir = Path.Combine(contentRoot, ContentPaths.DataLlmDebug);
                 Directory.CreateDirectory(fullDir);
                 var fullPath = Path.Combine(fullDir, fileName);
                 await fileWriter.WriteAsync(fullPath, report.ToString(), ct);

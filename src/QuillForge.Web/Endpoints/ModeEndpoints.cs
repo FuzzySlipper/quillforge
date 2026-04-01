@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuillForge.Core;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -137,7 +138,7 @@ public static class ModeEndpoints
             var contentRoot = solutionRoot is not null
                 ? Path.Combine(solutionRoot, "build")
                 : Path.Combine(AppContext.BaseDirectory, "build");
-            var configPath = Path.Combine(contentRoot, "config.yaml");
+            var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
 
             await writer.WriteAsync(configPath, ConfigurationLoader.Serialize(config), ct);
 

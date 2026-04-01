@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Storage.Utilities;
@@ -30,7 +31,7 @@ public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
         AtomicFileWriter writer,
         ILogger<FileSystemSessionRuntimeStore> logger)
     {
-        _basePath = Path.Combine(contentRoot, "data", "session-state");
+        _basePath = Path.Combine(contentRoot, ContentPaths.DataSessionState);
         _writer = writer;
         _logger = logger;
         Directory.CreateDirectory(_basePath);

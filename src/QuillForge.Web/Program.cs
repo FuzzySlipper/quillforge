@@ -1,3 +1,4 @@
+using QuillForge.Core;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Agents.Modes;
 using QuillForge.Core.Agents.Tools;
@@ -49,7 +50,7 @@ firstRunSetup.EnsureContentDirectory(contentRoot,
     Directory.Exists(defaultsPath) ? defaultsPath : null);
 
 // --- Load configuration (create defaults if missing, even on existing installs) ---
-var configPath = Path.Combine(contentRoot, "config.yaml");
+var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
 var configLoader = new ConfigurationLoader(
     LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ConfigurationLoader>());
 if (!File.Exists(configPath))
@@ -63,7 +64,7 @@ builder.Services.AddSingleton(appConfig);
 builder.Services.AddSingleton<AtomicFileWriter>();
 
 // --- LLM debug logging ---
-builder.Services.AddSingleton<ILlmDebugLogger>(new LlmDebugLogger(Path.Combine(contentRoot, "data")));
+builder.Services.AddSingleton<ILlmDebugLogger>(new LlmDebugLogger(Path.Combine(contentRoot, ContentPaths.Data)));
 
 // --- Storage services (explicit registration, no scanning) ---
 builder.Services.AddStorageServices(contentRoot);
@@ -72,7 +73,7 @@ builder.Services.AddStorageServices(contentRoot);
 builder.Services.AddSingleton<EncryptedKeyStore>(sp =>
 {
     var store = new EncryptedKeyStore(
-        Path.Combine(contentRoot, "data"),
+        Path.Combine(contentRoot, ContentPaths.Data),
         sp.GetRequiredService<AtomicFileWriter>(),
         sp.GetRequiredService<ILogger<EncryptedKeyStore>>());
     store.Initialize();
