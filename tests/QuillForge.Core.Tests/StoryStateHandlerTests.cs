@@ -68,6 +68,30 @@ public sealed class StoryStateHandlerTests
     }
 
     [Fact]
+    public async Task WriteProseHandler_ResolvesStoryContextFromSession()
+    {
+        // WriteProseHandler should load story state from the session's project path.
+        // We can't easily test the full prose generation (ProseWriterAgent has heavy deps),
+        // but we can verify the story state is loaded from the correct session-scoped path.
+        var storyState = new TrackingStoryStateService();
+        var runtimeStore = new FakeSessionRuntimeStore(new Dictionary<Guid, string>
+        {
+            [SessionA] = "my-novel",
+        });
+        // ProseWriterAgent is null — handler will fail at WriteAsync, but we verify story context resolution first
+        var handler = new WriteProseHandler(null!, runtimeStore, storyState, NullLogger<WriteProseHandler>.Instance);
+        var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
+        var input = JsonDocument.Parse("""{"scene_description": "test scene"}""").RootElement;
+
+        // The handler will throw NullReferenceException when calling _proseWriter.WriteAsync,
+        // but story state resolution happens before that call
+        await Assert.ThrowsAsync<NullReferenceException>(() => handler.HandleAsync(input, context));
+
+        Assert.Single(storyState.LoadedPaths);
+        Assert.Equal("my-novel/.state.yaml", storyState.LoadedPaths[0]);
+    }
+
+    [Fact]
     public async Task GetStoryState_NullProject_DefaultsToDefault()
     {
         var storyState = new TrackingStoryStateService();
