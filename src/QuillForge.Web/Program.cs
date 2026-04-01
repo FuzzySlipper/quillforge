@@ -12,6 +12,7 @@ using QuillForge.Providers.Tts;
 using QuillForge.Storage.Configuration;
 using QuillForge.Storage.FileSystem;
 using QuillForge.Storage.Utilities;
+using QuillForge.Web;
 using QuillForge.Web.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -65,61 +66,7 @@ builder.Services.AddSingleton<AtomicFileWriter>();
 builder.Services.AddSingleton<ILlmDebugLogger>(new LlmDebugLogger(Path.Combine(contentRoot, "data")));
 
 // --- Storage services (explicit registration, no scanning) ---
-builder.Services.AddSingleton<IContentFileService>(sp =>
-    new FileSystemContentService(contentRoot,
-        sp.GetRequiredService<AtomicFileWriter>(),
-        sp.GetRequiredService<ILogger<FileSystemContentService>>()));
-
-builder.Services.AddSingleton<ILoreStore>(sp =>
-    new FileSystemLoreStore(Path.Combine(contentRoot, "lore"),
-        sp.GetRequiredService<ILogger<FileSystemLoreStore>>()));
-
-builder.Services.AddSingleton<IStoryStore>(sp =>
-    new FileSystemStoryStore(Path.Combine(contentRoot, "story"),
-        sp.GetRequiredService<AtomicFileWriter>(),
-        sp.GetRequiredService<ILogger<FileSystemStoryStore>>()));
-
-builder.Services.AddSingleton<IWritingStyleStore>(sp =>
-    new FileSystemWritingStyleStore(Path.Combine(contentRoot, "writing-styles"),
-        sp.GetRequiredService<ILogger<FileSystemWritingStyleStore>>()));
-
-builder.Services.AddSingleton<IArtifactService>(sp =>
-    new FileSystemArtifactService(Path.Combine(contentRoot, "artifacts"),
-        sp.GetRequiredService<AtomicFileWriter>(),
-        sp.GetRequiredService<ILogger<FileSystemArtifactService>>()));
-
-builder.Services.AddSingleton<IPersonaStore>(sp =>
-    new FileSystemPersonaStore(Path.Combine(contentRoot, "persona"),
-        sp.GetRequiredService<ILogger<FileSystemPersonaStore>>()));
-
-builder.Services.AddSingleton<ICharacterCardStore>(sp =>
-    new FileSystemCharacterCardStore(
-        Path.Combine(contentRoot, "character-cards"),
-        Path.Combine(contentRoot, "character-cards"),
-        sp.GetRequiredService<AtomicFileWriter>(),
-        sp.GetRequiredService<ILogger<FileSystemCharacterCardStore>>()));
-
-builder.Services.AddSingleton<ISessionStore>(sp =>
-    new FileSystemSessionStore(Path.Combine(contentRoot, "data", "sessions"),
-        sp.GetRequiredService<AtomicFileWriter>(),
-        sp.GetRequiredService<ILogger<FileSystemSessionStore>>(),
-        sp.GetRequiredService<ILoggerFactory>()));
-
-builder.Services.AddSingleton(sp =>
-    new RuntimeStateStore(contentRoot,
-        sp.GetRequiredService<AtomicFileWriter>(),
-        sp.GetRequiredService<ILogger<RuntimeStateStore>>()));
-
-builder.Services.AddSingleton<ISessionRuntimeStore>(sp =>
-    new FileSystemSessionRuntimeStore(contentRoot,
-        sp.GetRequiredService<AtomicFileWriter>(),
-        sp.GetRequiredService<ILogger<FileSystemSessionRuntimeStore>>()));
-
-builder.Services.AddSingleton<IStoryStateService>(sp =>
-    new FileSystemStoryStateService(
-        Path.Combine(contentRoot, "story"),
-        sp.GetRequiredService<AtomicFileWriter>(),
-        sp.GetRequiredService<ILogger<FileSystemStoryStateService>>()));
+builder.Services.AddStorageServices(contentRoot);
 
 // --- Provider persistence (encrypted API key storage) ---
 builder.Services.AddSingleton<EncryptedKeyStore>(sp =>
@@ -180,46 +127,7 @@ builder.Services.AddSingleton<ForgeReviewerAgent>(sp =>
         sp.GetRequiredService<ILogger<ForgeReviewerAgent>>()));
 
 // --- Tool handlers (available to orchestrator in all modes) ---
-builder.Services.AddSingleton<IToolHandler>(sp => new QueryLoreHandler(
-    sp.GetRequiredService<LibrarianAgent>(),
-    sp.GetRequiredService<IContentFileService>(),
-    sp.GetRequiredService<ILogger<QueryLoreHandler>>()));
-builder.Services.AddSingleton<IToolHandler, WriteProseHandler>();
-builder.Services.AddSingleton<IToolHandler, RollDiceHandler>();
-builder.Services.AddSingleton<IToolHandler, ReadFileHandler>();
-builder.Services.AddSingleton<IToolHandler, WriteFileHandler>();
-builder.Services.AddSingleton<IToolHandler, ListFilesHandler>();
-builder.Services.AddSingleton<IToolHandler, SearchFilesHandler>();
-builder.Services.AddSingleton<IToolHandler, DelegateTechnicalHandler>();
-builder.Services.AddSingleton<IToolHandler, RequestCodeChangeHandler>();
-builder.Services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<RunCouncilHandler>());
-if (appConfig.WebSearch.Enabled)
-{
-    builder.Services.AddSingleton<IToolHandler, WebSearchHandler>();
-}
-// Story state handlers resolve the active project from session context at call time
-// via ISessionRuntimeStore + AgentContext.SessionId passed to HandleAsync.
-builder.Services.AddSingleton<IToolHandler, GetStoryStateHandler>();
-builder.Services.AddSingleton<IToolHandler, UpdateStoryStateHandler>();
-builder.Services.AddSingleton<IToolHandler>(sp =>
-{
-    var imageGen = sp.GetService<IImageGenerator>();
-    // Use a no-op generator if none configured — the handler will return an error message
-    return new GenerateImageHandler(
-        imageGen ?? new QuillForge.Providers.ImageGen.FallbackImageGenerator([],
-            sp.GetRequiredService<ILogger<FallbackImageGenerator>>()),
-        sp.GetRequiredService<ILogger<GenerateImageHandler>>());
-});
-if (!string.IsNullOrEmpty(appConfig.Email.ResendApiKey) && !string.IsNullOrEmpty(appConfig.Email.DeveloperEmail))
-{
-    builder.Services.AddSingleton<IEmailService>(sp =>
-        new QuillForge.Providers.Email.ResendEmailService(
-            new HttpClient(),
-            appConfig.Email.ResendApiKey,
-            appConfig.Email.DeveloperEmail,
-            sp.GetRequiredService<ILogger<QuillForge.Providers.Email.ResendEmailService>>()));
-    builder.Services.AddSingleton<IToolHandler, EmailDeveloperHandler>();
-}
+builder.Services.AddToolHandlers(appConfig);
 
 // --- Research agents ---
 // Construct ResearchAgent's tools directly to avoid circular DI
@@ -319,61 +227,8 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<QuillForge.Web.Services.AutoUpdateService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<QuillForge.Web.Services.AutoUpdateService>());
 
-// --- Image generation providers ---
-{
-    var imageProviders = new List<IImageGenerator>();
-    var imageOutputDir = Path.Combine(contentRoot, "generated-images");
-
-    // ComfyUI (local)
-    var comfyUrl = Environment.GetEnvironmentVariable("COMFYUI_URL");
-    if (!string.IsNullOrEmpty(comfyUrl))
-    {
-        imageProviders.Add(new ComfyUiImageGenerator(new HttpClient(), comfyUrl, imageOutputDir, appConfig.ImageGen.ComfyUi,
-            LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ComfyUiImageGenerator>()));
-    }
-
-    // OpenAI DALL-E
-    var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-    if (!string.IsNullOrEmpty(openAiKey))
-    {
-        imageProviders.Add(new OpenAiImageGenerator(new HttpClient(), openAiKey, imageOutputDir, appConfig.ImageGen.OpenAi,
-            LoggerFactory.Create(b => b.AddConsole()).CreateLogger<OpenAiImageGenerator>()));
-    }
-
-    if (imageProviders.Count > 0)
-    {
-        builder.Services.AddSingleton<IImageGenerator>(sp =>
-            new FallbackImageGenerator(imageProviders,
-                sp.GetRequiredService<ILogger<FallbackImageGenerator>>()));
-    }
-}
-
-// --- TTS providers (register if keys are available) ---
-{
-    var ttsProviders = new List<ITtsGenerator>();
-    var ttsOutputDir = Path.Combine(contentRoot, "generated-audio");
-
-    var openAiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-    if (!string.IsNullOrEmpty(openAiKey))
-    {
-        ttsProviders.Add(new OpenAiTtsGenerator(new HttpClient(), openAiKey, ttsOutputDir, appConfig.Tts.OpenAi,
-            LoggerFactory.Create(b => b.AddConsole()).CreateLogger<OpenAiTtsGenerator>()));
-    }
-
-    var elevenLabsKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY");
-    if (!string.IsNullOrEmpty(elevenLabsKey))
-    {
-        ttsProviders.Add(new ElevenLabsTtsGenerator(new HttpClient(), elevenLabsKey, ttsOutputDir, appConfig.Tts.ElevenLabs,
-            LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ElevenLabsTtsGenerator>()));
-    }
-
-    if (ttsProviders.Count > 0)
-    {
-        builder.Services.AddSingleton<ITtsGenerator>(sp =>
-            new FallbackTtsGenerator(ttsProviders,
-                sp.GetRequiredService<ILogger<FallbackTtsGenerator>>()));
-    }
-}
+// --- Image generation and TTS providers ---
+builder.Services.AddMediaProviders(contentRoot, appConfig);
 
 // --- CORS for local development ---
 builder.Services.AddCors(options =>
@@ -486,9 +341,15 @@ app.MapSessionEndpoints();
 app.MapChatEndpoints();
 app.MapModeEndpoints();
 app.MapProviderEndpoints();
+app.MapProviderFetchModelsEndpoint();
 app.MapForgeEndpoints();
+app.MapForgeManagementEndpoints();
 app.MapContentEndpoints(contentRoot);
 app.MapProfileEndpoints(contentRoot);
+app.MapCharacterCardEndpoints(contentRoot);
+app.MapCouncilEndpoints();
+app.MapArtifactEndpoints();
+app.MapTtsEndpoints();
 app.MapResearchEndpoints(contentRoot);
 
 // --- Debug bridge (Development only) ---

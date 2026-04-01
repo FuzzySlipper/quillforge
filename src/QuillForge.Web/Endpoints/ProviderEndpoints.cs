@@ -319,4 +319,85 @@ public static class ProviderEndpoints
             _ => null,
         };
     }
+
+    /// <summary>
+    /// Fetch models from an arbitrary provider URL (used by provider config UI).
+    /// </summary>
+    public static void MapProviderFetchModelsEndpoint(this WebApplication app)
+    {
+        app.MapPost("/api/providers/fetch-models", async (
+            HttpContext httpContext,
+            AppConfig appConfig,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var root = body.RootElement;
+
+            var url = root.TryGetProperty("baseUrl", out var urlEl) ? urlEl.GetString() ?? "" : "";
+            if (string.IsNullOrEmpty(url))
+                url = root.TryGetProperty("url", out var urlEl2) ? urlEl2.GetString() ?? "" : "";
+            var apiKey = root.TryGetProperty("apiKey", out var keyEl) ? keyEl.GetString() ?? "" : "";
+
+            if (string.IsNullOrEmpty(url))
+            {
+                return Results.Ok(new { Models = Array.Empty<object>() });
+            }
+
+            try
+            {
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(appConfig.Timeouts.ProviderHttpSeconds) };
+                if (!string.IsNullOrEmpty(apiKey))
+                {
+                    httpClient.DefaultRequestHeaders.Authorization = new("Bearer", apiKey);
+                }
+
+                // Try /v1/models first, then /api/tags (Ollama)
+                var modelsUrl = url.TrimEnd('/');
+                if (!modelsUrl.EndsWith("/v1/models") && !modelsUrl.EndsWith("/api/tags"))
+                {
+                    modelsUrl += "/v1/models";
+                }
+
+                var response = await httpClient.GetAsync(modelsUrl, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    // Try Ollama format
+                    modelsUrl = url.TrimEnd('/') + "/api/tags";
+                    response = await httpClient.GetAsync(modelsUrl, ct);
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return Results.Ok(new { Models = Array.Empty<object>(), Error = $"{response.StatusCode}" });
+                }
+
+                var json = await response.Content.ReadAsStringAsync(ct);
+                using var doc = JsonDocument.Parse(json);
+
+                // OpenAI format
+                if (doc.RootElement.TryGetProperty("data", out var data))
+                {
+                    var models = data.EnumerateArray()
+                        .Select(m => m.GetProperty("id").GetString())
+                        .ToList();
+                    return Results.Ok(new { Models = models });
+                }
+
+                // Ollama format
+                if (doc.RootElement.TryGetProperty("models", out var ollamaModels))
+                {
+                    var models = ollamaModels.EnumerateArray()
+                        .Select(m => m.GetProperty("name").GetString())
+                        .ToList();
+                    return Results.Ok(new { Models = models });
+                }
+
+                return Results.Ok(new { Models = Array.Empty<object>() });
+            }
+            catch (Exception ex)
+            {
+                return Results.Ok(new { Models = Array.Empty<object>(), Error = ex.Message });
+            }
+        });
+    }
 }

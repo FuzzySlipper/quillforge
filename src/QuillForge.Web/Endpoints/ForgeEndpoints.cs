@@ -368,4 +368,48 @@ public static class ForgeEndpoints
             _ => JsonSerializer.Serialize(new { Type = "ping" }, s_jsonOptions),
         };
     }
+
+    /// <summary>
+    /// Additional forge/project management endpoints not tied to pipeline execution.
+    /// </summary>
+    public static void MapForgeManagementEndpoints(this WebApplication app)
+    {
+        app.MapGet("/api/forge/prompts", async (IContentFileService fileService, CancellationToken ct) =>
+        {
+            var files = await fileService.ListAsync("forge-prompts", "*.md", ct);
+            var prompts = new List<object>();
+            foreach (var file in files)
+            {
+                var name = Path.GetFileNameWithoutExtension(file.Split('/').Last());
+                try
+                {
+                    var content = await fileService.ReadAsync(file, ct);
+                    prompts.Add(new { Name = name, Content = content });
+                }
+                catch { }
+            }
+            return Results.Ok(new { Prompts = prompts });
+        });
+
+        app.MapPost("/api/forge/create", async (
+            HttpContext httpContext,
+            IContentFileService fileService,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var name = body.RootElement.TryGetProperty("name", out var el) ? el.GetString() ?? "untitled" : "untitled";
+
+            await fileService.WriteAsync($"forge/{name}/plan/.gitkeep", "", ct);
+            await fileService.WriteAsync($"forge/{name}/drafts/.gitkeep", "", ct);
+            await fileService.WriteAsync($"forge/{name}/output/.gitkeep", "", ct);
+
+            return Results.Ok(new { Status = "ok", Name = name, Created = true });
+        });
+
+        app.MapGet("/api/projects", async (IStoryStore store, CancellationToken ct) =>
+        {
+            var projects = await store.ListProjectsAsync(ct);
+            return Results.Ok(new { Projects = projects });
+        });
+    }
 }

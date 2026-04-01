@@ -158,5 +158,26 @@ public static class SessionEndpoints
                 SessionId = id,
             });
         });
+
+        // Legacy path that the frontend also calls
+        app.MapPost("/api/session/new", async (ISessionStore store, ILoggerFactory loggerFactory, CancellationToken ct) =>
+        {
+            var tree = new ConversationTree(
+                Guid.CreateVersion7(),
+                "New Session",
+                loggerFactory.CreateLogger<ConversationTree>());
+            await store.SaveAsync(tree, ct);
+            return Results.Ok(new SessionCreatedResponse { SessionId = tree.SessionId, Name = tree.Name });
+        });
+
+        // Conversation history (legacy endpoint)
+        app.MapGet("/api/conversation/history", () =>
+        {
+            return Results.Ok(new
+            {
+                Messages = Array.Empty<object>(),
+                SessionId = (string?)null,
+            });
+        });
     }
 }
