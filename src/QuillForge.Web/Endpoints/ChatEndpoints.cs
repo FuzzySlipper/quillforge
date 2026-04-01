@@ -30,9 +30,7 @@ public static class ChatEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var sessionId = root.TryGetProperty("sessionId", out var sid)
-                ? Guid.Parse(sid.GetString()!)
-                : Guid.CreateVersion7();
+            var sessionId = root.GetOptionalGuid("sessionId") ?? Guid.CreateVersion7();
             var message = root.TryGetProperty("message", out var msgEl) ? msgEl.GetString() ?? "" : "";
             var model = root.TryGetProperty("model", out var m) ? m.GetString() ?? "default" : "default";
             // Resolve "default" to the configured orchestrator model
@@ -40,7 +38,7 @@ public static class ChatEndpoints
                 model = appConfig.Models.Orchestrator;
             var persona = root.TryGetProperty("persona", out var p) ? p.GetString() ?? "default" : "default";
             var maxTokens = root.TryGetProperty("maxTokens", out var mt) ? mt.GetInt32() : 4096;
-            var parentId = root.TryGetProperty("parentId", out var pid) ? Guid.Parse(pid.GetString()!) : (Guid?)null;
+            var parentId = root.GetOptionalGuid("parentId");
 
             logger.LogInformation(
                 "Chat request: session={SessionId}, model={Model}, message length={Length}",

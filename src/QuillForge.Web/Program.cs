@@ -99,11 +99,13 @@ builder.Services.AddSingleton<ProseWriterAgent>(sp =>
 {
     var toolLoop = sp.GetRequiredService<ToolLoop>();
     var config = sp.GetRequiredService<AppConfig>();
+    var loreStore = sp.GetRequiredService<ILoreStore>();
     var queryLore = new QueryLoreHandler(
         sp.GetRequiredService<LibrarianAgent>(),
+        loreStore,
         sp.GetRequiredService<IContentFileService>(),
         sp.GetRequiredService<ILogger<QueryLoreHandler>>());
-    return new ProseWriterAgent(toolLoop, queryLore,
+    return new ProseWriterAgent(toolLoop, queryLore, loreStore,
         sp.GetRequiredService<IWritingStyleStore>(),
         config,
         sp.GetRequiredService<ILogger<ProseWriterAgent>>());

@@ -28,13 +28,11 @@ public static class DebugBridgeEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var sessionId = root.TryGetProperty("sessionId", out var sid)
-                ? Guid.Parse(sid.GetString()!)
-                : Guid.CreateVersion7();
+            var sessionId = root.GetOptionalGuid("sessionId") ?? Guid.CreateVersion7();
             var message = root.GetProperty("message").GetString() ?? "";
-            var model = root.TryGetProperty("model", out var m) ? m.GetString() ?? "default" : "default";
-            var persona = root.TryGetProperty("persona", out var p) ? p.GetString() ?? "default" : "default";
-            var maxTokens = root.TryGetProperty("maxTokens", out var mt) ? mt.GetInt32() : 4096;
+            var model = root.GetStringOrDefault("model", "default");
+            var persona = root.GetStringOrDefault("persona", "default");
+            var maxTokens = root.GetIntOrDefault("maxTokens", 4096);
 
             ConversationTree tree;
             try
@@ -101,8 +99,7 @@ public static class DebugBridgeEndpoints
             var mode = root.GetProperty("mode").GetString()!;
             var project = root.TryGetProperty("project", out var proj) ? proj.GetString() : null;
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
-            var sessionId = root.TryGetProperty("sessionId", out var sid)
-                ? Guid.Parse(sid.GetString()!) : (Guid?)null;
+            var sessionId = root.GetOptionalGuid("sessionId");
 
             var sessionState = await runtimeStore.LoadAsync(sessionId, ct);
             orchestrator.SetMode(sessionState, mode, project, file);

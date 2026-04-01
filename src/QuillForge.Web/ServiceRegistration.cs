@@ -79,6 +79,7 @@ public static class ServiceRegistration
     {
         services.AddSingleton<IToolHandler>(sp => new QueryLoreHandler(
             sp.GetRequiredService<QuillForge.Core.Agents.LibrarianAgent>(),
+            sp.GetRequiredService<ILoreStore>(),
             sp.GetRequiredService<IContentFileService>(),
             sp.GetRequiredService<ILogger<QueryLoreHandler>>()));
         services.AddSingleton<IToolHandler, WriteProseHandler>();

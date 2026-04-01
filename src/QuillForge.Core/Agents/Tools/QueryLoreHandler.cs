@@ -13,12 +13,14 @@ namespace QuillForge.Core.Agents.Tools;
 public sealed class QueryLoreHandler : IToolHandler
 {
     private readonly LibrarianAgent _librarian;
+    private readonly ILoreStore _loreStore;
     private readonly IContentFileService _fileService;
     private readonly ILogger<QueryLoreHandler> _logger;
 
-    public QueryLoreHandler(LibrarianAgent librarian, IContentFileService fileService, ILogger<QueryLoreHandler> logger)
+    public QueryLoreHandler(LibrarianAgent librarian, ILoreStore loreStore, IContentFileService fileService, ILogger<QueryLoreHandler> logger)
     {
         _librarian = librarian;
+        _loreStore = loreStore;
         _fileService = fileService;
         _logger = logger;
     }
@@ -61,6 +63,24 @@ public sealed class QueryLoreHandler : IToolHandler
             catch (FileNotFoundException)
             {
                 _logger.LogDebug("No run lore file at {Path}", context.RunLorePath);
+            }
+        }
+
+        // Short-circuit: if the lore set is empty and there's no run-specific lore,
+        // skip the Librarian LLM call entirely — there's nothing to query.
+        if (string.IsNullOrEmpty(runLore))
+        {
+            var loreContent = await _loreStore.LoadLoreSetAsync(context.ActiveLoreSet, ct);
+            if (loreContent.Count == 0)
+            {
+                _logger.LogDebug("QueryLoreHandler: lore set \"{LoreSet}\" is empty, skipping Librarian", context.ActiveLoreSet);
+                var empty = new LoreBundle
+                {
+                    RelevantPassages = [],
+                    SourceFiles = [],
+                    Confidence = LoreConfidence.Low,
+                };
+                return ToolResult.Ok(JsonSerializer.Serialize(empty));
             }
         }
 

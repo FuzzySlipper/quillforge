@@ -379,6 +379,10 @@ function App() {
           refreshStatus();
         },
         clearMessages: () => setMessages([]),
+        addChatMessage: (partial) => {
+          const msg: Message = { ...partial, id: uuid(), timestamp: Date.now() };
+          setMessages((prev) => [...prev, msg]);
+        },
         setMode: async (m: Mode) => {
           await apiSetMode(m);
           refreshStatus();

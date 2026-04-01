@@ -19,6 +19,12 @@ export interface CommandContext {
   setMode: (mode: Mode) => Promise<void>;
   refreshStatus: () => void;
   /**
+   * Inject a message directly into the chat log without sending to the API.
+   * Use for programmatic messages (e.g. character greetings) that should appear
+   * in conversation history and influence future LLM responses.
+   */
+  addChatMessage: (msg: Omit<Message, "id" | "timestamp">) => void;
+  /**
    * Stream a request through an endpoint, showing progress in the UI.
    * Used by commands that need the console→orchestrator pattern.
    */
@@ -178,6 +184,38 @@ const commands: Record<string, CommandDef> = {
         sendCouncilStream(query, onEvent, signal),
       );
       return { output: null, streaming: true };
+    },
+  },
+
+  greeting: {
+    description: "Insert the AI character's greeting into chat",
+    handler: async (_args, ctx) => {
+      const aiChar = ctx.status?.aiCharacter;
+      if (!aiChar) {
+        return { output: "No AI character is active. Assign one in the character card settings." };
+      }
+
+      const { readCharacterCard } = await import("./api");
+      try {
+        const card = await readCharacterCard(aiChar);
+        if (!card.greeting) {
+          return { output: `Character **${card.name}** has no greeting defined.` };
+        }
+
+        const portraitUrl = card.portrait
+          ? `/content/character-cards/${card.portrait}`
+          : undefined;
+
+        ctx.addChatMessage({
+          role: "assistant",
+          content: card.greeting,
+          responseType: "greeting",
+          portrait: portraitUrl,
+        });
+        return { output: null };
+      } catch {
+        return { output: `Failed to load character card for **${aiChar}**.` };
+      }
     },
   },
 

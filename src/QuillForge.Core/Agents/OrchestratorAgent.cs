@@ -271,6 +271,18 @@ public sealed class OrchestratorAgent
               + "When using `query_lore`, results come from this lore set. "
               + "Ground your lore references and world-building in this set's content.";
 
-        return $"{persona}\n\n{modeSection}{stateSummary}{loreSection}";
+        var fallbackGuidance = """
+
+
+            ## Tool Failures
+
+            If a tool call fails, times out, or returns an error, you MUST tell the user explicitly
+            before continuing. Use an (OOC: ) note to explain which tool failed and what you are
+            doing instead. Never silently absorb a tool failure and produce output as if nothing
+            happened — the user needs to know when they are getting a fallback response so they
+            can decide whether to retry or report the issue.
+            """;
+
+        return $"{persona}\n\n{modeSection}{stateSummary}{loreSection}{fallbackGuidance}";
     }
 }

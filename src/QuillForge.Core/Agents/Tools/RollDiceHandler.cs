@@ -23,7 +23,7 @@ public sealed partial class RollDiceHandler : IToolHandler
     public string Name => "roll_dice";
 
     public ToolDefinition Definition => new(Name,
-        "Roll dice using standard notation. Examples: '2d6', '1d20+5', '4d6kh3' (keep highest 3).",
+        "Roll dice using standard notation. Examples: '2d6', '1d20+5', '4d6kh3' (keep highest 3). Only invoke when the user explicitly requests a roll, check, or mechanical resolution — not when they narrate a character action (e.g. 'my character casts a spell' is narrative, not a dice prompt).",
         JsonDocument.Parse("""
             {
                 "type": "object",

@@ -101,9 +101,7 @@ public static class SessionEndpoints
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
-            var messageId = body.RootElement.TryGetProperty("messageId", out var mEl)
-                ? Guid.Parse(mEl.GetString()!)
-                : (Guid?)null;
+            var messageId = body.RootElement.GetOptionalGuid("messageId");
 
             var source = await store.LoadAsync(id, ct);
 

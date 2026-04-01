@@ -45,7 +45,7 @@ public static class ModeEndpoints
             var project = root.TryGetProperty("project", out var p) ? p.GetString() : null;
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
             var character = root.TryGetProperty("character", out var c) ? c.GetString() : null;
-            var sessionId = root.TryGetProperty("sessionId", out var sid) ? Guid.Parse(sid.GetString()!) : (Guid?)null;
+            var sessionId = root.GetOptionalGuid("sessionId");
 
             var state = await runtimeStore.LoadAsync(sessionId, ct);
             orchestrator.SetMode(state, mode, project, file, character);
