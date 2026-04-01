@@ -181,6 +181,17 @@ const commands: Record<string, CommandDef> = {
     },
   },
 
+  probe: {
+    description: "Probe how the LLM interprets current mode instructions and tools",
+    handler: async (_args, ctx) => {
+      const { sendProbeStream } = await import("./api");
+      await ctx.streamRequest((onEvent, signal) =>
+        sendProbeStream(onEvent, signal),
+      );
+      return { output: null, streaming: true };
+    },
+  },
+
   artifact: {
     description: "Generate an in-world artifact",
     usage: "<format> <prompt>",

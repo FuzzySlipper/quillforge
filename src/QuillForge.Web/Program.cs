@@ -351,6 +351,7 @@ app.MapCouncilEndpoints();
 app.MapArtifactEndpoints();
 app.MapTtsEndpoints();
 app.MapResearchEndpoints(contentRoot);
+app.MapProbeEndpoints(contentRoot);
 
 // --- Debug bridge (Development only) ---
 if (app.Environment.IsDevelopment())

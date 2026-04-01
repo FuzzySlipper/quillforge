@@ -135,6 +135,16 @@ Session-scoped state flows explicitly through parameters, not middleware or ambi
 
 Endpoint request/response shapes use named `sealed record` types in `QuillForge.Web/Contracts/`, split by domain (`ChatContracts.cs`, `SessionContracts.cs`, etc.). Do not introduce new anonymous objects for high-traffic endpoints — use or extend the existing contract types. Frontend TypeScript types in `types.ts` and `api.ts` must match the backend DTOs.
 
+### Interpretation Probe
+
+The `/probe` command runs a diagnostic that tests how the current model interprets mode instructions and tool boundaries. Key rules:
+
+- Probes test **applied interpretation under ambiguity**, not instruction parroting. The prompt battery presents realistic but ambiguous user requests.
+- Probe mode **disables tool execution** (`Tools: null`) while exposing tool definitions in the prompt text so the model can reason about them.
+- Results persist as timestamped markdown under `build/data/llm-debug/` for cross-model comparison.
+- The scenario battery is versioned (`ProbeBattery.Version`) so reports from different versions are not conflated.
+- When adding new scenarios, keep prompts stable enough for cross-run comparison and ensure each scenario tests a distinct interpretation boundary.
+
 ### Discriminated Unions
 
 Use abstract base class + sealed derived types for union-like types:
