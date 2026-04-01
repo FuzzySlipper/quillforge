@@ -7,6 +7,7 @@ interface ModeSwitcherProps {
   open: boolean;
   onClose: () => void;
   onSwitched: () => void;
+  sessionId?: string | null;
 }
 
 const MODE_LABELS: Record<Mode, string> = {
@@ -27,7 +28,7 @@ const MODE_DESCRIPTIONS: Record<Mode, string> = {
   research: "Multi-agent web research with parallel topic investigation and organized markdown findings.",
 };
 
-export default function ModeSwitcher({ open, onClose, onSwitched }: ModeSwitcherProps) {
+export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: ModeSwitcherProps) {
   const [current, setCurrent] = useState<ModeInfo | null>(null);
   const [selectedMode, setSelectedMode] = useState<Mode>("general");
   const [projects, setProjects] = useState<string[]>([]);
@@ -40,7 +41,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched }: ModeSwitcher
 
   useEffect(() => {
     if (!open) return;
-    getMode().then((m) => {
+    getMode(sessionId).then((m) => {
       setCurrent(m);
       setSelectedMode(m.mode);
       setProject(m.project || "");
@@ -67,9 +68,9 @@ export default function ModeSwitcher({ open, onClose, onSwitched }: ModeSwitcher
     setSaving(true);
     try {
       if (selectedMode === "roleplay") {
-        await setMode(selectedMode, undefined, undefined, selectedCharacter || undefined);
+        await setMode(selectedMode, undefined, undefined, selectedCharacter || undefined, sessionId);
       } else {
-        await setMode(selectedMode, project || undefined);
+        await setMode(selectedMode, project || undefined, undefined, undefined, sessionId);
       }
       onSwitched();
       onClose();

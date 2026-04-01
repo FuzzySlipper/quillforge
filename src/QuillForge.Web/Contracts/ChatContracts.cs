@@ -55,3 +55,10 @@ public sealed record ChatDiagnosticDto
     public required string Message { get; init; }
     public required string Level { get; init; }
 }
+
+public sealed record ChatPersistedDto
+{
+    public string Type { get; init; } = "persisted";
+    public Guid? NodeId { get; init; }
+    public Guid? UserNodeId { get; init; }
+}

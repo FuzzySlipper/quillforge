@@ -5,7 +5,14 @@ import { listSessions, loadSession, deleteSession, type SessionInfo } from "../a
 interface SessionBrowserProps {
   open: boolean;
   onClose: () => void;
-  onLoad: (sessionId: string, messages: Array<{ id: string; role: string; content: string; createdAt: string }>) => void;
+  onLoad: (sessionId: string, messages: Array<{
+    id: string;
+    role: string;
+    content: string;
+    createdAt: string;
+    parentId?: string | null;
+    variants?: Array<{ content: string; createdAt: string }> | null;
+  }>) => void;
 }
 
 function timeAgo(iso: string): string {

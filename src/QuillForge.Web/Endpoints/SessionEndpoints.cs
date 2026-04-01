@@ -63,6 +63,7 @@ public static class SessionEndpoints
                             Role = n.Role,
                             Content = n.Content.GetText(),
                             CreatedAt = n.CreatedAt,
+                            ParentId = n.ParentId,
                             Variants = variants,
                         };
                     }),

@@ -19,6 +19,7 @@ public sealed record SessionMessageDto
     public required string Role { get; init; }
     public required string Content { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
+    public Guid? ParentId { get; init; }
     public List<MessageVariantDto>? Variants { get; init; }
 }
 

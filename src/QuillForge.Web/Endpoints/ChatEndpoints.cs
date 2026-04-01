@@ -177,6 +177,12 @@ public static class ChatEndpoints
             await sessionStore.SaveAsync(tree, ct);
             await runtimeStore.SaveAsync(sessionState, ct);
 
+            // Send persisted event with backend node IDs so the frontend can update message identity
+            var userNodeId = parentId.HasValue ? (Guid?)null : appendParentId;
+            var persistedData = $"data: {JsonSerializer.Serialize(new ChatPersistedDto { NodeId = assistantNodeId, UserNodeId = userNodeId }, s_jsonOptions)}\n\n";
+            await httpContext.Response.WriteAsync(persistedData, ct);
+            await httpContext.Response.Body.FlushAsync(ct);
+
             logger.LogInformation("Chat completed for session {SessionId}", sessionId);
         });
 

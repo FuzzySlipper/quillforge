@@ -73,16 +73,16 @@ function App() {
   const [diagnosticEntries, setDiagnosticEntries] = useState<DiagnosticEntry[]>([]);
 
   const refreshStatus = useCallback(() => {
-    getStatus()
+    getStatus(currentSessionId)
       .then((s) => {
         setStatus(s);
         setMode(s.mode);
       })
       .catch(() => setStatus(null));
-    getMode()
+    getMode(currentSessionId)
       .then((m) => setHasPending(!!m.pendingContent))
       .catch(() => {});
-  }, []);
+  }, [currentSessionId]);
 
   useEffect(() => {
     tts.init();
@@ -284,6 +284,40 @@ function App() {
             );
             setStreamStatus(null);
             refreshStatus();
+          } else if (event.type === "persisted") {
+            // Update message IDs from client UUIDs to backend GUIDs
+            const nodeId = event.data.nodeId as string | null;
+            const userNodeId = event.data.userNodeId as string | null;
+            if (nodeId) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].role === "assistant") {
+                    updated[i] = { ...updated[i], id: nodeId };
+                    break;
+                  }
+                }
+                return updated;
+              });
+            }
+            if (userNodeId) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                let assistantIdx = -1;
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].role === "assistant") { assistantIdx = i; break; }
+                }
+                if (assistantIdx > 0) {
+                  for (let i = assistantIdx - 1; i >= 0; i--) {
+                    if (updated[i].role === "user") {
+                      updated[i] = { ...updated[i], id: userNodeId };
+                      break;
+                    }
+                  }
+                }
+                return updated;
+              });
+            }
           } else if (event.type === "error") {
             if (streamingStarted) {
               setMessages((prev) => prev.filter((m) => m.id !== streamMsgId));
@@ -338,9 +372,9 @@ function App() {
         openLore: () => setLoreOpen(true),
         openContext: () => setContextOpen(true),
         newSession: async () => {
-          await newSession();
+          const result = await newSession();
           setMessages([]);
-          setCurrentSessionId(null);
+          setCurrentSessionId(result.sessionId);
           setHasPending(false);
           refreshStatus();
         },
@@ -593,9 +627,9 @@ function App() {
         onOpenTextTheme={() => setTextThemeOpen(true)}
         textThemeName={currentTextTheme.name}
         onNewSession={async () => {
-          await newSession();
+          const result = await newSession();
           setMessages([]);
-          setCurrentSessionId(null);
+          setCurrentSessionId(result.sessionId);
           setHasPending(false);
           refreshStatus();
         }}
@@ -677,6 +711,7 @@ function App() {
         open={modeOpen}
         onClose={() => setModeOpen(false)}
         onSwitched={refreshStatus}
+        sessionId={currentSessionId}
       />
       <ContextOverlay
         open={contextOpen}
@@ -731,6 +766,13 @@ function App() {
             role: m.role as "user" | "assistant",
             content: m.content,
             timestamp: new Date(m.createdAt).getTime() || Date.now(),
+            parentId: m.parentId ?? undefined,
+            variants: m.variants?.map((v) => ({
+              content: v.content,
+              responseType: undefined,
+              timestamp: new Date(v.createdAt).getTime(),
+            })),
+            activeVariant: m.variants ? 0 : undefined,
           }));
           setMessages(restored);
           setCurrentSessionId(sessionId);

@@ -20,8 +20,9 @@ async function request<T>(
   return res.json();
 }
 
-export async function getStatus(): Promise<Status> {
-  return request("/api/status");
+export async function getStatus(sessionId?: string | null): Promise<Status> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return request(`/api/status${query}`);
 }
 
 export async function sendChat(
@@ -34,7 +35,7 @@ export async function sendChat(
 }
 
 export interface StreamEvent {
-  type: "status" | "tool" | "done" | "error" | "text_delta" | "reasoning_delta" | "diagnostic";
+  type: "status" | "tool" | "done" | "error" | "text_delta" | "reasoning_delta" | "diagnostic" | "persisted";
   data: Record<string, unknown>;
 }
 
@@ -204,8 +205,9 @@ export async function switchProfile(profile: {
   });
 }
 
-export async function getMode(): Promise<ModeInfo> {
-  return request("/api/mode");
+export async function getMode(sessionId?: string | null): Promise<ModeInfo> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return request(`/api/mode${query}`);
 }
 
 export async function setMode(
@@ -213,10 +215,11 @@ export async function setMode(
   project?: string,
   file?: string,
   character?: string,
+  sessionId?: string | null,
 ): Promise<unknown> {
   return request("/api/mode", {
     method: "POST",
-    body: JSON.stringify({ mode, project, file, character }),
+    body: JSON.stringify({ mode, project, file, character, sessionId }),
   });
 }
 
@@ -225,7 +228,7 @@ export async function getProjects(mode?: string): Promise<{ projects: string[] }
   return request(`/api/projects${query}`);
 }
 
-export async function newSession(): Promise<unknown> {
+export async function newSession(): Promise<{ sessionId: string; name: string }> {
   return request("/api/session/new", { method: "POST" });
 }
 
@@ -253,6 +256,7 @@ export async function loadSession(
     role: string;
     content: string;
     createdAt: string;
+    parentId?: string | null;
     variants?: Array<{ content: string; createdAt: string }> | null;
   }>;
 }> {
