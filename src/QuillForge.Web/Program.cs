@@ -200,36 +200,10 @@ if (appConfig.WebSearch.Enabled)
 {
     builder.Services.AddSingleton<IToolHandler, WebSearchHandler>();
 }
-// Story state handlers use a path provider that resolves the active project at call time.
-// For now, they load the default (null) session state. Task 39 will make this session-aware.
-builder.Services.AddSingleton<IToolHandler>(sp =>
-{
-    var store = new Lazy<ISessionRuntimeStore>(() => sp.GetRequiredService<ISessionRuntimeStore>());
-    Func<string> statePathProvider = () =>
-    {
-        var state = store.Value.LoadAsync(null).GetAwaiter().GetResult();
-        var project = state.Mode.ProjectName ?? "default";
-        return $"{project}/.state.yaml";
-    };
-    return new GetStoryStateHandler(
-        sp.GetRequiredService<IStoryStateService>(),
-        statePathProvider,
-        sp.GetRequiredService<ILogger<GetStoryStateHandler>>());
-});
-builder.Services.AddSingleton<IToolHandler>(sp =>
-{
-    var store = new Lazy<ISessionRuntimeStore>(() => sp.GetRequiredService<ISessionRuntimeStore>());
-    Func<string> statePathProvider = () =>
-    {
-        var state = store.Value.LoadAsync(null).GetAwaiter().GetResult();
-        var project = state.Mode.ProjectName ?? "default";
-        return $"{project}/.state.yaml";
-    };
-    return new UpdateStoryStateHandler(
-        sp.GetRequiredService<IStoryStateService>(),
-        statePathProvider,
-        sp.GetRequiredService<ILogger<UpdateStoryStateHandler>>());
-});
+// Story state handlers resolve the active project from session context at call time
+// via ISessionRuntimeStore + AgentContext.SessionId passed to HandleAsync.
+builder.Services.AddSingleton<IToolHandler, GetStoryStateHandler>();
+builder.Services.AddSingleton<IToolHandler, UpdateStoryStateHandler>();
 builder.Services.AddSingleton<IToolHandler>(sp =>
 {
     var imageGen = sp.GetService<IImageGenerator>();

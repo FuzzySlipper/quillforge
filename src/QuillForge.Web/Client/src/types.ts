@@ -45,6 +45,9 @@ export interface Status {
   personaTokens: number;
   historyTokens: number;
   diagnosticsLivePanel?: boolean;
+  aiCharacter: string;
+  userCharacter: string;
+  update?: { available: boolean; version: string; url: string } | null;
 }
 
 export interface DiagnosticEntry {

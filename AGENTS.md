@@ -121,6 +121,20 @@ public record MessageNode
 - `ConversationTree.GetThread()` — walk leaf→root for the active linear thread
 - All operations are thread-safe (internal locking)
 
+### Session Context
+
+Session-scoped state flows explicitly through parameters, not middleware or ambient context:
+
+- **GET endpoints** extract an optional session ID from the query string via `httpContext.TryGetSessionId()` (extension in `SessionIdExtensions.cs`). When absent, `null` falls back to default/global state.
+- **POST endpoints** extract session ID from the deserialized request body. Do not unify GET and POST extraction into a single helper — the data sources are intentionally different.
+- **`ISessionRuntimeStore.LoadAsync(sessionId)`** is the single source of truth for session-scoped runtime state. Avoid calling `LoadAsync(null)` unless you explicitly need the default/global state.
+- **Tool handlers** use `AgentContext.SessionId` at call time to resolve session-scoped resources. Never capture session state at handler construction time — handlers are singletons.
+- **`AgentContext`** carries the session ID and resolved profile settings (lore set, writing style) through the orchestrator → tool loop → handler chain. Build it per-request in the endpoint.
+
+### Web Contracts
+
+Endpoint request/response shapes use named `sealed record` types in `QuillForge.Web/Contracts/`, split by domain (`ChatContracts.cs`, `SessionContracts.cs`, etc.). Do not introduce new anonymous objects for high-traffic endpoints — use or extend the existing contract types. Frontend TypeScript types in `types.ts` and `api.ts` must match the backend DTOs.
+
 ### Discriminated Unions
 
 Use abstract base class + sealed derived types for union-like types:

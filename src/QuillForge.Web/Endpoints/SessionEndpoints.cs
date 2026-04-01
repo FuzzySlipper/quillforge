@@ -1,6 +1,7 @@
 using System.Text.Json;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Web.Contracts;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -23,7 +24,7 @@ public static class SessionEndpoints
                 "New Session",
                 loggerFactory.CreateLogger<ConversationTree>());
             await store.SaveAsync(tree, ct);
-            return Results.Ok(new { SessionId = tree.SessionId, Name = tree.Name });
+            return Results.Ok(new SessionCreatedResponse { SessionId = tree.SessionId, Name = tree.Name });
         });
 
         group.MapPost("/{id}/load", async (Guid id, ISessionStore store, CancellationToken ct) =>
@@ -33,14 +34,14 @@ public static class SessionEndpoints
                 var tree = await store.LoadAsync(id, ct);
                 var thread = tree.ToFlatThread();
                 var snapshot = tree.GetSnapshot();
-                return Results.Ok(new
+                return Results.Ok(new SessionLoadResponse
                 {
                     SessionId = tree.SessionId,
                     Name = tree.Name,
                     Messages = thread.Select(n =>
                     {
                         // Find sibling variants: other children of the same parent with the same role
-                        List<object>? variants = null;
+                        List<MessageVariantDto>? variants = null;
                         if (n.ParentId.HasValue && snapshot.TryGetValue(n.ParentId.Value, out var parent))
                         {
                             var siblings = parent.ChildIds
@@ -50,13 +51,13 @@ public static class SessionEndpoints
                             if (siblings.Count > 0)
                             {
                                 variants = [
-                                    new { Content = n.Content.GetText(), CreatedAt = n.CreatedAt },
-                                    .. siblings.Select(s => (object)new { Content = s.Content.GetText(), CreatedAt = s.CreatedAt })
+                                    new MessageVariantDto { Content = n.Content.GetText(), CreatedAt = n.CreatedAt },
+                                    .. siblings.Select(s => new MessageVariantDto { Content = s.Content.GetText(), CreatedAt = s.CreatedAt })
                                 ];
                             }
                         }
 
-                        return new
+                        return new SessionMessageDto
                         {
                             Id = n.Id,
                             Role = n.Role,
@@ -76,7 +77,7 @@ public static class SessionEndpoints
         group.MapDelete("/{id}", async (Guid id, ISessionStore store, CancellationToken ct) =>
         {
             await store.DeleteAsync(id, ct);
-            return Results.Ok(new { Deleted = id });
+            return Results.Ok(new SessionDeletedResponse { Deleted = id });
         });
 
         group.MapDelete("/{id}/messages/{messageId}", async (
@@ -87,7 +88,7 @@ public static class SessionEndpoints
             var tree = await store.LoadAsync(id, ct);
             var removed = tree.Delete(messageId);
             await store.SaveAsync(tree, ct);
-            return Results.Ok(new { Removed = removed });
+            return Results.Ok(new SessionMessageDeletedResponse { Removed = removed });
         });
 
         // Fork: create a new session with the thread up to the given message
@@ -123,7 +124,7 @@ public static class SessionEndpoints
 
             await store.SaveAsync(newTree, ct);
 
-            return Results.Ok(new
+            return Results.Ok(new SessionForkResponse
             {
                 SessionId = newTree.SessionId,
                 Name = newTree.Name,
@@ -150,7 +151,7 @@ public static class SessionEndpoints
 
             // Return the parentId so the caller can use chat/stream with parentId
             // to create a new variant sibling of this message
-            return Results.Ok(new
+            return Results.Ok(new SessionRegenerateResponse
             {
                 ParentId = node.ParentId,
                 SessionId = id,

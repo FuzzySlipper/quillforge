@@ -245,7 +245,17 @@ export async function listSessions(): Promise<{ sessions: SessionInfo[] }> {
 
 export async function loadSession(
   id: string,
-): Promise<{ sessionId: string; name: string; messages: Array<{ id: string; role: string; content: string; createdAt: string }> }> {
+): Promise<{
+  sessionId: string;
+  name: string;
+  messages: Array<{
+    id: string;
+    role: string;
+    content: string;
+    createdAt: string;
+    variants?: Array<{ content: string; createdAt: string }> | null;
+  }>;
+}> {
   return request(`/api/sessions/${encodeURIComponent(id)}/load`, { method: "POST" });
 }
 

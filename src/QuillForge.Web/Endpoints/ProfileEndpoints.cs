@@ -3,6 +3,7 @@ using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Storage.Configuration;
 using QuillForge.Storage.Utilities;
+using QuillForge.Web.Contracts;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -40,9 +41,8 @@ public static class ProfileEndpoints
                 "Profile switched: persona={Persona}, lore={Lore}, style={Style}",
                 persona, lore, style);
 
-            return Results.Ok(new
+            return Results.Ok(new ProfileSwitchResponse
             {
-                Status = "ok",
                 ActivePersona = persona,
                 ActiveLore = lore,
                 ActiveWritingStyle = style,
@@ -576,7 +576,7 @@ public static class ProfileEndpoints
                 "New Session",
                 loggerFactory.CreateLogger<QuillForge.Core.Models.ConversationTree>());
             await store.SaveAsync(tree, ct);
-            return Results.Ok(new { SessionId = tree.SessionId, Name = tree.Name });
+            return Results.Ok(new SessionCreatedResponse { SessionId = tree.SessionId, Name = tree.Name });
         });
 
         // Forge create

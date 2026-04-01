@@ -265,7 +265,7 @@ function App() {
               msg.reasoning = reasoning;
             }
             // Apply user portrait to the preceding user message
-            const userPortrait = event.data.user_portrait as string | null | undefined;
+            const userPortrait = event.data.userPortrait as string | null | undefined;
             if (userPortrait) {
               setMessages((prev) =>
                 prev.map((m, i) => {

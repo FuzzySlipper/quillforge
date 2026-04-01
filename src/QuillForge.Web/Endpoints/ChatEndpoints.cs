@@ -2,6 +2,7 @@ using System.Text.Json;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Web.Contracts;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -129,11 +130,11 @@ public static class ChatEndpoints
 
                 var eventData = evt switch
                 {
-                    TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new { Type = "text_delta", Text = text.Text }, s_jsonOptions)}\n\n",
-                    ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new { Type = "tool", Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
-                    DoneEvent done => $"data: {JsonSerializer.Serialize(new { Type = "done", SessionId = sessionId, ParentId = appendParentId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = GetPortraitUrl(appConfig.Roleplay.AiCharacter, cardStore), User_portrait = GetPortraitUrl(appConfig.Roleplay.UserCharacter, cardStore) }, s_jsonOptions)}\n\n",
-                    ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new { Type = "reasoning_delta", Text = reasoning.Text }, s_jsonOptions)}\n\n",
-                    DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new { Type = "diagnostic", Category = diag.Category, Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
+                    TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new ChatTextDeltaDto { Text = text.Text }, s_jsonOptions)}\n\n",
+                    ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new ChatToolDto { Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
+                    DoneEvent done => $"data: {JsonSerializer.Serialize(new ChatDoneDto { SessionId = sessionId, ParentId = appendParentId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new ChatUsageDto { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = GetPortraitUrl(appConfig.Roleplay.AiCharacter, cardStore), UserPortrait = GetPortraitUrl(appConfig.Roleplay.UserCharacter, cardStore) }, s_jsonOptions)}\n\n",
+                    ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new ChatReasoningDeltaDto { Text = reasoning.Text }, s_jsonOptions)}\n\n",
+                    DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new ChatDiagnosticDto { Category = diag.Category, Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
                     _ => null,
                 };
 
@@ -149,7 +150,7 @@ public static class ChatEndpoints
             {
                 if (appConfig.Diagnostics.LivePanel)
                 {
-                    var diagWarning = $"data: {JsonSerializer.Serialize(new { Type = "diagnostic", Category = "warning", Message = "Response completed with empty content — model returned no visible text", Level = "warning" }, s_jsonOptions)}\n\n";
+                    var diagWarning = $"data: {JsonSerializer.Serialize(new ChatDiagnosticDto { Category = "warning", Message = "Response completed with empty content — model returned no visible text", Level = "warning" }, s_jsonOptions)}\n\n";
                     await httpContext.Response.WriteAsync(diagWarning, ct);
                     await httpContext.Response.Body.FlushAsync(ct);
                 }

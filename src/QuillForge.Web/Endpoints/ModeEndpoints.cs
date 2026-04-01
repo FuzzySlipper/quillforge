@@ -5,6 +5,7 @@ using QuillForge.Core.Services;
 using QuillForge.Storage.Configuration;
 using QuillForge.Storage.FileSystem;
 using QuillForge.Storage.Utilities;
+using QuillForge.Web.Contracts;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -17,9 +18,9 @@ public static class ModeEndpoints
             HttpContext httpContext,
             CancellationToken ct) =>
         {
-            var sessionId = TryGetSessionId(httpContext);
+            var sessionId = httpContext.TryGetSessionId();
             var state = await runtimeStore.LoadAsync(sessionId, ct);
-            return Results.Ok(new
+            return Results.Ok(new ModeResponse
             {
                 Mode = state.Mode.ActiveModeName,
                 Project = state.Mode.ProjectName,
@@ -58,7 +59,13 @@ public static class ModeEndpoints
                 LastCharacter = character,
             }, ct);
 
-            return Results.Ok(new { Mode = mode, Project = project, File = file, Character = character });
+            return Results.Ok(new ModeResponse
+            {
+                Mode = mode,
+                Project = project,
+                File = file,
+                Character = character,
+            });
         });
 
         app.MapGet("/api/profiles", async (
@@ -72,7 +79,7 @@ public static class ModeEndpoints
             var loreSets = await loreStore.ListLoreSetsAsync(ct);
             var styles = await styleStore.ListAsync(ct);
 
-            return Results.Ok(new
+            return Results.Ok(new ProfilesResponse
             {
                 Personas = personas,
                 LoreSets = loreSets,
@@ -85,9 +92,9 @@ public static class ModeEndpoints
 
         app.MapGet("/api/agents/models", (AppConfig config) =>
         {
-            return Results.Ok(new
+            return Results.Ok(new AgentAssignmentsResponse
             {
-                Assignments = new
+                Assignments = new AgentModelAssignments
                 {
                     Orchestrator = config.Models.Orchestrator,
                     ProseWriter = config.Models.ProseWriter,
@@ -138,10 +145,9 @@ public static class ModeEndpoints
                 "Agent models updated: orchestrator={Orch}, proseWriter={Prose}, librarian={Lib}",
                 config.Models.Orchestrator, config.Models.ProseWriter, config.Models.Librarian);
 
-            return Results.Ok(new
+            return Results.Ok(new AgentAssignmentsUpdateResponse
             {
-                Status = "ok",
-                Assignments = new
+                Assignments = new AgentModelAssignments
                 {
                     Orchestrator = config.Models.Orchestrator,
                     ProseWriter = config.Models.ProseWriter,
@@ -153,20 +159,6 @@ public static class ModeEndpoints
                 }
             });
         });
-    }
-
-    /// <summary>
-    /// Tries to extract a session ID from query string or header.
-    /// Returns null if not provided (uses default/global state).
-    /// </summary>
-    private static Guid? TryGetSessionId(HttpContext httpContext)
-    {
-        if (httpContext.Request.Query.TryGetValue("sessionId", out var sid)
-            && Guid.TryParse(sid, out var parsed))
-        {
-            return parsed;
-        }
-        return null;
     }
 
     private static string? FindSolutionRoot(string startDir)

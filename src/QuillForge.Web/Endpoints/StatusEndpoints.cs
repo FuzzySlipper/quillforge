@@ -1,6 +1,7 @@
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Web.Contracts;
 using QuillForge.Web.Services;
 
 namespace QuillForge.Web.Endpoints;
@@ -10,6 +11,7 @@ public static class StatusEndpoints
     public static void MapStatusEndpoints(this WebApplication app)
     {
         app.MapGet("/api/status", async (
+            HttpContext httpContext,
             ISessionRuntimeStore runtimeStore,
             AutoUpdateService updateService,
             AppConfig config,
@@ -17,7 +19,8 @@ public static class StatusEndpoints
             IPersonaStore personaStore,
             CancellationToken ct) =>
         {
-            var chatState = await runtimeStore.LoadAsync(null, ct);
+            var sessionId = httpContext.TryGetSessionId();
+            var chatState = await runtimeStore.LoadAsync(sessionId, ct);
             // Calculate real token/file counts
             var loreFiles = 0;
             var loreTokens = 0;
@@ -37,9 +40,8 @@ public static class StatusEndpoints
             }
             catch { /* persona may not exist */ }
 
-            return Results.Ok(new
+            return Results.Ok(new StatusResponse
             {
-                Status = "ready",
                 Version = BuildInfo.Version,
                 Build = BuildInfo.InformationalVersion,
                 Mode = chatState.Mode.ActiveModeName,
@@ -52,16 +54,15 @@ public static class StatusEndpoints
                 Layout = config.Layout.Active,
                 AiCharacter = config.Roleplay.AiCharacter ?? "",
                 UserCharacter = config.Roleplay.UserCharacter ?? "",
-                ConversationTurns = 0, // requires active session tracking (Task 28)
+                ConversationTurns = 0, // requires active session tracking
                 LoreFiles = loreFiles,
                 ContextLimit = 0, // provider-specific, needs registry lookup
                 LoreTokens = loreTokens,
                 PersonaTokens = personaTokens,
-                HistoryTokens = 0, // requires active session tracking (Task 28)
+                HistoryTokens = 0, // requires active session tracking
                 DiagnosticsLivePanel = config.Diagnostics.LivePanel,
-                Update = updateService.UpdateAvailable ? new
+                Update = updateService.UpdateAvailable ? new UpdateInfoDto
                 {
-                    Available = true,
                     Version = updateService.LatestVersion,
                     Url = updateService.DownloadUrl,
                 } : null,
