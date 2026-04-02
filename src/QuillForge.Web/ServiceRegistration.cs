@@ -5,6 +5,7 @@ using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Providers.ImageGen;
 using QuillForge.Providers.Tts;
+using QuillForge.Storage.Configuration;
 using QuillForge.Storage.FileSystem;
 using QuillForge.Storage.Utilities;
 
@@ -60,8 +61,13 @@ public static class ServiceRegistration
 
         services.AddSingleton(sp =>
             new RuntimeStateStore(contentRoot,
-                sp.GetRequiredService<AtomicFileWriter>(),
+                sp.GetRequiredService<Den.Persistence.AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<RuntimeStateStore>>()));
+
+        services.AddSingleton<IAppConfigStore>(sp =>
+            new AppConfigStore(contentRoot,
+                sp.GetRequiredService<Den.Persistence.AtomicFileWriter>(),
+                sp.GetRequiredService<ILogger<AppConfigStore>>()));
 
         services.AddSingleton<ISessionRuntimeStore>(sp =>
             new FileSystemSessionRuntimeStore(contentRoot,

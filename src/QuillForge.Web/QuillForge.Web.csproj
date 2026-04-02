@@ -23,6 +23,7 @@
   </Target>
 
   <ItemGroup>
+    <ProjectReference Include="..\Den.Persistence\Den.Persistence.csproj" />
     <ProjectReference Include="..\QuillForge.Core\QuillForge.Core.csproj" />
     <ProjectReference Include="..\QuillForge.Providers\QuillForge.Providers.csproj" />
     <ProjectReference Include="..\QuillForge.Storage\QuillForge.Storage.csproj" />

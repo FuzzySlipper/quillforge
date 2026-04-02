@@ -51,17 +51,23 @@ firstRunSetup.EnsureContentDirectory(contentRoot,
 
 // --- Load configuration (create defaults if missing, even on existing installs) ---
 var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
-var configLoader = new ConfigurationLoader(
-    LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ConfigurationLoader>());
 if (!File.Exists(configPath))
 {
+    var configLoader = new ConfigurationLoader(
+        LoggerFactory.Create(b => b.AddConsole()).CreateLogger<ConfigurationLoader>());
     configLoader.WriteDefaults(configPath);
 }
-var appConfig = configLoader.Load(configPath);
+// Load config through the persisted-document store for normalized, validated state.
+var startupWriter = new Den.Persistence.AtomicFileWriter(
+    LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Den.Persistence.AtomicFileWriter>());
+var appConfigStore = new QuillForge.Storage.Configuration.AppConfigStore(contentRoot, startupWriter,
+    LoggerFactory.Create(b => b.AddConsole()).CreateLogger<QuillForge.Storage.Configuration.AppConfigStore>());
+var appConfig = await appConfigStore.LoadAsync();
 builder.Services.AddSingleton(appConfig);
 
 // --- Utilities ---
 builder.Services.AddSingleton<AtomicFileWriter>();
+builder.Services.AddSingleton<Den.Persistence.AtomicFileWriter>();
 
 // --- LLM debug logging ---
 builder.Services.AddSingleton<ILlmDebugLogger>(new LlmDebugLogger(Path.Combine(contentRoot, ContentPaths.Data)));
