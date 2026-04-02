@@ -1,9 +1,7 @@
 using System.Text.Json;
+using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
-using QuillForge.Storage.Configuration;
-using QuillForge.Storage.Utilities;
-using QuillForge.Core;
 using QuillForge.Web.Contracts;
 
 namespace QuillForge.Web.Endpoints;
@@ -16,15 +14,12 @@ public static class ProfileEndpoints
         app.MapPost("/api/profiles/switch", async (
             HttpContext httpContext,
             AppConfig config,
-            AtomicFileWriter writer,
-            ILogger<ConfigurationLoader> logger,
+            IAppConfigStore configStore,
+            ILogger<AppConfig> logger,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
-
-            var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
-            var loader = new ConfigurationLoader(logger);
 
             var persona = root.TryGetProperty("persona", out var pEl) ? pEl.GetString() ?? config.Persona.Active : config.Persona.Active;
             var lore = root.TryGetProperty("lore", out var lEl) ? lEl.GetString() ?? config.Lore.Active : config.Lore.Active;
@@ -36,7 +31,7 @@ public static class ProfileEndpoints
             config.WritingStyle = new WritingStyleConfig { Active = style };
             config.Layout = new LayoutConfig { Active = layout };
 
-            await writer.WriteAsync(configPath, ConfigurationLoader.Serialize(config), ct);
+            await configStore.SaveAsync(config, ct);
 
             logger.LogInformation(
                 "Profile switched: persona={Persona}, lore={Lore}, style={Style}",
@@ -144,8 +139,8 @@ public static class ProfileEndpoints
         app.MapPost("/api/layout", async (
             HttpContext httpContext,
             AppConfig config,
-            AtomicFileWriter writer,
-            ILogger<ConfigurationLoader> logger,
+            IAppConfigStore configStore,
+            ILogger<AppConfig> logger,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -160,8 +155,7 @@ public static class ProfileEndpoints
 
             config.Layout = new LayoutConfig { Active = layout };
 
-            var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
-            await writer.WriteAsync(configPath, ConfigurationLoader.Serialize(config), ct);
+            await configStore.SaveAsync(config, ct);
 
             logger.LogInformation("Layout switched to {Layout}", layout);
 

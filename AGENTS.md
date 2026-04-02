@@ -34,10 +34,11 @@ These are non-negotiable. Do not suggest alternatives.
 - **`Microsoft.Extensions.AI` is a preferred adapter, not a mandatory transport layer.** Use it as the default path for well-behaved providers, shared middleware, and standard tool/chat flows, but do not contort the product around its abstractions when providers require nonstandard request fields, streaming formats, reasoning payloads, or other provider-specific behavior. In those cases, add a provider-specific adapter inside `QuillForge.Providers` behind `ICompletionService` rather than forcing all providers through `IChatClient`.
 - **Effusive logging.** Log at every significant operation — agent calls, tool dispatch, pipeline stage transitions, session mutations, file I/O, provider calls. Use structured logging via `Microsoft.Extensions.Logging`. When in doubt, log it.
 - **No lambdas or closures for tool handlers.** All tool handlers must be named types implementing `IToolHandler` so they are discoverable, testable, and self-documenting.
-- **Dependency direction is fixed:** `QuillForge.Web → QuillForge.Providers → QuillForge.Core` and `QuillForge.Web → QuillForge.Storage → QuillForge.Core`. Core depends on nothing. No circular references. No project references Web.
+- **Dependency direction is fixed:** `QuillForge.Web → QuillForge.Providers → QuillForge.Core` and `QuillForge.Web → QuillForge.Storage → Den.Persistence`. `QuillForge.Storage → QuillForge.Core`. Core depends on nothing. `Den.Persistence` depends on nothing in QuillForge. No circular references. No project references Web.
 - **DisableTransitiveProjectReferences** is enforced. Projects cannot access transitive dependencies of their references.
 - **Messages use stable GUIDs, never array indices.** All API operations on messages reference GUIDs. The frontend sends GUIDs. No positional indexing of conversation history.
 - **Atomic file writes.** All file mutations use write-to-temp-then-rename. Never write directly to the target path.
+- **Persisted config/state changes go through `Den.Persistence` stores.** AppConfig and RuntimeState use `IAppConfigStore` / `RuntimeStateStore`, which wrap `Den.Persistence` persisted-document stores. Do not manually serialize + write config files from endpoints. Use `SaveAsync` or `UpdateAsync` on the store. See "Persisted Document Boundary" below.
 - **Services are stateless.** Take minimum necessary state as parameters. Conversation state lives in `ConversationTree`, not scattered across services.
 - **Tool loop is written once.** The `ToolLoop` class in Core is the single implementation of the call-LLM-check-tools-dispatch-repeat pattern. No agent reimplements this loop.
 - **No mocking libraries in tests.** Use simple hand-written implementations of interfaces (like `FakeCompletionService`, `InMemorySessionStore`). This keeps tests readable and avoids reflection magic.
@@ -351,6 +352,36 @@ build/
     ├── session-state/        (per-session runtime state JSON)
     └── llm-debug/            (debug logs + probe reports)
 ```
+
+### Persisted Document Boundary (`Den.Persistence`)
+
+`src/Den.Persistence/` is a product-neutral persistence module that provides typed, file-backed document stores with a centralized load/default/normalize/validate/save lifecycle. It uses the `Den.*` namespace for future cross-project extraction via git submodule.
+
+**When to use it:** Any time you need to persist config or runtime state to a file. If the data is a single document at a known path (not a keyed collection), it belongs behind `IPersistedDocumentStore<T>`.
+
+**What's migrated:**
+- `AppConfig` → `AppConfigStore` (`IAppConfigStore`) wrapping `YamlPersistedDocumentStore<AppConfig>`
+- `RuntimeState` → `RuntimeStateStore` wrapping `JsonPersistedDocumentStore<RuntimeState>`
+
+**What's not migrated (by design):**
+- `SessionRuntimeState` — keyed collection (one file per session) with inheritance semantics; doesn't fit single-document model
+- `ProviderConfig` — encryption layer between on-disk and in-memory formats; stored type differs from loaded type
+
+**Adding a new persisted field:**
+1. Add the field to the model type (e.g., `AppConfig`)
+2. If it needs normalization (clamping, defaulting), add it to the document's `Normalize` override (e.g., `AppConfigDocument`)
+3. Done. The store handles load, save, and atomic write. No separate wiring needed.
+
+**Adding a new persisted document:**
+1. Define the model type
+2. Create a class extending `PersistedDocumentBase<T>` — implement `RelativePath` and `CreateDefault`, optionally override `Normalize` and `ThrowIfInvalid`
+3. Create a store using `JsonPersistedDocumentStore<T>` or `YamlPersistedDocumentStore<T>`
+4. Register in DI
+
+**Rules:**
+- Do not add QuillForge-specific domain types to `Den.Persistence`. It must stay product-neutral.
+- Dependency direction: `QuillForge.Storage → Den.Persistence`. Den.Persistence depends on nothing in QuillForge.
+- All persisted-document stores include `SemaphoreSlim` locking — thread safety is not optional.
 
 ### Content Path Management
 

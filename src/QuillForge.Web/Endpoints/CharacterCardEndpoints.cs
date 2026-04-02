@@ -2,8 +2,6 @@ using System.Text.Json;
 using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
-using QuillForge.Storage.Configuration;
-using QuillForge.Storage.Utilities;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -114,8 +112,7 @@ public static class CharacterCardEndpoints
         app.MapPost("/api/character-cards/activate", async (
             HttpContext httpContext,
             AppConfig config,
-            AtomicFileWriter writer,
-            ILogger<ConfigurationLoader> logger,
+            IAppConfigStore configStore,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -130,8 +127,7 @@ public static class CharacterCardEndpoints
                 UserCharacter = userCharacter,
             };
 
-            var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
-            await writer.WriteAsync(configPath, ConfigurationLoader.Serialize(config), ct);
+            await configStore.SaveAsync(config, ct);
 
             return Results.Ok(new { Status = "ok", AiCharacter = aiCharacter, UserCharacter = userCharacter });
         });

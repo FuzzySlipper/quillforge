@@ -1,11 +1,8 @@
 using System.Text.Json;
-using QuillForge.Core;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
-using QuillForge.Storage.Configuration;
 using QuillForge.Storage.FileSystem;
-using QuillForge.Storage.Utilities;
 using QuillForge.Web.Contracts;
 
 namespace QuillForge.Web.Endpoints;
@@ -111,7 +108,7 @@ public static class ModeEndpoints
         app.MapPut("/api/agents/models", async (
             HttpContext httpContext,
             AppConfig config,
-            AtomicFileWriter writer,
+            IAppConfigStore configStore,
             ILogger<AppConfig> logger,
             CancellationToken ct) =>
         {
@@ -133,14 +130,7 @@ public static class ModeEndpoints
             if (root.TryGetProperty("research", out var rs) && rs.GetString() is { } research)
                 config.Models.Research = research;
 
-            var solutionRoot = FindSolutionRoot(AppContext.BaseDirectory)
-                ?? FindSolutionRoot(Directory.GetCurrentDirectory());
-            var contentRoot = solutionRoot is not null
-                ? Path.Combine(solutionRoot, "build")
-                : Path.Combine(AppContext.BaseDirectory, "build");
-            var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
-
-            await writer.WriteAsync(configPath, ConfigurationLoader.Serialize(config), ct);
+            await configStore.SaveAsync(config, ct);
 
             logger.LogInformation(
                 "Agent models updated: orchestrator={Orch}, proseWriter={Prose}, librarian={Lib}",
@@ -160,17 +150,5 @@ public static class ModeEndpoints
                 }
             });
         });
-    }
-
-    private static string? FindSolutionRoot(string startDir)
-    {
-        var dir = startDir;
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir, "QuillForge.slnx")))
-                return dir;
-            dir = Path.GetDirectoryName(dir);
-        }
-        return null;
     }
 }
