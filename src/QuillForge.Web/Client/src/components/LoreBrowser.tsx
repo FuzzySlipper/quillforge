@@ -16,9 +16,10 @@ interface LoreBrowserProps {
   open: boolean;
   onClose: () => void;
   onChanged: () => void;
+  sessionId?: string | null;
 }
 
-export default function LoreBrowser({ open, onClose, onChanged }: LoreBrowserProps) {
+export default function LoreBrowser({ open, onClose, onChanged, sessionId }: LoreBrowserProps) {
   const [files, setFiles] = useState<LoreFileInfo[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export default function LoreBrowser({ open, onClose, onChanged }: LoreBrowserPro
 
   async function handleSelectProject(name: string) {
     const loreSet = name === "(default)" ? "(default)" : name;
-    await switchProfile({ lore: loreSet });
+    await switchProfile({ sessionId, lore: loreSet });
     onChanged();
     await refresh();
   }

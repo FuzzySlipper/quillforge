@@ -25,7 +25,7 @@ public static class ProbeEndpoints
             IEnumerable<IToolHandler> toolHandlers,
             ISessionRuntimeService runtimeService,
             IInteractiveSessionContextService sessionContextService,
-            IPersonaStore personaStore,
+            IConductorStore conductorStore,
             AppConfig appConfig,
             AtomicFileWriter fileWriter,
             ILogger<Program> logger,
@@ -48,17 +48,20 @@ public static class ProbeEndpoints
                 StoryStateSummary = sessionContext.StoryStateSummary,
                 FileContext = sessionContext.FileContext,
                 WriterPendingContent = sessionContext.WriterPendingContent,
-                ActiveLoreSet = appConfig.Lore.Active,
+                ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? "default",
             };
             var modeSection = activeMode.BuildSystemPromptSection(modeContext);
 
-            // Load persona
-            var personaText = "";
+            // Load conductor prompt
+            var conductorPromptText = "";
             try
             {
-                personaText = await personaStore.LoadAsync(appConfig.Persona.Active, appConfig.Persona.MaxTokens, ct);
+                conductorPromptText = await conductorStore.LoadAsync(
+                    sessionState.Profile.ActivePersona ?? "default",
+                    appConfig.Persona.MaxTokens,
+                    ct);
             }
-            catch { /* persona may not exist */ }
+            catch { /* conductor may not exist */ }
 
             // Reconstruct the system prompt (same logic as OrchestratorAgent.BuildSystemPrompt)
             var loreSection = string.IsNullOrWhiteSpace(modeContext.ActiveLoreSet)
@@ -66,7 +69,7 @@ public static class ProbeEndpoints
                 : $"\n\n## Active Lore Set\n\nThe current lore set is \"{modeContext.ActiveLoreSet}\". "
                   + "When using `query_lore`, results come from this lore set. "
                   + "Ground your lore references and world-building in this set's content.";
-            var systemPrompt = $"{personaText}\n\n{modeSection}{loreSection}";
+            var systemPrompt = $"{conductorPromptText}\n\n{modeSection}{loreSection}";
 
             // Collect tool definitions
             var toolDefs = toolHandlers.Select(t => t.Definition).ToList();

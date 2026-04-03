@@ -161,6 +161,11 @@ internal sealed class FakeSessionRuntimeService : ISessionRuntimeService
         return Task.FromResult(new SessionRuntimeState { SessionId = sessionId });
     }
 
+    public Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
+    {
+        throw new NotSupportedException();
+    }
+
     public Task<SessionMutationResult<SessionRuntimeState>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
     {
         throw new NotSupportedException();

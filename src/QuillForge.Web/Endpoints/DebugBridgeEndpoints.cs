@@ -32,7 +32,7 @@ public static class DebugBridgeEndpoints
             var sessionId = root.GetOptionalGuid("sessionId") ?? Guid.CreateVersion7();
             var message = root.GetProperty("message").GetString() ?? "";
             var model = root.GetStringOrDefault("model", "default");
-            var persona = root.GetStringOrDefault("persona", "default");
+            var requestedConductor = root.GetOptionalString("persona");
             var maxTokens = root.GetIntOrDefault("maxTokens", 4096);
 
             ConversationTree tree;
@@ -63,16 +63,19 @@ public static class DebugBridgeEndpoints
             {
                 SessionId = sessionId,
                 ActiveMode = sessionState.Mode.ActiveModeName,
-                ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? appConfig.Lore.Active,
-                ActiveNarrativeRules = sessionState.Profile.ActiveNarrativeRules ?? appConfig.NarrativeRules.Active,
-                ActiveWritingStyle = sessionState.Profile.ActiveWritingStyle ?? appConfig.WritingStyle.Active,
+                ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? "default",
+                ActiveNarrativeRules = sessionState.Profile.ActiveNarrativeRules ?? "default",
+                ActiveWritingStyle = sessionState.Profile.ActiveWritingStyle ?? "default",
                 SessionContext = sessionContext,
                 LastAssistantResponse = lastAssistantResponse,
             };
+            var conductor = string.IsNullOrWhiteSpace(requestedConductor)
+                ? sessionState.Profile.ActivePersona ?? "default"
+                : requestedConductor;
 
             var tools = toolHandlers.ToList();
             var response = await orchestrator.HandleAsync(
-                sessionState, persona, model, maxTokens, tools, messages, context, ct: ct);
+                sessionState, conductor, model, maxTokens, tools, messages, context, ct: ct);
 
             tree.Append(tree.ActiveLeafId, "assistant", response.Content, new MessageMetadata
             {

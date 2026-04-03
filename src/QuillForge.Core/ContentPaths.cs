@@ -14,6 +14,7 @@ public static class ContentPaths
     // Legacy compatibility path for older installs and APIs.
     public const string Persona = "persona";
     public const string NarrativeRules = "narrative-rules";
+    public const string Profiles = "profiles";
     public const string Plots = "plots";
     public const string WritingStyles = "writing-styles";
     public const string Story = "story";
@@ -51,6 +52,7 @@ public static class ContentPaths
         Conductor,
         Persona,
         NarrativeRules,
+        Profiles,
         Plots,
         WritingStyles,
         Story,

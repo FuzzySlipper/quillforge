@@ -37,7 +37,7 @@ public static class ChatEndpoints
             // Resolve "default" to the configured orchestrator model
             if (string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
                 model = appConfig.Models.Orchestrator;
-            var persona = root.TryGetProperty("persona", out var p) ? p.GetString() ?? "default" : "default";
+            var requestedConductor = root.GetOptionalString("persona");
             var maxTokens = root.TryGetProperty("maxTokens", out var mt) ? mt.GetInt32() : 4096;
             var parentId = root.GetOptionalGuid("parentId");
 
@@ -105,12 +105,15 @@ public static class ChatEndpoints
             {
                 SessionId = sessionId,
                 ActiveMode = sessionState.Mode.ActiveModeName,
-                ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? appConfig.Lore.Active,
-                ActiveNarrativeRules = sessionState.Profile.ActiveNarrativeRules ?? appConfig.NarrativeRules.Active,
-                ActiveWritingStyle = sessionState.Profile.ActiveWritingStyle ?? appConfig.WritingStyle.Active,
+                ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? "default",
+                ActiveNarrativeRules = sessionState.Profile.ActiveNarrativeRules ?? "default",
+                ActiveWritingStyle = sessionState.Profile.ActiveWritingStyle ?? "default",
                 SessionContext = sessionContext,
                 LastAssistantResponse = lastAssistantResponse,
             };
+            var conductor = string.IsNullOrWhiteSpace(requestedConductor)
+                ? sessionState.Profile.ActivePersona ?? "default"
+                : requestedConductor;
 
             // Stream SSE response, collecting assistant text for persistence
             httpContext.Response.ContentType = "text/event-stream";
@@ -122,7 +125,7 @@ public static class ChatEndpoints
 
             var tools = toolHandlers.ToList();
             await foreach (var evt in orchestrator.HandleStreamAsync(
-                sessionState, persona, model, maxTokens, tools, messages, context, ct: ct))
+                sessionState, conductor, model, maxTokens, tools, messages, context, ct: ct))
             {
                 switch (evt)
                 {

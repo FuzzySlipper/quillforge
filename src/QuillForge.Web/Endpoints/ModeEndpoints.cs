@@ -85,28 +85,37 @@ public static class ModeEndpoints
         });
 
         app.MapGet("/api/profiles", async (
-            IPersonaStore personaStore,
+            HttpContext httpContext,
+            IConductorStore conductorStore,
             ILoreStore loreStore,
             INarrativeRulesStore narrativeRulesStore,
             IWritingStyleStore styleStore,
-            AppConfig config,
+            IProfileConfigService profileService,
+            ISessionRuntimeService runtimeService,
             CancellationToken ct) =>
         {
-            var personas = await personaStore.ListAsync(ct);
+            var sessionId = httpContext.TryGetSessionId();
+            var state = await runtimeService.LoadViewAsync(sessionId, ct);
+            var profileIds = await profileService.ListAsync(ct);
+            var defaultProfileId = await profileService.GetDefaultProfileIdAsync(ct);
+            var conductors = await conductorStore.ListAsync(ct);
             var loreSets = await loreStore.ListLoreSetsAsync(ct);
             var narrativeRules = await narrativeRulesStore.ListAsync(ct);
             var styles = await styleStore.ListAsync(ct);
 
             return Results.Ok(new ProfilesResponse
             {
-                Personas = personas,
+                ProfileIds = profileIds,
+                DefaultProfileId = defaultProfileId,
+                ActiveProfileId = state.Profile.ProfileId ?? defaultProfileId,
+                Personas = conductors,
                 LoreSets = loreSets,
                 NarrativeRules = narrativeRules,
                 WritingStyles = styles,
-                ActivePersona = config.Persona.Active,
-                ActiveLore = config.Lore.Active,
-                ActiveNarrativeRules = config.NarrativeRules.Active,
-                ActiveWritingStyle = config.WritingStyle.Active,
+                ActivePersona = state.Profile.ActivePersona ?? "default",
+                ActiveLore = state.Profile.ActiveLoreSet ?? "default",
+                ActiveNarrativeRules = state.Profile.ActiveNarrativeRules ?? "default",
+                ActiveWritingStyle = state.Profile.ActiveWritingStyle ?? "default",
             });
         });
 

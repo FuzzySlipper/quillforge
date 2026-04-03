@@ -91,6 +91,11 @@ public sealed class ConfigurationLoader
                 config.Persona.MaxTokens);
         }
 
+        if (string.IsNullOrWhiteSpace(config.Profiles.Default))
+        {
+            _logger.LogWarning("profiles.default should not be blank");
+        }
+
         // Agent budget validation
         var agents = config.Agents;
         if (agents.Orchestrator.MaxToolRounds < 1)

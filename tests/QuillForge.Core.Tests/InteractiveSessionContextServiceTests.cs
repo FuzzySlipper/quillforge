@@ -113,6 +113,9 @@ internal sealed class FakeRuntimeViewService : ISessionRuntimeService
         return Task.FromResult(State);
     }
 
+    public Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
     public Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
         => throw new NotSupportedException();
 

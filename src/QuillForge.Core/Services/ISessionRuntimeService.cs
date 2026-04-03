@@ -6,6 +6,11 @@ public interface ISessionRuntimeService
 {
     Task<SessionRuntimeState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default);
 
+    Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(
+        Guid? sessionId,
+        SetSessionProfileCommand command,
+        CancellationToken ct = default);
+
     Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(
         Guid? sessionId,
         SetSessionModeCommand command,

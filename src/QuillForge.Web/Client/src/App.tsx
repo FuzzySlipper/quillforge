@@ -714,6 +714,7 @@ function App() {
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
         onSwitched={refreshStatus}
+        sessionId={currentSessionId}
       />
       <ModeSwitcher
         open={modeOpen}
@@ -731,6 +732,7 @@ function App() {
         open={loreOpen}
         onClose={() => setLoreOpen(false)}
         onChanged={refreshStatus}
+        sessionId={currentSessionId}
       />
       <PlotBrowser
         open={plotOpen}

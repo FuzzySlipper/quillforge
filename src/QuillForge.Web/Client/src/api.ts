@@ -236,11 +236,14 @@ export async function requestImage(
   });
 }
 
-export async function getProfiles(): Promise<Profiles> {
-  return request("/api/profiles");
+export async function getProfiles(sessionId?: string | null): Promise<Profiles> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return request(`/api/profiles${query}`);
 }
 
 export async function switchProfile(profile: {
+  sessionId?: string | null;
+  profileId?: string;
   persona?: string;
   lore?: string;
   narrativeRules?: string;
@@ -463,28 +466,33 @@ export async function createLoreProject(name: string): Promise<{ status: string;
   });
 }
 
-// ── Persona / prompt files ──
+// ── Conductor / prompt files (legacy /api/persona routes) ──
 
-export interface PersonaFileInfo {
+export interface ConductorFileInfo {
   path: string;
   tokens: number;
   size: number;
 }
 
-export async function listPersona(): Promise<{ files: PersonaFileInfo[]; personaPath: string }> {
+export async function listConductors(): Promise<{ files: ConductorFileInfo[]; personaPath: string }> {
   return request("/api/persona");
 }
 
-export async function readPersona(path: string): Promise<{ path: string; content: string; tokens: number }> {
+export async function readConductor(path: string): Promise<{ path: string; content: string; tokens: number }> {
   return request(`/api/persona/${path.split("/").map(encodeURIComponent).join("/")}`);
 }
 
-export async function writePersona(path: string, content: string): Promise<unknown> {
+export async function writeConductor(path: string, content: string): Promise<unknown> {
   return request(`/api/persona/${path.split("/").map(encodeURIComponent).join("/")}`, {
     method: "PUT",
     body: JSON.stringify({ content }),
   });
 }
+
+export type PersonaFileInfo = ConductorFileInfo;
+export const listPersona = listConductors;
+export const readPersona = readConductor;
+export const writePersona = writeConductor;
 
 // ── Writing styles ──
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import MDEditor from "@uiw/react-md-editor";
 import Overlay from "./Overlay";
-import { listPersona, readPersona, writePersona, type PersonaFileInfo } from "../api";
+import { listConductors, readConductor, writeConductor, type ConductorFileInfo } from "../api";
 import { listNarrativeRules, readNarrativeRules, writeNarrativeRules, type NarrativeRulesInfo } from "../api";
 import { listWritingStyles, readWritingStyle, writeWritingStyle, type WritingStyleInfo } from "../api";
 
@@ -15,7 +15,7 @@ type Tab = "persona" | "narrative" | "writing";
 
 export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowserProps) {
   const [tab, setTab] = useState<Tab>("persona");
-  const [personaFiles, setPersonaFiles] = useState<PersonaFileInfo[]>([]);
+  const [conductorFiles, setConductorFiles] = useState<ConductorFileInfo[]>([]);
   const [narrativeRulesFiles, setNarrativeRulesFiles] = useState<NarrativeRulesInfo[]>([]);
   const [styleFiles, setStyleFiles] = useState<WritingStyleInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -27,15 +27,15 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
 
   useEffect(() => {
     if (!open) return;
-    listPersona().then((data) => setPersonaFiles(data.files));
+    listConductors().then((data) => setConductorFiles(data.files));
     listNarrativeRules().then((data) => setNarrativeRulesFiles(data.files));
     listWritingStyles().then((data) => setStyleFiles(data.files));
   }, [open]);
 
-  async function handleSelectPersona(path: string) {
+  async function handleSelectConductor(path: string) {
     setLoading(true);
     try {
-      const data = await readPersona(path);
+      const data = await readConductor(path);
       setSelected(path);
       setSelectedType("persona");
       setContent(data.content);
@@ -76,9 +76,9 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
     setSaving(true);
     try {
       if (selectedType === "persona") {
-        await writePersona(selected, content);
-        const data = await listPersona();
-        setPersonaFiles(data.files);
+        await writeConductor(selected, content);
+        const data = await listConductors();
+        setConductorFiles(data.files);
       } else if (selectedType === "narrative") {
         await writeNarrativeRules(selected, content);
         const data = await listNarrativeRules();
@@ -103,15 +103,15 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
 
   const isDirty = content !== originalContent;
 
-  // Group persona files by directory
-  const grouped = personaFiles.reduce<Record<string, PersonaFileInfo[]>>((acc, f) => {
+  // Group conductor files by directory
+  const grouped = conductorFiles.reduce<Record<string, ConductorFileInfo[]>>((acc, f) => {
     const dir = f.path.includes("/") ? f.path.split("/")[0] : "(root)";
     if (!acc[dir]) acc[dir] = [];
     acc[dir].push(f);
     return acc;
   }, {});
 
-  const totalPersonaTokens = personaFiles.reduce((sum, f) => sum + f.tokens, 0);
+  const totalConductorTokens = conductorFiles.reduce((sum, f) => sum + f.tokens, 0);
   const totalNarrativeRulesTokens = narrativeRulesFiles.reduce((sum, f) => sum + f.tokens, 0);
   const totalStyleTokens = styleFiles.reduce((sum, f) => sum + f.tokens, 0);
 
@@ -193,7 +193,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
         {tab === "persona" && (
           <>
             <div className="text-xs text-text-muted">
-              {personaFiles.length} files · ~{Math.round(totalPersonaTokens / 1000)}k tokens total
+              {conductorFiles.length} files · ~{Math.round(totalConductorTokens / 1000)}k tokens total
             </div>
             {Object.entries(grouped).map(([dir, dirFiles]) => (
               <div key={dir}>
@@ -208,7 +208,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
                     return (
                       <button
                         key={f.path}
-                        onClick={() => handleSelectPersona(f.path)}
+                        onClick={() => handleSelectConductor(f.path)}
                         className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-input-bg text-left transition-colors"
                       >
                         <span className="text-sm text-text">{name}</span>

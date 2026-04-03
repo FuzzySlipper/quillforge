@@ -115,7 +115,7 @@ public class OrchestratorTests
 }
 
 /// <summary>
-/// Simple fake persona store for testing.
+/// Simple fake conductor store for testing.
 /// </summary>
 internal sealed class FakePersonaStore : QuillForge.Core.Services.IPersonaStore
 {

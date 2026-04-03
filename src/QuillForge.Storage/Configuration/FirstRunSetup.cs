@@ -152,6 +152,13 @@ public sealed class FirstRunSetup
             Maintain a consistent narrative voice throughout.
             """);
 
+        WriteIfMissing(Path.Combine(contentRoot, ContentPaths.Profiles, "default.yaml"), """
+            conductor: default
+            lore_set: default
+            narrative_rules: default
+            writing_style: default
+            """);
+
         _logger.LogInformation("Created minimal default content files");
     }
 

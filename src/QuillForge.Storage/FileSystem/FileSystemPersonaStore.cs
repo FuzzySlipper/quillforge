@@ -1,174 +1,34 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Services;
-using QuillForge.Core.Utilities;
 
 namespace QuillForge.Storage.FileSystem;
 
 /// <summary>
-/// Loads conductor prompt profiles from the file system.
-/// Supports the new conductor/ directory first, then falls back to the legacy
-/// persona/ directory for compatibility. A profile can be either a single .md
-/// file or a directory containing multiple .md files (concatenated in
-/// alphabetical order).
+/// Legacy compatibility wrapper for the renamed conductor store.
 /// </summary>
 public sealed class FileSystemPersonaStore : IPersonaStore
 {
-    private readonly string _conductorPath;
-    private readonly string? _legacyPersonaPath;
-    private readonly ILogger<FileSystemPersonaStore> _logger;
+    private readonly FileSystemConductorStore _inner;
 
     public FileSystemPersonaStore(
         string conductorPath,
         string? legacyPersonaPath,
         ILogger<FileSystemPersonaStore> logger)
     {
-        _conductorPath = conductorPath;
-        _legacyPersonaPath = legacyPersonaPath;
-        _logger = logger;
+        _inner = new FileSystemConductorStore(
+            conductorPath,
+            legacyPersonaPath,
+            NullLogger<FileSystemConductorStore>.Instance);
     }
 
     public async Task<string> LoadAsync(string personaName, int? maxTokens = null, CancellationToken ct = default)
     {
-        _logger.LogDebug(
-            "Loading conductor profile: {Name}, budget: {Budget} tokens",
-            personaName,
-            maxTokens ?? -1);
-
-        foreach (var root in EnumerateRoots())
-        {
-            var dirPath = Path.Combine(root, personaName);
-            if (Directory.Exists(dirPath))
-            {
-                if (maxTokens.HasValue)
-                {
-                    return await LoadTieredAsync(dirPath, maxTokens.Value, ct);
-                }
-
-                var files = Directory.GetFiles(dirPath, "*.md", SearchOption.TopDirectoryOnly)
-                    .OrderBy(f => f)
-                    .ToList();
-
-                if (files.Count > 0)
-                {
-                    var parts = new List<string>();
-                    foreach (var file in files)
-                    {
-                        parts.Add(await File.ReadAllTextAsync(file, ct));
-                    }
-
-                    _logger.LogDebug(
-                        "Loaded conductor profile {Name} from {Count} files in {Root}",
-                        personaName,
-                        files.Count,
-                        root);
-                    return string.Join("\n\n", parts);
-                }
-            }
-
-            var filePath = Path.Combine(root, personaName + ".md");
-            if (File.Exists(filePath))
-            {
-                _logger.LogDebug("Loaded conductor profile {Name} from file in {Root}", personaName, root);
-                return await File.ReadAllTextAsync(filePath, ct);
-            }
-        }
-
-        _logger.LogWarning("Conductor profile not found: {Name}, returning empty", personaName);
-        return "";
-    }
-
-    private async Task<string> LoadTieredAsync(string dirPath, int budget, CancellationToken ct)
-    {
-        // Priority tiers — loaded in order, stop when budget exceeded
-        var tiers = new[] { "core.md", "quirks.md", "references.md", "extended.md" };
-
-        var parts = new List<string>();
-        var totalTokens = 0;
-
-        // First pass: load tiered files in priority order
-        foreach (var tierFile in tiers)
-        {
-            var path = Path.Combine(dirPath, tierFile);
-            if (!File.Exists(path)) continue;
-
-            var content = await File.ReadAllTextAsync(path, ct);
-            var tokens = TokenEstimator.Estimate(content);
-
-            if (totalTokens + tokens > budget)
-            {
-                _logger.LogDebug(
-                    "Conductor tier {Tier} skipped: would exceed budget ({Current} + {FileTokens} > {Budget})",
-                    tierFile, totalTokens, tokens, budget);
-                break;
-            }
-
-            parts.Add(content);
-            totalTokens += tokens;
-            _logger.LogDebug("Loaded conductor tier {Tier}: {Tokens} tokens (total: {Total}/{Budget})",
-                tierFile, tokens, totalTokens, budget);
-        }
-
-        // Second pass: load any non-tier files alphabetically if budget remains
-        var allFiles = Directory.GetFiles(dirPath, "*.md", SearchOption.TopDirectoryOnly)
-            .OrderBy(f => f);
-        var tierSet = new HashSet<string>(tiers, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var file in allFiles)
-        {
-            var fileName = Path.GetFileName(file);
-            if (tierSet.Contains(fileName)) continue;
-
-            var content = await File.ReadAllTextAsync(file, ct);
-            var tokens = TokenEstimator.Estimate(content);
-
-            if (totalTokens + tokens > budget)
-            {
-                _logger.LogDebug("Conductor file {File} skipped: would exceed budget", fileName);
-                continue;
-            }
-
-            parts.Add(content);
-            totalTokens += tokens;
-        }
-
-        _logger.LogDebug("Loaded conductor profile with {Parts} parts, {Tokens}/{Budget} tokens", parts.Count, totalTokens, budget);
-        return string.Join("\n\n", parts);
+        return await _inner.LoadAsync(personaName, maxTokens, ct);
     }
 
     public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
     {
-        var personas = new HashSet<string>();
-
-        foreach (var root in EnumerateRoots())
-        {
-            if (!Directory.Exists(root))
-            {
-                continue;
-            }
-
-            foreach (var dir in Directory.GetDirectories(root))
-            {
-                personas.Add(Path.GetFileName(dir));
-            }
-
-            foreach (var file in Directory.GetFiles(root, "*.md"))
-            {
-                personas.Add(Path.GetFileNameWithoutExtension(file));
-            }
-        }
-
-        var sorted = personas.OrderBy(n => n).ToList();
-        return Task.FromResult<IReadOnlyList<string>>(sorted);
-    }
-
-    private IEnumerable<string> EnumerateRoots()
-    {
-        yield return _conductorPath;
-
-        if (!string.IsNullOrWhiteSpace(_legacyPersonaPath)
-            && !string.Equals(_legacyPersonaPath, _conductorPath, StringComparison.OrdinalIgnoreCase))
-        {
-            yield return _legacyPersonaPath;
-        }
+        return _inner.ListAsync(ct);
     }
 }

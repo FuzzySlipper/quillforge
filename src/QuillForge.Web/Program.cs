@@ -184,7 +184,9 @@ builder.Services.AddSingleton<IMode, ResearchMode>();
 
 builder.Services.AddSingleton<ISessionMutationGate, InMemorySessionMutationGate>();
 builder.Services.AddSingleton<ISessionRuntimeService, SessionRuntimeService>();
+builder.Services.AddSingleton<ISessionLifecycleService, SessionLifecycleService>();
 builder.Services.AddSingleton<IInteractiveSessionContextService, InteractiveSessionContextService>();
+builder.Services.AddSingleton<IProfileConfigService, ProfileConfigService>();
 
 // --- Orchestrator ---
 builder.Services.AddSingleton<OrchestratorAgent>();

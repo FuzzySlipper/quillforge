@@ -16,6 +16,10 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
 
     public override AppConfig Normalize(AppConfig value) => value with
     {
+        Profiles = value.Profiles with
+        {
+            Default = string.IsNullOrWhiteSpace(value.Profiles.Default) ? "default" : value.Profiles.Default.Trim(),
+        },
         Forge = value.Forge with
         {
             ReviewPassThreshold = Math.Clamp(value.Forge.ReviewPassThreshold, 1, 10),

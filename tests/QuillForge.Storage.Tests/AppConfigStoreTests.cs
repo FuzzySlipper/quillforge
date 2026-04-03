@@ -34,6 +34,7 @@ public class AppConfigStoreTests : IDisposable
         var config = await store.LoadAsync();
 
         Assert.Equal("default", config.Models.Orchestrator);
+        Assert.Equal("default", config.Profiles.Default);
         Assert.Equal(7.0, config.Forge.ReviewPassThreshold);
         Assert.Equal(3, config.Forge.MaxRevisions);
         Assert.Equal(6000, config.Persona.MaxTokens);

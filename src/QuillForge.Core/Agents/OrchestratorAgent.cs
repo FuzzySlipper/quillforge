@@ -14,7 +14,7 @@ public sealed class OrchestratorAgent
 {
     private readonly ToolLoop _toolLoop;
     private readonly IReadOnlyDictionary<string, IMode> _modes;
-    private readonly IPersonaStore _personaStore;
+    private readonly IConductorStore _conductorStore;
     private readonly IInteractiveSessionContextService _sessionContextService;
     private readonly ILogger<OrchestratorAgent> _logger;
     private readonly int _maxToolRounds;
@@ -22,14 +22,14 @@ public sealed class OrchestratorAgent
     public OrchestratorAgent(
         ToolLoop toolLoop,
         IEnumerable<IMode> modes,
-        IPersonaStore personaStore,
+        IConductorStore conductorStore,
         IInteractiveSessionContextService sessionContextService,
         AppConfig appConfig,
         ILogger<OrchestratorAgent> logger)
     {
         _maxToolRounds = appConfig.Agents.Orchestrator.MaxToolRounds;
         _toolLoop = toolLoop;
-        _personaStore = personaStore;
+        _conductorStore = conductorStore;
         _sessionContextService = sessionContextService;
         _logger = logger;
 
@@ -56,7 +56,7 @@ public sealed class OrchestratorAgent
     /// </summary>
     public async Task<AgentResponse> HandleAsync(
         SessionRuntimeState state,
-        string personaName,
+        string conductorName,
         string model,
         int maxTokens,
         IReadOnlyList<IToolHandler> tools,
@@ -71,11 +71,11 @@ public sealed class OrchestratorAgent
             "Orchestrator handling message in {Mode} mode, session {SessionId}",
             activeMode.Name, context.SessionId);
 
-        var persona = await _personaStore.LoadAsync(personaName, ct: ct);
+        var conductorPrompt = await _conductorStore.LoadAsync(conductorName, ct: ct);
         var effectiveSessionContext = context.SessionContext ?? await _sessionContextService.BuildAsync(state, ct);
         var effectiveModeContext = modeContext ?? CreateModeContext(effectiveSessionContext, context.ActiveLoreSet);
 
-        var systemPrompt = BuildSystemPrompt(persona, activeMode, effectiveModeContext);
+        var systemPrompt = BuildSystemPrompt(conductorPrompt, activeMode, effectiveModeContext);
 
         var config = new AgentConfig
         {
@@ -102,7 +102,7 @@ public sealed class OrchestratorAgent
     /// </summary>
     public IAsyncEnumerable<StreamEvent> HandleStreamAsync(
         SessionRuntimeState state,
-        string personaName,
+        string conductorName,
         string model,
         int maxTokens,
         IReadOnlyList<IToolHandler> tools,
@@ -111,12 +111,12 @@ public sealed class OrchestratorAgent
         ModeContext? modeContext = null,
         CancellationToken ct = default)
     {
-        return StreamInternalAsync(state, personaName, model, maxTokens, tools, messages, context, modeContext, ct);
+        return StreamInternalAsync(state, conductorName, model, maxTokens, tools, messages, context, modeContext, ct);
     }
 
     private async IAsyncEnumerable<StreamEvent> StreamInternalAsync(
         SessionRuntimeState state,
-        string personaName,
+        string conductorName,
         string model,
         int maxTokens,
         IReadOnlyList<IToolHandler> tools,
@@ -126,10 +126,10 @@ public sealed class OrchestratorAgent
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var activeMode = ResolveMode(state.Mode.ActiveModeName);
-        var persona = await _personaStore.LoadAsync(personaName, ct: ct);
+        var conductorPrompt = await _conductorStore.LoadAsync(conductorName, ct: ct);
         var effectiveSessionContext = context.SessionContext ?? await _sessionContextService.BuildAsync(state, ct);
         var effectiveModeContext = modeContext ?? CreateModeContext(effectiveSessionContext, context.ActiveLoreSet);
-        var systemPrompt = BuildSystemPrompt(persona, activeMode, effectiveModeContext);
+        var systemPrompt = BuildSystemPrompt(conductorPrompt, activeMode, effectiveModeContext);
 
         var config = new AgentConfig
         {
@@ -145,7 +145,7 @@ public sealed class OrchestratorAgent
         }
     }
 
-    internal string BuildSystemPrompt(string persona, IMode activeMode, ModeContext modeContext)
+    internal string BuildSystemPrompt(string conductorPrompt, IMode activeMode, ModeContext modeContext)
     {
         var modeSection = activeMode.BuildSystemPromptSection(modeContext);
 
@@ -171,7 +171,7 @@ public sealed class OrchestratorAgent
             can decide whether to retry or report the issue.
             """;
 
-        return $"{persona}\n\n{modeSection}{stateSummary}{loreSection}{fallbackGuidance}";
+        return $"{conductorPrompt}\n\n{modeSection}{stateSummary}{loreSection}{fallbackGuidance}";
     }
 
     private static ModeContext CreateModeContext(InteractiveSessionContext sessionContext, string? activeLoreSet)

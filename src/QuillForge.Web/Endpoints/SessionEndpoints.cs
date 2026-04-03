@@ -17,13 +17,39 @@ public static class SessionEndpoints
             return Results.Ok(new { Sessions = sessions });
         });
 
-        group.MapPost("/new", async (ISessionStore store, ILoggerFactory loggerFactory, CancellationToken ct) =>
+        group.MapPost("/new", async (
+            HttpContext httpContext,
+            ISessionStore store,
+            ISessionRuntimeStore runtimeStore,
+            IProfileConfigService profileService,
+            ILoggerFactory loggerFactory,
+            CancellationToken ct) =>
         {
+            var profileId = await ReadOptionalProfileIdAsync(httpContext, ct);
             var tree = new ConversationTree(
                 Guid.CreateVersion7(),
                 "New Session",
                 loggerFactory.CreateLogger<ConversationTree>());
             await store.SaveAsync(tree, ct);
+
+            try
+            {
+                var runtimeState = new SessionRuntimeState
+                {
+                    SessionId = tree.SessionId,
+                    Profile = await profileService.BuildSessionProfileStateAsync(profileId, ct),
+                };
+                await runtimeStore.SaveAsync(runtimeState, ct);
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { Error = $"Profile {profileId} not found" });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+
             return Results.Ok(new SessionCreatedResponse { SessionId = tree.SessionId, Name = tree.Name });
         });
 
@@ -75,9 +101,9 @@ public static class SessionEndpoints
             }
         });
 
-        group.MapDelete("/{id}", async (Guid id, ISessionStore store, CancellationToken ct) =>
+        group.MapDelete("/{id}", async (Guid id, ISessionLifecycleService lifecycleService, CancellationToken ct) =>
         {
-            await store.DeleteAsync(id, ct);
+            await lifecycleService.DeleteAsync(id, ct);
             return Results.Ok(new SessionDeletedResponse { Deleted = id });
         });
 
@@ -96,39 +122,27 @@ public static class SessionEndpoints
         group.MapPost("/{id}/fork", async (
             Guid id,
             HttpContext httpContext,
-            ISessionStore store,
-            ILoggerFactory loggerFactory,
+            ISessionLifecycleService lifecycleService,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var messageId = body.RootElement.GetOptionalGuid("messageId");
 
-            var source = await store.LoadAsync(id, ct);
-
-            // Get thread up to the specified message (or full thread if not specified)
-            var thread = messageId.HasValue
-                ? source.GetThread(messageId.Value)
-                : source.GetThread();
-
-            // Create new session and replay messages (skip root node)
-            var newTree = new ConversationTree(
-                Guid.CreateVersion7(),
-                $"Fork of {source.Name}",
-                loggerFactory.CreateLogger<ConversationTree>());
-
-            foreach (var node in thread.Skip(1)) // skip synthetic root
+            try
             {
-                newTree.Append(newTree.ActiveLeafId, node.Role, node.Content, node.Metadata);
+                var newTree = await lifecycleService.ForkAsync(id, messageId, ct);
+
+                return Results.Ok(new SessionForkResponse
+                {
+                    SessionId = newTree.SessionId,
+                    Name = newTree.Name,
+                    MessageCount = newTree.ToFlatThread().Count,
+                });
             }
-
-            await store.SaveAsync(newTree, ct);
-
-            return Results.Ok(new SessionForkResponse
+            catch (FileNotFoundException)
             {
-                SessionId = newTree.SessionId,
-                Name = newTree.Name,
-                MessageCount = newTree.ToFlatThread().Count,
-            });
+                return Results.NotFound(new { Error = $"Session {id} not found" });
+            }
         });
 
         group.MapPost("/{id}/messages/{messageId}/regenerate", async (
@@ -158,13 +172,39 @@ public static class SessionEndpoints
         });
 
         // Legacy path that the frontend also calls
-        app.MapPost("/api/session/new", async (ISessionStore store, ILoggerFactory loggerFactory, CancellationToken ct) =>
+        app.MapPost("/api/session/new", async (
+            HttpContext httpContext,
+            ISessionStore store,
+            ISessionRuntimeStore runtimeStore,
+            IProfileConfigService profileService,
+            ILoggerFactory loggerFactory,
+            CancellationToken ct) =>
         {
+            var profileId = await ReadOptionalProfileIdAsync(httpContext, ct);
             var tree = new ConversationTree(
                 Guid.CreateVersion7(),
                 "New Session",
                 loggerFactory.CreateLogger<ConversationTree>());
             await store.SaveAsync(tree, ct);
+
+            try
+            {
+                var runtimeState = new SessionRuntimeState
+                {
+                    SessionId = tree.SessionId,
+                    Profile = await profileService.BuildSessionProfileStateAsync(profileId, ct),
+                };
+                await runtimeStore.SaveAsync(runtimeState, ct);
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { Error = $"Profile {profileId} not found" });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+
             return Results.Ok(new SessionCreatedResponse { SessionId = tree.SessionId, Name = tree.Name });
         });
 
@@ -217,5 +257,18 @@ public static class SessionEndpoints
                 });
             }
         });
+    }
+
+    private static async Task<string?> ReadOptionalProfileIdAsync(HttpContext httpContext, CancellationToken ct)
+    {
+        if (httpContext.Request.ContentLength is null or 0)
+        {
+            return null;
+        }
+
+        using var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+        return body.RootElement.TryGetProperty("profileId", out var profileEl)
+            ? profileEl.GetString()
+            : null;
     }
 }

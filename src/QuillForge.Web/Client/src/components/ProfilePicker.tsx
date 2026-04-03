@@ -7,9 +7,10 @@ interface ProfilePickerProps {
   open: boolean;
   onClose: () => void;
   onSwitched: () => void;
+  sessionId?: string | null;
 }
 
-export default function ProfilePicker({ open, onClose, onSwitched }: ProfilePickerProps) {
+export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: ProfilePickerProps) {
   const [profiles, setProfiles] = useState<Profiles | null>(null);
   const [persona, setPersona] = useState("");
   const [loreSet, setLoreSet] = useState("");
@@ -19,19 +20,20 @@ export default function ProfilePicker({ open, onClose, onSwitched }: ProfilePick
 
   useEffect(() => {
     if (!open) return;
-    getProfiles().then((p) => {
+    getProfiles(sessionId).then((p) => {
       setProfiles(p);
       setPersona(p.activePersona);
       setLoreSet(p.activeLore);
       setNarrativeRules(p.activeNarrativeRules);
       setStyle(p.activeWritingStyle);
     });
-  }, [open]);
+  }, [open, sessionId]);
 
   async function handleSave() {
     setSaving(true);
     try {
       await switchProfile({
+        sessionId,
         persona,
         lore: loreSet,
         narrativeRules,

@@ -36,6 +36,7 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.Equal("general", state.Mode.ActiveModeName);
         Assert.Null(state.Mode.ProjectName);
         Assert.Equal(WriterState.Idle, state.Writer.State);
+        Assert.Null(state.Profile.ProfileId);
         Assert.Null(state.Profile.ActivePersona);
     }
 
@@ -55,6 +56,7 @@ public class SessionRuntimeStoreTests : IDisposable
             },
             Profile = new ProfileState
             {
+                ProfileId = "grim",
                 ActivePersona = "narrator",
                 ActiveLoreSet = "fantasy",
                 ActiveNarrativeRules = "default",
@@ -86,6 +88,7 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.Equal("test-project", loaded.Mode.ProjectName);
         Assert.Equal("chapter1.md", loaded.Mode.CurrentFile);
         Assert.Equal("hero", loaded.Mode.Character);
+        Assert.Equal("grim", loaded.Profile.ProfileId);
         Assert.Equal("narrator", loaded.Profile.ActivePersona);
         Assert.Equal("fantasy", loaded.Profile.ActiveLoreSet);
         Assert.Equal("default", loaded.Profile.ActiveNarrativeRules);

@@ -10,48 +10,155 @@ public static class ProfileEndpoints
 {
     public static void MapProfileEndpoints(this WebApplication app, string contentRoot)
     {
-        // Switch active persona/lore/writing style
+        // Switch active conductor/lore/writing style
         app.MapPost("/api/profiles/switch", async (
+            ProfileSwitchRequest request,
+            ISessionRuntimeService runtimeService,
+            CancellationToken ct) =>
+        {
+            var result = await runtimeService.SetProfileAsync(
+                request.SessionId,
+                new SetSessionProfileCommand(
+                    request.ProfileId,
+                    request.Persona,
+                    request.Lore,
+                    request.NarrativeRules,
+                    request.WritingStyle),
+                ct);
+
+            if (result.Status == SessionMutationStatus.Busy)
+            {
+                return Results.Conflict(new
+                {
+                    error = "session_busy",
+                    message = result.Error,
+                });
+            }
+
+            if (result.Status == SessionMutationStatus.Invalid)
+            {
+                return Results.BadRequest(new
+                {
+                    error = "invalid_session_mutation",
+                    message = result.Error,
+                });
+            }
+
+            var state = result.Value!;
+
+            return Results.Ok(new ProfileSwitchResponse
+            {
+                ActiveProfileId = state.Profile.ProfileId ?? "default",
+                ActivePersona = state.Profile.ActivePersona ?? "default",
+                ActiveLore = state.Profile.ActiveLoreSet ?? "default",
+                ActiveNarrativeRules = state.Profile.ActiveNarrativeRules ?? "default",
+                ActiveWritingStyle = state.Profile.ActiveWritingStyle ?? "default",
+                LoreFiles = 0,
+            });
+        });
+
+        app.MapGet("/api/profile-configs", async (
+            IProfileConfigService profileService,
+            CancellationToken ct) =>
+        {
+            var profiles = await profileService.ListAsync(ct);
+            var defaultProfileId = await profileService.GetDefaultProfileIdAsync(ct);
+
+            return Results.Ok(new ProfileConfigListResponse
+            {
+                Profiles = profiles,
+                DefaultProfileId = defaultProfileId,
+            });
+        });
+
+        app.MapGet("/api/profile-configs/{profileId}", async (
+            string profileId,
+            IProfileConfigService profileService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var resolved = await profileService.LoadResolvedAsync(profileId, ct);
+                return Results.Ok(ToProfileConfigResponse(resolved));
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { Error = $"Profile {profileId} not found" });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        app.MapPut("/api/profile-configs/{profileId}", async (
+            string profileId,
             HttpContext httpContext,
-            AppConfig runtimeConfig,
-            IAppConfigStore configStore,
-            ILogger<AppConfig> logger,
+            IProfileConfigService profileService,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var persona = root.TryGetProperty("persona", out var pEl) ? pEl.GetString() : null;
-            var lore = root.TryGetProperty("lore", out var lEl) ? lEl.GetString() : null;
-            var narrativeRules = root.TryGetProperty("narrativeRules", out var nrEl) ? nrEl.GetString() : null;
-            var style = root.TryGetProperty("writingStyle", out var sEl) ? sEl.GetString() : null;
-            var layout = root.TryGetProperty("layout", out var layEl) ? layEl.GetString() : null;
-
-            var updatedConfig = await configStore.UpdateAsync(current => current with
+            var config = new ProfileConfig
             {
-                Persona = current.Persona with { Active = persona ?? current.Persona.Active },
-                Lore = current.Lore with { Active = lore ?? current.Lore.Active },
-                NarrativeRules = current.NarrativeRules with { Active = narrativeRules ?? current.NarrativeRules.Active },
-                WritingStyle = current.WritingStyle with { Active = style ?? current.WritingStyle.Active },
-                Layout = current.Layout with { Active = layout ?? current.Layout.Active },
-            }, ct);
-            AppConfigRuntimeSync.CopyFrom(runtimeConfig, updatedConfig);
+                Conductor = root.TryGetProperty("conductor", out var conductorEl)
+                    ? conductorEl.GetString() ?? "default"
+                    : root.TryGetProperty("persona", out var personaEl)
+                        ? personaEl.GetString() ?? "default"
+                        : "default",
+                LoreSet = root.TryGetProperty("loreSet", out var loreSetEl)
+                    ? loreSetEl.GetString() ?? "default"
+                    : root.TryGetProperty("lore", out var loreEl)
+                        ? loreEl.GetString() ?? "default"
+                        : "default",
+                NarrativeRules = root.TryGetProperty("narrativeRules", out var rulesEl)
+                    ? rulesEl.GetString() ?? "default"
+                    : "default",
+                WritingStyle = root.TryGetProperty("writingStyle", out var styleEl)
+                    ? styleEl.GetString() ?? "default"
+                    : "default",
+            };
 
-            logger.LogInformation(
-                "Profile switched: persona={Persona}, lore={Lore}, narrativeRules={NarrativeRules}, style={Style}",
-                updatedConfig.Persona.Active,
-                updatedConfig.Lore.Active,
-                updatedConfig.NarrativeRules.Active,
-                updatedConfig.WritingStyle.Active);
-
-            return Results.Ok(new ProfileSwitchResponse
+            try
             {
-                ActivePersona = updatedConfig.Persona.Active,
-                ActiveLore = updatedConfig.Lore.Active,
-                ActiveNarrativeRules = updatedConfig.NarrativeRules.Active,
-                ActiveWritingStyle = updatedConfig.WritingStyle.Active,
-                LoreFiles = 0,
-            });
+                var saved = await profileService.SaveAsync(profileId, config, ct);
+                return Results.Ok(ToProfileConfigResponse(saved));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        app.MapPost("/api/profile-configs/{profileId}/select", async (
+            string profileId,
+            AppConfig runtimeConfig,
+            IProfileConfigService profileService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var selection = await profileService.SelectAsync(profileId, ct);
+                AppConfigRuntimeSync.CopyFrom(runtimeConfig, selection.UpdatedAppConfig);
+                return Results.Ok(new ProfileSwitchResponse
+                {
+                    ActiveProfileId = selection.ProfileId,
+                    ActivePersona = selection.Config.Conductor,
+                    ActiveLore = selection.Config.LoreSet,
+                    ActiveNarrativeRules = selection.Config.NarrativeRules,
+                    ActiveWritingStyle = selection.Config.WritingStyle,
+                    LoreFiles = 0,
+                });
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { Error = $"Profile {profileId} not found" });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
         });
 
         // Conductor endpoints, exposed through the legacy /api/persona routes
@@ -271,5 +378,17 @@ public static class ProfileEndpoints
     {
         yield return Path.Combine(contentRoot, ContentPaths.Conductor);
         yield return Path.Combine(contentRoot, ContentPaths.Persona);
+    }
+
+    private static ProfileConfigResponse ToProfileConfigResponse(ResolvedProfileConfig resolved)
+    {
+        return new ProfileConfigResponse
+        {
+            ProfileId = resolved.ProfileId,
+            Conductor = resolved.Config.Conductor,
+            LoreSet = resolved.Config.LoreSet,
+            NarrativeRules = resolved.Config.NarrativeRules,
+            WritingStyle = resolved.Config.WritingStyle,
+        };
     }
 }

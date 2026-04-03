@@ -22,7 +22,7 @@ public sealed class SessionRuntimeState
     /// <summary>Mode selection and project/file/character context.</summary>
     public ModeSelectionState Mode { get; set; } = new();
 
-    /// <summary>Active profile selections (persona, narrative rules, lore, writing style).</summary>
+    /// <summary>Active profile selections (conductor, narrative rules, lore, writing style).</summary>
     public ProfileState Profile { get; set; } = new();
 
     /// <summary>Writer-mode-specific runtime state (pending content, review workflow).</summary>
@@ -51,25 +51,28 @@ public sealed class ModeSelectionState
 }
 
 /// <summary>
-/// Active profile selections. Determines which persona, narrative rules, lore set,
+/// Active profile selections. Determines which conductor prompt, narrative rules, lore set,
 /// and writing style are used when building prompts and invoking tools like
 /// query_lore, direct_scene, and write_prose.
 ///
-/// Currently mirrors AppConfig profile values. When session-scoped profiles land,
-/// these override the global config for this session.
+/// ProfileId identifies the durable base profile for the session. The Active*
+/// values are sparse session overrides layered on top of that profile.
 /// </summary>
 public sealed class ProfileState
 {
-    /// <summary>Active persona file name. Null means "use global config default".</summary>
+    /// <summary>Durable profile backing this session. Null means "use the default profile".</summary>
+    public string? ProfileId { get; set; }
+
+    /// <summary>Active conductor file name override. Null means "use the session profile default".</summary>
     public string? ActivePersona { get; set; }
 
-    /// <summary>Active lore set name. Null means "use global config default".</summary>
+    /// <summary>Active lore set name override. Null means "use the session profile default".</summary>
     public string? ActiveLoreSet { get; set; }
 
-    /// <summary>Active narrative rules name. Null means "use global config default".</summary>
+    /// <summary>Active narrative rules name override. Null means "use the session profile default".</summary>
     public string? ActiveNarrativeRules { get; set; }
 
-    /// <summary>Active writing style name. Null means "use global config default".</summary>
+    /// <summary>Active writing style name override. Null means "use the session profile default".</summary>
     public string? ActiveWritingStyle { get; set; }
 }
 

@@ -6,6 +6,13 @@ public sealed record SetSessionModeCommand(
     string? File,
     string? Character);
 
+public sealed record SetSessionProfileCommand(
+    string? ProfileId,
+    string? Persona,
+    string? LoreSet,
+    string? NarrativeRules,
+    string? WritingStyle);
+
 public sealed record CaptureWriterPendingCommand(
     string Content,
     string SourceMode);

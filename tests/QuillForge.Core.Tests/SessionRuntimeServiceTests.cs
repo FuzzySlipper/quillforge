@@ -33,6 +33,7 @@ public sealed class SessionRuntimeServiceTests
         Assert.Equal("novel", result.Value.Mode.ProjectName);
         Assert.Equal("chapter1.md", result.Value.Mode.CurrentFile);
         Assert.Equal("hero", result.Value.Mode.Character);
+        Assert.Equal("default", result.Value.Profile.ProfileId);
     }
 
     [Fact]
@@ -96,6 +97,7 @@ public sealed class SessionRuntimeServiceTests
         Assert.NotNull(result.Value);
         Assert.Equal(WriterState.PendingReview, result.Value.Writer.State);
         Assert.NotNull(result.Value.Writer.PendingContent);
+        Assert.Equal("default", result.Value.Profile.ProfileId);
     }
 
     [Fact]
@@ -215,6 +217,112 @@ public sealed class SessionRuntimeServiceTests
         Assert.Equal("vault-entry", result.Value.Narrative.PlotProgress.CurrentBeat);
         Assert.Contains("setup", result.Value.Narrative.PlotProgress.CompletedBeats);
         Assert.Contains("The guard captain joined the crew.", result.Value.Narrative.PlotProgress.Deviations);
+    }
+
+    [Fact]
+    public async Task LoadViewAsync_HydratesDefaultProfileWithoutPersistingOverrides()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        var view = await service.LoadViewAsync(sessionId);
+
+        Assert.Equal("default", view.Profile.ProfileId);
+        Assert.Equal("default-conductor", view.Profile.ActivePersona);
+        Assert.Equal("default-lore", view.Profile.ActiveLoreSet);
+        Assert.Equal("default-rules", view.Profile.ActiveNarrativeRules);
+        Assert.Equal("default-style", view.Profile.ActiveWritingStyle);
+
+        var raw = await store.LoadAsync(sessionId);
+        Assert.Null(raw.Profile.ProfileId);
+        Assert.Null(raw.Profile.ActivePersona);
+        Assert.Null(raw.Profile.ActiveLoreSet);
+        Assert.Null(raw.Profile.ActiveNarrativeRules);
+        Assert.Null(raw.Profile.ActiveWritingStyle);
+    }
+
+    [Fact]
+    public async Task SetProfileAsync_SwitchesBaseProfileAndStoresSparseOverrides()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        var result = await service.SetProfileAsync(
+            sessionId,
+            new SetSessionProfileCommand("grim", null, null, null, null));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Equal("grim", result.Value.Profile.ProfileId);
+        Assert.Equal("grim-conductor", result.Value.Profile.ActivePersona);
+        Assert.Equal("grim-lore", result.Value.Profile.ActiveLoreSet);
+        Assert.Equal("grim-rules", result.Value.Profile.ActiveNarrativeRules);
+        Assert.Equal("grim-style", result.Value.Profile.ActiveWritingStyle);
+
+        var raw = await store.LoadAsync(sessionId);
+        Assert.Equal("grim", raw.Profile.ProfileId);
+        Assert.Null(raw.Profile.ActivePersona);
+        Assert.Null(raw.Profile.ActiveLoreSet);
+        Assert.Null(raw.Profile.ActiveNarrativeRules);
+        Assert.Null(raw.Profile.ActiveWritingStyle);
+    }
+
+    [Fact]
+    public async Task SetProfileAsync_PreservesSessionOverridesWhenProfileIsUnchanged()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        await service.SetProfileAsync(
+            sessionId,
+            new SetSessionProfileCommand("grim", null, null, null, null));
+
+        var result = await service.SetProfileAsync(
+            sessionId,
+            new SetSessionProfileCommand(null, null, "custom-lore", null, null));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Equal("grim", result.Value.Profile.ProfileId);
+        Assert.Equal("grim-conductor", result.Value.Profile.ActivePersona);
+        Assert.Equal("custom-lore", result.Value.Profile.ActiveLoreSet);
+        Assert.Equal("grim-rules", result.Value.Profile.ActiveNarrativeRules);
+        Assert.Equal("grim-style", result.Value.Profile.ActiveWritingStyle);
+
+        var raw = await store.LoadAsync(sessionId);
+        Assert.Equal("grim", raw.Profile.ProfileId);
+        Assert.Null(raw.Profile.ActivePersona);
+        Assert.Equal("custom-lore", raw.Profile.ActiveLoreSet);
+        Assert.Null(raw.Profile.ActiveNarrativeRules);
+        Assert.Null(raw.Profile.ActiveWritingStyle);
+    }
+
+    [Fact]
+    public async Task SetProfileAsync_KeepsDifferentSessionsIndependent()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionA = Guid.CreateVersion7();
+        var sessionB = Guid.CreateVersion7();
+
+        await service.SetProfileAsync(
+            sessionA,
+            new SetSessionProfileCommand("grim", null, null, null, null));
+        await service.SetProfileAsync(
+            sessionB,
+            new SetSessionProfileCommand(null, "session-b-conductor", null, null, null));
+
+        var viewA = await service.LoadViewAsync(sessionA);
+        var viewB = await service.LoadViewAsync(sessionB);
+
+        Assert.Equal("grim", viewA.Profile.ProfileId);
+        Assert.Equal("grim-conductor", viewA.Profile.ActivePersona);
+        Assert.Equal("default", viewB.Profile.ProfileId);
+        Assert.Equal("session-b-conductor", viewB.Profile.ActivePersona);
+        Assert.Equal("default-lore", viewB.Profile.ActiveLoreSet);
     }
 
     [Fact]
@@ -348,6 +456,7 @@ public sealed class SessionRuntimeServiceTests
         return new SessionRuntimeService(
             store,
             new InMemorySessionMutationGate(NullLogger<InMemorySessionMutationGate>.Instance),
+            new FakeProfileConfigService(),
             Modes,
             NullLogger<SessionRuntimeService>.Instance);
     }
@@ -399,6 +508,7 @@ internal sealed class InMemorySessionRuntimeStore : ISessionRuntimeStore
             },
             Profile = new ProfileState
             {
+                ProfileId = state.Profile.ProfileId,
                 ActivePersona = state.Profile.ActivePersona,
                 ActiveLoreSet = state.Profile.ActiveLoreSet,
                 ActiveNarrativeRules = state.Profile.ActiveNarrativeRules,
@@ -420,6 +530,73 @@ internal sealed class InMemorySessionRuntimeStore : ISessionRuntimeStore
                     Deviations = [.. state.Narrative.PlotProgress.Deviations],
                 },
             },
+        };
+    }
+}
+
+internal sealed class FakeProfileConfigService : IProfileConfigService
+{
+    private readonly Dictionary<string, ProfileConfig> _profiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["default"] = new()
+        {
+            Conductor = "default-conductor",
+            LoreSet = "default-lore",
+            NarrativeRules = "default-rules",
+            WritingStyle = "default-style",
+        },
+        ["grim"] = new()
+        {
+            Conductor = "grim-conductor",
+            LoreSet = "grim-lore",
+            NarrativeRules = "grim-rules",
+            WritingStyle = "grim-style",
+        },
+    };
+
+    public string DefaultProfileId { get; set; } = "default";
+
+    public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<string>>(_profiles.Keys.OrderBy(k => k).ToList());
+
+    public Task<string> GetDefaultProfileIdAsync(CancellationToken ct = default)
+        => Task.FromResult(DefaultProfileId);
+
+    public Task<ResolvedProfileConfig> LoadResolvedAsync(string? profileId = null, CancellationToken ct = default)
+    {
+        var resolvedProfileId = string.IsNullOrWhiteSpace(profileId) ? DefaultProfileId : profileId.Trim();
+        if (!_profiles.TryGetValue(resolvedProfileId, out var config))
+        {
+            throw new FileNotFoundException($"Profile config {resolvedProfileId} not found");
+        }
+
+        return Task.FromResult(new ResolvedProfileConfig
+        {
+            ProfileId = resolvedProfileId,
+            Config = config,
+            Persisted = true,
+        });
+    }
+
+    public Task<ResolvedProfileConfig> SaveAsync(string profileId, ProfileConfig config, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
+    public Task<ProfileSelectionResult> SelectAsync(string profileId, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
+    public Task<ProfileSelectionResult> SaveAndSelectAsync(string profileId, ProfileConfig config, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
+    public async Task<ProfileState> BuildSessionProfileStateAsync(string? profileId = null, CancellationToken ct = default)
+    {
+        var resolved = await LoadResolvedAsync(profileId, ct);
+        return new ProfileState
+        {
+            ProfileId = resolved.ProfileId,
+            ActivePersona = resolved.Config.Conductor,
+            ActiveLoreSet = resolved.Config.LoreSet,
+            ActiveNarrativeRules = resolved.Config.NarrativeRules,
+            ActiveWritingStyle = resolved.Config.WritingStyle,
         };
     }
 }

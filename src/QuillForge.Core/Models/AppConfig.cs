@@ -6,6 +6,7 @@ namespace QuillForge.Core.Models;
 public sealed record AppConfig
 {
     public ModelsConfig Models { get; set; } = new();
+    public ProfilesConfig Profiles { get; set; } = new();
     public PersonaConfig Persona { get; set; } = new();
     public NarrativeRulesConfig NarrativeRules { get; set; } = new();
     public LoreConfig Lore { get; set; } = new();
@@ -20,6 +21,11 @@ public sealed record AppConfig
     public TimeoutsConfig Timeouts { get; set; } = new();
     public ImageGenConfig ImageGen { get; set; } = new();
     public TtsConfig Tts { get; set; } = new();
+}
+
+public sealed record ProfilesConfig
+{
+    public string Default { get; set; } = "default";
 }
 
 public sealed record ModelsConfig

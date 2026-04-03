@@ -82,9 +82,9 @@ public static class PlotEndpoints
             {
                 SessionId = runtimeState.SessionId ?? Guid.CreateVersion7(),
                 ActiveMode = runtimeState.Mode.ActiveModeName,
-                ActiveLoreSet = runtimeState.Profile.ActiveLoreSet ?? appConfig.Lore.Active,
-                ActiveNarrativeRules = runtimeState.Profile.ActiveNarrativeRules ?? appConfig.NarrativeRules.Active,
-                ActiveWritingStyle = runtimeState.Profile.ActiveWritingStyle ?? appConfig.WritingStyle.Active,
+                ActiveLoreSet = runtimeState.Profile.ActiveLoreSet ?? "default",
+                ActiveNarrativeRules = runtimeState.Profile.ActiveNarrativeRules ?? "default",
+                ActiveWritingStyle = runtimeState.Profile.ActiveWritingStyle ?? "default",
                 SessionContext = sessionContext,
             };
 

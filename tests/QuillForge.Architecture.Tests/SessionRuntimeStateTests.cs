@@ -54,9 +54,10 @@ public class SessionRuntimeStateTests
     }
 
     [Fact]
-    public void ProfileState_DefaultsToNull_MeaningUseGlobalConfig()
+    public void ProfileState_DefaultsToNull_MeaningUseDefaultProfileWithNoOverrides()
     {
         var profile = new ProfileState();
+        Assert.Null(profile.ProfileId);
         Assert.Null(profile.ActivePersona);
         Assert.Null(profile.ActiveLoreSet);
         Assert.Null(profile.ActiveWritingStyle);
@@ -122,6 +123,14 @@ public class SessionRuntimeStateTests
     }
 
     [Fact]
+    public void ISessionLifecycleService_ExistsInCore()
+    {
+        var serviceType = typeof(ISessionLifecycleService);
+        Assert.True(serviceType.IsInterface);
+        Assert.Equal("QuillForge.Core", serviceType.Assembly.GetName().Name);
+    }
+
+    [Fact]
     public void IInteractiveSessionContextService_ExistsInCore()
     {
         var serviceType = typeof(IInteractiveSessionContextService);
@@ -178,6 +187,7 @@ public class SessionRuntimeStateTests
             },
             Profile = new ProfileState
             {
+                ProfileId = "grim",
                 ActivePersona = "narrator",
                 ActiveLoreSet = "fantasy",
                 ActiveWritingStyle = "literary",
@@ -203,6 +213,7 @@ public class SessionRuntimeStateTests
         Assert.Equal("my-novel", state.Mode.ProjectName);
         Assert.Equal("chapter1.md", state.Mode.CurrentFile);
         Assert.Equal("hero", state.Mode.Character);
+        Assert.Equal("grim", state.Profile.ProfileId);
         Assert.Equal("narrator", state.Profile.ActivePersona);
         Assert.Equal("fantasy", state.Profile.ActiveLoreSet);
         Assert.Equal("literary", state.Profile.ActiveWritingStyle);

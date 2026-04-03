@@ -16,7 +16,7 @@ public static class StatusEndpoints
             AutoUpdateService updateService,
             AppConfig config,
             ILoreStore loreStore,
-            IPersonaStore personaStore,
+            IConductorStore conductorStore,
             CancellationToken ct) =>
         {
             var sessionId = httpContext.TryGetSessionId();
@@ -26,7 +26,7 @@ public static class StatusEndpoints
             var loreTokens = 0;
             try
             {
-                var loreSet = await loreStore.LoadLoreSetAsync(config.Lore.Active, ct);
+                var loreSet = await loreStore.LoadLoreSetAsync(chatState.Profile.ActiveLoreSet ?? "default", ct);
                 loreFiles = loreSet.Count;
                 loreTokens = loreSet.Values.Sum(v => v.Length) / 4; // rough token estimate
             }
@@ -35,10 +35,10 @@ public static class StatusEndpoints
             var personaTokens = 0;
             try
             {
-                var persona = await personaStore.LoadAsync(config.Persona.Active, config.Persona.MaxTokens, ct);
-                personaTokens = persona.Length / 4;
+                var conductorPrompt = await conductorStore.LoadAsync(chatState.Profile.ActivePersona ?? "default", config.Persona.MaxTokens, ct);
+                personaTokens = conductorPrompt.Length / 4;
             }
-            catch { /* persona may not exist */ }
+            catch { /* conductor may not exist */ }
 
             return Results.Ok(new StatusResponse
             {
@@ -47,9 +47,9 @@ public static class StatusEndpoints
                 Mode = chatState.Mode.ActiveModeName,
                 Project = chatState.Mode.ProjectName,
                 File = chatState.Mode.CurrentFile,
-                LoreSet = config.Lore.Active,
-                Persona = config.Persona.Active,
-                WritingStyle = config.WritingStyle.Active,
+                LoreSet = chatState.Profile.ActiveLoreSet ?? "default",
+                Persona = chatState.Profile.ActivePersona ?? "default",
+                WritingStyle = chatState.Profile.ActiveWritingStyle ?? "default",
                 Model = config.Models.Orchestrator,
                 Layout = config.Layout.Active,
                 AiCharacter = config.Roleplay.AiCharacter ?? "",

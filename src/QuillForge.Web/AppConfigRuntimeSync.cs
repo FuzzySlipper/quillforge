@@ -11,6 +11,7 @@ public static class AppConfigRuntimeSync
     public static void CopyFrom(AppConfig target, AppConfig source)
     {
         target.Models = source.Models;
+        target.Profiles = source.Profiles;
         target.Persona = source.Persona;
         target.NarrativeRules = source.NarrativeRules;
         target.Lore = source.Lore;
