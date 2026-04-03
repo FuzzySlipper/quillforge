@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Storage.Configuration;
 using QuillForge.Storage.FileSystem;
+using QuillForge.Storage.Utilities;
 
 namespace QuillForge.Storage.Tests;
 
@@ -46,8 +47,14 @@ public class DefaultsIntegrationTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_tempDir, "lore", "default", "world-overview.md")));
         Assert.True(File.Exists(Path.Combine(_tempDir, "lore", "default", "characters", "elena-vasquez.md")));
 
-        // Should have persona files
-        Assert.True(Directory.Exists(Path.Combine(_tempDir, "persona", "narrator")));
+        // Should have conductor files
+        Assert.True(Directory.Exists(Path.Combine(_tempDir, "conductor", "narrator")));
+
+        // Should have narrative rules
+        Assert.True(File.Exists(Path.Combine(_tempDir, "narrative-rules", "default.md")));
+
+        // Should have plot defaults
+        Assert.True(File.Exists(Path.Combine(_tempDir, "plots", "default.md")));
 
         // Should have writing styles
         Assert.True(File.Exists(Path.Combine(_tempDir, "writing-styles", "default.md")));
@@ -121,6 +128,45 @@ public class DefaultsIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task NarrativeRulesStore_LoadsDefaultRules()
+    {
+        if (_defaultsPath is null) return;
+
+        var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
+        setup.EnsureContentDirectory(_tempDir, _defaultsPath);
+
+        var store = new FileSystemNarrativeRulesStore(
+            Path.Combine(_tempDir, "narrative-rules"),
+            NullLoggerFactory.Instance.CreateLogger<FileSystemNarrativeRulesStore>());
+
+        var rules = await store.ListAsync();
+        Assert.Contains("default", rules);
+
+        var defaultRules = await store.LoadAsync("default");
+        Assert.Contains("Let user actions matter", defaultRules);
+    }
+
+    [Fact]
+    public async Task PlotStore_LoadsDefaultPlot()
+    {
+        if (_defaultsPath is null) return;
+
+        var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
+        setup.EnsureContentDirectory(_tempDir, _defaultsPath);
+
+        var store = new FileSystemPlotStore(
+            Path.Combine(_tempDir, "plots"),
+            new AtomicFileWriter(NullLoggerFactory.Instance.CreateLogger<AtomicFileWriter>()),
+            NullLoggerFactory.Instance.CreateLogger<FileSystemPlotStore>());
+
+        var plots = await store.ListAsync();
+        Assert.Contains("default", plots);
+
+        var content = await store.LoadAsync("default");
+        Assert.Contains("Premise", content);
+    }
+
+    [Fact]
     public async Task PersonaStore_LoadsNarratorPersona()
     {
         if (_defaultsPath is null) return;
@@ -129,11 +175,23 @@ public class DefaultsIntegrationTests : IDisposable
         setup.EnsureContentDirectory(_tempDir, _defaultsPath);
 
         var store = new FileSystemPersonaStore(
+            Path.Combine(_tempDir, "conductor"),
             Path.Combine(_tempDir, "persona"),
             NullLoggerFactory.Instance.CreateLogger<FileSystemPersonaStore>());
 
         var personas = await store.ListAsync();
         Assert.True(personas.Count > 0);
+    }
+
+    [Fact]
+    public void FirstRunSetup_CreatesMinimalConductorDefault_WhenDefaultsAreMissing()
+    {
+        var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
+        setup.EnsureContentDirectory(_tempDir, defaultsPath: null);
+
+        var conductorDefaultPath = Path.Combine(_tempDir, "conductor", "default.md");
+        Assert.True(File.Exists(conductorDefaultPath));
+        Assert.Contains("coordination layer", File.ReadAllText(conductorDefaultPath), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

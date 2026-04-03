@@ -7,6 +7,7 @@ interface ContextOverlayProps {
   open: boolean;
   onClose: () => void;
   status: Status | null;
+  sessionId?: string | null;
 }
 
 type Tab = "overview" | "debug";
@@ -27,7 +28,7 @@ interface HistoryMessage {
   blocks?: HistoryBlock[];
 }
 
-export default function ContextOverlay({ open, onClose, status }: ContextOverlayProps) {
+export default function ContextOverlay({ open, onClose, status, sessionId }: ContextOverlayProps) {
   const [tab, setTab] = useState<Tab>("overview");
   const [history, setHistory] = useState<HistoryMessage[]>([]);
   const [historyCount, setHistoryCount] = useState(0);
@@ -36,7 +37,8 @@ export default function ContextOverlay({ open, onClose, status }: ContextOverlay
   useEffect(() => {
     if (!open || tab !== "debug") return;
     setLoadingHistory(true);
-    fetch("/api/conversation/history")
+    const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+    fetch(`/api/conversation/history${query}`)
       .then((r) => r.json())
       .then((data) => {
         setHistory(data.messages ?? []);
@@ -44,7 +46,7 @@ export default function ContextOverlay({ open, onClose, status }: ContextOverlay
       })
       .catch(() => setHistory([]))
       .finally(() => setLoadingHistory(false));
-  }, [open, tab]);
+  }, [open, tab, sessionId]);
 
   const tabClass = (t: Tab) =>
     `text-sm px-3 py-1.5 rounded-lg transition-colors ${
@@ -69,7 +71,7 @@ export default function ContextOverlay({ open, onClose, status }: ContextOverlay
               <ContextMeter status={status} />
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="bg-input-bg rounded-lg p-3">
-                  <div className="text-text-muted text-xs mb-1">Persona</div>
+                  <div className="text-text-muted text-xs mb-1">Conductor</div>
                   <div>{status.persona}</div>
                 </div>
                 <div className="bg-input-bg rounded-lg p-3">

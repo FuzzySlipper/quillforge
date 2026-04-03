@@ -116,6 +116,7 @@ builder.Services.AddSingleton<ProseWriterAgent>(sp =>
         config,
         sp.GetRequiredService<ILogger<ProseWriterAgent>>());
 });
+builder.Services.AddSingleton<NarrativeDirectorAgent>();
 
 builder.Services.AddSingleton<DelegatePool>(sp =>
 {
@@ -175,11 +176,15 @@ builder.Services.AddSingleton<IToolHandler>(sp =>
 
 // --- Modes (explicit, no scanning) ---
 builder.Services.AddSingleton<IMode, GeneralMode>();
-builder.Services.AddSingleton<IMode>(sp => new WriterMode(sp.GetRequiredService<ILogger<WriterMode>>()));
+builder.Services.AddSingleton<IMode, WriterMode>();
 builder.Services.AddSingleton<IMode, RoleplayMode>();
 builder.Services.AddSingleton<IMode, ForgeMode>();
 builder.Services.AddSingleton<IMode, CouncilMode>();
 builder.Services.AddSingleton<IMode, ResearchMode>();
+
+builder.Services.AddSingleton<ISessionMutationGate, InMemorySessionMutationGate>();
+builder.Services.AddSingleton<ISessionRuntimeService, SessionRuntimeService>();
+builder.Services.AddSingleton<IInteractiveSessionContextService, InteractiveSessionContextService>();
 
 // --- Orchestrator ---
 builder.Services.AddSingleton<OrchestratorAgent>();
@@ -263,14 +268,25 @@ app.UseCors();
     var legacy = app.Services.GetRequiredService<RuntimeStateStore>().Load();
     if (!string.IsNullOrEmpty(legacy.LastMode))
     {
-        var sessionStore = app.Services.GetRequiredService<ISessionRuntimeStore>();
-        var defaultState = await sessionStore.LoadAsync(null);
-        defaultState.Mode.ActiveModeName = legacy.LastMode;
-        defaultState.Mode.ProjectName = legacy.LastProject;
-        defaultState.Mode.CurrentFile = legacy.LastFile;
-        defaultState.Mode.Character = legacy.LastCharacter;
-        await sessionStore.SaveAsync(defaultState);
-        app.Logger.LogInformation("Migrated legacy runtime state: mode={Mode}", legacy.LastMode);
+        var runtimeService = app.Services.GetRequiredService<ISessionRuntimeService>();
+        var migrationResult = await runtimeService.SetModeAsync(
+            null,
+            new SetSessionModeCommand(
+                legacy.LastMode,
+                legacy.LastProject,
+                legacy.LastFile,
+                legacy.LastCharacter));
+        if (migrationResult.Status == SessionMutationStatus.Success)
+        {
+            app.Logger.LogInformation("Migrated legacy runtime state: mode={Mode}", legacy.LastMode);
+        }
+        else
+        {
+            app.Logger.LogWarning(
+                "Legacy runtime migration could not apply session mode: status={Status} error={Error}",
+                migrationResult.Status,
+                migrationResult.Error);
+        }
     }
 }
 
@@ -355,6 +371,7 @@ app.MapForgeEndpoints();
 app.MapForgeManagementEndpoints();
 app.MapContentEndpoints(contentRoot);
 app.MapProfileEndpoints(contentRoot);
+app.MapPlotEndpoints();
 app.MapCharacterCardEndpoints(contentRoot);
 app.MapCouncilEndpoints();
 app.MapArtifactEndpoints();

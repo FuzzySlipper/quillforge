@@ -7,24 +7,24 @@ namespace QuillForge.Core.Agents.Tools;
 
 /// <summary>
 /// Delegates prose generation to the ProseWriter agent.
-/// Resolves the active writing style and story context from session state
-/// at call time, not from values captured at construction.
+/// Resolves the active writing style and story path from prepared interactive
+/// session context at call time, not from values captured at construction.
 /// </summary>
 public sealed class WriteProseHandler : IToolHandler
 {
     private readonly ProseWriterAgent _proseWriter;
-    private readonly ISessionRuntimeStore _runtimeStore;
+    private readonly IInteractiveSessionContextService _sessionContextService;
     private readonly IStoryStateService _storyState;
     private readonly ILogger<WriteProseHandler> _logger;
 
     public WriteProseHandler(
         ProseWriterAgent proseWriter,
-        ISessionRuntimeStore runtimeStore,
+        IInteractiveSessionContextService sessionContextService,
         IStoryStateService storyState,
         ILogger<WriteProseHandler> logger)
     {
         _proseWriter = proseWriter;
-        _runtimeStore = runtimeStore;
+        _sessionContextService = sessionContextService;
         _storyState = storyState;
         _logger = logger;
     }
@@ -60,15 +60,12 @@ public sealed class WriteProseHandler : IToolHandler
 
         var toneNotes = input.TryGetProperty("tone_notes", out var tn) ? tn.GetString() : null;
 
-        // Resolve story context from session state at call time
-        var sessionState = await _runtimeStore.LoadAsync(context.SessionId, ct);
-        var project = sessionState.Mode.ProjectName ?? "default";
-        var statePath = $"{project}/.state.yaml";
-        var storyStateData = await _storyState.LoadAsync(statePath, ct);
+        var sessionContext = context.SessionContext ?? await _sessionContextService.LoadAsync(context.SessionId, ct);
+        var storyStateData = await _storyState.LoadAsync(sessionContext.StoryStatePath, ct);
         var storyContext = storyStateData.Count > 0 ? JsonSerializer.Serialize(storyStateData) : "";
 
         _logger.LogDebug("WriteProseHandler: generating prose with style \"{Style}\" for project \"{Project}\"",
-            context.ActiveWritingStyle, project);
+            context.ActiveWritingStyle, sessionContext.ProjectName);
 
         var request = new ProseRequest
         {

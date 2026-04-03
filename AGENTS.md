@@ -89,13 +89,12 @@ Orchestrator behavior varies by mode. Each mode is a separate class implementing
 public interface IMode
 {
     string Name { get; }
-    string SystemPromptSection { get; }
-    IReadOnlyList<IToolHandler> GetTools();
-    Task OnResponseAsync(AgentResponse response, ConversationState state);
+    string BuildSystemPromptSection(ModeContext context);
+    Task OnResponseAsync(AgentResponse response, ModeContext context, CancellationToken ct = default);
 }
 ```
 
-Modes: `GeneralMode`, `WriterMode`, `RoleplayMode`, `ForgeMode`, `CouncilMode`. Mode-specific state (e.g., WriterMode's pending content) lives in the mode instance, not the orchestrator.
+Modes: `GeneralMode`, `WriterMode`, `RoleplayMode`, `ForgeMode`, `CouncilMode`, `ResearchMode`. Mode-specific prompt context is passed in via `ModeContext`; session-scoped mutable state like writer pending content lives in `SessionRuntimeState` and prepared session context services, not in mode instances.
 
 ### Conversation Tree (Session Model)
 
@@ -371,6 +370,16 @@ build/
 1. Add the field to the model type (e.g., `AppConfig`)
 2. If it needs normalization (clamping, defaulting), add it to the document's `Normalize` override (e.g., `AppConfigDocument`)
 3. Done. The store handles load, save, and atomic write. No separate wiring needed.
+
+**Schema versioning:**
+- Additive fields do not need explicit versioning. Missing properties deserialize to defaults, then `Normalize` can clamp or backfill values.
+- Renamed or removed fields do need explicit versioning. Do not rely on typed deserialization plus `Normalize` for breaking shape changes, because old fields may be dropped before the model sees them.
+- For a breaking schema change, implement `IVersionedPersistedDocument<T>` on the document definition.
+- Treat versioning as per-document, not module-wide. Each persisted file evolves on its own cadence.
+- `MigrateOneVersion(...)` must perform one raw-object migration step from version `N` to `N + 1`. Keep migrations small and sequential.
+- The store runs raw migrations before typed deserialization, then persists the upgraded document back to disk atomically.
+- Keep `Normalize(...)` for non-breaking cleanup only: defaults, clamping, and harmless fixups after deserialization.
+- Add at least one round-trip test that loads a legacy serialized shape and proves it migrates to the current schema successfully.
 
 **Adding a new persisted document:**
 1. Define the model type

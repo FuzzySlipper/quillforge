@@ -59,9 +59,11 @@ export interface DiagnosticEntry {
 export interface Profiles {
   personas: string[];
   loreSets: string[];
+  narrativeRules: string[];
   writingStyles: string[];
   activePersona: string;
   activeLore: string;
+  activeNarrativeRules: string;
   activeWritingStyle: string;
 }
 

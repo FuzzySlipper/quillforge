@@ -71,7 +71,9 @@ test.describe('API Smoke Tests', () => {
     const d = await (await request.get(`${BASE}/api/profiles`)).json();
     expect(d.personas).toBeTruthy();
     expect(d.loreSets).toBeTruthy();
+    expect(d.narrativeRules).toBeTruthy();
     expect(d.writingStyles).toBeTruthy();
+    expect(d.activeNarrativeRules).toBeTruthy();
   });
 
   test('layouts returns list', async ({ request }) => {
@@ -120,12 +122,30 @@ test.describe('API Smoke Tests', () => {
     const created = await (await request.post(`${BASE}/api/session/new`)).json();
     expect(created.sessionId).toBeTruthy();
     const list = await (await request.get(`${BASE}/api/sessions`)).json();
-    expect(Array.isArray(list)).toBe(true);
+    expect(Array.isArray(list.sessions)).toBe(true);
+    expect(list.sessions.some((s: { id: string }) => s.id === created.sessionId)).toBe(true);
+  });
+
+  test('session load and delete use GUID-based contract', async ({ request }) => {
+    const created = await (await request.post(`${BASE}/api/session/new`)).json();
+    const sessionId = created.sessionId as string;
+
+    const loadedResp = await request.post(`${BASE}/api/sessions/${sessionId}/load`);
+    expect(loadedResp.ok()).toBe(true);
+    const loaded = await loadedResp.json();
+    expect(loaded.sessionId).toBe(sessionId);
+    expect(Array.isArray(loaded.messages)).toBe(true);
+
+    const deletedResp = await request.delete(`${BASE}/api/sessions/${sessionId}`);
+    expect(deletedResp.ok()).toBe(true);
+
+    const missingLoad = await request.post(`${BASE}/api/sessions/${sessionId}/load`);
+    expect(missingLoad.status()).toBe(404);
   });
 
   test('profiles/switch succeeds', async ({ request }) => {
     const resp = await request.post(`${BASE}/api/profiles/switch`, {
-      data: { persona: 'default', lore: 'default', writingStyle: 'default' },
+      data: { persona: 'default', lore: 'default', narrativeRules: 'default', writingStyle: 'default' },
     });
     expect(resp.ok()).toBe(true);
   });
@@ -140,14 +160,48 @@ test.describe('API Smoke Tests', () => {
     expect(d.files).toBeTruthy();
   });
 
+  test('narrative-rules returns data', async ({ request }) => {
+    const d = await (await request.get(`${BASE}/api/narrative-rules`)).json();
+    expect(d.files).toBeTruthy();
+    expect(d.active).toBeTruthy();
+  });
+
   test('backgrounds returns data', async ({ request }) => {
     const d = await (await request.get(`${BASE}/api/backgrounds`)).json();
     expect(d.backgrounds).toBeTruthy();
   });
 
-  test('conversation/history returns data', async ({ request }) => {
-    const d = await (await request.get(`${BASE}/api/conversation/history`)).json();
-    expect(d.messages).toBeTruthy();
+  test('conversation/history returns selected-session data shape', async ({ request }) => {
+    const created = await (await request.post(`${BASE}/api/session/new`)).json();
+    const d = await (await request.get(`${BASE}/api/conversation/history?sessionId=${created.sessionId}`)).json();
+    expect(Array.isArray(d.messages)).toBe(true);
+    expect(d.count).toBeDefined();
+    expect(d.sessionId).toBe(created.sessionId);
+  });
+
+  test('plots list, load, and unload work with explicit session ids', async ({ request }) => {
+    const created = await (await request.post(`${BASE}/api/session/new`)).json();
+    const sessionId = created.sessionId as string;
+
+    const list = await (await request.get(`${BASE}/api/plots?sessionId=${sessionId}`)).json();
+    expect(Array.isArray(list.files)).toBe(true);
+    expect(list.files.some((p: { name: string }) => p.name === "default")).toBe(true);
+
+    const loadedResp = await request.post(`${BASE}/api/plots/load`, {
+      data: { sessionId, name: "default" },
+    });
+    expect(loadedResp.ok()).toBe(true);
+    const loaded = await loadedResp.json();
+    expect(loaded.sessionId).toBe(sessionId);
+    expect(loaded.activePlotFile).toBe("default");
+
+    const unloadedResp = await request.post(`${BASE}/api/plots/unload`, {
+      data: { sessionId },
+    });
+    expect(unloadedResp.ok()).toBe(true);
+    const unloaded = await unloadedResp.json();
+    expect(unloaded.sessionId).toBe(sessionId);
+    expect(unloaded.activePlotFile).toBeNull();
   });
 });
 
@@ -189,5 +243,14 @@ test.describe('UI Smoke Tests', () => {
     if (failedRequests.length > 0) {
       throw new Error(`405+ errors on load:\n${failedRequests.join('\n')}`);
     }
+  });
+
+  test('plot panel opens from the header', async ({ page }) => {
+    setupErrorTracking(page);
+    await page.goto(`${BASE}/`);
+    await page.waitForLoadState('networkidle');
+    await page.getByTitle('Browse plot arcs').click();
+    await expect(page.getByRole('heading', { name: 'Plots' })).toBeVisible();
+    assertNoErrors('plot panel open');
   });
 });

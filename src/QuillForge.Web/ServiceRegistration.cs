@@ -37,13 +37,24 @@ public static class ServiceRegistration
             new FileSystemWritingStyleStore(Path.Combine(contentRoot, ContentPaths.WritingStyles),
                 sp.GetRequiredService<ILogger<FileSystemWritingStyleStore>>()));
 
+        services.AddSingleton<INarrativeRulesStore>(sp =>
+            new FileSystemNarrativeRulesStore(Path.Combine(contentRoot, ContentPaths.NarrativeRules),
+                sp.GetRequiredService<ILogger<FileSystemNarrativeRulesStore>>()));
+
+        services.AddSingleton<IPlotStore>(sp =>
+            new FileSystemPlotStore(Path.Combine(contentRoot, ContentPaths.Plots),
+                sp.GetRequiredService<AtomicFileWriter>(),
+                sp.GetRequiredService<ILogger<FileSystemPlotStore>>()));
+
         services.AddSingleton<IArtifactService>(sp =>
             new FileSystemArtifactService(Path.Combine(contentRoot, ContentPaths.Artifacts),
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemArtifactService>>()));
 
         services.AddSingleton<IPersonaStore>(sp =>
-            new FileSystemPersonaStore(Path.Combine(contentRoot, ContentPaths.Persona),
+            new FileSystemPersonaStore(
+                Path.Combine(contentRoot, ContentPaths.Conductor),
+                Path.Combine(contentRoot, ContentPaths.Persona),
                 sp.GetRequiredService<ILogger<FileSystemPersonaStore>>()));
 
         services.AddSingleton<ICharacterCardStore>(sp =>
@@ -83,12 +94,14 @@ public static class ServiceRegistration
 
     public static void AddToolHandlers(this IServiceCollection services, AppConfig appConfig)
     {
-        services.AddSingleton<IToolHandler>(sp => new QueryLoreHandler(
+        services.AddSingleton<QueryLoreHandler>(sp => new QueryLoreHandler(
             sp.GetRequiredService<QuillForge.Core.Agents.LibrarianAgent>(),
             sp.GetRequiredService<ILoreStore>(),
             sp.GetRequiredService<IContentFileService>(),
             sp.GetRequiredService<ILogger<QueryLoreHandler>>()));
-        services.AddSingleton<IToolHandler, WriteProseHandler>();
+        services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<QueryLoreHandler>());
+        services.AddSingleton<WriteProseHandler>();
+        services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<WriteProseHandler>());
         services.AddSingleton<IToolHandler, RollDiceHandler>();
         services.AddSingleton<IToolHandler, ReadFileHandler>();
         services.AddSingleton<IToolHandler, WriteFileHandler>();
@@ -101,10 +114,15 @@ public static class ServiceRegistration
         {
             services.AddSingleton<IToolHandler, WebSearchHandler>();
         }
-        // Story state handlers resolve the active project from session context at call time
-        // via ISessionRuntimeStore + AgentContext.SessionId passed to HandleAsync.
-        services.AddSingleton<IToolHandler, GetStoryStateHandler>();
-        services.AddSingleton<IToolHandler, UpdateStoryStateHandler>();
+        // Story state handlers resolve the active project/path from the prepared
+        // interactive session context passed through AgentContext.
+        services.AddSingleton<GetStoryStateHandler>();
+        services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<GetStoryStateHandler>());
+        services.AddSingleton<UpdateStoryStateHandler>();
+        services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<UpdateStoryStateHandler>());
+        services.AddSingleton<UpdateNarrativeStateHandler>();
+        services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<UpdateNarrativeStateHandler>());
+        services.AddSingleton<IToolHandler, DirectSceneHandler>();
         services.AddSingleton<IToolHandler>(sp =>
         {
             var imageGen = sp.GetService<IImageGenerator>();

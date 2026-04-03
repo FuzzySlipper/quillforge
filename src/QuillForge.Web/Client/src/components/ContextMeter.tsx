@@ -44,7 +44,7 @@ export default function ContextMeter({ status }: ContextMeterProps) {
           <div
             className="h-full bg-purple-500/80"
             style={{ width: `${Math.max(personaW, 0.5)}%` }}
-            title={`Persona: ${fmtTokens(persona)} tokens`}
+            title={`Conductor: ${fmtTokens(persona)} tokens`}
           />
         )}
         {historyW > 0 && (
@@ -62,7 +62,7 @@ export default function ContextMeter({ status }: ContextMeterProps) {
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block w-2 h-2 rounded-sm bg-purple-500/80" />
-          Persona {fmtTokens(persona)}
+          Conductor {fmtTokens(persona)}
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block w-2 h-2 rounded-sm bg-accent/80" />

@@ -243,6 +243,7 @@ export async function getProfiles(): Promise<Profiles> {
 export async function switchProfile(profile: {
   persona?: string;
   lore?: string;
+  narrativeRules?: string;
   writingStyle?: string;
 }): Promise<unknown> {
   return request("/api/profiles/switch", {
@@ -340,6 +341,84 @@ export async function conversationRegenerate(
 ): Promise<{ parentId: string; sessionId: string }> {
   return request(`/api/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/regenerate`, {
     method: "POST",
+  });
+}
+
+export interface NarrativeRulesInfo {
+  path: string;
+  name: string;
+  tokens: number;
+  size: number;
+}
+
+export async function listNarrativeRules(): Promise<{ files: NarrativeRulesInfo[]; active: string }> {
+  return request("/api/narrative-rules");
+}
+
+export async function readNarrativeRules(name: string): Promise<{ path: string; content: string; tokens: number }> {
+  return request(`/api/narrative-rules/${encodeURIComponent(name)}`);
+}
+
+export async function writeNarrativeRules(name: string, content: string): Promise<unknown> {
+  return request(`/api/narrative-rules/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    body: JSON.stringify({ content }),
+  });
+}
+
+export interface PlotInfo {
+  name: string;
+  path: string;
+  tokens: number;
+  size: number;
+}
+
+export interface PlotProgress {
+  currentBeat: string | null;
+  completedBeats: string[];
+  deviations: string[];
+}
+
+export async function listPlots(sessionId?: string | null): Promise<{
+  files: PlotInfo[];
+  activePlotFile: string | null;
+  sessionId: string | null;
+  plotProgress: PlotProgress | null;
+}> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return request(`/api/plots${query}`);
+}
+
+export async function readPlot(name: string): Promise<{ name: string; content: string; tokens: number }> {
+  return request(`/api/plots/${encodeURIComponent(name)}`);
+}
+
+export async function generatePlot(
+  prompt?: string | null,
+  sessionId?: string | null,
+): Promise<{ name: string; content: string; toolRoundsUsed: number; sessionId: string | null }> {
+  return request("/api/plots/generate", {
+    method: "POST",
+    body: JSON.stringify({ prompt, sessionId }),
+  });
+}
+
+export async function loadPlot(
+  name: string,
+  sessionId: string,
+): Promise<{ sessionId: string; activePlotFile: string | null }> {
+  return request("/api/plots/load", {
+    method: "POST",
+    body: JSON.stringify({ name, sessionId }),
+  });
+}
+
+export async function unloadPlot(
+  sessionId: string,
+): Promise<{ sessionId: string; activePlotFile: string | null }> {
+  return request("/api/plots/unload", {
+    method: "POST",
+    body: JSON.stringify({ sessionId }),
   });
 }
 

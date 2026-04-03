@@ -75,6 +75,10 @@ public class FileSystemSessionStoreTests : IDisposable
         var tree2 = new ConversationTree(Guid.CreateVersion7(), "Session 2",
             _loggerFactory.CreateLogger<ConversationTree>());
 
+        tree1.Append(tree1.RootId, "user", new MessageContent("Hello"));
+        tree1.Append(tree1.ActiveLeafId, "assistant", new MessageContent("Hi there"));
+        tree2.Append(tree2.RootId, "user", new MessageContent("Only one"));
+
         await _store.SaveAsync(tree1);
         await _store.SaveAsync(tree2);
 
@@ -82,6 +86,8 @@ public class FileSystemSessionStoreTests : IDisposable
         Assert.Equal(2, list.Count);
         Assert.Contains(list, s => s.Name == "Session 1");
         Assert.Contains(list, s => s.Name == "Session 2");
+        Assert.Contains(list, s => s.Name == "Session 1" && s.MessageCount == 2);
+        Assert.Contains(list, s => s.Name == "Session 2" && s.MessageCount == 1);
     }
 
     [Fact]

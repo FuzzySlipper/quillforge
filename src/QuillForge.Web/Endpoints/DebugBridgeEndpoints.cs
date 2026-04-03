@@ -18,7 +18,8 @@ public static class DebugBridgeEndpoints
         group.MapPost("/chat", async (
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
-            ISessionRuntimeStore runtimeStore,
+            ISessionRuntimeService runtimeService,
+            IInteractiveSessionContextService sessionContextService,
             ISessionStore sessionStore,
             IEnumerable<IToolHandler> toolHandlers,
             AppConfig appConfig,
@@ -47,17 +48,26 @@ public static class DebugBridgeEndpoints
 
             tree.Append(tree.ActiveLeafId, "user", new MessageContent(message));
 
-            var messages = tree.ToFlatThread()
+            var thread = tree.ToFlatThread();
+            var messages = thread
                 .Select(n => new CompletionMessage(n.Role, n.Content))
                 .ToList();
+            var lastAssistantResponse = thread
+                .LastOrDefault(n => string.Equals(n.Role, "assistant", StringComparison.OrdinalIgnoreCase))
+                ?.Content
+                .GetText();
 
-            var sessionState = await runtimeStore.LoadAsync(sessionId, ct);
+            var sessionState = await runtimeService.LoadViewAsync(sessionId, ct);
+            var sessionContext = await sessionContextService.BuildAsync(sessionState, ct);
             var context = new AgentContext
             {
                 SessionId = sessionId,
                 ActiveMode = sessionState.Mode.ActiveModeName,
                 ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? appConfig.Lore.Active,
+                ActiveNarrativeRules = sessionState.Profile.ActiveNarrativeRules ?? appConfig.NarrativeRules.Active,
                 ActiveWritingStyle = sessionState.Profile.ActiveWritingStyle ?? appConfig.WritingStyle.Active,
+                SessionContext = sessionContext,
+                LastAssistantResponse = lastAssistantResponse,
             };
 
             var tools = toolHandlers.ToList();
@@ -73,7 +83,16 @@ public static class DebugBridgeEndpoints
             });
 
             await sessionStore.SaveAsync(tree, ct);
-            await runtimeStore.SaveAsync(sessionState, ct);
+            var pendingCapture = await runtimeService.CaptureWriterPendingAsync(
+                sessionId,
+                new CaptureWriterPendingCommand(response.Content.GetText(), sessionState.Mode.ActiveModeName),
+                ct);
+            if (pendingCapture.Status == SessionMutationStatus.Busy)
+            {
+                app.Logger.LogWarning(
+                    "Writer pending capture skipped because the session was busy: session={SessionId}",
+                    sessionId);
+            }
 
             return Results.Ok(new
             {
@@ -89,8 +108,7 @@ public static class DebugBridgeEndpoints
 
         group.MapPost("/mode", async (
             HttpContext httpContext,
-            OrchestratorAgent orchestrator,
-            ISessionRuntimeStore runtimeStore,
+            ISessionRuntimeService runtimeService,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -101,9 +119,30 @@ public static class DebugBridgeEndpoints
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
             var sessionId = root.GetOptionalGuid("sessionId");
 
-            var sessionState = await runtimeStore.LoadAsync(sessionId, ct);
-            orchestrator.SetMode(sessionState, mode, project, file);
-            await runtimeStore.SaveAsync(sessionState, ct);
+            var result = await runtimeService.SetModeAsync(
+                sessionId,
+                new SetSessionModeCommand(mode, project, file, null),
+                ct);
+
+            if (result.Status == SessionMutationStatus.Busy)
+            {
+                return Results.Conflict(new
+                {
+                    error = "session_busy",
+                    message = result.Error,
+                });
+            }
+
+            if (result.Status == SessionMutationStatus.Invalid)
+            {
+                return Results.BadRequest(new
+                {
+                    error = "invalid_session_mutation",
+                    message = result.Error,
+                });
+            }
+
+            var sessionState = result.Value!;
 
             return Results.Ok(new
             {
@@ -159,9 +198,9 @@ public static class DebugBridgeEndpoints
             });
         });
 
-        group.MapGet("/state", async (ISessionRuntimeStore runtimeStore, CancellationToken ct) =>
+        group.MapGet("/state", async (ISessionRuntimeService runtimeService, CancellationToken ct) =>
         {
-            var state = await runtimeStore.LoadAsync(null, ct);
+            var state = await runtimeService.LoadViewAsync(null, ct);
             return Results.Ok(new
             {
                 mode = state.Mode.ActiveModeName,

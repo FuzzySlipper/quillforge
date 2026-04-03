@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import MDEditor from "@uiw/react-md-editor";
 import Overlay from "./Overlay";
 import { listPersona, readPersona, writePersona, type PersonaFileInfo } from "../api";
+import { listNarrativeRules, readNarrativeRules, writeNarrativeRules, type NarrativeRulesInfo } from "../api";
 import { listWritingStyles, readWritingStyle, writeWritingStyle, type WritingStyleInfo } from "../api";
 
 interface PromptBrowserProps {
@@ -10,11 +11,12 @@ interface PromptBrowserProps {
   onChanged: () => void;
 }
 
-type Tab = "persona" | "writing";
+type Tab = "persona" | "narrative" | "writing";
 
 export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowserProps) {
   const [tab, setTab] = useState<Tab>("persona");
   const [personaFiles, setPersonaFiles] = useState<PersonaFileInfo[]>([]);
+  const [narrativeRulesFiles, setNarrativeRulesFiles] = useState<NarrativeRulesInfo[]>([]);
   const [styleFiles, setStyleFiles] = useState<WritingStyleInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<Tab>("persona");
@@ -26,6 +28,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
   useEffect(() => {
     if (!open) return;
     listPersona().then((data) => setPersonaFiles(data.files));
+    listNarrativeRules().then((data) => setNarrativeRulesFiles(data.files));
     listWritingStyles().then((data) => setStyleFiles(data.files));
   }, [open]);
 
@@ -55,6 +58,19 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
     }
   }
 
+  async function handleSelectNarrativeRules(name: string) {
+    setLoading(true);
+    try {
+      const data = await readNarrativeRules(name);
+      setSelected(name);
+      setSelectedType("narrative");
+      setContent(data.content);
+      setOriginalContent(data.content);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleSave() {
     if (!selected) return;
     setSaving(true);
@@ -63,6 +79,10 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
         await writePersona(selected, content);
         const data = await listPersona();
         setPersonaFiles(data.files);
+      } else if (selectedType === "narrative") {
+        await writeNarrativeRules(selected, content);
+        const data = await listNarrativeRules();
+        setNarrativeRulesFiles(data.files);
       } else {
         await writeWritingStyle(selected, content);
         const data = await listWritingStyles();
@@ -92,6 +112,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
   }, {});
 
   const totalPersonaTokens = personaFiles.reduce((sum, f) => sum + f.tokens, 0);
+  const totalNarrativeRulesTokens = narrativeRulesFiles.reduce((sum, f) => sum + f.tokens, 0);
   const totalStyleTokens = styleFiles.reduce((sum, f) => sum + f.tokens, 0);
 
   const tabClass = (t: Tab) =>
@@ -159,7 +180,10 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
         {/* Tab switcher */}
         <div className="flex gap-2">
           <button onClick={() => setTab("persona")} className={tabClass("persona")}>
-            Persona
+            Conductor
+          </button>
+          <button onClick={() => setTab("narrative")} className={tabClass("narrative")}>
+            Narrative Rules
           </button>
           <button onClick={() => setTab("writing")} className={tabClass("writing")}>
             Writing Styles
@@ -195,6 +219,30 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
                 </div>
               </div>
             ))}
+          </>
+        )}
+
+        {tab === "narrative" && (
+          <>
+            <div className="text-xs text-text-muted">
+              {narrativeRulesFiles.length} files · ~{Math.round(totalNarrativeRulesTokens / 1000)}k tokens total
+            </div>
+            {narrativeRulesFiles.length === 0 ? (
+              <p className="text-sm text-text-muted">No narrative rules files yet.</p>
+            ) : (
+              <div className="flex flex-col">
+                {narrativeRulesFiles.map((f) => (
+                  <button
+                    key={f.name}
+                    onClick={() => handleSelectNarrativeRules(f.name)}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-input-bg text-left transition-colors"
+                  >
+                    <span className="text-sm text-text">{f.name}</span>
+                    <span className="text-xs text-text-muted">~{f.tokens} tok</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         )}
 

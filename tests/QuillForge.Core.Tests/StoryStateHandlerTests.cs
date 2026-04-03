@@ -15,11 +15,11 @@ public sealed class StoryStateHandlerTests
     public async Task GetStoryState_UsesSessionProject()
     {
         var storyState = new TrackingStoryStateService();
-        var runtimeStore = new FakeSessionRuntimeStore(new Dictionary<Guid, string>
+        var sessionContextService = new FakeInteractiveSessionContextService(new Dictionary<Guid, string>
         {
             [SessionA] = "alpha",
         });
-        var handler = new GetStoryStateHandler(storyState, runtimeStore, NullLogger<GetStoryStateHandler>.Instance);
+        var handler = new GetStoryStateHandler(storyState, sessionContextService, NullLogger<GetStoryStateHandler>.Instance);
         var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
 
         await handler.HandleAsync(JsonDocument.Parse("{}").RootElement, context);
@@ -32,12 +32,12 @@ public sealed class StoryStateHandlerTests
     public async Task GetStoryState_DifferentSession_UsesDifferentProject()
     {
         var storyState = new TrackingStoryStateService();
-        var runtimeStore = new FakeSessionRuntimeStore(new Dictionary<Guid, string>
+        var sessionContextService = new FakeInteractiveSessionContextService(new Dictionary<Guid, string>
         {
             [SessionA] = "alpha",
             [SessionB] = "beta",
         });
-        var handler = new GetStoryStateHandler(storyState, runtimeStore, NullLogger<GetStoryStateHandler>.Instance);
+        var handler = new GetStoryStateHandler(storyState, sessionContextService, NullLogger<GetStoryStateHandler>.Instance);
 
         await handler.HandleAsync(JsonDocument.Parse("{}").RootElement,
             new AgentContext { SessionId = SessionA, ActiveMode = "writer" });
@@ -53,11 +53,11 @@ public sealed class StoryStateHandlerTests
     public async Task UpdateStoryState_UsesSessionProject()
     {
         var storyState = new TrackingStoryStateService();
-        var runtimeStore = new FakeSessionRuntimeStore(new Dictionary<Guid, string>
+        var sessionContextService = new FakeInteractiveSessionContextService(new Dictionary<Guid, string>
         {
             [SessionA] = "alpha",
         });
-        var handler = new UpdateStoryStateHandler(storyState, runtimeStore, NullLogger<UpdateStoryStateHandler>.Instance);
+        var handler = new UpdateStoryStateHandler(storyState, sessionContextService, NullLogger<UpdateStoryStateHandler>.Instance);
         var context = new AgentContext { SessionId = SessionA, ActiveMode = "roleplay" };
         var input = JsonDocument.Parse("""{"updates": {"tension": "high"}}""").RootElement;
 
@@ -74,12 +74,12 @@ public sealed class StoryStateHandlerTests
         // We can't easily test the full prose generation (ProseWriterAgent has heavy deps),
         // but we can verify the story state is loaded from the correct session-scoped path.
         var storyState = new TrackingStoryStateService();
-        var runtimeStore = new FakeSessionRuntimeStore(new Dictionary<Guid, string>
+        var sessionContextService = new FakeInteractiveSessionContextService(new Dictionary<Guid, string>
         {
             [SessionA] = "my-novel",
         });
         // ProseWriterAgent is null — handler will fail at WriteAsync, but we verify story context resolution first
-        var handler = new WriteProseHandler(null!, runtimeStore, storyState, NullLogger<WriteProseHandler>.Instance);
+        var handler = new WriteProseHandler(null!, sessionContextService, storyState, NullLogger<WriteProseHandler>.Instance);
         var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
         var input = JsonDocument.Parse("""{"scene_description": "test scene"}""").RootElement;
 
@@ -95,8 +95,8 @@ public sealed class StoryStateHandlerTests
     public async Task GetStoryState_NullProject_DefaultsToDefault()
     {
         var storyState = new TrackingStoryStateService();
-        var runtimeStore = new FakeSessionRuntimeStore(new Dictionary<Guid, string>());
-        var handler = new GetStoryStateHandler(storyState, runtimeStore, NullLogger<GetStoryStateHandler>.Instance);
+        var sessionContextService = new FakeInteractiveSessionContextService(new Dictionary<Guid, string>());
+        var handler = new GetStoryStateHandler(storyState, sessionContextService, NullLogger<GetStoryStateHandler>.Instance);
         var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
 
         await handler.HandleAsync(JsonDocument.Parse("{}").RootElement, context);
@@ -132,16 +132,30 @@ internal sealed class TrackingStoryStateService : IStoryStateService
         => Task.CompletedTask;
 }
 
-internal sealed class FakeSessionRuntimeStore : ISessionRuntimeStore
+internal sealed class FakeInteractiveSessionContextService : IInteractiveSessionContextService
 {
     private readonly Dictionary<Guid, string> _projectsBySession;
 
-    public FakeSessionRuntimeStore(Dictionary<Guid, string> projectsBySession)
+    public FakeInteractiveSessionContextService(Dictionary<Guid, string>? projectsBySession = null)
     {
-        _projectsBySession = projectsBySession;
+        _projectsBySession = projectsBySession ?? [];
     }
 
-    public Task<SessionRuntimeState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<InteractiveSessionContext> BuildAsync(SessionRuntimeState state, CancellationToken ct = default)
+    {
+        var projectName = state.Mode.ProjectName ?? "default";
+        return Task.FromResult(new InteractiveSessionContext
+        {
+            ActiveModeName = state.Mode.ActiveModeName,
+            ProjectName = projectName,
+            CurrentFile = state.Mode.CurrentFile,
+            Character = state.Mode.Character,
+            StoryStatePath = $"{projectName}/.state.yaml",
+            WriterPendingContent = state.Writer.PendingContent,
+        });
+    }
+
+    public Task<InteractiveSessionContext> LoadAsync(Guid? sessionId, CancellationToken ct = default)
     {
         string? projectName = null;
         if (sessionId.HasValue && _projectsBySession.TryGetValue(sessionId.Value, out var name))
@@ -149,16 +163,10 @@ internal sealed class FakeSessionRuntimeStore : ISessionRuntimeStore
             projectName = name;
         }
 
-        return Task.FromResult(new SessionRuntimeState
+        return BuildAsync(new SessionRuntimeState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveModeName = "writer", ProjectName = projectName },
-        });
+        }, ct);
     }
-
-    public Task SaveAsync(SessionRuntimeState state, CancellationToken ct = default)
-        => Task.CompletedTask;
-
-    public Task DeleteAsync(Guid sessionId, CancellationToken ct = default)
-        => Task.CompletedTask;
 }

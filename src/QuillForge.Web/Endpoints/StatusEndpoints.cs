@@ -12,7 +12,7 @@ public static class StatusEndpoints
     {
         app.MapGet("/api/status", async (
             HttpContext httpContext,
-            ISessionRuntimeStore runtimeStore,
+            ISessionRuntimeService runtimeService,
             AutoUpdateService updateService,
             AppConfig config,
             ILoreStore loreStore,
@@ -20,7 +20,7 @@ public static class StatusEndpoints
             CancellationToken ct) =>
         {
             var sessionId = httpContext.TryGetSessionId();
-            var chatState = await runtimeStore.LoadAsync(sessionId, ct);
+            var chatState = await runtimeService.LoadViewAsync(sessionId, ct);
             // Calculate real token/file counts
             var loreFiles = 0;
             var loreTokens = 0;

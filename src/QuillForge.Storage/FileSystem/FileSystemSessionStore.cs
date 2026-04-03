@@ -99,7 +99,9 @@ public sealed class FileSystemSessionStore : ISessionStore
                     Name = dto.Name ?? "Untitled",
                     CreatedAt = dto.CreatedAt ?? DateTimeOffset.MinValue,
                     UpdatedAt = dto.UpdatedAt ?? DateTimeOffset.MinValue,
-                    MessageCount = dto.Nodes?.Count ?? dto.Messages?.Count ?? 0,
+                    MessageCount = dto.Nodes is not null
+                        ? Math.Max(dto.Nodes.Count - 1, 0)
+                        : dto.Messages?.Count ?? 0,
                 });
             }
             catch (Exception ex)

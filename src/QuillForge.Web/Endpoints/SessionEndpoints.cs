@@ -168,14 +168,54 @@ public static class SessionEndpoints
             return Results.Ok(new SessionCreatedResponse { SessionId = tree.SessionId, Name = tree.Name });
         });
 
-        // Conversation history (legacy endpoint)
-        app.MapGet("/api/conversation/history", () =>
+        // Conversation history for the selected session. Kept at the legacy path
+        // because the debug overlay still calls it, but the data is GUID-based and
+        // sourced from the session store.
+        app.MapGet("/api/conversation/history", async (
+            HttpContext httpContext,
+            ISessionStore store,
+            CancellationToken ct) =>
         {
-            return Results.Ok(new
+            var sessionId = httpContext.TryGetSessionId();
+            if (!sessionId.HasValue)
             {
-                Messages = Array.Empty<object>(),
-                SessionId = (string?)null,
-            });
+                return Results.Ok(new
+                {
+                    Messages = Array.Empty<object>(),
+                    Count = 0,
+                    SessionId = (Guid?)null,
+                });
+            }
+
+            try
+            {
+                var tree = await store.LoadAsync(sessionId.Value, ct);
+                var thread = tree.ToFlatThread();
+
+                return Results.Ok(new
+                {
+                    Messages = thread.Select(n => new
+                    {
+                        id = n.Id,
+                        role = n.Role,
+                        content = n.Content.GetText(),
+                        length = n.Content.GetText().Length,
+                        createdAt = n.CreatedAt,
+                        parentId = n.ParentId,
+                    }),
+                    Count = thread.Count,
+                    SessionId = sessionId,
+                });
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.Ok(new
+                {
+                    Messages = Array.Empty<object>(),
+                    Count = 0,
+                    SessionId = sessionId,
+                });
+            }
         });
     }
 }

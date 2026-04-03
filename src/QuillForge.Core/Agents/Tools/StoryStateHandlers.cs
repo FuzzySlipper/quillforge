@@ -7,21 +7,21 @@ namespace QuillForge.Core.Agents.Tools;
 
 /// <summary>
 /// Reads the current story state from a .state.yaml companion file.
-/// Resolves the active project from session context at call time.
+/// Resolves the active story-state path from prepared interactive session context.
 /// </summary>
 public sealed class GetStoryStateHandler : IToolHandler
 {
     private readonly IStoryStateService _storyState;
-    private readonly ISessionRuntimeStore _runtimeStore;
+    private readonly IInteractiveSessionContextService _sessionContextService;
     private readonly ILogger<GetStoryStateHandler> _logger;
 
     public GetStoryStateHandler(
         IStoryStateService storyState,
-        ISessionRuntimeStore runtimeStore,
+        IInteractiveSessionContextService sessionContextService,
         ILogger<GetStoryStateHandler> logger)
     {
         _storyState = storyState;
-        _runtimeStore = runtimeStore;
+        _sessionContextService = sessionContextService;
         _logger = logger;
     }
 
@@ -39,32 +39,33 @@ public sealed class GetStoryStateHandler : IToolHandler
 
     public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
     {
-        var sessionState = await _runtimeStore.LoadAsync(context.SessionId, ct);
-        var project = sessionState.Mode.ProjectName ?? "default";
-        var path = $"{project}/.state.yaml";
-        _logger.LogDebug("GetStoryStateHandler: reading state from {Path} for session {SessionId}", path, context.SessionId);
-        var state = await _storyState.LoadAsync(path, ct);
+        var sessionContext = context.SessionContext ?? await _sessionContextService.LoadAsync(context.SessionId, ct);
+        _logger.LogDebug(
+            "GetStoryStateHandler: reading state from {Path} for session {SessionId}",
+            sessionContext.StoryStatePath,
+            context.SessionId);
+        var state = await _storyState.LoadAsync(sessionContext.StoryStatePath, ct);
         return ToolResult.Ok(JsonSerializer.Serialize(state));
     }
 }
 
 /// <summary>
 /// Merges updates into the story state.
-/// Resolves the active project from session context at call time.
+/// Resolves the active story-state path from prepared interactive session context.
 /// </summary>
 public sealed class UpdateStoryStateHandler : IToolHandler
 {
     private readonly IStoryStateService _storyState;
-    private readonly ISessionRuntimeStore _runtimeStore;
+    private readonly IInteractiveSessionContextService _sessionContextService;
     private readonly ILogger<UpdateStoryStateHandler> _logger;
 
     public UpdateStoryStateHandler(
         IStoryStateService storyState,
-        ISessionRuntimeStore runtimeStore,
+        IInteractiveSessionContextService sessionContextService,
         ILogger<UpdateStoryStateHandler> logger)
     {
         _storyState = storyState;
-        _runtimeStore = runtimeStore;
+        _sessionContextService = sessionContextService;
         _logger = logger;
     }
 
@@ -91,9 +92,8 @@ public sealed class UpdateStoryStateHandler : IToolHandler
 
     public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
     {
-        var sessionState = await _runtimeStore.LoadAsync(context.SessionId, ct);
-        var project = sessionState.Mode.ProjectName ?? "default";
-        var path = $"{project}/.state.yaml";
+        var sessionContext = context.SessionContext ?? await _sessionContextService.LoadAsync(context.SessionId, ct);
+        var path = sessionContext.StoryStatePath;
         _logger.LogDebug("UpdateStoryStateHandler: updating state at {Path} for session {SessionId}", path, context.SessionId);
 
         if (input.TryGetProperty("updates", out var updates))

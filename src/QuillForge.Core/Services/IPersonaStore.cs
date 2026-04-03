@@ -1,7 +1,7 @@
 namespace QuillForge.Core.Services;
 
 /// <summary>
-/// Access to persona/character definitions.
+/// Access to conductor prompt profiles, with legacy persona-path compatibility.
 /// </summary>
 public interface IPersonaStore
 {

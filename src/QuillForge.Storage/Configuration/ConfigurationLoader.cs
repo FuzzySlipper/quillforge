@@ -95,6 +95,8 @@ public sealed class ConfigurationLoader
         var agents = config.Agents;
         if (agents.Orchestrator.MaxToolRounds < 1)
             _logger.LogWarning("agents.orchestrator.max_tool_rounds ({Value}) must be at least 1", agents.Orchestrator.MaxToolRounds);
+        if (agents.NarrativeDirector.MaxTokens < 256)
+            _logger.LogWarning("agents.narrative_director.max_tokens ({Value}) seems too low", agents.NarrativeDirector.MaxTokens);
         if (agents.Librarian.MaxTokens < 256)
             _logger.LogWarning("agents.librarian.max_tokens ({Value}) seems too low", agents.Librarian.MaxTokens);
         if (agents.ProseWriter.MaxTokens < 256)

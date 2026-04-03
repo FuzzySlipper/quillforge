@@ -13,6 +13,7 @@ export default function ProfilePicker({ open, onClose, onSwitched }: ProfilePick
   const [profiles, setProfiles] = useState<Profiles | null>(null);
   const [persona, setPersona] = useState("");
   const [loreSet, setLoreSet] = useState("");
+  const [narrativeRules, setNarrativeRules] = useState("");
   const [style, setStyle] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -22,6 +23,7 @@ export default function ProfilePicker({ open, onClose, onSwitched }: ProfilePick
       setProfiles(p);
       setPersona(p.activePersona);
       setLoreSet(p.activeLore);
+      setNarrativeRules(p.activeNarrativeRules);
       setStyle(p.activeWritingStyle);
     });
   }, [open]);
@@ -32,6 +34,7 @@ export default function ProfilePicker({ open, onClose, onSwitched }: ProfilePick
       await switchProfile({
         persona,
         lore: loreSet,
+        narrativeRules,
         writingStyle: style,
       });
       onSwitched();
@@ -46,7 +49,7 @@ export default function ProfilePicker({ open, onClose, onSwitched }: ProfilePick
       {profiles ? (
         <div className="flex flex-col gap-4">
           <label className="flex flex-col gap-1">
-            <span className="text-sm text-text-muted">Persona</span>
+            <span className="text-sm text-text-muted">Conductor</span>
             <select
               value={persona}
               onChange={(e) => setPersona(e.target.value)}
@@ -67,6 +70,19 @@ export default function ProfilePicker({ open, onClose, onSwitched }: ProfilePick
             >
               {profiles.loreSets.map((l) => (
                 <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-text-muted">Narrative Rules</span>
+            <select
+              value={narrativeRules}
+              onChange={(e) => setNarrativeRules(e.target.value)}
+              className="bg-input-bg text-text border border-border rounded-lg px-3 py-2"
+            >
+              {profiles.narrativeRules.map((rules) => (
+                <option key={rules} value={rules}>{rules}</option>
               ))}
             </select>
           </label>

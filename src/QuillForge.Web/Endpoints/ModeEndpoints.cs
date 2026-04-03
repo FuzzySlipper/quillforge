@@ -12,12 +12,12 @@ public static class ModeEndpoints
     public static void MapModeEndpoints(this WebApplication app)
     {
         app.MapGet("/api/mode", async (
-            ISessionRuntimeStore runtimeStore,
+            ISessionRuntimeService runtimeService,
             HttpContext httpContext,
             CancellationToken ct) =>
         {
             var sessionId = httpContext.TryGetSessionId();
-            var state = await runtimeStore.LoadAsync(sessionId, ct);
+            var state = await runtimeService.LoadViewAsync(sessionId, ct);
             return Results.Ok(new ModeResponse
             {
                 Mode = state.Mode.ActiveModeName,
@@ -30,8 +30,7 @@ public static class ModeEndpoints
 
         app.MapPost("/api/mode", async (
             HttpContext httpContext,
-            OrchestratorAgent orchestrator,
-            ISessionRuntimeStore runtimeStore,
+            ISessionRuntimeService runtimeService,
             RuntimeStateStore legacyStore,
             CancellationToken ct) =>
         {
@@ -44,9 +43,28 @@ public static class ModeEndpoints
             var character = root.TryGetProperty("character", out var c) ? c.GetString() : null;
             var sessionId = root.GetOptionalGuid("sessionId");
 
-            var state = await runtimeStore.LoadAsync(sessionId, ct);
-            orchestrator.SetMode(state, mode, project, file, character);
-            await runtimeStore.SaveAsync(state, ct);
+            var result = await runtimeService.SetModeAsync(
+                sessionId,
+                new SetSessionModeCommand(mode, project, file, character),
+                ct);
+
+            if (result.Status == SessionMutationStatus.Busy)
+            {
+                return Results.Conflict(new
+                {
+                    error = "session_busy",
+                    message = result.Error,
+                });
+            }
+
+            if (result.Status == SessionMutationStatus.Invalid)
+            {
+                return Results.BadRequest(new
+                {
+                    error = "invalid_session_mutation",
+                    message = result.Error,
+                });
+            }
 
             // Also persist to legacy store for backward compat during transition
             await legacyStore.SaveAsync(new RuntimeState
@@ -69,21 +87,25 @@ public static class ModeEndpoints
         app.MapGet("/api/profiles", async (
             IPersonaStore personaStore,
             ILoreStore loreStore,
+            INarrativeRulesStore narrativeRulesStore,
             IWritingStyleStore styleStore,
             AppConfig config,
             CancellationToken ct) =>
         {
             var personas = await personaStore.ListAsync(ct);
             var loreSets = await loreStore.ListLoreSetsAsync(ct);
+            var narrativeRules = await narrativeRulesStore.ListAsync(ct);
             var styles = await styleStore.ListAsync(ct);
 
             return Results.Ok(new ProfilesResponse
             {
                 Personas = personas,
                 LoreSets = loreSets,
+                NarrativeRules = narrativeRules,
                 WritingStyles = styles,
                 ActivePersona = config.Persona.Active,
                 ActiveLore = config.Lore.Active,
+                ActiveNarrativeRules = config.NarrativeRules.Active,
                 ActiveWritingStyle = config.WritingStyle.Active,
             });
         });
@@ -107,7 +129,7 @@ public static class ModeEndpoints
 
         app.MapPut("/api/agents/models", async (
             HttpContext httpContext,
-            AppConfig config,
+            AppConfig runtimeConfig,
             IAppConfigStore configStore,
             ILogger<AppConfig> logger,
             CancellationToken ct) =>
@@ -115,38 +137,46 @@ public static class ModeEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            if (root.TryGetProperty("orchestrator", out var o) && o.GetString() is { } orch)
-                config.Models.Orchestrator = orch;
-            if (root.TryGetProperty("proseWriter", out var pw) && pw.GetString() is { } prose)
-                config.Models.ProseWriter = prose;
-            if (root.TryGetProperty("librarian", out var lb) && lb.GetString() is { } lib)
-                config.Models.Librarian = lib;
-            if (root.TryGetProperty("forgeWriter", out var fw) && fw.GetString() is { } fWriter)
-                config.Models.ForgeWriter = fWriter;
-            if (root.TryGetProperty("forgePlanner", out var fp) && fp.GetString() is { } fPlanner)
-                config.Models.ForgePlanner = fPlanner;
-            if (root.TryGetProperty("forgeReviewer", out var fr) && fr.GetString() is { } fReviewer)
-                config.Models.ForgeReviewer = fReviewer;
-            if (root.TryGetProperty("research", out var rs) && rs.GetString() is { } research)
-                config.Models.Research = research;
+            var orchestrator = root.TryGetProperty("orchestrator", out var o) ? o.GetString() : null;
+            var proseWriter = root.TryGetProperty("proseWriter", out var pw) ? pw.GetString() : null;
+            var librarian = root.TryGetProperty("librarian", out var lb) ? lb.GetString() : null;
+            var forgeWriter = root.TryGetProperty("forgeWriter", out var fw) ? fw.GetString() : null;
+            var forgePlanner = root.TryGetProperty("forgePlanner", out var fp) ? fp.GetString() : null;
+            var forgeReviewer = root.TryGetProperty("forgeReviewer", out var fr) ? fr.GetString() : null;
+            var research = root.TryGetProperty("research", out var rs) ? rs.GetString() : null;
 
-            await configStore.SaveAsync(config, ct);
+            var updatedConfig = await configStore.UpdateAsync(current => current with
+            {
+                Models = current.Models with
+                {
+                    Orchestrator = orchestrator ?? current.Models.Orchestrator,
+                    ProseWriter = proseWriter ?? current.Models.ProseWriter,
+                    Librarian = librarian ?? current.Models.Librarian,
+                    ForgeWriter = forgeWriter ?? current.Models.ForgeWriter,
+                    ForgePlanner = forgePlanner ?? current.Models.ForgePlanner,
+                    ForgeReviewer = forgeReviewer ?? current.Models.ForgeReviewer,
+                    Research = research ?? current.Models.Research,
+                }
+            }, ct);
+            AppConfigRuntimeSync.CopyFrom(runtimeConfig, updatedConfig);
 
             logger.LogInformation(
                 "Agent models updated: orchestrator={Orch}, proseWriter={Prose}, librarian={Lib}",
-                config.Models.Orchestrator, config.Models.ProseWriter, config.Models.Librarian);
+                updatedConfig.Models.Orchestrator,
+                updatedConfig.Models.ProseWriter,
+                updatedConfig.Models.Librarian);
 
             return Results.Ok(new AgentAssignmentsUpdateResponse
             {
                 Assignments = new AgentModelAssignments
                 {
-                    Orchestrator = config.Models.Orchestrator,
-                    ProseWriter = config.Models.ProseWriter,
-                    Librarian = config.Models.Librarian,
-                    ForgeWriter = config.Models.ForgeWriter,
-                    ForgePlanner = config.Models.ForgePlanner,
-                    ForgeReviewer = config.Models.ForgeReviewer,
-                    Research = config.Models.Research,
+                    Orchestrator = updatedConfig.Models.Orchestrator,
+                    ProseWriter = updatedConfig.Models.ProseWriter,
+                    Librarian = updatedConfig.Models.Librarian,
+                    ForgeWriter = updatedConfig.Models.ForgeWriter,
+                    ForgePlanner = updatedConfig.Models.ForgePlanner,
+                    ForgeReviewer = updatedConfig.Models.ForgeReviewer,
+                    Research = updatedConfig.Models.Research,
                 }
             });
         });

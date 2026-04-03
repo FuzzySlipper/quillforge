@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Text.Json.Nodes;
 
 namespace Den.Persistence;
 
@@ -89,6 +90,17 @@ public abstract class FilePersistedDocumentStore<T> : IPersistedDocumentStore<T>
     /// </summary>
     protected abstract string Serialize(T value);
 
+    /// <summary>
+    /// Parses serialized content into a mutable root object so version metadata
+    /// and migration transforms can be applied before typed deserialization.
+    /// </summary>
+    protected abstract JsonObject ParseRootObject(string content);
+
+    /// <summary>
+    /// Serializes a migrated root object back to the store format.
+    /// </summary>
+    protected abstract string SerializeRootObject(JsonObject root);
+
     private async Task<T> LoadInternalAsync(CancellationToken ct)
     {
         T value;
@@ -98,6 +110,13 @@ public abstract class FilePersistedDocumentStore<T> : IPersistedDocumentStore<T>
             try
             {
                 var content = await File.ReadAllTextAsync(_fullPath, ct);
+                var migration = MigrateContentIfNeeded(content);
+                content = migration.Content;
+                if (migration.DidMigrate)
+                {
+                    await _writer.WriteAsync(_fullPath, content, ct);
+                    _logger.LogInformation("Persisted migrated document to {Path}", _fullPath);
+                }
                 var deserialized = Deserialize(content);
                 value = deserialized ?? _document.CreateDefault();
             }
@@ -124,7 +143,75 @@ public abstract class FilePersistedDocumentStore<T> : IPersistedDocumentStore<T>
         _document.ThrowIfInvalid(value);
 
         var content = Serialize(value);
+        content = StampVersionIfNeeded(content);
         await _writer.WriteAsync(_fullPath, content, ct);
         _logger.LogDebug("Persisted document saved to {Path}", _fullPath);
+    }
+
+    private (string Content, bool DidMigrate) MigrateContentIfNeeded(string content)
+    {
+        if (_document is not IVersionedPersistedDocument<T> versioned)
+        {
+            return (content, false);
+        }
+
+        var root = ParseRootObject(content);
+        var version = ReadVersion(root, versioned);
+        var didMigrate = false;
+
+        if (version > versioned.CurrentVersion)
+        {
+            throw new InvalidOperationException(
+                $"Persisted document at '{_fullPath}' has schema version {version}, " +
+                $"but this store only supports up to version {versioned.CurrentVersion}.");
+        }
+
+        while (version < versioned.CurrentVersion)
+        {
+            versioned.MigrateOneVersion(root, version);
+            version++;
+            didMigrate = true;
+            root[versioned.VersionFieldName] = version;
+            _logger.LogInformation(
+                "Migrated persisted document {Path} to schema version {Version}",
+                _fullPath,
+                version);
+        }
+
+        return (SerializeRootObject(root), didMigrate);
+    }
+
+    private string StampVersionIfNeeded(string content)
+    {
+        if (_document is not IVersionedPersistedDocument<T> versioned)
+        {
+            return content;
+        }
+
+        var root = ParseRootObject(content);
+        root[versioned.VersionFieldName] = versioned.CurrentVersion;
+        return SerializeRootObject(root);
+    }
+
+    private static int ReadVersion(JsonObject root, IVersionedPersistedDocument<T> versioned)
+    {
+        if (root[versioned.VersionFieldName] is JsonValue value)
+        {
+            if (value.TryGetValue<int>(out var intVersion))
+            {
+                return intVersion;
+            }
+
+            if (value.TryGetValue<string>(out var stringVersion)
+                && int.TryParse(stringVersion, out intVersion))
+            {
+                return intVersion;
+            }
+
+            throw new InvalidOperationException(
+                $"Persisted document version field '{versioned.VersionFieldName}' must be an integer.");
+        }
+
+        return versioned.InitialVersion;
     }
 }

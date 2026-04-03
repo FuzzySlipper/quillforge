@@ -4,9 +4,11 @@ public sealed record ProfilesResponse
 {
     public required IReadOnlyList<string> Personas { get; init; }
     public required IReadOnlyList<string> LoreSets { get; init; }
+    public required IReadOnlyList<string> NarrativeRules { get; init; }
     public required IReadOnlyList<string> WritingStyles { get; init; }
     public required string ActivePersona { get; init; }
     public required string ActiveLore { get; init; }
+    public required string ActiveNarrativeRules { get; init; }
     public required string ActiveWritingStyle { get; init; }
 }
 
@@ -15,6 +17,7 @@ public sealed record ProfileSwitchResponse
     public string Status { get; init; } = "ok";
     public required string ActivePersona { get; init; }
     public required string ActiveLore { get; init; }
+    public required string ActiveNarrativeRules { get; init; }
     public required string ActiveWritingStyle { get; init; }
     public required int LoreFiles { get; init; }
 }

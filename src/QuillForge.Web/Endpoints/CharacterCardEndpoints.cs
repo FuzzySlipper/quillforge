@@ -111,25 +111,32 @@ public static class CharacterCardEndpoints
 
         app.MapPost("/api/character-cards/activate", async (
             HttpContext httpContext,
-            AppConfig config,
+            AppConfig runtimeConfig,
             IAppConfigStore configStore,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var aiCharacter = root.TryGetProperty("aiCharacter", out var ai) ? ai.GetString() : config.Roleplay.AiCharacter;
-            var userCharacter = root.TryGetProperty("userCharacter", out var user) ? user.GetString() : config.Roleplay.UserCharacter;
+            var aiCharacter = root.TryGetProperty("aiCharacter", out var ai) ? ai.GetString() : null;
+            var userCharacter = root.TryGetProperty("userCharacter", out var user) ? user.GetString() : null;
 
-            config.Roleplay = new RoleplayConfig
+            var updatedConfig = await configStore.UpdateAsync(current => current with
             {
-                AiCharacter = aiCharacter,
-                UserCharacter = userCharacter,
-            };
+                Roleplay = current.Roleplay with
+                {
+                    AiCharacter = aiCharacter ?? current.Roleplay.AiCharacter,
+                    UserCharacter = userCharacter ?? current.Roleplay.UserCharacter,
+                }
+            }, ct);
+            AppConfigRuntimeSync.CopyFrom(runtimeConfig, updatedConfig);
 
-            await configStore.SaveAsync(config, ct);
-
-            return Results.Ok(new { Status = "ok", AiCharacter = aiCharacter, UserCharacter = userCharacter });
+            return Results.Ok(new
+            {
+                Status = "ok",
+                AiCharacter = updatedConfig.Roleplay.AiCharacter,
+                UserCharacter = updatedConfig.Roleplay.UserCharacter
+            });
         });
 
         // Bulk import: scan a directory for Tavern card PNGs

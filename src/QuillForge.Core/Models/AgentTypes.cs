@@ -54,8 +54,26 @@ public sealed record AgentContext
     public string ActiveWritingStyle { get; init; } = "default";
 
     /// <summary>
+    /// Active narrative-rules file for this request. Resolved from session
+    /// profile state, falling back to global AppConfig.
+    /// </summary>
+    public string ActiveNarrativeRules { get; init; } = "default";
+
+    /// <summary>
     /// Path to the run-specific lore file for forge runs.
     /// Null/empty outside of forge pipeline execution.
     /// </summary>
     public string? RunLorePath { get; init; }
+
+    /// <summary>
+    /// Prepared interactive session context for orchestration and tools.
+    /// When absent, callers may load it through IInteractiveSessionContextService.
+    /// </summary>
+    public InteractiveSessionContext? SessionContext { get; init; }
+
+    /// <summary>
+    /// The most recent assistant prose response in the current thread, if any.
+    /// Used by the Narrative Director to maintain turn-to-turn scene memory.
+    /// </summary>
+    public string? LastAssistantResponse { get; init; }
 }

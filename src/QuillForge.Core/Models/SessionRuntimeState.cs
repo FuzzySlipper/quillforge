@@ -22,11 +22,14 @@ public sealed class SessionRuntimeState
     /// <summary>Mode selection and project/file/character context.</summary>
     public ModeSelectionState Mode { get; set; } = new();
 
-    /// <summary>Active profile selections (persona, lore, writing style).</summary>
+    /// <summary>Active profile selections (persona, narrative rules, lore, writing style).</summary>
     public ProfileState Profile { get; set; } = new();
 
     /// <summary>Writer-mode-specific runtime state (pending content, review workflow).</summary>
     public WriterRuntimeState Writer { get; set; } = new();
+
+    /// <summary>Narrative-director session state (notes, active plot selection).</summary>
+    public NarrativeRuntimeState Narrative { get; set; } = new();
 
     /// <summary>
     /// Timestamp of last mutation. Used to detect stale state on concurrent access.
@@ -48,8 +51,9 @@ public sealed class ModeSelectionState
 }
 
 /// <summary>
-/// Active profile selections. Determines which persona, lore set, and writing style
-/// are used when building prompts and invoking tools like query_lore and write_prose.
+/// Active profile selections. Determines which persona, narrative rules, lore set,
+/// and writing style are used when building prompts and invoking tools like
+/// query_lore, direct_scene, and write_prose.
 ///
 /// Currently mirrors AppConfig profile values. When session-scoped profiles land,
 /// these override the global config for this session.
@@ -61,6 +65,9 @@ public sealed class ProfileState
 
     /// <summary>Active lore set name. Null means "use global config default".</summary>
     public string? ActiveLoreSet { get; set; }
+
+    /// <summary>Active narrative rules name. Null means "use global config default".</summary>
+    public string? ActiveNarrativeRules { get; set; }
 
     /// <summary>Active writing style name. Null means "use global config default".</summary>
     public string? ActiveWritingStyle { get; set; }
@@ -74,6 +81,24 @@ public sealed class WriterRuntimeState
 {
     public string? PendingContent { get; set; }
     public WriterState State { get; set; } = WriterState.Idle;
+}
+
+/// <summary>
+/// Narrative-director mutable state persisted per session. Stores running
+/// scene-direction notes and the currently loaded plot file, if any.
+/// </summary>
+public sealed class NarrativeRuntimeState
+{
+    public string? DirectorNotes { get; set; }
+    public string? ActivePlotFile { get; set; }
+    public PlotProgressState PlotProgress { get; set; } = new();
+}
+
+public sealed class PlotProgressState
+{
+    public string? CurrentBeat { get; set; }
+    public List<string> CompletedBeats { get; set; } = [];
+    public List<string> Deviations { get; set; } = [];
 }
 
 public enum WriterState

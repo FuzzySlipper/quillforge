@@ -97,13 +97,56 @@ public sealed class FirstRunSetup
     /// </summary>
     private void CreateMinimalDefaults(string contentRoot)
     {
-        WriteIfMissing(Path.Combine(contentRoot, "persona", "default.md"), """
-            You are a creative writing assistant. You help authors build rich fictional worlds,
-            write compelling prose, and manage their creative projects. You are knowledgeable,
-            imaginative, and attentive to detail.
+        WriteIfMissing(Path.Combine(contentRoot, ContentPaths.Conductor, "default.md"), """
+            # Default Conductor
+
+            You are the coordination layer for QuillForge.
+
+            Operational rules:
+            - Do not adopt a separate assistant persona unless the user explicitly asks for one.
+            - Route to the right capability before answering from general intuition.
+            - In roleplay, stay transparent: the scene, characters, and prose carry the voice, not you.
+            - Keep direct non-fiction responses clear, concise, and task-focused.
+            - If a tool or dependency fails, say so plainly instead of hiding the failure.
             """);
 
-        WriteIfMissing(Path.Combine(contentRoot, "writing-styles", "default.md"), """
+        WriteIfMissing(Path.Combine(contentRoot, ContentPaths.NarrativeRules, "default.md"), """
+            # Default Narrative Rules
+
+            Direct the scene with coherent consequences, responsive NPC behavior, and steady momentum.
+
+            Rules:
+            - Respect established lore, character motives, and the current story state.
+            - Let user actions matter; do not negate them without an in-world cause.
+            - Escalate tension through consequences, complications, and new pressure rather than random chaos.
+            - Preserve continuity of injuries, promises, discoveries, and scene geography.
+            - When the scene changes materially, update story state to reflect it.
+            """);
+
+        WriteIfMissing(Path.Combine(contentRoot, ContentPaths.Plots, "default.md"), """
+            # Default Plot Arc
+
+            ## Premise
+            A protagonist is forced into a dangerous choice that reshapes their relationships and future.
+
+            ## Beats
+            - Opening equilibrium and the pressure already building under it
+            - Inciting incident that removes the easy option
+            - Rising complications that test loyalty, desire, and survival
+            - Major reversal that exposes hidden costs
+            - Climactic choice with lasting consequences
+            - Aftermath that shows what changed
+
+            ## Character Arcs
+            - Protagonist: moves from hesitation to costly conviction
+            - Closest ally: trust is strained, then redefined
+            - Primary opposing force: grows more dangerous as the protagonist commits
+
+            ## Tension Curve
+            Start intimate, escalate through irreversible consequences, and peak at a choice that cannot be undone.
+            """);
+
+        WriteIfMissing(Path.Combine(contentRoot, ContentPaths.WritingStyles, "default.md"), """
             Write in a clear, engaging literary style. Use vivid sensory details and strong verbs.
             Vary sentence length for rhythm. Show, don't tell. Use dialogue to reveal character.
             Maintain a consistent narrative voice throughout.

@@ -20,20 +20,18 @@ public class OrchestratorTests
         IMode[] modes =
         [
             new GeneralMode(),
-            new WriterMode(LogFactory.CreateLogger<WriterMode>()),
+            new WriterMode(),
             new RoleplayMode(),
             new ForgeMode(),
             new CouncilMode(),
         ];
 
         var personaStore = new FakePersonaStore();
-        var characterStore = new FakeCharacterCardStore();
-        var storyStateService = new FakeStoryStateService();
-        var contentFileService = new FakeContentFileService();
+        var sessionContextService = new FakeInteractiveSessionContextService();
 
         return new OrchestratorAgent(
-            toolLoop, modes, personaStore, characterStore, storyStateService,
-            contentFileService, new AppConfig(), LogFactory.CreateLogger<OrchestratorAgent>());
+            toolLoop, modes, personaStore, sessionContextService,
+            new AppConfig(), LogFactory.CreateLogger<OrchestratorAgent>());
     }
 
     [Fact]
@@ -41,30 +39,6 @@ public class OrchestratorTests
     {
         var state = new SessionRuntimeState();
         Assert.Equal("general", state.Mode.ActiveModeName);
-    }
-
-    [Fact]
-    public void SetMode_SwitchesMode()
-    {
-        var fake = new FakeCompletionService();
-        var orchestrator = CreateOrchestrator(fake);
-        var state = new SessionRuntimeState();
-
-        orchestrator.SetMode(state, "writer", "my-novel", "chapter1.md");
-
-        Assert.Equal("writer", state.Mode.ActiveModeName);
-        Assert.Equal("my-novel", state.Mode.ProjectName);
-        Assert.Equal("chapter1.md", state.Mode.CurrentFile);
-    }
-
-    [Fact]
-    public void SetMode_InvalidMode_Throws()
-    {
-        var fake = new FakeCompletionService();
-        var orchestrator = CreateOrchestrator(fake);
-        var state = new SessionRuntimeState();
-
-        Assert.Throws<ArgumentException>(() => orchestrator.SetMode(state, "nonexistent"));
     }
 
     [Fact]
@@ -111,17 +85,32 @@ public class OrchestratorTests
     }
 
     [Fact]
-    public void SetMode_ToWriter_ThenBack_ResetsWriterState()
+    public void GeneralMode_Prompt_IsNeutralAndNonPersonalityDriven()
     {
-        var fake = new FakeCompletionService();
-        var orchestrator = CreateOrchestrator(fake);
-        var state = new SessionRuntimeState();
+        var mode = new GeneralMode();
+        var prompt = mode.BuildSystemPromptSection(new ModeContext());
 
-        orchestrator.SetMode(state, "writer", "novel");
-        // Switching away from writer should reset its state
-        orchestrator.SetMode(state, "general");
+        Assert.Contains("no built-in assistant personality", prompt);
+        Assert.Contains("no narrative-direction role", prompt);
+        Assert.Contains("neutral coordination layer", prompt);
+        Assert.DoesNotContain("helpful creative writing assistant", prompt, StringComparison.OrdinalIgnoreCase);
+    }
 
-        Assert.Equal("general", state.Mode.ActiveModeName);
+    [Fact]
+    public void RoleplayMode_Prompt_RoutesThroughDirectScene()
+    {
+        var mode = new RoleplayMode();
+        var prompt = mode.BuildSystemPromptSection(new ModeContext
+        {
+            ProjectName = "gatehouse",
+            CurrentFile = "scene-01.md",
+            CharacterSection = "Captain Elian guards the gate.",
+        });
+
+        Assert.Contains("Use direct_scene for in-scene narrative responses", prompt);
+        Assert.Contains("direct_scene owns scene direction", prompt);
+        Assert.Contains("Prose returned from direct_scene", prompt);
+        Assert.Contains("Do not add assistant framing", prompt);
     }
 }
 
@@ -139,42 +128,4 @@ internal sealed class FakePersonaStore : QuillForge.Core.Services.IPersonaStore
     {
         return Task.FromResult<IReadOnlyList<string>>(["default"]);
     }
-}
-
-internal sealed class FakeCharacterCardStore : ICharacterCardStore
-{
-    public Task<CharacterCard?> LoadAsync(string fileName, CancellationToken ct = default)
-        => Task.FromResult<CharacterCard?>(null);
-
-    public Task SaveAsync(string fileName, CharacterCard card, CancellationToken ct = default)
-        => Task.CompletedTask;
-
-    public Task<IReadOnlyList<CharacterCard>> ListAsync(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyList<CharacterCard>>([]);
-
-    public string CardToPrompt(CharacterCard card) => $"Character: {card.Name}";
-
-    public CharacterCard NewTemplate(string name = "New Character")
-        => new() { Name = name };
-
-    public Task<CharacterCard> ImportTavernCardAsync(string pngPath, CancellationToken ct = default)
-        => Task.FromResult(new CharacterCard { Name = "Imported" });
-}
-
-internal sealed class FakeStoryStateService : IStoryStateService
-{
-    public Task<IReadOnlyDictionary<string, object>> LoadAsync(string stateFilePath, CancellationToken ct = default)
-        => Task.FromResult<IReadOnlyDictionary<string, object>>(new Dictionary<string, object>());
-
-    public Task SaveAsync(string stateFilePath, IReadOnlyDictionary<string, object> state, CancellationToken ct = default)
-        => Task.CompletedTask;
-
-    public Task<IReadOnlyDictionary<string, object>> MergeAsync(string stateFilePath, IReadOnlyDictionary<string, object> updates, CancellationToken ct = default)
-        => Task.FromResult(updates);
-
-    public Task IncrementCounterAsync(string stateFilePath, string counterKey, CancellationToken ct = default)
-        => Task.CompletedTask;
-
-    public Task RemoveKeyAsync(string stateFilePath, string key, CancellationToken ct = default)
-        => Task.CompletedTask;
 }

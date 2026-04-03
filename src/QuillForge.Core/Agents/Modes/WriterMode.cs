@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
 
 namespace QuillForge.Core.Agents.Modes;
@@ -9,13 +8,6 @@ namespace QuillForge.Core.Agents.Modes;
 /// </summary>
 public sealed class WriterMode : IMode
 {
-    private readonly ILogger<WriterMode> _logger;
-
-    public WriterMode(ILogger<WriterMode> logger)
-    {
-        _logger = logger;
-    }
-
     public string Name => "writer";
 
     public string BuildSystemPromptSection(ModeContext context)
@@ -44,62 +36,5 @@ public sealed class WriterMode : IMode
     public Task OnResponseAsync(AgentResponse response, ModeContext context, CancellationToken ct = default)
     {
         return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Check if a response should be captured as pending content and update state.
-    /// </summary>
-    public static void CaptureIfPending(AgentResponse response, WriterRuntimeState writer, ILogger logger)
-    {
-        var text = response.Content.GetText();
-        if (!string.IsNullOrWhiteSpace(text) && text.Length > 200 && writer.State == WriterState.Idle)
-        {
-            writer.PendingContent = text;
-            writer.State = WriterState.PendingReview;
-            logger.LogDebug("WriterMode: content pending review ({Length} chars)", text.Length);
-        }
-    }
-
-    /// <summary>
-    /// User accepts the pending content.
-    /// </summary>
-    public static string? Accept(WriterRuntimeState writer, ILogger logger)
-    {
-        if (writer.State != WriterState.PendingReview || writer.PendingContent is null)
-        {
-            logger.LogWarning("WriterMode: Accept called but no content pending");
-            return null;
-        }
-
-        var content = writer.PendingContent;
-        writer.PendingContent = null;
-        writer.State = WriterState.Idle;
-        logger.LogInformation("WriterMode: content accepted ({Length} chars)", content.Length);
-        return content;
-    }
-
-    /// <summary>
-    /// User rejects the pending content.
-    /// </summary>
-    public static void Reject(WriterRuntimeState writer, ILogger logger)
-    {
-        if (writer.State != WriterState.PendingReview)
-        {
-            logger.LogWarning("WriterMode: Reject called but no content pending");
-            return;
-        }
-
-        logger.LogInformation("WriterMode: content rejected");
-        writer.PendingContent = null;
-        writer.State = WriterState.Idle;
-    }
-
-    /// <summary>
-    /// Reset writer state (e.g., on mode switch).
-    /// </summary>
-    public static void Reset(WriterRuntimeState writer)
-    {
-        writer.PendingContent = null;
-        writer.State = WriterState.Idle;
     }
 }

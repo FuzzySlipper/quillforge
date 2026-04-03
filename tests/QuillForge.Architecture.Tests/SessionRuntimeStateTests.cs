@@ -1,4 +1,6 @@
 using System.Reflection;
+using QuillForge.Core.Agents;
+using QuillForge.Core.Agents.Modes;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 
@@ -11,21 +13,24 @@ namespace QuillForge.Architecture.Tests;
 public class SessionRuntimeStateTests
 {
     [Fact]
-    public void SessionRuntimeState_OwnsExactlyThreeSubStates()
+    public void SessionRuntimeState_OwnsExactlyFourSubStates()
     {
-        // The aggregate should have exactly Mode, Profile, Writer sub-states
+        // The aggregate should have exactly Mode, Profile, Writer, and Narrative
+        // sub-states
         // plus SessionId and LastModified metadata. No flat bag of nullable fields.
         var props = typeof(SessionRuntimeState).GetProperties(BindingFlags.Public | BindingFlags.Instance);
         var subStateProps = props.Where(p =>
             p.PropertyType == typeof(ModeSelectionState) ||
             p.PropertyType == typeof(ProfileState) ||
-            p.PropertyType == typeof(WriterRuntimeState))
+            p.PropertyType == typeof(WriterRuntimeState) ||
+            p.PropertyType == typeof(NarrativeRuntimeState))
             .ToList();
 
-        Assert.Equal(3, subStateProps.Count);
+        Assert.Equal(4, subStateProps.Count);
         Assert.Contains(subStateProps, p => p.Name == "Mode");
         Assert.Contains(subStateProps, p => p.Name == "Profile");
         Assert.Contains(subStateProps, p => p.Name == "Writer");
+        Assert.Contains(subStateProps, p => p.Name == "Narrative");
     }
 
     [Fact]
@@ -35,6 +40,7 @@ public class SessionRuntimeStateTests
         Assert.NotNull(state.Mode);
         Assert.NotNull(state.Profile);
         Assert.NotNull(state.Writer);
+        Assert.NotNull(state.Narrative);
     }
 
     [Fact]
@@ -100,6 +106,63 @@ public class SessionRuntimeStateTests
     }
 
     [Fact]
+    public void ISessionRuntimeService_ExistsInCore()
+    {
+        var serviceType = typeof(ISessionRuntimeService);
+        Assert.True(serviceType.IsInterface);
+        Assert.Equal("QuillForge.Core", serviceType.Assembly.GetName().Name);
+    }
+
+    [Fact]
+    public void ISessionMutationGate_ExistsInCore()
+    {
+        var gateType = typeof(ISessionMutationGate);
+        Assert.True(gateType.IsInterface);
+        Assert.Equal("QuillForge.Core", gateType.Assembly.GetName().Name);
+    }
+
+    [Fact]
+    public void IInteractiveSessionContextService_ExistsInCore()
+    {
+        var serviceType = typeof(IInteractiveSessionContextService);
+        Assert.True(serviceType.IsInterface);
+        Assert.Equal("QuillForge.Core", serviceType.Assembly.GetName().Name);
+    }
+
+    [Fact]
+    public void OrchestratorAgent_DoesNotOwnModeMutation()
+    {
+        var methods = typeof(OrchestratorAgent).GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Select(m => m.Name)
+            .ToHashSet();
+
+        Assert.DoesNotContain("SetMode", methods);
+    }
+
+    [Fact]
+    public void OrchestratorAgent_DoesNotHydrateSessionContextInternally()
+    {
+        var methods = typeof(OrchestratorAgent).GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Select(m => m.Name)
+            .ToHashSet();
+
+        Assert.DoesNotContain("HydrateModeContextAsync", methods);
+    }
+
+    [Fact]
+    public void WriterMode_DoesNotOwnWriterStateMutationHelpers()
+    {
+        var methods = typeof(WriterMode).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Select(m => m.Name)
+            .ToHashSet();
+
+        Assert.DoesNotContain("CaptureIfPending", methods);
+        Assert.DoesNotContain("Accept", methods);
+        Assert.DoesNotContain("Reject", methods);
+        Assert.DoesNotContain("Reset", methods);
+    }
+
+    [Fact]
     public void SessionRuntimeState_FullyPopulated_HasExpectedValues()
     {
         var sessionId = Guid.NewGuid();
@@ -124,6 +187,15 @@ public class SessionRuntimeStateTests
                 PendingContent = "pending text",
                 State = WriterState.PendingReview,
             },
+            Narrative = new NarrativeRuntimeState
+            {
+                DirectorNotes = "track the rising pressure",
+                ActivePlotFile = "arc-one",
+                PlotProgress = new PlotProgressState
+                {
+                    CurrentBeat = "midpoint",
+                },
+            },
         };
 
         Assert.Equal(sessionId, state.SessionId);
@@ -136,5 +208,8 @@ public class SessionRuntimeStateTests
         Assert.Equal("literary", state.Profile.ActiveWritingStyle);
         Assert.Equal("pending text", state.Writer.PendingContent);
         Assert.Equal(WriterState.PendingReview, state.Writer.State);
+        Assert.Equal("track the rising pressure", state.Narrative.DirectorNotes);
+        Assert.Equal("arc-one", state.Narrative.ActivePlotFile);
+        Assert.Equal("midpoint", state.Narrative.PlotProgress.CurrentBeat);
     }
 }

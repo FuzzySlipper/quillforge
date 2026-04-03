@@ -419,9 +419,10 @@ public class ConfigurationLoaderTests : IDisposable
 
         Assert.True(isFirstRun);
         Assert.True(Directory.Exists(Path.Combine(contentRoot, "lore", "default")));
+        Assert.True(Directory.Exists(Path.Combine(contentRoot, "conductor")));
         Assert.True(Directory.Exists(Path.Combine(contentRoot, "persona")));
         Assert.True(Directory.Exists(Path.Combine(contentRoot, "data", "sessions")));
-        Assert.True(File.Exists(Path.Combine(contentRoot, "persona", "default.md")));
+        Assert.True(File.Exists(Path.Combine(contentRoot, "conductor", "default.md")));
         Assert.True(File.Exists(Path.Combine(contentRoot, "writing-styles", "default.md")));
         Assert.True(File.Exists(Path.Combine(contentRoot, "config.yaml")));
     }

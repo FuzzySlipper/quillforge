@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 
 namespace Den.Persistence;
@@ -39,4 +40,16 @@ public class JsonPersistedDocumentStore<T> : FilePersistedDocumentStore<T>
     /// <inheritdoc />
     protected override string Serialize(T value)
         => JsonSerializer.Serialize(value, _options);
+
+    /// <inheritdoc />
+    protected override JsonObject ParseRootObject(string content)
+    {
+        var node = JsonNode.Parse(content);
+        return node as JsonObject
+            ?? throw new InvalidOperationException("Persisted JSON document root must be an object.");
+    }
+
+    /// <inheritdoc />
+    protected override string SerializeRootObject(JsonObject root)
+        => root.ToJsonString(_options);
 }

@@ -7,6 +7,7 @@ public sealed record AppConfig
 {
     public ModelsConfig Models { get; set; } = new();
     public PersonaConfig Persona { get; set; } = new();
+    public NarrativeRulesConfig NarrativeRules { get; set; } = new();
     public LoreConfig Lore { get; set; } = new();
     public WritingStyleConfig WritingStyle { get; set; } = new();
     public LayoutConfig Layout { get; set; } = new();
@@ -24,6 +25,7 @@ public sealed record AppConfig
 public sealed record ModelsConfig
 {
     public string Orchestrator { get; set; } = "default";
+    public string NarrativeDirector { get; set; } = "default";
     public string ProseWriter { get; set; } = "default";
     public string Librarian { get; set; } = "default";
     public string ForgeWriter { get; set; } = "default";
@@ -38,6 +40,11 @@ public sealed record PersonaConfig
 {
     public string Active { get; set; } = "default";
     public int MaxTokens { get; set; } = 6000;
+}
+
+public sealed record NarrativeRulesConfig
+{
+    public string Active { get; set; } = "default";
 }
 
 public sealed record LoreConfig
@@ -95,6 +102,7 @@ public sealed record DiagnosticsConfig
 public sealed record AgentsConfig
 {
     public OrchestratorBudget Orchestrator { get; set; } = new();
+    public NarrativeDirectorBudget NarrativeDirector { get; set; } = new();
     public LibrarianBudget Librarian { get; set; } = new();
     public ProseWriterBudget ProseWriter { get; set; } = new();
     public ForgePlannerBudget ForgePlanner { get; set; } = new();
@@ -109,6 +117,12 @@ public sealed record AgentsConfig
 public sealed record OrchestratorBudget
 {
     public int MaxToolRounds { get; set; } = 15;
+}
+
+public sealed record NarrativeDirectorBudget
+{
+    public int MaxTokens { get; set; } = 4096;
+    public int MaxToolRounds { get; set; } = 8;
 }
 
 public sealed record LibrarianBudget

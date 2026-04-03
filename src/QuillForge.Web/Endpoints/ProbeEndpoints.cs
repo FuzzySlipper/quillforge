@@ -23,7 +23,8 @@ public static class ProbeEndpoints
             ICompletionService completionService,
             OrchestratorAgent orchestrator,
             IEnumerable<IToolHandler> toolHandlers,
-            ISessionRuntimeStore runtimeStore,
+            ISessionRuntimeService runtimeService,
+            IInteractiveSessionContextService sessionContextService,
             IPersonaStore personaStore,
             AppConfig appConfig,
             AtomicFileWriter fileWriter,
@@ -32,7 +33,8 @@ public static class ProbeEndpoints
         {
             // Resolve session context
             var sessionId = httpContext.TryGetSessionId();
-            var sessionState = await runtimeStore.LoadAsync(sessionId, ct);
+            var sessionState = await runtimeService.LoadViewAsync(sessionId, ct);
+            var sessionContext = await sessionContextService.BuildAsync(sessionState, ct);
             var activeModeName = sessionState.Mode.ActiveModeName;
             var model = appConfig.Models.Orchestrator;
 
@@ -40,8 +42,12 @@ public static class ProbeEndpoints
             var activeMode = orchestrator.ResolveMode(activeModeName);
             var modeContext = new ModeContext
             {
-                ProjectName = sessionState.Mode.ProjectName,
-                CurrentFile = sessionState.Mode.CurrentFile,
+                ProjectName = sessionContext.ProjectName,
+                CurrentFile = sessionContext.CurrentFile,
+                CharacterSection = sessionContext.CharacterSection,
+                StoryStateSummary = sessionContext.StoryStateSummary,
+                FileContext = sessionContext.FileContext,
+                WriterPendingContent = sessionContext.WriterPendingContent,
                 ActiveLoreSet = appConfig.Lore.Active,
             };
             var modeSection = activeMode.BuildSystemPromptSection(modeContext);

@@ -10,7 +10,11 @@ public static class ContentPaths
     // --- Top-level content directories ---
     public const string Lore = "lore";
     public const string LoreDefault = "lore/default";
+    public const string Conductor = "conductor";
+    // Legacy compatibility path for older installs and APIs.
     public const string Persona = "persona";
+    public const string NarrativeRules = "narrative-rules";
+    public const string Plots = "plots";
     public const string WritingStyles = "writing-styles";
     public const string Story = "story";
     public const string Writing = "writing";
@@ -44,7 +48,10 @@ public static class ContentPaths
     public static readonly string[] AllDirectories =
     [
         LoreDefault,
+        Conductor,
         Persona,
+        NarrativeRules,
+        Plots,
         WritingStyles,
         Story,
         Writing,

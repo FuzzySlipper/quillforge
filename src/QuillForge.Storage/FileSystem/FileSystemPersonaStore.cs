@@ -5,59 +5,75 @@ using QuillForge.Core.Utilities;
 namespace QuillForge.Storage.FileSystem;
 
 /// <summary>
-/// Loads persona/character definitions from the file system.
-/// A persona can be either a single .md file or a directory containing multiple .md files
-/// (which are concatenated in alphabetical order).
+/// Loads conductor prompt profiles from the file system.
+/// Supports the new conductor/ directory first, then falls back to the legacy
+/// persona/ directory for compatibility. A profile can be either a single .md
+/// file or a directory containing multiple .md files (concatenated in
+/// alphabetical order).
 /// </summary>
 public sealed class FileSystemPersonaStore : IPersonaStore
 {
-    private readonly string _personaPath;
+    private readonly string _conductorPath;
+    private readonly string? _legacyPersonaPath;
     private readonly ILogger<FileSystemPersonaStore> _logger;
 
-    public FileSystemPersonaStore(string personaPath, ILogger<FileSystemPersonaStore> logger)
+    public FileSystemPersonaStore(
+        string conductorPath,
+        string? legacyPersonaPath,
+        ILogger<FileSystemPersonaStore> logger)
     {
-        _personaPath = personaPath;
+        _conductorPath = conductorPath;
+        _legacyPersonaPath = legacyPersonaPath;
         _logger = logger;
     }
 
     public async Task<string> LoadAsync(string personaName, int? maxTokens = null, CancellationToken ct = default)
     {
-        _logger.LogDebug("Loading persona: {Name}, budget: {Budget} tokens", personaName, maxTokens ?? -1);
+        _logger.LogDebug(
+            "Loading conductor profile: {Name}, budget: {Budget} tokens",
+            personaName,
+            maxTokens ?? -1);
 
-        var dirPath = Path.Combine(_personaPath, personaName);
-        if (Directory.Exists(dirPath))
+        foreach (var root in EnumerateRoots())
         {
-            // If budget is set, load files in tier order with budget enforcement
-            if (maxTokens.HasValue)
+            var dirPath = Path.Combine(root, personaName);
+            if (Directory.Exists(dirPath))
             {
-                return await LoadTieredAsync(dirPath, maxTokens.Value, ct);
-            }
-
-            // No budget — load all files alphabetically (existing behavior)
-            var files = Directory.GetFiles(dirPath, "*.md", SearchOption.TopDirectoryOnly)
-                .OrderBy(f => f)
-                .ToList();
-
-            if (files.Count > 0)
-            {
-                var parts = new List<string>();
-                foreach (var file in files)
+                if (maxTokens.HasValue)
                 {
-                    parts.Add(await File.ReadAllTextAsync(file, ct));
+                    return await LoadTieredAsync(dirPath, maxTokens.Value, ct);
                 }
-                _logger.LogDebug("Loaded persona {Name} from {Count} files in directory", personaName, files.Count);
-                return string.Join("\n\n", parts);
+
+                var files = Directory.GetFiles(dirPath, "*.md", SearchOption.TopDirectoryOnly)
+                    .OrderBy(f => f)
+                    .ToList();
+
+                if (files.Count > 0)
+                {
+                    var parts = new List<string>();
+                    foreach (var file in files)
+                    {
+                        parts.Add(await File.ReadAllTextAsync(file, ct));
+                    }
+
+                    _logger.LogDebug(
+                        "Loaded conductor profile {Name} from {Count} files in {Root}",
+                        personaName,
+                        files.Count,
+                        root);
+                    return string.Join("\n\n", parts);
+                }
+            }
+
+            var filePath = Path.Combine(root, personaName + ".md");
+            if (File.Exists(filePath))
+            {
+                _logger.LogDebug("Loaded conductor profile {Name} from file in {Root}", personaName, root);
+                return await File.ReadAllTextAsync(filePath, ct);
             }
         }
 
-        // Fall back to single file
-        var filePath = Path.Combine(_personaPath, personaName + ".md");
-        if (File.Exists(filePath))
-        {
-            return await File.ReadAllTextAsync(filePath, ct);
-        }
-
-        _logger.LogWarning("Persona not found: {Name}, returning empty", personaName);
+        _logger.LogWarning("Conductor profile not found: {Name}, returning empty", personaName);
         return "";
     }
 
@@ -81,14 +97,14 @@ public sealed class FileSystemPersonaStore : IPersonaStore
             if (totalTokens + tokens > budget)
             {
                 _logger.LogDebug(
-                    "Persona tier {Tier} skipped: would exceed budget ({Current} + {FileTokens} > {Budget})",
+                    "Conductor tier {Tier} skipped: would exceed budget ({Current} + {FileTokens} > {Budget})",
                     tierFile, totalTokens, tokens, budget);
                 break;
             }
 
             parts.Add(content);
             totalTokens += tokens;
-            _logger.LogDebug("Loaded persona tier {Tier}: {Tokens} tokens (total: {Total}/{Budget})",
+            _logger.LogDebug("Loaded conductor tier {Tier}: {Tokens} tokens (total: {Total}/{Budget})",
                 tierFile, tokens, totalTokens, budget);
         }
 
@@ -107,7 +123,7 @@ public sealed class FileSystemPersonaStore : IPersonaStore
 
             if (totalTokens + tokens > budget)
             {
-                _logger.LogDebug("Persona file {File} skipped: would exceed budget", fileName);
+                _logger.LogDebug("Conductor file {File} skipped: would exceed budget", fileName);
                 continue;
             }
 
@@ -115,32 +131,44 @@ public sealed class FileSystemPersonaStore : IPersonaStore
             totalTokens += tokens;
         }
 
-        _logger.LogDebug("Loaded persona with {Parts} parts, {Tokens}/{Budget} tokens", parts.Count, totalTokens, budget);
+        _logger.LogDebug("Loaded conductor profile with {Parts} parts, {Tokens}/{Budget} tokens", parts.Count, totalTokens, budget);
         return string.Join("\n\n", parts);
     }
 
     public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
     {
-        if (!Directory.Exists(_personaPath))
-        {
-            return Task.FromResult<IReadOnlyList<string>>([]);
-        }
-
         var personas = new HashSet<string>();
 
-        // Add directory-based personas
-        foreach (var dir in Directory.GetDirectories(_personaPath))
+        foreach (var root in EnumerateRoots())
         {
-            personas.Add(Path.GetFileName(dir));
-        }
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
 
-        // Add single-file personas
-        foreach (var file in Directory.GetFiles(_personaPath, "*.md"))
-        {
-            personas.Add(Path.GetFileNameWithoutExtension(file));
+            foreach (var dir in Directory.GetDirectories(root))
+            {
+                personas.Add(Path.GetFileName(dir));
+            }
+
+            foreach (var file in Directory.GetFiles(root, "*.md"))
+            {
+                personas.Add(Path.GetFileNameWithoutExtension(file));
+            }
         }
 
         var sorted = personas.OrderBy(n => n).ToList();
         return Task.FromResult<IReadOnlyList<string>>(sorted);
+    }
+
+    private IEnumerable<string> EnumerateRoots()
+    {
+        yield return _conductorPath;
+
+        if (!string.IsNullOrWhiteSpace(_legacyPersonaPath)
+            && !string.Equals(_legacyPersonaPath, _conductorPath, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return _legacyPersonaPath;
+        }
     }
 }

@@ -18,7 +18,8 @@ public static class ChatEndpoints
         app.MapPost("/api/chat/stream", async (
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
-            ISessionRuntimeStore runtimeStore,
+            ISessionRuntimeService runtimeService,
+            IInteractiveSessionContextService sessionContextService,
             ISessionStore sessionStore,
             IEnumerable<IToolHandler> toolHandlers,
             ICharacterCardStore cardStore,
@@ -87,19 +88,28 @@ public static class ChatEndpoints
             }
 
             // Build conversation messages from the thread up to the current position
-            var messages = tree.ToFlatThread()
+            var thread = tree.ToFlatThread();
+            var messages = thread
                 .Select(n => new CompletionMessage(n.Role, n.Content))
                 .ToList();
+            var lastAssistantResponse = thread
+                .LastOrDefault(n => string.Equals(n.Role, "assistant", StringComparison.OrdinalIgnoreCase))
+                ?.Content
+                .GetText();
 
             // Load per-session runtime state
-            var sessionState = await runtimeStore.LoadAsync(sessionId, ct);
+            var sessionState = await runtimeService.LoadViewAsync(sessionId, ct);
+            var sessionContext = await sessionContextService.BuildAsync(sessionState, ct);
 
             var context = new AgentContext
             {
                 SessionId = sessionId,
                 ActiveMode = sessionState.Mode.ActiveModeName,
                 ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? appConfig.Lore.Active,
+                ActiveNarrativeRules = sessionState.Profile.ActiveNarrativeRules ?? appConfig.NarrativeRules.Active,
                 ActiveWritingStyle = sessionState.Profile.ActiveWritingStyle ?? appConfig.WritingStyle.Active,
+                SessionContext = sessionContext,
+                LastAssistantResponse = lastAssistantResponse,
             };
 
             // Stream SSE response, collecting assistant text for persistence
@@ -173,7 +183,19 @@ public static class ChatEndpoints
             }
 
             await sessionStore.SaveAsync(tree, ct);
-            await runtimeStore.SaveAsync(sessionState, ct);
+            if (assistantText.Length > 0)
+            {
+                var pendingCapture = await runtimeService.CaptureWriterPendingAsync(
+                    sessionId,
+                    new CaptureWriterPendingCommand(assistantText.ToString(), sessionState.Mode.ActiveModeName),
+                    ct);
+                if (pendingCapture.Status == SessionMutationStatus.Busy)
+                {
+                    logger.LogWarning(
+                        "Writer pending capture skipped because the session was busy: session={SessionId}",
+                        sessionId);
+                }
+            }
 
             // Send persisted event with backend node IDs so the frontend can update message identity
             var userNodeId = parentId.HasValue ? (Guid?)null : appendParentId;

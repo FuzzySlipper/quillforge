@@ -4,6 +4,8 @@ import type { StreamEvent } from "./api";
 export interface CommandContext {
   /** Current app status */
   status: Status | null;
+  /** Current session id */
+  sessionId: string | null;
   /** Current mode */
   mode: Mode;
   /** All messages (for index-based commands) */
@@ -70,7 +72,7 @@ const commands: Record<string, CommandDef> = {
       const s = ctx.status;
       const lines = [
         `**Mode:** ${s.mode}`,
-        `**Persona:** ${s.persona}`,
+        `**Conductor:** ${s.persona}`,
         `**Writing style:** ${s.writingStyle}`,
         `**Lore set:** ${s.loreSet} (${s.loreFiles} files)`,
         `**Model:** ${s.model}`,
@@ -167,6 +169,67 @@ const commands: Record<string, CommandDef> = {
     handler: (_, ctx) => {
       ctx.openContext();
       return { output: null };
+    },
+  },
+
+  plot: {
+    description: "Manage reusable plot arc files for the current session",
+    usage: "generate [prompt] | list | load <name> | unload",
+    handler: async (args, ctx) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const sub = parts[0]?.toLowerCase() ?? "list";
+
+      const { generatePlot, listPlots, loadPlot, unloadPlot } = await import("./api");
+
+      if (sub === "list") {
+        const response = await listPlots(ctx.sessionId);
+        if (response.files.length === 0) {
+          return { output: "No plot files found in `plots/` yet. Use `/plot generate` to create one." };
+        }
+
+        const lines = response.files.map((file) => {
+          const marker = response.activePlotFile === file.name ? " **(active)**" : "";
+          return `\`${file.name}\`${marker}`;
+        });
+        return { output: `Available plots:\n${lines.join("\n")}` };
+      }
+
+      if (sub === "generate") {
+        const prompt = stripOptionalQuotes(args.trim().slice("generate".length).trim());
+        const response = await generatePlot(prompt || null, ctx.sessionId);
+        return {
+          output:
+            `Generated plot **${response.name}** in \`plots/\`.\n` +
+            `Use \`/plot load ${response.name}\` to attach it to the current session.`,
+        };
+      }
+
+      if (sub === "load") {
+        if (!ctx.sessionId) {
+          return { output: "No active session yet. Start a session with `/new` or send a message first." };
+        }
+
+        const name = parts.slice(1).join(" ").trim();
+        if (!name) {
+          return { output: "Usage: `/plot load <name>`" };
+        }
+
+        const response = await loadPlot(name, ctx.sessionId);
+        ctx.refreshStatus();
+        return { output: `Loaded plot **${response.activePlotFile ?? name}** for this session.` };
+      }
+
+      if (sub === "unload") {
+        if (!ctx.sessionId) {
+          return { output: "No active session yet. Start a session with `/new` or send a message first." };
+        }
+
+        await unloadPlot(ctx.sessionId);
+        ctx.refreshStatus();
+        return { output: "Cleared the active plot for this session." };
+      }
+
+      return { output: "Unknown subcommand. Usage: `/plot generate [prompt] | list | load <name> | unload`" };
     },
   },
 
@@ -540,4 +603,12 @@ export function getCommandNames(): string[] {
 export function getCommandUsage(name: string): string | undefined {
   const cmd = commands[name];
   return cmd?.usage;
+}
+
+function stripOptionalQuotes(value: string): string {
+  if (value.length >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+    return value.slice(1, -1).trim();
+  }
+
+  return value;
 }

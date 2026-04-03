@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json.Nodes;
 
 namespace Den.Persistence.Tests;
 
@@ -8,6 +9,13 @@ namespace Den.Persistence.Tests;
 public sealed record TestConfig
 {
     public string Name { get; init; } = "";
+    public int MaxRetries { get; init; }
+    public bool Enabled { get; init; }
+}
+
+public sealed record VersionedConfig
+{
+    public string DisplayName { get; init; } = "";
     public int MaxRetries { get; init; }
     public bool Enabled { get; init; }
 }
@@ -69,6 +77,64 @@ public sealed class YamlTestConfigDocument : PersistedDocumentBase<TestConfig>
     };
 }
 
+public sealed class JsonVersionedConfigDocument : PersistedDocumentBase<VersionedConfig>, IVersionedPersistedDocument<VersionedConfig>
+{
+    public override string RelativePath => "data/versioned-config.json";
+
+    public int CurrentVersion => 2;
+
+    public override VersionedConfig CreateDefault() => new()
+    {
+        DisplayName = "default",
+        MaxRetries = 3,
+        Enabled = true
+    };
+
+    public void MigrateOneVersion(JsonObject document, int fromVersion)
+    {
+        if (fromVersion != 1)
+        {
+            throw new InvalidOperationException($"Unsupported migration from version {fromVersion}.");
+        }
+
+        if (document["name"] is not null)
+        {
+            document["displayName"] = document["name"]?.DeepClone();
+            document.Remove("name");
+        }
+    }
+}
+
+public sealed class YamlVersionedConfigDocument : PersistedDocumentBase<VersionedConfig>, IVersionedPersistedDocument<VersionedConfig>
+{
+    public override string RelativePath => "data/versioned-config.yaml";
+
+    public int CurrentVersion => 2;
+
+    public string VersionFieldName => "schema_version";
+
+    public override VersionedConfig CreateDefault() => new()
+    {
+        DisplayName = "default",
+        MaxRetries = 3,
+        Enabled = true
+    };
+
+    public void MigrateOneVersion(JsonObject document, int fromVersion)
+    {
+        if (fromVersion != 1)
+        {
+            throw new InvalidOperationException($"Unsupported migration from version {fromVersion}.");
+        }
+
+        if (document["name"] is not null)
+        {
+            document["display_name"] = document["name"]?.DeepClone();
+            document.Remove("name");
+        }
+    }
+}
+
 public class PersistedDocumentStoreTests : IDisposable
 {
     private readonly string _tempDir;
@@ -97,6 +163,20 @@ public class PersistedDocumentStoreTests : IDisposable
     private YamlPersistedDocumentStore<TestConfig> CreateYamlStore(IPersistedDocument<TestConfig>? document = null)
         => new(
             document ?? new YamlTestConfigDocument(),
+            _tempDir,
+            _writer,
+            NullLogger.Instance);
+
+    private JsonPersistedDocumentStore<VersionedConfig> CreateVersionedJsonStore(IPersistedDocument<VersionedConfig>? document = null)
+        => new(
+            document ?? new JsonVersionedConfigDocument(),
+            _tempDir,
+            _writer,
+            NullLogger.Instance);
+
+    private YamlPersistedDocumentStore<VersionedConfig> CreateVersionedYamlStore(IPersistedDocument<VersionedConfig>? document = null)
+        => new(
+            document ?? new YamlVersionedConfigDocument(),
             _tempDir,
             _writer,
             NullLogger.Instance);
@@ -304,5 +384,91 @@ public class PersistedDocumentStoreTests : IDisposable
 
         var final = await store.LoadAsync();
         Assert.Equal(updateCount, final.MaxRetries);
+    }
+
+    // --- Schema versioning ---
+
+    [Fact]
+    public async Task Load_JsonVersionedDocument_MigratesLegacyShapeBeforeDeserialization()
+    {
+        var document = new JsonVersionedConfigDocument();
+        var path = Path.Combine(_tempDir, document.RelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, """{"name":"legacy-name","maxRetries":9,"enabled":false}""");
+
+        var store = CreateVersionedJsonStore(document);
+        var loaded = await store.LoadAsync();
+
+        Assert.Equal("legacy-name", loaded.DisplayName);
+        Assert.Equal(9, loaded.MaxRetries);
+        Assert.False(loaded.Enabled);
+
+        var migrated = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        Assert.Equal(2, migrated["schemaVersion"]!.GetValue<int>());
+        Assert.Equal("legacy-name", migrated["displayName"]!.GetValue<string>());
+        Assert.Null(migrated["name"]);
+    }
+
+    [Fact]
+    public async Task Save_JsonVersionedDocument_WritesCurrentSchemaVersion()
+    {
+        var document = new JsonVersionedConfigDocument();
+        var store = CreateVersionedJsonStore(document);
+
+        await store.SaveAsync(new VersionedConfig
+        {
+            DisplayName = "current",
+            MaxRetries = 4,
+            Enabled = true
+        });
+
+        var path = Path.Combine(_tempDir, document.RelativePath);
+        var saved = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        Assert.Equal(2, saved["schemaVersion"]!.GetValue<int>());
+        Assert.Equal("current", saved["displayName"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Load_YamlVersionedDocument_MigratesLegacyShapeBeforeDeserialization()
+    {
+        var document = new YamlVersionedConfigDocument();
+        var path = Path.Combine(_tempDir, document.RelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, """
+            name: legacy-yaml
+            max_retries: 12
+            enabled: false
+            """);
+
+        var store = CreateVersionedYamlStore(document);
+        var loaded = await store.LoadAsync();
+
+        Assert.Equal("legacy-yaml", loaded.DisplayName);
+        Assert.Equal(12, loaded.MaxRetries);
+        Assert.False(loaded.Enabled);
+
+        var content = await File.ReadAllTextAsync(path);
+        Assert.Contains("schema_version: 2", content);
+        Assert.Contains("display_name: legacy-yaml", content);
+        Assert.DoesNotContain(Environment.NewLine + "name: legacy-yaml", Environment.NewLine + content);
+    }
+
+    [Fact]
+    public async Task Save_YamlVersionedDocument_WritesCurrentSchemaVersion()
+    {
+        var document = new YamlVersionedConfigDocument();
+        var store = CreateVersionedYamlStore(document);
+
+        await store.SaveAsync(new VersionedConfig
+        {
+            DisplayName = "current-yaml",
+            MaxRetries = 6,
+            Enabled = true
+        });
+
+        var path = Path.Combine(_tempDir, document.RelativePath);
+        var content = await File.ReadAllTextAsync(path);
+        Assert.Contains("schema_version: 2", content);
+        Assert.Contains("display_name: current-yaml", content);
     }
 }

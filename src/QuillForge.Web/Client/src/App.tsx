@@ -18,6 +18,7 @@ import ContextOverlay from "./components/ContextOverlay";
 import WriterControls from "./components/WriterControls";
 import RoleplayControls from "./components/RoleplayControls";
 import LoreBrowser from "./components/LoreBrowser";
+import PlotBrowser from "./components/PlotBrowser";
 import PromptBrowser from "./components/PromptBrowser";
 import LayoutPicker from "./components/LayoutPicker";
 import ProviderManager from "./components/ProviderManager";
@@ -54,6 +55,7 @@ function App() {
   const [modeOpen, setModeOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const [loreOpen, setLoreOpen] = useState(false);
+  const [plotOpen, setPlotOpen] = useState(false);
   const [promptsOpen, setPromptsOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [providerOpen, setProviderOpen] = useState(false);
@@ -365,6 +367,7 @@ function App() {
       // Build command context
       const ctx: CommandContext = {
         status,
+        sessionId: currentSessionId,
         mode,
         messages,
         openProfile: () => setProfileOpen(true),
@@ -621,6 +624,7 @@ function App() {
         onOpenMode={() => setModeOpen(true)}
         onOpenContext={() => setContextOpen(true)}
         onOpenLore={() => setLoreOpen(true)}
+        onOpenPlots={() => setPlotOpen(true)}
         onOpenPrompts={() => setPromptsOpen(true)}
         onOpenLayout={() => setLayoutOpen(true)}
         onOpenProviders={() => setProviderOpen(true)}
@@ -721,11 +725,18 @@ function App() {
         open={contextOpen}
         onClose={() => setContextOpen(false)}
         status={status}
+        sessionId={currentSessionId}
       />
       <LoreBrowser
         open={loreOpen}
         onClose={() => setLoreOpen(false)}
         onChanged={refreshStatus}
+      />
+      <PlotBrowser
+        open={plotOpen}
+        onClose={() => setPlotOpen(false)}
+        onChanged={refreshStatus}
+        sessionId={currentSessionId}
       />
       <PromptBrowser
         open={promptsOpen}
