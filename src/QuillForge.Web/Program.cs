@@ -187,8 +187,6 @@ builder.Services.AddSingleton<ISessionMutationGate, InMemorySessionMutationGate>
 builder.Services.AddSingleton<SessionRuntimeService>();
 builder.Services.AddSingleton<ISessionStateService>(sp =>
     sp.GetRequiredService<SessionRuntimeService>());
-builder.Services.AddSingleton<ISessionRuntimeService>(sp =>
-    sp.GetRequiredService<SessionRuntimeService>());
 builder.Services.AddSingleton<ISessionBootstrapService, SessionBootstrapService>();
 builder.Services.AddSingleton<ISessionLifecycleService, SessionLifecycleService>();
 builder.Services.AddSingleton<IInteractiveSessionContextService, InteractiveSessionContextService>();

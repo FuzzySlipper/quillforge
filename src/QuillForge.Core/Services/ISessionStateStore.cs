@@ -40,7 +40,3 @@ public interface ISessionStateStore
     /// </summary>
     Task<IReadOnlyList<Guid>> FindSessionIdsByProfileIdAsync(string profileId, CancellationToken ct = default);
 }
-
-public interface ISessionRuntimeStore : ISessionStateStore
-{
-}

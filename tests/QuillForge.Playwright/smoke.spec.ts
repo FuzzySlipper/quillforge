@@ -67,9 +67,9 @@ test.describe('API Smoke Tests', () => {
     expect(d.build.uptime).toBeTruthy();
   });
 
-  test('profiles returns personas and lore sets', async ({ request }) => {
+  test('profiles returns conductors and lore sets', async ({ request }) => {
     const d = await (await request.get(`${BASE}/api/profiles`)).json();
-    expect(d.personas).toBeTruthy();
+    expect(d.conductors).toBeTruthy();
     expect(d.loreSets).toBeTruthy();
     expect(d.narrativeRules).toBeTruthy();
     expect(d.writingStyles).toBeTruthy();
@@ -150,8 +150,8 @@ test.describe('API Smoke Tests', () => {
     expect(resp.ok()).toBe(true);
   });
 
-  test('persona returns data', async ({ request }) => {
-    const d = await (await request.get(`${BASE}/api/persona`)).json();
+  test('conductors returns data', async ({ request }) => {
+    const d = await (await request.get(`${BASE}/api/conductors`)).json();
     expect(d.files).toBeTruthy();
   });
 

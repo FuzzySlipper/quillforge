@@ -43,14 +43,6 @@ public class SessionState
 }
 
 /// <summary>
-/// Compatibility shim for older code paths while the codebase converges on
-/// SessionState as the primary architectural name.
-/// </summary>
-public sealed class SessionRuntimeState : SessionState
-{
-}
-
-/// <summary>
 /// Which mode is active and what project/file/character context it uses.
 /// Mutated by mode-switch endpoints. Read by the orchestrator to resolve the IMode
 /// and build ModeContext.

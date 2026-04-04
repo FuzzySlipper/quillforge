@@ -11,8 +11,6 @@ public static class ContentPaths
     public const string Lore = "lore";
     public const string LoreDefault = "lore/default";
     public const string Conductor = "conductor";
-    // Legacy compatibility path for older installs and APIs.
-    public const string Persona = "persona";
     public const string NarrativeRules = "narrative-rules";
     public const string Profiles = "profiles";
     public const string Plots = "plots";
@@ -40,7 +38,6 @@ public static class ContentPaths
     // --- Well-known files ---
     public const string ConfigFile = "config.yaml";
     public const string ProvidersFile = "data/providers.json";
-    public const string RuntimeStateFile = "data/runtime-state.json";
 
     /// <summary>
     /// All directories that should exist in a content root.
@@ -50,7 +47,6 @@ public static class ContentPaths
     [
         LoreDefault,
         Conductor,
-        Persona,
         NarrativeRules,
         Profiles,
         Plots,

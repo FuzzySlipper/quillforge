@@ -26,11 +26,11 @@ public class OrchestratorTests
             new CouncilMode(),
         ];
 
-        var personaStore = new FakePersonaStore();
+        var conductorStore = new FakeConductorStore();
         var sessionContextService = new FakeInteractiveSessionContextService();
 
         return new OrchestratorAgent(
-            toolLoop, modes, personaStore, sessionContextService,
+            toolLoop, modes, conductorStore, sessionContextService,
             new AppConfig(), LogFactory.CreateLogger<OrchestratorAgent>());
     }
 
@@ -117,9 +117,9 @@ public class OrchestratorTests
 /// <summary>
 /// Simple fake conductor store for testing.
 /// </summary>
-internal sealed class FakePersonaStore : QuillForge.Core.Services.IPersonaStore
+internal sealed class FakeConductorStore : IConductorStore
 {
-    public Task<string> LoadAsync(string personaName, int? maxTokens = null, CancellationToken ct = default)
+    public Task<string> LoadAsync(string conductorName, int? maxTokens = null, CancellationToken ct = default)
     {
         return Task.FromResult("You are a test persona. Be helpful and creative.");
     }

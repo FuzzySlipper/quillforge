@@ -167,20 +167,19 @@ public class DefaultsIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task PersonaStore_LoadsNarratorPersona()
+    public async Task ConductorStore_LoadsNarratorConductor()
     {
         if (_defaultsPath is null) return;
 
         var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
         setup.EnsureContentDirectory(_tempDir, _defaultsPath);
 
-        var store = new FileSystemPersonaStore(
+        var store = new FileSystemConductorStore(
             Path.Combine(_tempDir, "conductor"),
-            Path.Combine(_tempDir, "persona"),
-            NullLoggerFactory.Instance.CreateLogger<FileSystemPersonaStore>());
+            NullLoggerFactory.Instance.CreateLogger<FileSystemConductorStore>());
 
-        var personas = await store.ListAsync();
-        Assert.True(personas.Count > 0);
+        var conductors = await store.ListAsync();
+        Assert.True(conductors.Count > 0);
     }
 
     [Fact]

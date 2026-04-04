@@ -1,24 +1,10 @@
-using System.Text.Json.Serialization;
-
 namespace QuillForge.Web.Contracts;
 
 public sealed record ProfileSwitchRequest
 {
     public Guid? SessionId { get; init; }
     public string? ProfileId { get; init; }
-    public string? Conductor { get; set; }
-    [JsonPropertyName("persona")]
-    public string? LegacyPersona
-    {
-        get => null;
-        set
-        {
-            if (!string.IsNullOrWhiteSpace(value) && string.IsNullOrWhiteSpace(Conductor))
-            {
-                Conductor = value;
-            }
-        }
-    }
+    public string? Conductor { get; init; }
     public string? Lore { get; init; }
     public string? NarrativeRules { get; init; }
     public string? WritingStyle { get; init; }

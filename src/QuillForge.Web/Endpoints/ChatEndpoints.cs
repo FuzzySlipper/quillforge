@@ -37,7 +37,7 @@ public static class ChatEndpoints
             // Resolve "default" to the configured orchestrator model
             if (string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
                 model = appConfig.Models.Orchestrator;
-            var requestedConductor = root.GetOptionalString("conductor") ?? root.GetOptionalString("persona");
+            var requestedConductor = root.GetOptionalString("conductor");
             var maxTokens = root.TryGetProperty("maxTokens", out var mt) ? mt.GetInt32() : 4096;
             var parentId = root.GetOptionalGuid("parentId");
 

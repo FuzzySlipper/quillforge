@@ -95,7 +95,7 @@ is:
 - the owning service keeps validation, sequencing, and persistence rules
 
 For session state mutation, that shape is already visible in
-[`ISessionStateService`](../../src/QuillForge.Core/Services/ISessionRuntimeService.cs)
+[`ISessionStateService`](../../src/QuillForge.Core/Services/ISessionStateService.cs)
 with command inputs and
 [`SessionMutationResult<T>`](../../src/QuillForge.Core/Models/SessionMutationResult.cs)
 outputs.

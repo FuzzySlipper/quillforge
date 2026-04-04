@@ -466,7 +466,7 @@ export async function createLoreProject(name: string): Promise<{ status: string;
   });
 }
 
-// ── Conductor / prompt files (legacy /api/persona routes) ──
+// ── Conductor / prompt files ──
 
 export interface ConductorFileInfo {
   path: string;
@@ -474,25 +474,20 @@ export interface ConductorFileInfo {
   size: number;
 }
 
-export async function listConductors(): Promise<{ files: ConductorFileInfo[]; personaPath: string }> {
-  return request("/api/persona");
+export async function listConductors(): Promise<{ files: ConductorFileInfo[]; conductorPath: string }> {
+  return request("/api/conductors");
 }
 
 export async function readConductor(path: string): Promise<{ path: string; content: string; tokens: number }> {
-  return request(`/api/persona/${path.split("/").map(encodeURIComponent).join("/")}`);
+  return request(`/api/conductors/${path.split("/").map(encodeURIComponent).join("/")}`);
 }
 
 export async function writeConductor(path: string, content: string): Promise<unknown> {
-  return request(`/api/persona/${path.split("/").map(encodeURIComponent).join("/")}`, {
+  return request(`/api/conductors/${path.split("/").map(encodeURIComponent).join("/")}`, {
     method: "PUT",
     body: JSON.stringify({ content }),
   });
 }
-
-export type PersonaFileInfo = ConductorFileInfo;
-export const listPersona = listConductors;
-export const readPersona = readConductor;
-export const writePersona = writeConductor;
 
 // ── Writing styles ──
 

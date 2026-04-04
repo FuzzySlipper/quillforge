@@ -48,7 +48,3 @@ public interface ISessionStateService
         Guid? sessionId,
         CancellationToken ct = default);
 }
-
-public interface ISessionRuntimeService : ISessionStateService
-{
-}

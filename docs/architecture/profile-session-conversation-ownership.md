@@ -95,9 +95,8 @@ It does not own:
 - app defaults
 - the persisted message tree itself
 
-`SessionState` is now the primary implementation name in code. The older
-`SessionRuntimeState` name remains only as a compatibility shim while the rest
-of the codebase and tests finish converging.
+`SessionState` is now the implementation name in code and should be taught
+directly in new work.
 
 ### `ConversationTree`
 
@@ -138,7 +137,7 @@ Today the codebase still mixes old and new concepts:
 - [`AppConfig`](../../src/QuillForge.Core/Models/AppConfig.cs) still carries
   active profile-like selections such as `Persona.Active`, `Lore.Active`,
   `NarrativeRules.Active`, and `WritingStyle.Active`.
-- [`SessionState`](../../src/QuillForge.Core/Models/SessionRuntimeState.cs)
+- [`SessionState`](../../src/QuillForge.Core/Models/SessionState.cs)
   already has the right general ownership shape for session runtime, but its
   `Profile` sub-state currently mirrors global config defaults rather than
   pointing at a first-class reusable profile.
@@ -358,8 +357,8 @@ Guidance:
 
 - do not use `persona` as the umbrella word for profile, session, and
   conductor-like concepts
-- preserve legacy `/api/persona` routes only as compatibility shims until
-  follow-on cleanup lands
+- expose conductor prompt editing through conductor-named routes and stores
+  instead of compatibility `/api/persona` endpoints
 - prefer conductor-first API and client contracts (`conductor`,
   `activeConductor`, `conductors`) for live runtime behavior
 - preserve legacy persisted session overrides by treating `activePersona` as a

@@ -4,7 +4,7 @@ using QuillForge.Core.Models;
 
 namespace QuillForge.Core.Services;
 
-public sealed class SessionRuntimeService : ISessionStateService, ISessionRuntimeService
+public sealed class SessionRuntimeService : ISessionStateService
 {
     private const string GeneralModeName = "general";
     private const string WriterModeName = "writer";

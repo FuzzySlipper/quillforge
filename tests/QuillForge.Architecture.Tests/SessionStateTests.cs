@@ -8,10 +8,10 @@ using QuillForge.Core.Services;
 namespace QuillForge.Architecture.Tests;
 
 /// <summary>
-/// Architecture tests for the per-session runtime state hierarchy (Task 43).
+/// Architecture tests for the per-session state hierarchy (Task 43).
 /// Verifies type definitions, ownership boundaries, and persistence interfaces.
 /// </summary>
-public class SessionRuntimeStateTests
+public class SessionStateTests
 {
     [Fact]
     public void SessionState_OwnsExactlyFiveSubStates()
@@ -148,14 +148,6 @@ public class SessionRuntimeStateTests
         var serviceType = typeof(ISessionStateService);
         Assert.True(serviceType.IsInterface);
         Assert.Equal("QuillForge.Core", serviceType.Assembly.GetName().Name);
-    }
-
-    [Fact]
-    public void LegacyRuntimeNames_RemainAvailableAsCompatibilityShims()
-    {
-        Assert.True(typeof(ISessionRuntimeService).IsInterface);
-        Assert.True(typeof(ISessionRuntimeStore).IsInterface);
-        Assert.True(typeof(SessionRuntimeState).IsAssignableTo(typeof(SessionState)));
     }
 
     [Fact]

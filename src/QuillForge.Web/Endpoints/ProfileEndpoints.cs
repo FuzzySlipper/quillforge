@@ -133,9 +133,7 @@ public static class ProfileEndpoints
             {
                 Conductor = root.TryGetProperty("conductor", out var conductorEl)
                     ? conductorEl.GetString() ?? "default"
-                    : root.TryGetProperty("persona", out var personaEl)
-                        ? personaEl.GetString() ?? "default"
-                        : "default",
+                    : "default",
                 LoreSet = root.TryGetProperty("loreSet", out var loreSetEl)
                     ? loreSetEl.GetString() ?? "default"
                     : root.TryGetProperty("lore", out var loreEl)
@@ -251,20 +249,19 @@ public static class ProfileEndpoints
             }
         });
 
-        // Conductor endpoints, exposed through the legacy /api/persona routes
-        app.MapGet("/api/persona", () =>
+        app.MapGet("/api/conductors", () =>
         {
             var conductorRoot = Path.Combine(contentRoot, ContentPaths.Conductor);
             var files = ListConductorFiles(contentRoot);
             if (files.Count == 0)
             {
-                return Results.Ok(new { Files = Array.Empty<object>(), PersonaPath = conductorRoot });
+                return Results.Ok(new { Files = Array.Empty<object>(), ConductorPath = conductorRoot });
             }
 
-            return Results.Ok(new { Files = files, PersonaPath = conductorRoot });
+            return Results.Ok(new { Files = files, ConductorPath = conductorRoot });
         });
 
-        app.MapGet("/api/persona/{**filePath}", async (string filePath, CancellationToken ct) =>
+        app.MapGet("/api/conductors/{**filePath}", async (string filePath, CancellationToken ct) =>
         {
             var resolved = ResolveConductorFile(contentRoot, filePath);
             if (resolved is null)
@@ -275,7 +272,7 @@ public static class ProfileEndpoints
             return Results.Ok(new { Path = filePath, Content = content, Tokens = content.Length / 4 });
         });
 
-        app.MapPut("/api/persona/{**filePath}", async (
+        app.MapPut("/api/conductors/{**filePath}", async (
             string filePath,
             HttpContext httpContext,
             IContentFileService fileService,
@@ -434,50 +431,30 @@ public static class ProfileEndpoints
 
     private static IEnumerable<(string RelativePath, string ResolvedPath)> EnumerateConductorFiles(string contentRoot)
     {
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var root in EnumerateConductorRoots(contentRoot))
+        var root = Path.Combine(contentRoot, ContentPaths.Conductor);
+        if (!Directory.Exists(root))
         {
-            if (!Directory.Exists(root))
-            {
-                continue;
-            }
+            yield break;
+        }
 
-            foreach (var path in Directory.GetFiles(root, "*.md", SearchOption.AllDirectories).OrderBy(f => f))
-            {
-                var relativePath = Path.GetRelativePath(root, path).Replace('\\', '/');
-                if (seen.Add(relativePath))
-                {
-                    yield return (relativePath, path);
-                }
-            }
+        foreach (var path in Directory.GetFiles(root, "*.md", SearchOption.AllDirectories).OrderBy(f => f))
+        {
+            var relativePath = Path.GetRelativePath(root, path).Replace('\\', '/');
+            yield return (relativePath, path);
         }
     }
 
     private static string? ResolveConductorFile(string contentRoot, string filePath)
     {
-        foreach (var root in EnumerateConductorRoots(contentRoot))
+        var root = Path.Combine(contentRoot, ContentPaths.Conductor);
+        var resolved = Path.GetFullPath(Path.Combine(root, filePath));
+        var normalizedRoot = Path.GetFullPath(root) + Path.DirectorySeparatorChar;
+        if (!resolved.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
         {
-            var resolved = Path.GetFullPath(Path.Combine(root, filePath));
-            var normalizedRoot = Path.GetFullPath(root) + Path.DirectorySeparatorChar;
-            if (!resolved.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (File.Exists(resolved))
-            {
-                return resolved;
-            }
+            return null;
         }
 
-        return null;
-    }
-
-    private static IEnumerable<string> EnumerateConductorRoots(string contentRoot)
-    {
-        yield return Path.Combine(contentRoot, ContentPaths.Conductor);
-        yield return Path.Combine(contentRoot, ContentPaths.Persona);
+        return File.Exists(resolved) ? resolved : null;
     }
 
     private static ProfileConfigResponse ToProfileConfigResponse(ResolvedProfileConfig resolved)

@@ -54,10 +54,8 @@ public static class ServiceRegistration
         services.AddSingleton<FileSystemConductorStore>(sp =>
             new FileSystemConductorStore(
                 Path.Combine(contentRoot, ContentPaths.Conductor),
-                Path.Combine(contentRoot, ContentPaths.Persona),
                 sp.GetRequiredService<ILogger<FileSystemConductorStore>>()));
         services.AddSingleton<IConductorStore>(sp => sp.GetRequiredService<FileSystemConductorStore>());
-        services.AddSingleton<IPersonaStore>(sp => sp.GetRequiredService<FileSystemConductorStore>());
 
         services.AddSingleton<ICharacterCardStore>(sp =>
             new FileSystemCharacterCardStore(
@@ -87,8 +85,6 @@ public static class ServiceRegistration
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemSessionRuntimeStore>>()));
         services.AddSingleton<ISessionStateStore>(sp =>
-            sp.GetRequiredService<FileSystemSessionRuntimeStore>());
-        services.AddSingleton<ISessionRuntimeStore>(sp =>
             sp.GetRequiredService<FileSystemSessionRuntimeStore>());
 
         services.AddSingleton<IStoryStateService>(sp =>

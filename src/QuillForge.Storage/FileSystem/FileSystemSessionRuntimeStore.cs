@@ -12,7 +12,7 @@ namespace QuillForge.Storage.FileSystem;
 /// Persists SessionState as JSON files, one per session.
 /// SessionId == null is a transient pre-session view and is not persisted.
 /// </summary>
-public sealed class FileSystemSessionRuntimeStore : ISessionStateStore, ISessionRuntimeStore
+public sealed class FileSystemSessionRuntimeStore : ISessionStateStore
 {
     private readonly string _basePath;
     private readonly AtomicFileWriter _writer;

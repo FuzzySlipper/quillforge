@@ -6,24 +6,19 @@ namespace QuillForge.Storage.FileSystem;
 
 /// <summary>
 /// Loads conductor prompt profiles from the file system.
-/// Supports the new conductor/ directory first, then falls back to the legacy
-/// persona/ directory for compatibility. A profile can be either a single .md
-/// file or a directory containing multiple .md files (concatenated in
-/// alphabetical order).
+/// A profile can be either a single .md file or a directory containing
+/// multiple .md files (concatenated in alphabetical order).
 /// </summary>
-public sealed class FileSystemConductorStore : IConductorStore, IPersonaStore
+public sealed class FileSystemConductorStore : IConductorStore
 {
     private readonly string _conductorPath;
-    private readonly string? _legacyPersonaPath;
     private readonly ILogger<FileSystemConductorStore> _logger;
 
     public FileSystemConductorStore(
         string conductorPath,
-        string? legacyPersonaPath,
         ILogger<FileSystemConductorStore> logger)
     {
         _conductorPath = conductorPath;
-        _legacyPersonaPath = legacyPersonaPath;
         _logger = logger;
     }
 
@@ -33,44 +28,39 @@ public sealed class FileSystemConductorStore : IConductorStore, IPersonaStore
             "Loading conductor profile: {Name}, budget: {Budget} tokens",
             conductorName,
             maxTokens ?? -1);
-
-        foreach (var root in EnumerateRoots())
+        var dirPath = Path.Combine(_conductorPath, conductorName);
+        if (Directory.Exists(dirPath))
         {
-            var dirPath = Path.Combine(root, conductorName);
-            if (Directory.Exists(dirPath))
+            if (maxTokens.HasValue)
             {
-                if (maxTokens.HasValue)
-                {
-                    return await LoadTieredAsync(dirPath, maxTokens.Value, ct);
-                }
-
-                var files = Directory.GetFiles(dirPath, "*.md", SearchOption.TopDirectoryOnly)
-                    .OrderBy(f => f)
-                    .ToList();
-
-                if (files.Count > 0)
-                {
-                    var parts = new List<string>();
-                    foreach (var file in files)
-                    {
-                        parts.Add(await File.ReadAllTextAsync(file, ct));
-                    }
-
-                    _logger.LogDebug(
-                        "Loaded conductor profile {Name} from {Count} files in {Root}",
-                        conductorName,
-                        files.Count,
-                        root);
-                    return string.Join("\n\n", parts);
-                }
+                return await LoadTieredAsync(dirPath, maxTokens.Value, ct);
             }
 
-            var filePath = Path.Combine(root, conductorName + ".md");
-            if (File.Exists(filePath))
+            var files = Directory.GetFiles(dirPath, "*.md", SearchOption.TopDirectoryOnly)
+                .OrderBy(f => f)
+                .ToList();
+
+            if (files.Count > 0)
             {
-                _logger.LogDebug("Loaded conductor profile {Name} from file in {Root}", conductorName, root);
-                return await File.ReadAllTextAsync(filePath, ct);
+                var parts = new List<string>();
+                foreach (var file in files)
+                {
+                    parts.Add(await File.ReadAllTextAsync(file, ct));
+                }
+
+                _logger.LogDebug(
+                    "Loaded conductor profile {Name} from {Count} files",
+                    conductorName,
+                    files.Count);
+                return string.Join("\n\n", parts);
             }
+        }
+
+        var filePath = Path.Combine(_conductorPath, conductorName + ".md");
+        if (File.Exists(filePath))
+        {
+            _logger.LogDebug("Loaded conductor profile {Name} from file", conductorName);
+            return await File.ReadAllTextAsync(filePath, ct);
         }
 
         _logger.LogWarning("Conductor profile not found: {Name}, returning empty", conductorName);
@@ -136,19 +126,14 @@ public sealed class FileSystemConductorStore : IConductorStore, IPersonaStore
     {
         var conductors = new HashSet<string>();
 
-        foreach (var root in EnumerateRoots())
+        if (Directory.Exists(_conductorPath))
         {
-            if (!Directory.Exists(root))
-            {
-                continue;
-            }
-
-            foreach (var dir in Directory.GetDirectories(root))
+            foreach (var dir in Directory.GetDirectories(_conductorPath))
             {
                 conductors.Add(Path.GetFileName(dir));
             }
 
-            foreach (var file in Directory.GetFiles(root, "*.md"))
+            foreach (var file in Directory.GetFiles(_conductorPath, "*.md"))
             {
                 conductors.Add(Path.GetFileNameWithoutExtension(file));
             }
@@ -156,16 +141,5 @@ public sealed class FileSystemConductorStore : IConductorStore, IPersonaStore
 
         var sorted = conductors.OrderBy(n => n).ToList();
         return Task.FromResult<IReadOnlyList<string>>(sorted);
-    }
-
-    private IEnumerable<string> EnumerateRoots()
-    {
-        yield return _conductorPath;
-
-        if (!string.IsNullOrWhiteSpace(_legacyPersonaPath)
-            && !string.Equals(_legacyPersonaPath, _conductorPath, StringComparison.OrdinalIgnoreCase))
-        {
-            yield return _legacyPersonaPath;
-        }
     }
 }

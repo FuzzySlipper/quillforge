@@ -32,7 +32,7 @@ public static class DebugBridgeEndpoints
             var sessionId = root.GetOptionalGuid("sessionId") ?? Guid.CreateVersion7();
             var message = root.GetProperty("message").GetString() ?? "";
             var model = root.GetStringOrDefault("model", "default");
-            var requestedConductor = root.GetOptionalString("conductor") ?? root.GetOptionalString("persona");
+            var requestedConductor = root.GetOptionalString("conductor");
             var maxTokens = root.GetIntOrDefault("maxTokens", 4096);
 
             ConversationTree tree;
