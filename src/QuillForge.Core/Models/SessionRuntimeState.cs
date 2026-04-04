@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace QuillForge.Core.Models;
 
 /// <summary>
@@ -64,7 +66,25 @@ public sealed class ProfileState
     public string? ProfileId { get; set; }
 
     /// <summary>Active conductor file name override. Null means "use the session profile default".</summary>
-    public string? ActivePersona { get; set; }
+    public string? ActiveConductor { get; set; }
+
+    /// <summary>
+    /// Legacy persisted JSON alias for older session files. Deserialization from
+    /// activePersona still hydrates the renamed ActiveConductor field, but new
+    /// writes only emit activeConductor.
+    /// </summary>
+    [JsonPropertyName("activePersona")]
+    public string? LegacyActivePersona
+    {
+        get => null;
+        set
+        {
+            if (!string.IsNullOrWhiteSpace(value) && string.IsNullOrWhiteSpace(ActiveConductor))
+            {
+                ActiveConductor = value;
+            }
+        }
+    }
 
     /// <summary>Active lore set name override. Null means "use the session profile default".</summary>
     public string? ActiveLoreSet { get; set; }

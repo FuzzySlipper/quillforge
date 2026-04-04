@@ -15,6 +15,7 @@ using QuillForge.Storage.FileSystem;
 using QuillForge.Storage.Utilities;
 using QuillForge.Web;
 using QuillForge.Web.Endpoints;
+using QuillForge.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -184,9 +185,11 @@ builder.Services.AddSingleton<IMode, ResearchMode>();
 
 builder.Services.AddSingleton<ISessionMutationGate, InMemorySessionMutationGate>();
 builder.Services.AddSingleton<ISessionRuntimeService, SessionRuntimeService>();
+builder.Services.AddSingleton<ISessionBootstrapService, SessionBootstrapService>();
 builder.Services.AddSingleton<ISessionLifecycleService, SessionLifecycleService>();
 builder.Services.AddSingleton<IInteractiveSessionContextService, InteractiveSessionContextService>();
 builder.Services.AddSingleton<IProfileConfigService, ProfileConfigService>();
+builder.Services.AddSingleton<ISessionProfileReadService, SessionProfileReadService>();
 
 // --- Orchestrator ---
 builder.Services.AddSingleton<OrchestratorAgent>();
@@ -264,33 +267,6 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 var app = builder.Build();
 
 app.UseCors();
-
-// --- Migrate legacy runtime state to session-scoped store ---
-{
-    var legacy = app.Services.GetRequiredService<RuntimeStateStore>().Load();
-    if (!string.IsNullOrEmpty(legacy.LastMode))
-    {
-        var runtimeService = app.Services.GetRequiredService<ISessionRuntimeService>();
-        var migrationResult = await runtimeService.SetModeAsync(
-            null,
-            new SetSessionModeCommand(
-                legacy.LastMode,
-                legacy.LastProject,
-                legacy.LastFile,
-                legacy.LastCharacter));
-        if (migrationResult.Status == SessionMutationStatus.Success)
-        {
-            app.Logger.LogInformation("Migrated legacy runtime state: mode={Mode}", legacy.LastMode);
-        }
-        else
-        {
-            app.Logger.LogWarning(
-                "Legacy runtime migration could not apply session mode: status={Status} error={Error}",
-                migrationResult.Status,
-                migrationResult.Error);
-        }
-    }
-}
 
 // --- Load persisted providers ---
 {

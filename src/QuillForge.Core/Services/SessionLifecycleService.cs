@@ -78,7 +78,7 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
             Profile = new ProfileState
             {
                 ProfileId = source.Profile.ProfileId,
-                ActivePersona = source.Profile.ActivePersona,
+                ActiveConductor = source.Profile.ActiveConductor,
                 ActiveLoreSet = source.Profile.ActiveLoreSet,
                 ActiveNarrativeRules = source.Profile.ActiveNarrativeRules,
                 ActiveWritingStyle = source.Profile.ActiveWritingStyle,

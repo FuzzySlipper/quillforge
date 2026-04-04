@@ -8,7 +8,7 @@ public sealed record SetSessionModeCommand(
 
 public sealed record SetSessionProfileCommand(
     string? ProfileId,
-    string? Persona,
+    string? Conductor,
     string? LoreSet,
     string? NarrativeRules,
     string? WritingStyle);

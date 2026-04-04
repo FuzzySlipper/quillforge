@@ -6,13 +6,13 @@ import type { Profiles } from "../types";
 interface ProfilePickerProps {
   open: boolean;
   onClose: () => void;
-  onSwitched: () => void;
+  onSwitched: (sessionId?: string | null) => void;
   sessionId?: string | null;
 }
 
 export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: ProfilePickerProps) {
   const [profiles, setProfiles] = useState<Profiles | null>(null);
-  const [persona, setPersona] = useState("");
+  const [conductor, setConductor] = useState("");
   const [loreSet, setLoreSet] = useState("");
   const [narrativeRules, setNarrativeRules] = useState("");
   const [style, setStyle] = useState("");
@@ -22,7 +22,7 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
     if (!open) return;
     getProfiles(sessionId).then((p) => {
       setProfiles(p);
-      setPersona(p.activePersona);
+      setConductor(p.activeConductor);
       setLoreSet(p.activeLore);
       setNarrativeRules(p.activeNarrativeRules);
       setStyle(p.activeWritingStyle);
@@ -32,14 +32,14 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
   async function handleSave() {
     setSaving(true);
     try {
-      await switchProfile({
+      const result = await switchProfile({
         sessionId,
-        persona,
+        conductor,
         lore: loreSet,
         narrativeRules,
         writingStyle: style,
       });
-      onSwitched();
+      onSwitched(result.sessionId ?? sessionId);
       onClose();
     } finally {
       setSaving(false);
@@ -53,11 +53,11 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
           <label className="flex flex-col gap-1">
             <span className="text-sm text-text-muted">Conductor</span>
             <select
-              value={persona}
-              onChange={(e) => setPersona(e.target.value)}
+              value={conductor}
+              onChange={(e) => setConductor(e.target.value)}
               className="bg-input-bg text-text border border-border rounded-lg px-3 py-2"
             >
-              {profiles.personas.map((p) => (
+              {profiles.conductors.map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>

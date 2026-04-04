@@ -6,6 +6,7 @@ namespace QuillForge.Core.Services;
 
 public sealed class SessionRuntimeService : ISessionRuntimeService
 {
+    private const string GeneralModeName = "general";
     private const string WriterModeName = "writer";
     private const int PendingContentThreshold = 200;
 
@@ -36,7 +37,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
 
     public async Task<SessionRuntimeState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
     {
-        var state = await _store.LoadAsync(sessionId, ct);
+        var state = await LoadStateAsync(sessionId, ct);
         return await HydrateProfileViewAsync(state, ct);
     }
 
@@ -56,7 +57,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
 
         try
         {
-            var state = await _store.LoadAsync(sessionId, ct);
+            var state = await LoadStateAsync(sessionId, ct);
             var currentView = await HydrateProfileViewAsync(state, ct);
             var targetProfileId = NormalizeChoice(command.ProfileId) ?? currentView.Profile.ProfileId;
             var targetProfile = await _profileService.LoadResolvedAsync(targetProfileId, ct);
@@ -65,9 +66,9 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 targetProfile.ProfileId,
                 StringComparison.OrdinalIgnoreCase);
 
-            var effectivePersona = ResolveEffectiveChoice(
-                command.Persona,
-                currentView.Profile.ActivePersona,
+            var effectiveConductor = ResolveEffectiveChoice(
+                command.Conductor,
+                currentView.Profile.ActiveConductor,
                 targetProfile.Config.Conductor,
                 profileChanged);
             var effectiveLoreSet = ResolveEffectiveChoice(
@@ -87,7 +88,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 profileChanged);
 
             state.Profile.ProfileId = targetProfile.ProfileId;
-            state.Profile.ActivePersona = ToSparseOverride(effectivePersona, targetProfile.Config.Conductor);
+            state.Profile.ActiveConductor = ToSparseOverride(effectiveConductor, targetProfile.Config.Conductor);
             state.Profile.ActiveLoreSet = ToSparseOverride(effectiveLoreSet, targetProfile.Config.LoreSet);
             state.Profile.ActiveNarrativeRules = ToSparseOverride(effectiveNarrativeRules, targetProfile.Config.NarrativeRules);
             state.Profile.ActiveWritingStyle = ToSparseOverride(effectiveWritingStyle, targetProfile.Config.WritingStyle);
@@ -99,7 +100,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 "Session profile updated: session={SessionId} profileId={ProfileId} conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
                 sessionId,
                 hydrated.Profile.ProfileId,
-                hydrated.Profile.ActivePersona,
+                hydrated.Profile.ActiveConductor,
                 hydrated.Profile.ActiveLoreSet,
                 hydrated.Profile.ActiveNarrativeRules,
                 hydrated.Profile.ActiveWritingStyle);
@@ -141,7 +142,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             return SessionMutationResult<SessionRuntimeState>.Invalid($"Unknown mode: {command.Mode}");
         }
 
-        var state = await _store.LoadAsync(sessionId, ct);
+        var state = await LoadStateAsync(sessionId, ct);
         var oldMode = state.Mode.ActiveModeName;
 
         if (string.Equals(oldMode, WriterModeName, StringComparison.OrdinalIgnoreCase)
@@ -186,7 +187,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 "Another mutating operation is already running for this session.");
         }
 
-        var state = await _store.LoadAsync(sessionId, ct);
+        var state = await LoadStateAsync(sessionId, ct);
         if (!string.Equals(state.Mode.ActiveModeName, WriterModeName, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogInformation(
@@ -241,7 +242,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 "Another mutating operation is already running for this session.");
         }
 
-        var state = await _store.LoadAsync(sessionId, ct);
+        var state = await LoadStateAsync(sessionId, ct);
         if (state.Writer.State != WriterState.PendingReview || state.Writer.PendingContent is null)
         {
             _logger.LogWarning("Writer pending accept rejected: session={SessionId} no content pending", sessionId);
@@ -275,7 +276,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 "Another mutating operation is already running for this session.");
         }
 
-        var state = await _store.LoadAsync(sessionId, ct);
+        var state = await LoadStateAsync(sessionId, ct);
         if (state.Writer.State != WriterState.PendingReview)
         {
             _logger.LogWarning("Writer pending reject rejected: session={SessionId} no content pending", sessionId);
@@ -313,7 +314,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             return SessionMutationResult<SessionRuntimeState>.Invalid("Director notes are required.");
         }
 
-        var state = await _store.LoadAsync(sessionId, ct);
+        var state = await LoadStateAsync(sessionId, ct);
         state.Narrative.DirectorNotes = command.DirectorNotes;
         if (command.ActivePlotFile is not null)
         {
@@ -358,7 +359,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             return SessionMutationResult<SessionRuntimeState>.Invalid("Plot file name is required.");
         }
 
-        var state = await _store.LoadAsync(sessionId, ct);
+        var state = await LoadStateAsync(sessionId, ct);
         state.Narrative.ActivePlotFile = command.PlotFileName;
         state.Narrative.PlotProgress = new PlotProgressState();
         await _store.SaveAsync(state, ct);
@@ -385,7 +386,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 "Another mutating operation is already running for this session.");
         }
 
-        var state = await _store.LoadAsync(sessionId, ct);
+        var state = await LoadStateAsync(sessionId, ct);
         state.Narrative.ActivePlotFile = null;
         state.Narrative.PlotProgress = new PlotProgressState();
         await _store.SaveAsync(state, ct);
@@ -393,6 +394,55 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         _logger.LogInformation("Active plot cleared: session={SessionId}", sessionId);
 
         return SessionMutationResult<SessionRuntimeState>.Success(await HydrateProfileViewAsync(state, ct));
+    }
+
+    private async Task<SessionRuntimeState> LoadStateAsync(Guid? sessionId, CancellationToken ct)
+    {
+        var state = await _store.LoadAsync(sessionId, ct);
+        return await NormalizeStoredProfileStateAsync(state, ct);
+    }
+
+    private async Task<SessionRuntimeState> NormalizeStoredProfileStateAsync(
+        SessionRuntimeState state,
+        CancellationToken ct)
+    {
+        var resolved = await LoadProfileForViewAsync(state.Profile.ProfileId, ct);
+        var normalizeLegacyHydratedDefaults = LooksLikeLegacyHydratedProfileState(state.Profile)
+            && IsUntouchedSessionState(state);
+
+        var normalizedProfile = normalizeLegacyHydratedDefaults
+            ? new ProfileState
+            {
+                ProfileId = state.Profile.ProfileId,
+                ActiveConductor = null,
+                ActiveLoreSet = null,
+                ActiveNarrativeRules = null,
+                ActiveWritingStyle = null,
+            }
+            : new ProfileState
+            {
+                ProfileId = state.Profile.ProfileId,
+                ActiveConductor = NormalizeStoredOverride(state.Profile.ActiveConductor, resolved.Config.Conductor),
+                ActiveLoreSet = NormalizeStoredOverride(state.Profile.ActiveLoreSet, resolved.Config.LoreSet),
+                ActiveNarrativeRules = NormalizeStoredOverride(state.Profile.ActiveNarrativeRules, resolved.Config.NarrativeRules),
+                ActiveWritingStyle = NormalizeStoredOverride(state.Profile.ActiveWritingStyle, resolved.Config.WritingStyle),
+            };
+
+        if (ProfileStatesEqual(state.Profile, normalizedProfile))
+        {
+            return state;
+        }
+
+        state.Profile = normalizedProfile;
+        await _store.SaveAsync(state, ct);
+
+        _logger.LogInformation(
+            "Normalized stored session profile state for session {SessionId}: profileId={ProfileId} legacyHydratedDefaults={LegacyHydratedDefaults}",
+            state.SessionId,
+            state.Profile.ProfileId,
+            normalizeLegacyHydratedDefaults);
+
+        return state;
     }
 
     private async Task<SessionRuntimeState> HydrateProfileViewAsync(
@@ -415,7 +465,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             Profile = new ProfileState
             {
                 ProfileId = resolved.ProfileId,
-                ActivePersona = NormalizeChoice(state.Profile.ActivePersona) ?? resolved.Config.Conductor,
+                ActiveConductor = NormalizeChoice(state.Profile.ActiveConductor) ?? resolved.Config.Conductor,
                 ActiveLoreSet = NormalizeChoice(state.Profile.ActiveLoreSet) ?? resolved.Config.LoreSet,
                 ActiveNarrativeRules = NormalizeChoice(state.Profile.ActiveNarrativeRules) ?? resolved.Config.NarrativeRules,
                 ActiveWritingStyle = NormalizeChoice(state.Profile.ActiveWritingStyle) ?? resolved.Config.WritingStyle,
@@ -488,6 +538,49 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         return string.Equals(value, profileDefault, StringComparison.OrdinalIgnoreCase)
             ? null
             : value;
+    }
+
+    private static string? NormalizeStoredOverride(string? value, string profileDefault)
+    {
+        var normalized = NormalizeChoice(value);
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        return ToSparseOverride(normalized, profileDefault);
+    }
+
+    private static bool LooksLikeLegacyHydratedProfileState(ProfileState profile)
+    {
+        return NormalizeChoice(profile.ActiveConductor) is not null
+            && NormalizeChoice(profile.ActiveLoreSet) is not null
+            && NormalizeChoice(profile.ActiveNarrativeRules) is not null
+            && NormalizeChoice(profile.ActiveWritingStyle) is not null;
+    }
+
+    private static bool IsUntouchedSessionState(SessionRuntimeState state)
+    {
+        return string.Equals(state.Mode.ActiveModeName, GeneralModeName, StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(state.Mode.ProjectName)
+            && string.IsNullOrWhiteSpace(state.Mode.CurrentFile)
+            && string.IsNullOrWhiteSpace(state.Mode.Character)
+            && state.Writer.State == WriterState.Idle
+            && string.IsNullOrWhiteSpace(state.Writer.PendingContent)
+            && string.IsNullOrWhiteSpace(state.Narrative.DirectorNotes)
+            && string.IsNullOrWhiteSpace(state.Narrative.ActivePlotFile)
+            && string.IsNullOrWhiteSpace(state.Narrative.PlotProgress.CurrentBeat)
+            && state.Narrative.PlotProgress.CompletedBeats.Count == 0
+            && state.Narrative.PlotProgress.Deviations.Count == 0;
+    }
+
+    private static bool ProfileStatesEqual(ProfileState left, ProfileState right)
+    {
+        return string.Equals(left.ProfileId, right.ProfileId, StringComparison.Ordinal)
+            && string.Equals(left.ActiveConductor, right.ActiveConductor, StringComparison.Ordinal)
+            && string.Equals(left.ActiveLoreSet, right.ActiveLoreSet, StringComparison.Ordinal)
+            && string.Equals(left.ActiveNarrativeRules, right.ActiveNarrativeRules, StringComparison.Ordinal)
+            && string.Equals(left.ActiveWritingStyle, right.ActiveWritingStyle, StringComparison.Ordinal);
     }
 
     private static string? NormalizeChoice(string? value)

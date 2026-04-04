@@ -14,14 +14,14 @@ export default function ContextMeter({ status }: ContextMeterProps) {
 
   const limit = status.contextLimit || 128000;
   const lore = status.loreTokens || 0;
-  const persona = status.personaTokens || 0;
+  const conductor = status.conductorTokens || 0;
   const history = status.historyTokens || 0;
-  const total = lore + persona + history;
+  const total = lore + conductor + history;
   const totalPercent = Math.min((total / limit) * 100, 100);
 
   // Segment widths as % of the bar
   const loreW = (lore / limit) * 100;
-  const personaW = (persona / limit) * 100;
+  const conductorW = (conductor / limit) * 100;
   const historyW = (history / limit) * 100;
 
   return (
@@ -40,11 +40,11 @@ export default function ContextMeter({ status }: ContextMeterProps) {
             title={`Lore: ${fmtTokens(lore)} tokens`}
           />
         )}
-        {personaW > 0 && (
+        {conductorW > 0 && (
           <div
             className="h-full bg-purple-500/80"
-            style={{ width: `${Math.max(personaW, 0.5)}%` }}
-            title={`Conductor: ${fmtTokens(persona)} tokens`}
+            style={{ width: `${Math.max(conductorW, 0.5)}%` }}
+            title={`Conductor: ${fmtTokens(conductor)} tokens`}
           />
         )}
         {historyW > 0 && (
@@ -62,7 +62,7 @@ export default function ContextMeter({ status }: ContextMeterProps) {
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block w-2 h-2 rounded-sm bg-purple-500/80" />
-          Conductor {fmtTokens(persona)}
+          Conductor {fmtTokens(conductor)}
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block w-2 h-2 rounded-sm bg-accent/80" />

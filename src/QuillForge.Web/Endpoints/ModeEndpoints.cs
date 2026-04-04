@@ -2,8 +2,8 @@ using System.Text.Json;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
-using QuillForge.Storage.FileSystem;
 using QuillForge.Web.Contracts;
+using QuillForge.Web.Services;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -20,6 +20,7 @@ public static class ModeEndpoints
             var state = await runtimeService.LoadViewAsync(sessionId, ct);
             return Results.Ok(new ModeResponse
             {
+                SessionId = state.SessionId,
                 Mode = state.Mode.ActiveModeName,
                 Project = state.Mode.ProjectName,
                 File = state.Mode.CurrentFile,
@@ -31,7 +32,8 @@ public static class ModeEndpoints
         app.MapPost("/api/mode", async (
             HttpContext httpContext,
             ISessionRuntimeService runtimeService,
-            RuntimeStateStore legacyStore,
+            ISessionBootstrapService bootstrapService,
+            ISessionLifecycleService lifecycleService,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -42,6 +44,19 @@ public static class ModeEndpoints
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
             var character = root.TryGetProperty("character", out var c) ? c.GetString() : null;
             var sessionId = root.GetOptionalGuid("sessionId");
+            Guid? createdSessionId = null;
+
+            if (!sessionId.HasValue)
+            {
+                var tree = await bootstrapService.CreateAsync(
+                    new CreateSessionCommand
+                    {
+                        Name = "New Session",
+                    },
+                    ct);
+                sessionId = tree.SessionId;
+                createdSessionId = tree.SessionId;
+            }
 
             var result = await runtimeService.SetModeAsync(
                 sessionId,
@@ -50,6 +65,11 @@ public static class ModeEndpoints
 
             if (result.Status == SessionMutationStatus.Busy)
             {
+                if (createdSessionId.HasValue)
+                {
+                    await lifecycleService.DeleteAsync(createdSessionId.Value, ct);
+                }
+
                 return Results.Conflict(new
                 {
                     error = "session_busy",
@@ -59,6 +79,11 @@ public static class ModeEndpoints
 
             if (result.Status == SessionMutationStatus.Invalid)
             {
+                if (createdSessionId.HasValue)
+                {
+                    await lifecycleService.DeleteAsync(createdSessionId.Value, ct);
+                }
+
                 return Results.BadRequest(new
                 {
                     error = "invalid_session_mutation",
@@ -66,57 +91,26 @@ public static class ModeEndpoints
                 });
             }
 
-            // Also persist to legacy store for backward compat during transition
-            await legacyStore.SaveAsync(new RuntimeState
-            {
-                LastMode = mode,
-                LastProject = project,
-                LastFile = file,
-                LastCharacter = character,
-            }, ct);
+            var state = result.Value!;
 
             return Results.Ok(new ModeResponse
             {
-                Mode = mode,
-                Project = project,
-                File = file,
-                Character = character,
+                SessionId = state.SessionId,
+                Mode = state.Mode.ActiveModeName,
+                Project = state.Mode.ProjectName,
+                File = state.Mode.CurrentFile,
+                Character = state.Mode.Character,
+                PendingContent = state.Writer.PendingContent,
             });
         });
 
         app.MapGet("/api/profiles", async (
             HttpContext httpContext,
-            IConductorStore conductorStore,
-            ILoreStore loreStore,
-            INarrativeRulesStore narrativeRulesStore,
-            IWritingStyleStore styleStore,
-            IProfileConfigService profileService,
-            ISessionRuntimeService runtimeService,
+            ISessionProfileReadService profileReadService,
             CancellationToken ct) =>
         {
             var sessionId = httpContext.TryGetSessionId();
-            var state = await runtimeService.LoadViewAsync(sessionId, ct);
-            var profileIds = await profileService.ListAsync(ct);
-            var defaultProfileId = await profileService.GetDefaultProfileIdAsync(ct);
-            var conductors = await conductorStore.ListAsync(ct);
-            var loreSets = await loreStore.ListLoreSetsAsync(ct);
-            var narrativeRules = await narrativeRulesStore.ListAsync(ct);
-            var styles = await styleStore.ListAsync(ct);
-
-            return Results.Ok(new ProfilesResponse
-            {
-                ProfileIds = profileIds,
-                DefaultProfileId = defaultProfileId,
-                ActiveProfileId = state.Profile.ProfileId ?? defaultProfileId,
-                Personas = conductors,
-                LoreSets = loreSets,
-                NarrativeRules = narrativeRules,
-                WritingStyles = styles,
-                ActivePersona = state.Profile.ActivePersona ?? "default",
-                ActiveLore = state.Profile.ActiveLoreSet ?? "default",
-                ActiveNarrativeRules = state.Profile.ActiveNarrativeRules ?? "default",
-                ActiveWritingStyle = state.Profile.ActiveWritingStyle ?? "default",
-            });
+            return Results.Ok(await profileReadService.BuildProfilesResponseAsync(sessionId, ct));
         });
 
         app.MapGet("/api/agents/models", (AppConfig config) =>

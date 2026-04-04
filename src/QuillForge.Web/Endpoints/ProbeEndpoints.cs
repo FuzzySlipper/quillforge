@@ -6,6 +6,7 @@ using QuillForge.Core.Agents.Modes;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Storage.Utilities;
+using QuillForge.Web.Services;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -48,7 +49,7 @@ public static class ProbeEndpoints
                 StoryStateSummary = sessionContext.StoryStateSummary,
                 FileContext = sessionContext.FileContext,
                 WriterPendingContent = sessionContext.WriterPendingContent,
-                ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? "default",
+                ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(sessionState.Profile),
             };
             var modeSection = activeMode.BuildSystemPromptSection(modeContext);
 
@@ -57,7 +58,7 @@ public static class ProbeEndpoints
             try
             {
                 conductorPromptText = await conductorStore.LoadAsync(
-                    sessionState.Profile.ActivePersona ?? "default",
+                    SessionProfileHydration.RequireActiveConductor(sessionState.Profile),
                     appConfig.Persona.MaxTokens,
                     ct);
             }

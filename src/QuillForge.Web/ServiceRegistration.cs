@@ -72,11 +72,6 @@ public static class ServiceRegistration
                 sp.GetRequiredService<ILogger<FileSystemSessionStore>>(),
                 sp.GetRequiredService<ILoggerFactory>()));
 
-        services.AddSingleton(sp =>
-            new RuntimeStateStore(contentRoot,
-                sp.GetRequiredService<Den.Persistence.AtomicFileWriter>(),
-                sp.GetRequiredService<ILogger<RuntimeStateStore>>()));
-
         services.AddSingleton<IAppConfigStore>(sp =>
             new AppConfigStore(contentRoot,
                 sp.GetRequiredService<Den.Persistence.AtomicFileWriter>(),

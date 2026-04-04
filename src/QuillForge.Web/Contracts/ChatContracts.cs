@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace QuillForge.Web.Contracts;
 
 public sealed record ChatStreamRequest
@@ -5,7 +7,19 @@ public sealed record ChatStreamRequest
     public Guid? SessionId { get; init; }
     public string Message { get; init; } = "";
     public string? Model { get; init; }
-    public string? Persona { get; init; }
+    public string? Conductor { get; set; }
+    [JsonPropertyName("persona")]
+    public string? LegacyPersona
+    {
+        get => null;
+        set
+        {
+            if (!string.IsNullOrWhiteSpace(value) && string.IsNullOrWhiteSpace(Conductor))
+            {
+                Conductor = value;
+            }
+        }
+    }
     public int? MaxTokens { get; init; }
     public Guid? ParentId { get; init; }
 }

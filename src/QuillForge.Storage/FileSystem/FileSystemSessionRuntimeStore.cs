@@ -10,7 +10,7 @@ namespace QuillForge.Storage.FileSystem;
 
 /// <summary>
 /// Persists SessionRuntimeState as JSON files, one per session.
-/// The default/global state is stored as "default.json".
+/// SessionId == null is a transient pre-session view and is not persisted.
 /// </summary>
 public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
 {
@@ -39,36 +39,16 @@ public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
 
     public Task<SessionRuntimeState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
     {
-        var path = GetPath(sessionId);
+        if (!sessionId.HasValue)
+        {
+            _logger.LogDebug("Loading transient pre-session runtime view");
+            return Task.FromResult(new SessionRuntimeState());
+        }
+
+        var path = GetPath(sessionId.Value);
 
         if (!File.Exists(path))
         {
-            // For session-specific requests where no state has been saved yet,
-            // inherit from the default/global state so new sessions pick up the
-            // current mode, profile, etc. instead of reverting to "general".
-            if (sessionId.HasValue)
-            {
-                var defaultPath = GetPath(null);
-                if (File.Exists(defaultPath))
-                {
-                    try
-                    {
-                        var defaultJson = File.ReadAllText(defaultPath);
-                        var inherited = JsonSerializer.Deserialize<SessionRuntimeState>(defaultJson, JsonOptions)
-                            ?? new SessionRuntimeState();
-                        inherited.SessionId = sessionId;
-                        _logger.LogDebug(
-                            "Session {SessionId} inheriting default runtime state (mode={Mode})",
-                            sessionId, inherited.Mode.ActiveModeName);
-                        return Task.FromResult(inherited);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to load default state for inheritance");
-                    }
-                }
-            }
-
             _logger.LogDebug("No persisted runtime state for session {SessionId}, returning defaults", sessionId);
             return Task.FromResult(new SessionRuntimeState { SessionId = sessionId });
         }
@@ -91,8 +71,14 @@ public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
 
     public async Task SaveAsync(SessionRuntimeState state, CancellationToken ct = default)
     {
+        if (!state.SessionId.HasValue)
+        {
+            throw new InvalidOperationException(
+                "Cannot persist runtime state without a session ID. Create a real session before mutating runtime state.");
+        }
+
         state.LastModified = DateTimeOffset.UtcNow;
-        var path = GetPath(state.SessionId);
+        var path = GetPath(state.SessionId.Value);
         var json = JsonSerializer.Serialize(state, JsonOptions);
         await _writer.WriteAsync(path, json, ct);
         _logger.LogDebug("Saved runtime state for session {SessionId}", state.SessionId);
@@ -106,12 +92,48 @@ public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
             File.Delete(path);
             _logger.LogDebug("Deleted runtime state for session {SessionId}", sessionId);
         }
+
         return Task.CompletedTask;
     }
 
-    private string GetPath(Guid? sessionId)
+    public Task<IReadOnlyList<Guid>> FindSessionIdsByProfileIdAsync(string profileId, CancellationToken ct = default)
     {
-        var fileName = sessionId.HasValue ? $"{sessionId.Value}.json" : "default.json";
-        return Path.Combine(_basePath, fileName);
+        var matches = new List<Guid>();
+        foreach (var path in Directory.GetFiles(_basePath, "*.json", SearchOption.TopDirectoryOnly))
+        {
+            try
+            {
+                var json = File.ReadAllText(path);
+                var state = JsonSerializer.Deserialize<SessionRuntimeState>(json, JsonOptions);
+                if (state?.SessionId is not Guid sessionId)
+                {
+                    continue;
+                }
+
+                if (string.Equals(state.Profile.ProfileId, profileId, StringComparison.OrdinalIgnoreCase))
+                {
+                    matches.Add(sessionId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to inspect session runtime state while checking profile references: path={Path}",
+                    path);
+            }
+        }
+
+        _logger.LogDebug(
+            "Found {Count} persisted sessions referencing profile {ProfileId}",
+            matches.Count,
+            profileId);
+
+        return Task.FromResult<IReadOnlyList<Guid>>(matches);
+    }
+
+    private string GetPath(Guid sessionId)
+    {
+        return Path.Combine(_basePath, $"{sessionId}.json");
     }
 }

@@ -35,14 +35,14 @@ export interface Status {
   file: string | null;
   loreFiles: number;
   loreSet: string;
-  persona: string;
+  conductor: string;
   writingStyle: string;
   model: string;
   conversationTurns: number;
   layout: string;
   contextLimit: number;
   loreTokens: number;
-  personaTokens: number;
+  conductorTokens: number;
   historyTokens: number;
   diagnosticsLivePanel?: boolean;
   aiCharacter: string;
@@ -60,22 +60,34 @@ export interface Profiles {
   profileIds: string[];
   defaultProfileId: string;
   activeProfileId: string;
-  personas: string[];
+  conductors: string[];
   loreSets: string[];
   narrativeRules: string[];
   writingStyles: string[];
-  activePersona: string;
+  activeConductor: string;
   activeLore: string;
   activeNarrativeRules: string;
   activeWritingStyle: string;
 }
 
 export interface ModeInfo {
+  sessionId?: string | null;
   mode: Mode;
   project: string | null;
   file: string | null;
   character: string | null;
   pendingContent: string | null;
+}
+
+export interface ProfileSwitchResult {
+  sessionId?: string | null;
+  activeProfileId: string;
+  activeConductor: string;
+  activeLore: string;
+  activeNarrativeRules: string;
+  activeWritingStyle: string;
+  loreFiles: number;
+  status?: string;
 }
 
 export interface ProjectEntry {

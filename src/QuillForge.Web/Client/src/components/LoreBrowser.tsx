@@ -15,7 +15,7 @@ import {
 interface LoreBrowserProps {
   open: boolean;
   onClose: () => void;
-  onChanged: () => void;
+  onChanged: (sessionId?: string | null) => void;
   sessionId?: string | null;
 }
 
@@ -57,8 +57,8 @@ export default function LoreBrowser({ open, onClose, onChanged, sessionId }: Lor
 
   async function handleSelectProject(name: string) {
     const loreSet = name === "(default)" ? "(default)" : name;
-    await switchProfile({ sessionId, lore: loreSet });
-    onChanged();
+    const result = await switchProfile({ sessionId, lore: loreSet });
+    onChanged(result.sessionId ?? sessionId);
     await refresh();
   }
 
@@ -69,7 +69,7 @@ export default function LoreBrowser({ open, onClose, onChanged, sessionId }: Lor
       await createLoreProject(newProjectName.trim());
       setNewProjectName("");
       setShowNewProject(false);
-      onChanged();
+      onChanged(sessionId);
       await refresh();
     } finally {
       setCreatingProject(false);
@@ -95,7 +95,7 @@ export default function LoreBrowser({ open, onClose, onChanged, sessionId }: Lor
       await writeLore(selected, content);
       setOriginalContent(content);
       await refresh();
-      onChanged();
+      onChanged(sessionId);
     } finally {
       setSaving(false);
     }
@@ -109,7 +109,7 @@ export default function LoreBrowser({ open, onClose, onChanged, sessionId }: Lor
       setOriginalContent("");
     }
     await refresh();
-    onChanged();
+    onChanged(sessionId);
   }
 
   async function handleNewFile(dir: string) {
@@ -134,7 +134,7 @@ export default function LoreBrowser({ open, onClose, onChanged, sessionId }: Lor
     setNewFileDir(null);
     setNewFileName("");
     await refresh();
-    onChanged();
+    onChanged(sessionId);
     // Open the new file for editing
     handleSelect(path);
   }

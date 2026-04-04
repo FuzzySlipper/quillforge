@@ -9,15 +9,18 @@ public sealed class ProfileConfigService : IProfileConfigService
 
     private readonly IProfileConfigStore _store;
     private readonly IAppConfigStore _appConfigStore;
+    private readonly ISessionRuntimeStore _sessionRuntimeStore;
     private readonly ILogger<ProfileConfigService> _logger;
 
     public ProfileConfigService(
         IProfileConfigStore store,
         IAppConfigStore appConfigStore,
+        ISessionRuntimeStore sessionRuntimeStore,
         ILogger<ProfileConfigService> logger)
     {
         _store = store;
         _appConfigStore = appConfigStore;
+        _sessionRuntimeStore = sessionRuntimeStore;
         _logger = logger;
     }
 
@@ -99,6 +102,66 @@ public sealed class ProfileConfigService : IProfileConfigService
         };
     }
 
+    public async Task<ResolvedProfileConfig> CloneAsync(string sourceProfileId, string targetProfileId, CancellationToken ct = default)
+    {
+        await EnsureCompatibilityDefaultProfileAsync(ct);
+
+        var resolvedSourceProfileId = NormalizeProfileId(sourceProfileId);
+        var resolvedTargetProfileId = NormalizeProfileId(targetProfileId);
+        if (string.Equals(resolvedSourceProfileId, resolvedTargetProfileId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Clone target profile id must differ from the source profile id.");
+        }
+
+        if (await _store.ExistsAsync(resolvedTargetProfileId, ct))
+        {
+            throw new InvalidOperationException($"Profile {resolvedTargetProfileId} already exists.");
+        }
+
+        var sourceConfig = NormalizeProfile(await _store.LoadAsync(resolvedSourceProfileId, ct));
+        await _store.SaveAsync(resolvedTargetProfileId, sourceConfig, ct);
+
+        _logger.LogInformation(
+            "Cloned durable profile config {SourceProfileId} to {TargetProfileId}",
+            resolvedSourceProfileId,
+            resolvedTargetProfileId);
+
+        return new ResolvedProfileConfig
+        {
+            ProfileId = resolvedTargetProfileId,
+            Config = sourceConfig,
+            Persisted = true,
+        };
+    }
+
+    public async Task DeleteAsync(string profileId, CancellationToken ct = default)
+    {
+        await EnsureCompatibilityDefaultProfileAsync(ct);
+
+        var resolvedProfileId = NormalizeProfileId(profileId);
+        if (!await _store.ExistsAsync(resolvedProfileId, ct))
+        {
+            throw new FileNotFoundException($"Profile config {resolvedProfileId} not found");
+        }
+
+        var defaultProfileId = await GetDefaultProfileIdAsync(ct);
+        if (string.Equals(resolvedProfileId, defaultProfileId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Cannot delete default profile {resolvedProfileId}.");
+        }
+
+        var referencingSessions = await _sessionRuntimeStore.FindSessionIdsByProfileIdAsync(resolvedProfileId, ct);
+        if (referencingSessions.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Cannot delete profile {resolvedProfileId} because it is referenced by {referencingSessions.Count} persisted session(s).");
+        }
+
+        await _store.DeleteAsync(resolvedProfileId, ct);
+
+        _logger.LogInformation("Deleted durable profile config {ProfileId}", resolvedProfileId);
+    }
+
     public async Task<ProfileSelectionResult> SelectAsync(string profileId, CancellationToken ct = default)
     {
         await EnsureCompatibilityDefaultProfileAsync(ct);
@@ -106,7 +169,7 @@ public sealed class ProfileConfigService : IProfileConfigService
         var resolvedProfileId = NormalizeProfileId(profileId);
         var config = NormalizeProfile(await _store.LoadAsync(resolvedProfileId, ct));
         var updatedAppConfig = await _appConfigStore.UpdateAsync(current =>
-            ApplySelectedProfileToAppConfig(current, resolvedProfileId, config), ct);
+            ApplySelectedProfileToCompatibilityAppConfigState(current, resolvedProfileId, config), ct);
 
         _logger.LogInformation(
             "Selected default profile {ProfileId}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
@@ -134,14 +197,16 @@ public sealed class ProfileConfigService : IProfileConfigService
     {
         var resolved = await LoadResolvedAsync(profileId, ct);
 
-        return new ProfileState
+        var state = new ProfileState
         {
             ProfileId = resolved.ProfileId,
-            ActivePersona = resolved.Config.Conductor,
-            ActiveLoreSet = resolved.Config.LoreSet,
-            ActiveNarrativeRules = resolved.Config.NarrativeRules,
-            ActiveWritingStyle = resolved.Config.WritingStyle,
         };
+
+        _logger.LogInformation(
+            "Built sparse session profile state from durable profile {ProfileId}",
+            resolved.ProfileId);
+
+        return state;
     }
 
     private async Task EnsureCompatibilityDefaultProfileAsync(CancellationToken ct)
@@ -211,7 +276,9 @@ public sealed class ProfileConfigService : IProfileConfigService
         });
     }
 
-    private static AppConfig ApplySelectedProfileToAppConfig(
+    // Compatibility bridge: a few non-session/global surfaces still read the legacy
+    // AppConfig active fields. Running-session truth comes from session runtime.
+    private static AppConfig ApplySelectedProfileToCompatibilityAppConfigState(
         AppConfig current,
         string profileId,
         ProfileConfig config)

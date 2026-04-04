@@ -92,7 +92,7 @@ public sealed class SessionLifecycleServiceTests
         {
             SessionId = sourceTree.SessionId,
             Mode = new ModeSelectionState { ActiveModeName = "roleplay", Character = "captain" },
-            Profile = new ProfileState { ProfileId = "grim", ActivePersona = "grim-captain" },
+            Profile = new ProfileState { ProfileId = "grim", ActiveConductor = "grim-captain" },
             Narrative = new NarrativeRuntimeState
             {
                 DirectorNotes = "The captain already distrusts the envoy.",
@@ -109,7 +109,7 @@ public sealed class SessionLifecycleServiceTests
         Assert.Equal("roleplay", forkedRuntime.Mode.ActiveModeName);
         Assert.Equal("captain", forkedRuntime.Mode.Character);
         Assert.Equal("grim", forkedRuntime.Profile.ProfileId);
-        Assert.Equal("grim-captain", forkedRuntime.Profile.ActivePersona);
+        Assert.Equal("grim-captain", forkedRuntime.Profile.ActiveConductor);
         Assert.Equal("The captain already distrusts the envoy.", forkedRuntime.Narrative.DirectorNotes);
     }
 
@@ -208,6 +208,15 @@ internal sealed class InMemoryRuntimeStore : ISessionRuntimeStore
         return Task.CompletedTask;
     }
 
+    public Task<IReadOnlyList<Guid>> FindSessionIdsByProfileIdAsync(string profileId, CancellationToken ct = default)
+    {
+        var sessionIds = _states
+            .Where(pair => string.Equals(pair.Value.Profile.ProfileId, profileId, StringComparison.OrdinalIgnoreCase))
+            .Select(pair => pair.Key)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<Guid>>(sessionIds);
+    }
+
     private static SessionRuntimeState Clone(SessionRuntimeState state, Guid? sessionId)
     {
         return new SessionRuntimeState
@@ -224,7 +233,7 @@ internal sealed class InMemoryRuntimeStore : ISessionRuntimeStore
             Profile = new ProfileState
             {
                 ProfileId = state.Profile.ProfileId,
-                ActivePersona = state.Profile.ActivePersona,
+                ActiveConductor = state.Profile.ActiveConductor,
                 ActiveLoreSet = state.Profile.ActiveLoreSet,
                 ActiveNarrativeRules = state.Profile.ActiveNarrativeRules,
                 ActiveWritingStyle = state.Profile.ActiveWritingStyle,

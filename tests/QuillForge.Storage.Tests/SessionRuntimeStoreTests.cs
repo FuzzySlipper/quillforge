@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Storage.FileSystem;
 using QuillForge.Storage.Utilities;
@@ -37,7 +38,38 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.Null(state.Mode.ProjectName);
         Assert.Equal(WriterState.Idle, state.Writer.State);
         Assert.Null(state.Profile.ProfileId);
-        Assert.Null(state.Profile.ActivePersona);
+        Assert.Null(state.Profile.ActiveConductor);
+    }
+
+    [Fact]
+    public async Task Load_NullSessionId_ReturnsTransientDefaults()
+    {
+        var state = await _store.LoadAsync(null);
+
+        Assert.Null(state.SessionId);
+        Assert.Equal("general", state.Mode.ActiveModeName);
+        Assert.Null(state.Profile.ProfileId);
+    }
+
+    [Fact]
+    public async Task Load_MissingSessionState_DoesNotInheritLegacyDefaultJson()
+    {
+        var legacyDefaultPath = Path.Combine(_tempDir, ContentPaths.DataSessionState, "default.json");
+        await File.WriteAllTextAsync(
+            legacyDefaultPath,
+            """
+            {
+              "mode": {
+                "activeModeName": "writer",
+                "projectName": "legacy-project"
+              }
+            }
+            """);
+
+        var loaded = await _store.LoadAsync(Guid.NewGuid());
+
+        Assert.Equal("general", loaded.Mode.ActiveModeName);
+        Assert.Null(loaded.Mode.ProjectName);
     }
 
     [Fact]
@@ -57,7 +89,7 @@ public class SessionRuntimeStoreTests : IDisposable
             Profile = new ProfileState
             {
                 ProfileId = "grim",
-                ActivePersona = "narrator",
+                ActiveConductor = "narrator",
                 ActiveLoreSet = "fantasy",
                 ActiveNarrativeRules = "default",
                 ActiveWritingStyle = "literary",
@@ -89,7 +121,7 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.Equal("chapter1.md", loaded.Mode.CurrentFile);
         Assert.Equal("hero", loaded.Mode.Character);
         Assert.Equal("grim", loaded.Profile.ProfileId);
-        Assert.Equal("narrator", loaded.Profile.ActivePersona);
+        Assert.Equal("narrator", loaded.Profile.ActiveConductor);
         Assert.Equal("fantasy", loaded.Profile.ActiveLoreSet);
         Assert.Equal("default", loaded.Profile.ActiveNarrativeRules);
         Assert.Equal("literary", loaded.Profile.ActiveWritingStyle);
@@ -103,19 +135,11 @@ public class SessionRuntimeStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task DefaultState_UsesDefaultJsonFile()
+    public async Task Save_NullSessionId_Throws()
     {
-        var state = new SessionRuntimeState
-        {
-            SessionId = null,
-            Mode = new ModeSelectionState { ActiveModeName = "roleplay" },
-        };
+        var state = new SessionRuntimeState();
 
-        await _store.SaveAsync(state);
-        var loaded = await _store.LoadAsync(null);
-
-        Assert.Null(loaded.SessionId);
-        Assert.Equal("roleplay", loaded.Mode.ActiveModeName);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _store.SaveAsync(state));
     }
 
     [Fact]
@@ -172,5 +196,33 @@ public class SessionRuntimeStoreTests : IDisposable
         var loaded = await _store.LoadAsync(sessionId);
 
         Assert.True(loaded.LastModified > before);
+    }
+
+    [Fact]
+    public async Task FindSessionIdsByProfileIdAsync_ReturnsMatchingPersistedSessions()
+    {
+        var firstSessionId = Guid.NewGuid();
+        var secondSessionId = Guid.NewGuid();
+
+        await _store.SaveAsync(new SessionRuntimeState
+        {
+            SessionId = firstSessionId,
+            Profile = new ProfileState
+            {
+                ProfileId = "grim",
+            },
+        });
+        await _store.SaveAsync(new SessionRuntimeState
+        {
+            SessionId = secondSessionId,
+            Profile = new ProfileState
+            {
+                ProfileId = "default",
+            },
+        });
+
+        var matches = await _store.FindSessionIdsByProfileIdAsync("grim");
+
+        Assert.Equal([firstSessionId], matches);
     }
 }

@@ -12,7 +12,7 @@ public static class StatusEndpoints
     {
         app.MapGet("/api/status", async (
             HttpContext httpContext,
-            ISessionRuntimeService runtimeService,
+            ISessionProfileReadService profileReadService,
             AutoUpdateService updateService,
             AppConfig config,
             ILoreStore loreStore,
@@ -20,23 +20,24 @@ public static class StatusEndpoints
             CancellationToken ct) =>
         {
             var sessionId = httpContext.TryGetSessionId();
-            var chatState = await runtimeService.LoadViewAsync(sessionId, ct);
+            var readView = await profileReadService.LoadAsync(sessionId, ct);
+            var chatState = readView.SessionState;
             // Calculate real token/file counts
             var loreFiles = 0;
             var loreTokens = 0;
             try
             {
-                var loreSet = await loreStore.LoadLoreSetAsync(chatState.Profile.ActiveLoreSet ?? "default", ct);
+                var loreSet = await loreStore.LoadLoreSetAsync(readView.ActiveLoreSet, ct);
                 loreFiles = loreSet.Count;
                 loreTokens = loreSet.Values.Sum(v => v.Length) / 4; // rough token estimate
             }
             catch { /* lore set may not exist */ }
 
-            var personaTokens = 0;
+            var conductorTokens = 0;
             try
             {
-                var conductorPrompt = await conductorStore.LoadAsync(chatState.Profile.ActivePersona ?? "default", config.Persona.MaxTokens, ct);
-                personaTokens = conductorPrompt.Length / 4;
+                var conductorPrompt = await conductorStore.LoadAsync(readView.ActiveConductor, config.Persona.MaxTokens, ct);
+                conductorTokens = conductorPrompt.Length / 4;
             }
             catch { /* conductor may not exist */ }
 
@@ -47,9 +48,9 @@ public static class StatusEndpoints
                 Mode = chatState.Mode.ActiveModeName,
                 Project = chatState.Mode.ProjectName,
                 File = chatState.Mode.CurrentFile,
-                LoreSet = chatState.Profile.ActiveLoreSet ?? "default",
-                Persona = chatState.Profile.ActivePersona ?? "default",
-                WritingStyle = chatState.Profile.ActiveWritingStyle ?? "default",
+                LoreSet = readView.ActiveLoreSet,
+                Conductor = readView.ActiveConductor,
+                WritingStyle = readView.ActiveWritingStyle,
                 Model = config.Models.Orchestrator,
                 Layout = config.Layout.Active,
                 AiCharacter = config.Roleplay.AiCharacter ?? "",
@@ -58,7 +59,7 @@ public static class StatusEndpoints
                 LoreFiles = loreFiles,
                 ContextLimit = 0, // provider-specific, needs registry lookup
                 LoreTokens = loreTokens,
-                PersonaTokens = personaTokens,
+                ConductorTokens = conductorTokens,
                 HistoryTokens = 0, // requires active session tracking
                 DiagnosticsLivePanel = config.Diagnostics.LivePanel,
                 Update = updateService.UpdateAvailable ? new UpdateInfoDto

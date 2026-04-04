@@ -1,4 +1,4 @@
-import type { Status, Profiles, ModeInfo, Mode } from "./types";
+import type { Status, Profiles, ModeInfo, Mode, ProfileSwitchResult } from "./types";
 
 const BASE = "";
 
@@ -244,11 +244,11 @@ export async function getProfiles(sessionId?: string | null): Promise<Profiles> 
 export async function switchProfile(profile: {
   sessionId?: string | null;
   profileId?: string;
-  persona?: string;
+  conductor?: string;
   lore?: string;
   narrativeRules?: string;
   writingStyle?: string;
-}): Promise<unknown> {
+}): Promise<ProfileSwitchResult> {
   return request("/api/profiles/switch", {
     method: "POST",
     body: JSON.stringify(profile),
@@ -266,7 +266,7 @@ export async function setMode(
   file?: string,
   character?: string,
   sessionId?: string | null,
-): Promise<unknown> {
+): Promise<ModeInfo> {
   return request("/api/mode", {
     method: "POST",
     body: JSON.stringify({ mode, project, file, character, sessionId }),

@@ -72,7 +72,7 @@ export default function ContextOverlay({ open, onClose, status, sessionId }: Con
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="bg-input-bg rounded-lg p-3">
                   <div className="text-text-muted text-xs mb-1">Conductor</div>
-                  <div>{status.persona}</div>
+                  <div>{status.conductor}</div>
                 </div>
                 <div className="bg-input-bg rounded-lg p-3">
                   <div className="text-text-muted text-xs mb-1">Lore Set</div>

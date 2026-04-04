@@ -145,7 +145,7 @@ test.describe('API Smoke Tests', () => {
 
   test('profiles/switch succeeds', async ({ request }) => {
     const resp = await request.post(`${BASE}/api/profiles/switch`, {
-      data: { persona: 'default', lore: 'default', narrativeRules: 'default', writingStyle: 'default' },
+      data: { conductor: 'default', lore: 'default', narrativeRules: 'default', writingStyle: 'default' },
     });
     expect(resp.ok()).toBe(true);
   });

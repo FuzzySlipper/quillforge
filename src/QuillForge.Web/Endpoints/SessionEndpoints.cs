@@ -19,27 +19,21 @@ public static class SessionEndpoints
 
         group.MapPost("/new", async (
             HttpContext httpContext,
-            ISessionStore store,
-            ISessionRuntimeStore runtimeStore,
-            IProfileConfigService profileService,
-            ILoggerFactory loggerFactory,
+            ISessionBootstrapService bootstrapService,
             CancellationToken ct) =>
         {
             var profileId = await ReadOptionalProfileIdAsync(httpContext, ct);
-            var tree = new ConversationTree(
-                Guid.CreateVersion7(),
-                "New Session",
-                loggerFactory.CreateLogger<ConversationTree>());
-            await store.SaveAsync(tree, ct);
 
             try
             {
-                var runtimeState = new SessionRuntimeState
-                {
-                    SessionId = tree.SessionId,
-                    Profile = await profileService.BuildSessionProfileStateAsync(profileId, ct),
-                };
-                await runtimeStore.SaveAsync(runtimeState, ct);
+                var tree = await bootstrapService.CreateAsync(
+                    new CreateSessionCommand
+                    {
+                        Name = "New Session",
+                        ProfileId = profileId,
+                    },
+                    ct);
+                return Results.Ok(new SessionCreatedResponse { SessionId = tree.SessionId, Name = tree.Name });
             }
             catch (FileNotFoundException)
             {
@@ -49,8 +43,6 @@ public static class SessionEndpoints
             {
                 return Results.BadRequest(new { Error = ex.Message });
             }
-
-            return Results.Ok(new SessionCreatedResponse { SessionId = tree.SessionId, Name = tree.Name });
         });
 
         group.MapPost("/{id}/load", async (Guid id, ISessionStore store, CancellationToken ct) =>
@@ -109,7 +101,7 @@ public static class SessionEndpoints
 
         group.MapDelete("/{id}/messages/{messageId}", async (
             Guid id, Guid messageId,
-            ISessionStore store, ILoggerFactory loggerFactory,
+            ISessionStore store,
             CancellationToken ct) =>
         {
             var tree = await store.LoadAsync(id, ct);
@@ -174,27 +166,21 @@ public static class SessionEndpoints
         // Legacy path that the frontend also calls
         app.MapPost("/api/session/new", async (
             HttpContext httpContext,
-            ISessionStore store,
-            ISessionRuntimeStore runtimeStore,
-            IProfileConfigService profileService,
-            ILoggerFactory loggerFactory,
+            ISessionBootstrapService bootstrapService,
             CancellationToken ct) =>
         {
             var profileId = await ReadOptionalProfileIdAsync(httpContext, ct);
-            var tree = new ConversationTree(
-                Guid.CreateVersion7(),
-                "New Session",
-                loggerFactory.CreateLogger<ConversationTree>());
-            await store.SaveAsync(tree, ct);
 
             try
             {
-                var runtimeState = new SessionRuntimeState
-                {
-                    SessionId = tree.SessionId,
-                    Profile = await profileService.BuildSessionProfileStateAsync(profileId, ct),
-                };
-                await runtimeStore.SaveAsync(runtimeState, ct);
+                var tree = await bootstrapService.CreateAsync(
+                    new CreateSessionCommand
+                    {
+                        Name = "New Session",
+                        ProfileId = profileId,
+                    },
+                    ct);
+                return Results.Ok(new SessionCreatedResponse { SessionId = tree.SessionId, Name = tree.Name });
             }
             catch (FileNotFoundException)
             {
@@ -204,8 +190,6 @@ public static class SessionEndpoints
             {
                 return Results.BadRequest(new { Error = ex.Message });
             }
-
-            return Results.Ok(new SessionCreatedResponse { SessionId = tree.SessionId, Name = tree.Name });
         });
 
         // Conversation history for the selected session. Kept at the legacy path

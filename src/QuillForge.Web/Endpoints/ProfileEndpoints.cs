@@ -3,6 +3,7 @@ using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Web.Contracts;
+using QuillForge.Web.Services;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -13,14 +14,31 @@ public static class ProfileEndpoints
         // Switch active conductor/lore/writing style
         app.MapPost("/api/profiles/switch", async (
             ProfileSwitchRequest request,
+            ISessionBootstrapService bootstrapService,
             ISessionRuntimeService runtimeService,
+            ISessionLifecycleService lifecycleService,
             CancellationToken ct) =>
         {
+            var sessionId = request.SessionId;
+            Guid? createdSessionId = null;
+            if (!sessionId.HasValue)
+            {
+                var tree = await bootstrapService.CreateAsync(
+                    new CreateSessionCommand
+                    {
+                        Name = "New Session",
+                        ProfileId = request.ProfileId,
+                    },
+                    ct);
+                sessionId = tree.SessionId;
+                createdSessionId = tree.SessionId;
+            }
+
             var result = await runtimeService.SetProfileAsync(
-                request.SessionId,
+                sessionId,
                 new SetSessionProfileCommand(
                     request.ProfileId,
-                    request.Persona,
+                    request.Conductor,
                     request.Lore,
                     request.NarrativeRules,
                     request.WritingStyle),
@@ -28,6 +46,11 @@ public static class ProfileEndpoints
 
             if (result.Status == SessionMutationStatus.Busy)
             {
+                if (createdSessionId.HasValue)
+                {
+                    await lifecycleService.DeleteAsync(createdSessionId.Value, ct);
+                }
+
                 return Results.Conflict(new
                 {
                     error = "session_busy",
@@ -37,6 +60,11 @@ public static class ProfileEndpoints
 
             if (result.Status == SessionMutationStatus.Invalid)
             {
+                if (createdSessionId.HasValue)
+                {
+                    await lifecycleService.DeleteAsync(createdSessionId.Value, ct);
+                }
+
                 return Results.BadRequest(new
                 {
                     error = "invalid_session_mutation",
@@ -48,11 +76,12 @@ public static class ProfileEndpoints
 
             return Results.Ok(new ProfileSwitchResponse
             {
-                ActiveProfileId = state.Profile.ProfileId ?? "default",
-                ActivePersona = state.Profile.ActivePersona ?? "default",
-                ActiveLore = state.Profile.ActiveLoreSet ?? "default",
-                ActiveNarrativeRules = state.Profile.ActiveNarrativeRules ?? "default",
-                ActiveWritingStyle = state.Profile.ActiveWritingStyle ?? "default",
+                SessionId = state.SessionId,
+                ActiveProfileId = SessionProfileHydration.RequireProfileId(state.Profile),
+                ActiveConductor = SessionProfileHydration.RequireActiveConductor(state.Profile),
+                ActiveLore = SessionProfileHydration.RequireActiveLoreSet(state.Profile),
+                ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(state.Profile),
+                ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(state.Profile),
                 LoreFiles = 0,
             });
         });
@@ -131,6 +160,31 @@ public static class ProfileEndpoints
             }
         });
 
+        app.MapPost("/api/profile-configs/{profileId}/clone", async (
+            string profileId,
+            CloneProfileConfigRequest request,
+            IProfileConfigService profileService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var cloned = await profileService.CloneAsync(profileId, request.TargetProfileId, ct);
+                return Results.Ok(ToProfileConfigResponse(cloned));
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { Error = $"Profile {profileId} not found" });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(new { Error = ex.Message });
+            }
+        });
+
         app.MapPost("/api/profile-configs/{profileId}/select", async (
             string profileId,
             AppConfig runtimeConfig,
@@ -144,7 +198,7 @@ public static class ProfileEndpoints
                 return Results.Ok(new ProfileSwitchResponse
                 {
                     ActiveProfileId = selection.ProfileId,
-                    ActivePersona = selection.Config.Conductor,
+                    ActiveConductor = selection.Config.Conductor,
                     ActiveLore = selection.Config.LoreSet,
                     ActiveNarrativeRules = selection.Config.NarrativeRules,
                     ActiveWritingStyle = selection.Config.WritingStyle,
@@ -154,6 +208,33 @@ public static class ProfileEndpoints
             catch (FileNotFoundException)
             {
                 return Results.NotFound(new { Error = $"Profile {profileId} not found" });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        app.MapDelete("/api/profile-configs/{profileId}", async (
+            string profileId,
+            IProfileConfigService profileService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                await profileService.DeleteAsync(profileId, ct);
+                return Results.Ok(new ProfileDeletedResponse
+                {
+                    ProfileId = profileId,
+                });
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound(new { Error = $"Profile {profileId} not found" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(new { Error = ex.Message });
             }
             catch (ArgumentException ex)
             {
@@ -200,12 +281,17 @@ public static class ProfileEndpoints
         });
 
         // Narrative rules endpoints
-        app.MapGet("/api/narrative-rules", (AppConfig config) =>
+        app.MapGet("/api/narrative-rules", async (
+            HttpContext httpContext,
+            ISessionProfileReadService profileReadService,
+            CancellationToken ct) =>
         {
+            var sessionId = httpContext.TryGetSessionId();
+            var readView = await profileReadService.LoadAsync(sessionId, ct);
             var rulesDir = Path.Combine(contentRoot, ContentPaths.NarrativeRules);
             if (!Directory.Exists(rulesDir))
             {
-                return Results.Ok(new { Files = Array.Empty<object>(), Active = config.NarrativeRules.Active });
+                return Results.Ok(new { Files = Array.Empty<object>(), Active = readView.ActiveNarrativeRules });
             }
 
             var files = new List<object>();
@@ -221,7 +307,7 @@ public static class ProfileEndpoints
                 });
             }
 
-            return Results.Ok(new { Files = files, Active = config.NarrativeRules.Active });
+            return Results.Ok(new { Files = files, Active = readView.ActiveNarrativeRules });
         });
 
         app.MapGet("/api/narrative-rules/{name}", async (
@@ -247,12 +333,17 @@ public static class ProfileEndpoints
         });
 
         // Writing style endpoints
-        app.MapGet("/api/writing-styles", (AppConfig config) =>
+        app.MapGet("/api/writing-styles", async (
+            HttpContext httpContext,
+            ISessionProfileReadService profileReadService,
+            CancellationToken ct) =>
         {
+            var sessionId = httpContext.TryGetSessionId();
+            var readView = await profileReadService.LoadAsync(sessionId, ct);
             var stylesDir = Path.Combine(contentRoot, ContentPaths.WritingStyles);
             if (!Directory.Exists(stylesDir))
             {
-                return Results.Ok(new { Files = Array.Empty<object>(), Active = config.WritingStyle.Active });
+                return Results.Ok(new { Files = Array.Empty<object>(), Active = readView.ActiveWritingStyle });
             }
 
             var files = new List<object>();
@@ -268,7 +359,7 @@ public static class ProfileEndpoints
                 });
             }
 
-            return Results.Ok(new { Files = files, Active = config.WritingStyle.Active });
+            return Results.Ok(new { Files = files, Active = readView.ActiveWritingStyle });
         });
 
         app.MapGet("/api/writing-styles/{name}", async (string name, IWritingStyleStore store, CancellationToken ct) =>

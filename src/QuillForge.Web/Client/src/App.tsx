@@ -74,17 +74,26 @@ function App() {
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [diagnosticEntries, setDiagnosticEntries] = useState<DiagnosticEntry[]>([]);
 
-  const refreshStatus = useCallback(() => {
-    getStatus(currentSessionId)
+  const refreshStatus = useCallback((sessionIdOverride?: string | null) => {
+    const effectiveSessionId = sessionIdOverride ?? currentSessionId;
+    getStatus(effectiveSessionId)
       .then((s) => {
         setStatus(s);
         setMode(s.mode);
       })
       .catch(() => setStatus(null));
-    getMode(currentSessionId)
+    getMode(effectiveSessionId)
       .then((m) => setHasPending(!!m.pendingContent))
       .catch(() => {});
   }, [currentSessionId]);
+
+  const handleSessionScopedRefresh = useCallback((sessionId?: string | null) => {
+    if (sessionId) {
+      setCurrentSessionId(sessionId);
+    }
+
+    refreshStatus(sessionId);
+  }, [refreshStatus]);
 
   useEffect(() => {
     tts.init();
@@ -191,10 +200,6 @@ function App() {
       await sendChatStream(
         text,
         (event) => {
-          // Capture session ID from first done event
-          if (event.type === "done" && event.data.sessionId) {
-            setCurrentSessionId(event.data.sessionId as string);
-          }
           if (event.type === "status") {
             setStreamStatus(event.data.message as string);
           } else if (event.type === "tool") {
@@ -253,6 +258,11 @@ function App() {
               level: (event.data.level as "info" | "warning" | "error") || "info",
             }]);
           } else if (event.type === "done") {
+            const responseSessionId = event.data.sessionId as string | null | undefined;
+            if (responseSessionId) {
+              setCurrentSessionId(responseSessionId);
+            }
+
             // Remove streaming message and add final one
             if (streamingStarted) {
               setMessages((prev) => prev.filter((m) => m.id !== streamMsgId));
@@ -285,7 +295,7 @@ function App() {
               event.data.parentId as string | null | undefined,
             );
             setStreamStatus(null);
-            refreshStatus();
+            refreshStatus(responseSessionId);
           } else if (event.type === "persisted") {
             // Update message IDs from client UUIDs to backend GUIDs
             const nodeId = event.data.nodeId as string | null;
@@ -379,7 +389,7 @@ function App() {
           setMessages([]);
           setCurrentSessionId(result.sessionId);
           setHasPending(false);
-          refreshStatus();
+          refreshStatus(result.sessionId);
         },
         clearMessages: () => setMessages([]),
         addChatMessage: (partial) => {
@@ -387,8 +397,11 @@ function App() {
           setMessages((prev) => [...prev, msg]);
         },
         setMode: async (m: Mode) => {
-          await apiSetMode(m);
-          refreshStatus();
+          const result = await apiSetMode(m, undefined, undefined, undefined, currentSessionId);
+          if (result.sessionId) {
+            setCurrentSessionId(result.sessionId);
+          }
+          refreshStatus(result.sessionId ?? currentSessionId);
         },
         refreshStatus,
         streamRequest: async (fetcher) => {
@@ -639,7 +652,7 @@ function App() {
           setMessages([]);
           setCurrentSessionId(result.sessionId);
           setHasPending(false);
-          refreshStatus();
+          refreshStatus(result.sessionId);
         }}
       />
 
@@ -713,13 +726,13 @@ function App() {
       <ProfilePicker
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
-        onSwitched={refreshStatus}
+        onSwitched={handleSessionScopedRefresh}
         sessionId={currentSessionId}
       />
       <ModeSwitcher
         open={modeOpen}
         onClose={() => setModeOpen(false)}
-        onSwitched={refreshStatus}
+        onSwitched={handleSessionScopedRefresh}
         sessionId={currentSessionId}
       />
       <ContextOverlay
@@ -731,7 +744,7 @@ function App() {
       <LoreBrowser
         open={loreOpen}
         onClose={() => setLoreOpen(false)}
-        onChanged={refreshStatus}
+        onChanged={handleSessionScopedRefresh}
         sessionId={currentSessionId}
       />
       <PlotBrowser
@@ -794,7 +807,7 @@ function App() {
           setMessages(restored);
           setCurrentSessionId(sessionId);
           setHasPending(false);
-          refreshStatus();
+          refreshStatus(sessionId);
         }}
       />
     </div>

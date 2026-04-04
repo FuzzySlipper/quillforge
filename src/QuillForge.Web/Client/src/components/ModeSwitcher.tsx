@@ -6,7 +6,7 @@ import type { Mode, ModeInfo } from "../types";
 interface ModeSwitcherProps {
   open: boolean;
   onClose: () => void;
-  onSwitched: () => void;
+  onSwitched: (sessionId?: string | null) => void;
   sessionId?: string | null;
 }
 
@@ -46,7 +46,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
       setSelectedMode(m.mode);
       setProject(m.project || "");
     });
-  }, [open]);
+  }, [open, sessionId]);
 
   useEffect(() => {
     if (!open) return;
@@ -67,12 +67,13 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
   async function handleApply() {
     setSaving(true);
     try {
+      let result;
       if (selectedMode === "roleplay") {
-        await setMode(selectedMode, undefined, undefined, selectedCharacter || undefined, sessionId);
+        result = await setMode(selectedMode, undefined, undefined, selectedCharacter || undefined, sessionId);
       } else {
-        await setMode(selectedMode, project || undefined, undefined, undefined, sessionId);
+        result = await setMode(selectedMode, project || undefined, undefined, undefined, sessionId);
       }
-      onSwitched();
+      onSwitched(result?.sessionId ?? sessionId);
       onClose();
     } finally {
       setSaving(false);

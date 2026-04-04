@@ -12,14 +12,15 @@ namespace QuillForge.Core.Services;
 ///   - WriterRuntimeState: persisted (pending content survives restart)
 ///   - SessionId, LastModified: persisted (metadata)
 ///
-/// The global/default state (SessionId == null) is stored as "default.json"
-/// for backward compatibility with the single-session model.
+/// SessionId == null is a transient pre-session view used by read paths before a
+/// real session has been created. It is not persisted.
 /// </summary>
 public interface ISessionRuntimeStore
 {
     /// <summary>
     /// Loads runtime state for the given session. Returns a fresh default state
-    /// if no persisted state exists.
+    /// if no persisted state exists. Passing null returns the transient
+    /// pre-session default view.
     /// </summary>
     Task<SessionRuntimeState> LoadAsync(Guid? sessionId, CancellationToken ct = default);
 
@@ -32,4 +33,10 @@ public interface ISessionRuntimeStore
     /// Deletes persisted runtime state for a session (e.g., when session is deleted).
     /// </summary>
     Task DeleteAsync(Guid sessionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns persisted session IDs whose stored profile binding references the
+    /// given durable profile ID.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> FindSessionIdsByProfileIdAsync(string profileId, CancellationToken ct = default);
 }

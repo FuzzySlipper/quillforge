@@ -72,7 +72,7 @@ const commands: Record<string, CommandDef> = {
       const s = ctx.status;
       const lines = [
         `**Mode:** ${s.mode}`,
-        `**Conductor:** ${s.persona}`,
+        `**Conductor:** ${s.conductor}`,
         `**Writing style:** ${s.writingStyle}`,
         `**Lore set:** ${s.loreSet} (${s.loreFiles} files)`,
         `**Model:** ${s.model}`,

@@ -2,6 +2,7 @@ using System.Text.Json;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Web.Services;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -19,11 +20,11 @@ public static class DebugBridgeEndpoints
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
             ISessionRuntimeService runtimeService,
+            ISessionBootstrapService bootstrapService,
             IInteractiveSessionContextService sessionContextService,
             ISessionStore sessionStore,
             IEnumerable<IToolHandler> toolHandlers,
             AppConfig appConfig,
-            ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -32,7 +33,7 @@ public static class DebugBridgeEndpoints
             var sessionId = root.GetOptionalGuid("sessionId") ?? Guid.CreateVersion7();
             var message = root.GetProperty("message").GetString() ?? "";
             var model = root.GetStringOrDefault("model", "default");
-            var requestedConductor = root.GetOptionalString("persona");
+            var requestedConductor = root.GetOptionalString("conductor") ?? root.GetOptionalString("persona");
             var maxTokens = root.GetIntOrDefault("maxTokens", 4096);
 
             ConversationTree tree;
@@ -42,8 +43,13 @@ public static class DebugBridgeEndpoints
             }
             catch (FileNotFoundException)
             {
-                tree = new ConversationTree(sessionId, "Debug Session",
-                    loggerFactory.CreateLogger<ConversationTree>());
+                tree = await bootstrapService.CreateAsync(
+                    new CreateSessionCommand
+                    {
+                        SessionId = sessionId,
+                        Name = "Debug Session",
+                    },
+                    ct);
             }
 
             tree.Append(tree.ActiveLeafId, "user", new MessageContent(message));
@@ -63,14 +69,14 @@ public static class DebugBridgeEndpoints
             {
                 SessionId = sessionId,
                 ActiveMode = sessionState.Mode.ActiveModeName,
-                ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? "default",
-                ActiveNarrativeRules = sessionState.Profile.ActiveNarrativeRules ?? "default",
-                ActiveWritingStyle = sessionState.Profile.ActiveWritingStyle ?? "default",
+                ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(sessionState.Profile),
+                ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(sessionState.Profile),
+                ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(sessionState.Profile),
                 SessionContext = sessionContext,
                 LastAssistantResponse = lastAssistantResponse,
             };
             var conductor = string.IsNullOrWhiteSpace(requestedConductor)
-                ? sessionState.Profile.ActivePersona ?? "default"
+                ? SessionProfileHydration.RequireActiveConductor(sessionState.Profile)
                 : requestedConductor;
 
             var tools = toolHandlers.ToList();
@@ -112,6 +118,8 @@ public static class DebugBridgeEndpoints
         group.MapPost("/mode", async (
             HttpContext httpContext,
             ISessionRuntimeService runtimeService,
+            ISessionBootstrapService bootstrapService,
+            ISessionLifecycleService lifecycleService,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -121,6 +129,19 @@ public static class DebugBridgeEndpoints
             var project = root.TryGetProperty("project", out var proj) ? proj.GetString() : null;
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
             var sessionId = root.GetOptionalGuid("sessionId");
+            Guid? createdSessionId = null;
+
+            if (!sessionId.HasValue)
+            {
+                var tree = await bootstrapService.CreateAsync(
+                    new CreateSessionCommand
+                    {
+                        Name = "Debug Session",
+                    },
+                    ct);
+                sessionId = tree.SessionId;
+                createdSessionId = tree.SessionId;
+            }
 
             var result = await runtimeService.SetModeAsync(
                 sessionId,
@@ -129,6 +150,11 @@ public static class DebugBridgeEndpoints
 
             if (result.Status == SessionMutationStatus.Busy)
             {
+                if (createdSessionId.HasValue)
+                {
+                    await lifecycleService.DeleteAsync(createdSessionId.Value, ct);
+                }
+
                 return Results.Conflict(new
                 {
                     error = "session_busy",
@@ -138,6 +164,11 @@ public static class DebugBridgeEndpoints
 
             if (result.Status == SessionMutationStatus.Invalid)
             {
+                if (createdSessionId.HasValue)
+                {
+                    await lifecycleService.DeleteAsync(createdSessionId.Value, ct);
+                }
+
                 return Results.BadRequest(new
                 {
                     error = "invalid_session_mutation",
@@ -149,6 +180,7 @@ public static class DebugBridgeEndpoints
 
             return Results.Ok(new
             {
+                sessionId = sessionState.SessionId,
                 mode = sessionState.Mode.ActiveModeName,
                 project = sessionState.Mode.ProjectName,
                 file = sessionState.Mode.CurrentFile,
@@ -185,18 +217,19 @@ public static class DebugBridgeEndpoints
         });
 
         group.MapPost("/session/new", async (
-            ISessionStore sessionStore,
-            ILoggerFactory loggerFactory,
+            ISessionBootstrapService bootstrapService,
             CancellationToken ct) =>
         {
-            var sessionId = Guid.CreateVersion7();
-            var tree = new ConversationTree(sessionId, "Debug Session",
-                loggerFactory.CreateLogger<ConversationTree>());
-            await sessionStore.SaveAsync(tree, ct);
+            var tree = await bootstrapService.CreateAsync(
+                new CreateSessionCommand
+                {
+                    Name = "Debug Session",
+                },
+                ct);
 
             return Results.Ok(new
             {
-                sessionId,
+                sessionId = tree.SessionId,
                 name = tree.Name,
             });
         });

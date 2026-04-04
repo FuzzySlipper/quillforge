@@ -11,15 +11,15 @@ interface PromptBrowserProps {
   onChanged: () => void;
 }
 
-type Tab = "persona" | "narrative" | "writing";
+type Tab = "conductor" | "narrative" | "writing";
 
 export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowserProps) {
-  const [tab, setTab] = useState<Tab>("persona");
+  const [tab, setTab] = useState<Tab>("conductor");
   const [conductorFiles, setConductorFiles] = useState<ConductorFileInfo[]>([]);
   const [narrativeRulesFiles, setNarrativeRulesFiles] = useState<NarrativeRulesInfo[]>([]);
   const [styleFiles, setStyleFiles] = useState<WritingStyleInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState<Tab>("persona");
+  const [selectedType, setSelectedType] = useState<Tab>("conductor");
   const [content, setContent] = useState("");
   const [originalContent, setOriginalContent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,7 +37,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
     try {
       const data = await readConductor(path);
       setSelected(path);
-      setSelectedType("persona");
+      setSelectedType("conductor");
       setContent(data.content);
       setOriginalContent(data.content);
     } finally {
@@ -75,7 +75,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
     if (!selected) return;
     setSaving(true);
     try {
-      if (selectedType === "persona") {
+      if (selectedType === "conductor") {
         await writeConductor(selected, content);
         const data = await listConductors();
         setConductorFiles(data.files);
@@ -179,7 +179,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
       <div className="flex flex-col gap-3">
         {/* Tab switcher */}
         <div className="flex gap-2">
-          <button onClick={() => setTab("persona")} className={tabClass("persona")}>
+          <button onClick={() => setTab("conductor")} className={tabClass("conductor")}>
             Conductor
           </button>
           <button onClick={() => setTab("narrative")} className={tabClass("narrative")}>
@@ -190,7 +190,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
           </button>
         </div>
 
-        {tab === "persona" && (
+        {tab === "conductor" && (
           <>
             <div className="text-xs text-text-muted">
               {conductorFiles.length} files · ~{Math.round(totalConductorTokens / 1000)}k tokens total

@@ -3,6 +3,7 @@ using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Web.Contracts;
+using QuillForge.Web.Services;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -19,12 +20,12 @@ public static class ChatEndpoints
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
             ISessionRuntimeService runtimeService,
+            ISessionBootstrapService bootstrapService,
             IInteractiveSessionContextService sessionContextService,
             ISessionStore sessionStore,
             IEnumerable<IToolHandler> toolHandlers,
             ICharacterCardStore cardStore,
             AppConfig appConfig,
-            ILoggerFactory loggerFactory,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -37,7 +38,7 @@ public static class ChatEndpoints
             // Resolve "default" to the configured orchestrator model
             if (string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
                 model = appConfig.Models.Orchestrator;
-            var requestedConductor = root.GetOptionalString("persona");
+            var requestedConductor = root.GetOptionalString("conductor") ?? root.GetOptionalString("persona");
             var maxTokens = root.TryGetProperty("maxTokens", out var mt) ? mt.GetInt32() : 4096;
             var parentId = root.GetOptionalGuid("parentId");
 
@@ -53,8 +54,13 @@ public static class ChatEndpoints
             }
             catch (FileNotFoundException)
             {
-                tree = new ConversationTree(sessionId, "Chat Session",
-                    loggerFactory.CreateLogger<ConversationTree>());
+                tree = await bootstrapService.CreateAsync(
+                    new CreateSessionCommand
+                    {
+                        SessionId = sessionId,
+                        Name = "Chat Session",
+                    },
+                    ct);
             }
 
             // Regeneration mode: parentId means "generate a new variant as a child of this node"
@@ -105,14 +111,14 @@ public static class ChatEndpoints
             {
                 SessionId = sessionId,
                 ActiveMode = sessionState.Mode.ActiveModeName,
-                ActiveLoreSet = sessionState.Profile.ActiveLoreSet ?? "default",
-                ActiveNarrativeRules = sessionState.Profile.ActiveNarrativeRules ?? "default",
-                ActiveWritingStyle = sessionState.Profile.ActiveWritingStyle ?? "default",
+                ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(sessionState.Profile),
+                ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(sessionState.Profile),
+                ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(sessionState.Profile),
                 SessionContext = sessionContext,
                 LastAssistantResponse = lastAssistantResponse,
             };
             var conductor = string.IsNullOrWhiteSpace(requestedConductor)
-                ? sessionState.Profile.ActivePersona ?? "default"
+                ? SessionProfileHydration.RequireActiveConductor(sessionState.Profile)
                 : requestedConductor;
 
             // Stream SSE response, collecting assistant text for persistence

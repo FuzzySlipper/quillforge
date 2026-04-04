@@ -17,7 +17,8 @@ public sealed class ProfileConfigServiceTests
             WritingStyle = new WritingStyleConfig { Active = "literary" },
         });
         var profileStore = new InMemoryProfileConfigStore();
-        var service = new ProfileConfigService(profileStore, appConfigStore, NullLogger<ProfileConfigService>.Instance);
+        var runtimeStore = new InMemoryProfileUsageRuntimeStore();
+        var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
 
         var profiles = await service.ListAsync();
         var resolved = await service.LoadResolvedAsync();
@@ -31,10 +32,11 @@ public sealed class ProfileConfigServiceTests
     }
 
     [Fact]
-    public async Task SelectAsync_UpdatesAppConfigDefaultAndLegacyActiveFields()
+    public async Task SelectAsync_UpdatesAppConfigDefaultAndCompatibilityLegacyActiveFields()
     {
         var appConfigStore = new InMemoryAppConfigStore(new AppConfig());
         var profileStore = new InMemoryProfileConfigStore();
+        var runtimeStore = new InMemoryProfileUsageRuntimeStore();
         await profileStore.SaveAsync("research", new ProfileConfig
         {
             Conductor = "analyst",
@@ -43,7 +45,7 @@ public sealed class ProfileConfigServiceTests
             WritingStyle = "concise",
         });
 
-        var service = new ProfileConfigService(profileStore, appConfigStore, NullLogger<ProfileConfigService>.Instance);
+        var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
         var selection = await service.SelectAsync("research");
 
         Assert.Equal("research", selection.ProfileId);
@@ -55,10 +57,11 @@ public sealed class ProfileConfigServiceTests
     }
 
     [Fact]
-    public async Task BuildSessionProfileStateAsync_UsesResolvedProfileValues()
+    public async Task BuildSessionProfileStateAsync_StoresOnlyResolvedProfileId()
     {
         var appConfigStore = new InMemoryAppConfigStore(new AppConfig());
         var profileStore = new InMemoryProfileConfigStore();
+        var runtimeStore = new InMemoryProfileUsageRuntimeStore();
         await profileStore.SaveAsync("builder", new ProfileConfig
         {
             Conductor = "worldsmith",
@@ -67,13 +70,91 @@ public sealed class ProfileConfigServiceTests
             WritingStyle = "lush",
         });
 
-        var service = new ProfileConfigService(profileStore, appConfigStore, NullLogger<ProfileConfigService>.Instance);
+        var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
         var state = await service.BuildSessionProfileStateAsync("builder");
 
-        Assert.Equal("worldsmith", state.ActivePersona);
-        Assert.Equal("builder", state.ActiveLoreSet);
-        Assert.Equal("cinematic", state.ActiveNarrativeRules);
-        Assert.Equal("lush", state.ActiveWritingStyle);
+        Assert.Equal("builder", state.ProfileId);
+        Assert.Null(state.ActiveConductor);
+        Assert.Null(state.ActiveLoreSet);
+        Assert.Null(state.ActiveNarrativeRules);
+        Assert.Null(state.ActiveWritingStyle);
+    }
+
+    [Fact]
+    public async Task CloneAsync_CopiesProfileToNewId()
+    {
+        var appConfigStore = new InMemoryAppConfigStore(new AppConfig());
+        var profileStore = new InMemoryProfileConfigStore();
+        var runtimeStore = new InMemoryProfileUsageRuntimeStore();
+        await profileStore.SaveAsync("research", new ProfileConfig
+        {
+            Conductor = "analyst",
+            LoreSet = "science",
+            NarrativeRules = "clean",
+            WritingStyle = "concise",
+        });
+
+        var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
+        var cloned = await service.CloneAsync("research", "research-copy");
+
+        Assert.Equal("research-copy", cloned.ProfileId);
+        Assert.Equal("analyst", cloned.Config.Conductor);
+        var loaded = await profileStore.LoadAsync("research-copy");
+        Assert.Equal("science", loaded.LoreSet);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RejectsDefaultProfile()
+    {
+        var appConfigStore = new InMemoryAppConfigStore(new AppConfig
+        {
+            Profiles = new ProfilesConfig { Default = "default" },
+        });
+        var profileStore = new InMemoryProfileConfigStore();
+        var runtimeStore = new InMemoryProfileUsageRuntimeStore();
+        await profileStore.SaveAsync("default", new ProfileConfig());
+        var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeleteAsync("default"));
+
+        Assert.Contains("Cannot delete default profile", ex.Message);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RejectsInUseProfile()
+    {
+        var appConfigStore = new InMemoryAppConfigStore(new AppConfig
+        {
+            Profiles = new ProfilesConfig { Default = "default" },
+        });
+        var profileStore = new InMemoryProfileConfigStore();
+        var runtimeStore = new InMemoryProfileUsageRuntimeStore();
+        await profileStore.SaveAsync("default", new ProfileConfig());
+        await profileStore.SaveAsync("grim", new ProfileConfig());
+        runtimeStore.SetProfileUsage("grim", [Guid.CreateVersion7()]);
+        var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeleteAsync("grim"));
+
+        Assert.Contains("referenced by 1 persisted session", ex.Message);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesUnusedNonDefaultProfile()
+    {
+        var appConfigStore = new InMemoryAppConfigStore(new AppConfig
+        {
+            Profiles = new ProfilesConfig { Default = "default" },
+        });
+        var profileStore = new InMemoryProfileConfigStore();
+        var runtimeStore = new InMemoryProfileUsageRuntimeStore();
+        await profileStore.SaveAsync("default", new ProfileConfig());
+        await profileStore.SaveAsync("grim", new ProfileConfig());
+        var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
+
+        await service.DeleteAsync("grim");
+
+        Assert.False(await profileStore.ExistsAsync("grim"));
     }
 }
 
@@ -179,5 +260,34 @@ internal sealed class InMemoryAppConfigStore : IAppConfigStore
                 OpenAi = config.Tts.OpenAi with { },
             },
         };
+    }
+}
+
+internal sealed class InMemoryProfileUsageRuntimeStore : ISessionRuntimeStore
+{
+    private readonly Dictionary<string, List<Guid>> _usageByProfileId = new(StringComparer.OrdinalIgnoreCase);
+
+    public void SetProfileUsage(string profileId, IReadOnlyList<Guid> sessionIds)
+    {
+        _usageByProfileId[profileId] = [.. sessionIds];
+    }
+
+    public Task<SessionRuntimeState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
+        => Task.FromResult(new SessionRuntimeState { SessionId = sessionId });
+
+    public Task SaveAsync(SessionRuntimeState state, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task DeleteAsync(Guid sessionId, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task<IReadOnlyList<Guid>> FindSessionIdsByProfileIdAsync(string profileId, CancellationToken ct = default)
+    {
+        if (_usageByProfileId.TryGetValue(profileId, out var sessionIds))
+        {
+            return Task.FromResult<IReadOnlyList<Guid>>([.. sessionIds]);
+        }
+
+        return Task.FromResult<IReadOnlyList<Guid>>([]);
     }
 }

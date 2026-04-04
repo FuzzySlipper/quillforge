@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Agents.Modes;
 using QuillForge.Core.Models;
@@ -58,9 +59,31 @@ public class SessionRuntimeStateTests
     {
         var profile = new ProfileState();
         Assert.Null(profile.ProfileId);
-        Assert.Null(profile.ActivePersona);
+        Assert.Null(profile.ActiveConductor);
         Assert.Null(profile.ActiveLoreSet);
         Assert.Null(profile.ActiveWritingStyle);
+    }
+
+    [Fact]
+    public void ProfileState_DeserializesLegacyActivePersonaIntoActiveConductor()
+    {
+        var state = JsonSerializer.Deserialize<SessionRuntimeState>(
+            """
+            {
+              "profile": {
+                "profileId": "grim",
+                "activePersona": "legacy-conductor"
+              }
+            }
+            """,
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            });
+
+        Assert.NotNull(state);
+        Assert.Equal("grim", state.Profile.ProfileId);
+        Assert.Equal("legacy-conductor", state.Profile.ActiveConductor);
     }
 
     [Fact]
@@ -188,7 +211,7 @@ public class SessionRuntimeStateTests
             Profile = new ProfileState
             {
                 ProfileId = "grim",
-                ActivePersona = "narrator",
+                ActiveConductor = "narrator",
                 ActiveLoreSet = "fantasy",
                 ActiveWritingStyle = "literary",
             },
@@ -214,7 +237,7 @@ public class SessionRuntimeStateTests
         Assert.Equal("chapter1.md", state.Mode.CurrentFile);
         Assert.Equal("hero", state.Mode.Character);
         Assert.Equal("grim", state.Profile.ProfileId);
-        Assert.Equal("narrator", state.Profile.ActivePersona);
+        Assert.Equal("narrator", state.Profile.ActiveConductor);
         Assert.Equal("fantasy", state.Profile.ActiveLoreSet);
         Assert.Equal("literary", state.Profile.ActiveWritingStyle);
         Assert.Equal("pending text", state.Writer.PendingContent);

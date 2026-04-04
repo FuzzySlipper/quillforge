@@ -3,6 +3,7 @@ using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Web.Contracts;
+using QuillForge.Web.Services;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -82,9 +83,9 @@ public static class PlotEndpoints
             {
                 SessionId = runtimeState.SessionId ?? Guid.CreateVersion7(),
                 ActiveMode = runtimeState.Mode.ActiveModeName,
-                ActiveLoreSet = runtimeState.Profile.ActiveLoreSet ?? "default",
-                ActiveNarrativeRules = runtimeState.Profile.ActiveNarrativeRules ?? "default",
-                ActiveWritingStyle = runtimeState.Profile.ActiveWritingStyle ?? "default",
+                ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(runtimeState.Profile),
+                ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(runtimeState.Profile),
+                ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(runtimeState.Profile),
                 SessionContext = sessionContext,
             };
 

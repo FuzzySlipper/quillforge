@@ -360,6 +360,10 @@ Guidance:
   conductor-like concepts
 - preserve legacy `/api/persona` routes only as compatibility shims until
   follow-on cleanup lands
+- prefer conductor-first API and client contracts (`conductor`,
+  `activeConductor`, `conductors`) for live runtime behavior
+- preserve legacy persisted session overrides by treating `activePersona` as a
+  read-only compatibility alias for the renamed `activeConductor` field
 
 ## Service Ownership Rules
 

@@ -12,6 +12,10 @@ public interface IProfileConfigService
 
     Task<ResolvedProfileConfig> SaveAsync(string profileId, ProfileConfig config, CancellationToken ct = default);
 
+    Task<ResolvedProfileConfig> CloneAsync(string sourceProfileId, string targetProfileId, CancellationToken ct = default);
+
+    Task DeleteAsync(string profileId, CancellationToken ct = default);
+
     Task<ProfileSelectionResult> SelectAsync(string profileId, CancellationToken ct = default);
 
     Task<ProfileSelectionResult> SaveAndSelectAsync(string profileId, ProfileConfig config, CancellationToken ct = default);

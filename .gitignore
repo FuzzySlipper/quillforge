@@ -81,3 +81,7 @@ local/
 # Task files
 # tasks.json
 # tasks/ 
+
+# Agent guidance files (local-only, not committed)
+AGENTS.md
+CLAUDE.md
