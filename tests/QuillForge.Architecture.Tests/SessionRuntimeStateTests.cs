@@ -14,22 +14,24 @@ namespace QuillForge.Architecture.Tests;
 public class SessionRuntimeStateTests
 {
     [Fact]
-    public void SessionRuntimeState_OwnsExactlyFourSubStates()
+    public void SessionRuntimeState_OwnsExactlyFiveSubStates()
     {
-        // The aggregate should have exactly Mode, Profile, Writer, and Narrative
-        // sub-states
+        // The aggregate should have exactly Mode, Profile, Roleplay, Writer, and
+        // Narrative sub-states
         // plus SessionId and LastModified metadata. No flat bag of nullable fields.
         var props = typeof(SessionRuntimeState).GetProperties(BindingFlags.Public | BindingFlags.Instance);
         var subStateProps = props.Where(p =>
             p.PropertyType == typeof(ModeSelectionState) ||
             p.PropertyType == typeof(ProfileState) ||
+            p.PropertyType == typeof(RoleplayRuntimeState) ||
             p.PropertyType == typeof(WriterRuntimeState) ||
             p.PropertyType == typeof(NarrativeRuntimeState))
             .ToList();
 
-        Assert.Equal(4, subStateProps.Count);
+        Assert.Equal(5, subStateProps.Count);
         Assert.Contains(subStateProps, p => p.Name == "Mode");
         Assert.Contains(subStateProps, p => p.Name == "Profile");
+        Assert.Contains(subStateProps, p => p.Name == "Roleplay");
         Assert.Contains(subStateProps, p => p.Name == "Writer");
         Assert.Contains(subStateProps, p => p.Name == "Narrative");
     }
@@ -40,6 +42,7 @@ public class SessionRuntimeStateTests
         var state = new SessionRuntimeState();
         Assert.NotNull(state.Mode);
         Assert.NotNull(state.Profile);
+        Assert.NotNull(state.Roleplay);
         Assert.NotNull(state.Writer);
         Assert.NotNull(state.Narrative);
     }
@@ -92,6 +95,16 @@ public class SessionRuntimeStateTests
         var writer = new WriterRuntimeState();
         Assert.Equal(WriterState.Idle, writer.State);
         Assert.Null(writer.PendingContent);
+    }
+
+    [Fact]
+    public void RoleplayRuntimeState_DefaultsToProfileDrivenSelections()
+    {
+        var roleplay = new RoleplayRuntimeState();
+        Assert.False(roleplay.HasExplicitAiCharacterSelection);
+        Assert.Null(roleplay.ActiveAiCharacter);
+        Assert.False(roleplay.HasExplicitUserCharacterSelection);
+        Assert.Null(roleplay.ActiveUserCharacter);
     }
 
     [Fact]
@@ -215,6 +228,13 @@ public class SessionRuntimeStateTests
                 ActiveLoreSet = "fantasy",
                 ActiveWritingStyle = "literary",
             },
+            Roleplay = new RoleplayRuntimeState
+            {
+                HasExplicitAiCharacterSelection = true,
+                ActiveAiCharacter = "guide",
+                HasExplicitUserCharacterSelection = true,
+                ActiveUserCharacter = "author",
+            },
             Writer = new WriterRuntimeState
             {
                 PendingContent = "pending text",
@@ -240,6 +260,8 @@ public class SessionRuntimeStateTests
         Assert.Equal("narrator", state.Profile.ActiveConductor);
         Assert.Equal("fantasy", state.Profile.ActiveLoreSet);
         Assert.Equal("literary", state.Profile.ActiveWritingStyle);
+        Assert.Equal("guide", state.Roleplay.ActiveAiCharacter);
+        Assert.Equal("author", state.Roleplay.ActiveUserCharacter);
         Assert.Equal("pending text", state.Writer.PendingContent);
         Assert.Equal(WriterState.PendingReview, state.Writer.State);
         Assert.Equal("track the rising pressure", state.Narrative.DirectorNotes);

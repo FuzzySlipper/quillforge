@@ -147,6 +147,15 @@ public static class ProfileEndpoints
                 WritingStyle = root.TryGetProperty("writingStyle", out var styleEl)
                     ? styleEl.GetString() ?? "default"
                     : "default",
+                Roleplay = new RoleplayConfig
+                {
+                    AiCharacter = root.TryGetProperty("aiCharacter", out var aiCharacterEl)
+                        ? aiCharacterEl.GetString()
+                        : null,
+                    UserCharacter = root.TryGetProperty("userCharacter", out var userCharacterEl)
+                        ? userCharacterEl.GetString()
+                        : null,
+                },
             };
 
             try
@@ -480,6 +489,8 @@ public static class ProfileEndpoints
             LoreSet = resolved.Config.LoreSet,
             NarrativeRules = resolved.Config.NarrativeRules,
             WritingStyle = resolved.Config.WritingStyle,
+            AiCharacter = resolved.Config.Roleplay.AiCharacter,
+            UserCharacter = resolved.Config.Roleplay.UserCharacter,
         };
     }
 }

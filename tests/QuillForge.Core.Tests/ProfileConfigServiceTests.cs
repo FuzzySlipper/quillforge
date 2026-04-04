@@ -15,6 +15,11 @@ public sealed class ProfileConfigServiceTests
             Lore = new LoreConfig { Active = "fantasy" },
             NarrativeRules = new NarrativeRulesConfig { Active = "strict" },
             WritingStyle = new WritingStyleConfig { Active = "literary" },
+            Roleplay = new RoleplayConfig
+            {
+                AiCharacter = "guide",
+                UserCharacter = "author",
+            },
         });
         var profileStore = new InMemoryProfileConfigStore();
         var runtimeStore = new InMemoryProfileUsageRuntimeStore();
@@ -29,6 +34,8 @@ public sealed class ProfileConfigServiceTests
         Assert.Equal("fantasy", resolved.Config.LoreSet);
         Assert.Equal("strict", resolved.Config.NarrativeRules);
         Assert.Equal("literary", resolved.Config.WritingStyle);
+        Assert.Equal("guide", resolved.Config.Roleplay.AiCharacter);
+        Assert.Equal("author", resolved.Config.Roleplay.UserCharacter);
     }
 
     [Fact]
@@ -43,6 +50,11 @@ public sealed class ProfileConfigServiceTests
             LoreSet = "science",
             NarrativeRules = "clean",
             WritingStyle = "concise",
+            Roleplay = new RoleplayConfig
+            {
+                AiCharacter = "synth",
+                UserCharacter = "researcher",
+            },
         });
 
         var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
@@ -54,6 +66,8 @@ public sealed class ProfileConfigServiceTests
         Assert.Equal("science", selection.UpdatedAppConfig.Lore.Active);
         Assert.Equal("clean", selection.UpdatedAppConfig.NarrativeRules.Active);
         Assert.Equal("concise", selection.UpdatedAppConfig.WritingStyle.Active);
+        Assert.Equal("synth", selection.UpdatedAppConfig.Roleplay.AiCharacter);
+        Assert.Equal("researcher", selection.UpdatedAppConfig.Roleplay.UserCharacter);
     }
 
     [Fact]
@@ -92,6 +106,11 @@ public sealed class ProfileConfigServiceTests
             LoreSet = "science",
             NarrativeRules = "clean",
             WritingStyle = "concise",
+            Roleplay = new RoleplayConfig
+            {
+                AiCharacter = "synth",
+                UserCharacter = "researcher",
+            },
         });
 
         var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
@@ -99,8 +118,10 @@ public sealed class ProfileConfigServiceTests
 
         Assert.Equal("research-copy", cloned.ProfileId);
         Assert.Equal("analyst", cloned.Config.Conductor);
+        Assert.Equal("synth", cloned.Config.Roleplay.AiCharacter);
         var loaded = await profileStore.LoadAsync("research-copy");
         Assert.Equal("science", loaded.LoreSet);
+        Assert.Equal("researcher", loaded.Roleplay.UserCharacter);
     }
 
     [Fact]

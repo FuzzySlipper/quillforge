@@ -37,6 +37,8 @@ public sealed record SessionProfileReadView
     public required string ActiveLoreSet { get; init; }
     public required string ActiveNarrativeRules { get; init; }
     public required string ActiveWritingStyle { get; init; }
+    public string? ActiveAiCharacter { get; init; }
+    public string? ActiveUserCharacter { get; init; }
 }
 
 public sealed class SessionProfileReadService : ISessionProfileReadService
@@ -81,16 +83,20 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
             ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(sessionState.Profile),
             ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(sessionState.Profile),
             ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(sessionState.Profile),
+            ActiveAiCharacter = sessionState.Roleplay.ActiveAiCharacter,
+            ActiveUserCharacter = sessionState.Roleplay.ActiveUserCharacter,
         };
 
         _logger.LogInformation(
-            "Loaded session profile read view: session={SessionId} profileId={ProfileId} conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
+            "Loaded session profile read view: session={SessionId} profileId={ProfileId} conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
             sessionId,
             view.ActiveProfileId,
             view.ActiveConductor,
             view.ActiveLoreSet,
             view.ActiveNarrativeRules,
-            view.ActiveWritingStyle);
+            view.ActiveWritingStyle,
+            view.ActiveAiCharacter,
+            view.ActiveUserCharacter);
 
         return view;
     }

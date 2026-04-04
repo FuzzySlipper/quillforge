@@ -39,6 +39,8 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.Equal(WriterState.Idle, state.Writer.State);
         Assert.Null(state.Profile.ProfileId);
         Assert.Null(state.Profile.ActiveConductor);
+        Assert.False(state.Roleplay.HasExplicitAiCharacterSelection);
+        Assert.Null(state.Roleplay.ActiveAiCharacter);
     }
 
     [Fact]
@@ -94,6 +96,13 @@ public class SessionRuntimeStoreTests : IDisposable
                 ActiveNarrativeRules = "default",
                 ActiveWritingStyle = "literary",
             },
+            Roleplay = new RoleplayRuntimeState
+            {
+                HasExplicitAiCharacterSelection = true,
+                ActiveAiCharacter = "guide",
+                HasExplicitUserCharacterSelection = true,
+                ActiveUserCharacter = "author",
+            },
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Once upon a time...",
@@ -125,6 +134,10 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.Equal("fantasy", loaded.Profile.ActiveLoreSet);
         Assert.Equal("default", loaded.Profile.ActiveNarrativeRules);
         Assert.Equal("literary", loaded.Profile.ActiveWritingStyle);
+        Assert.True(loaded.Roleplay.HasExplicitAiCharacterSelection);
+        Assert.Equal("guide", loaded.Roleplay.ActiveAiCharacter);
+        Assert.True(loaded.Roleplay.HasExplicitUserCharacterSelection);
+        Assert.Equal("author", loaded.Roleplay.ActiveUserCharacter);
         Assert.Equal("Once upon a time...", loaded.Writer.PendingContent);
         Assert.Equal(WriterState.PendingReview, loaded.Writer.State);
         Assert.Equal("The hero has entered the ruins.", loaded.Narrative.DirectorNotes);

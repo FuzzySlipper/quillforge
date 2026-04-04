@@ -52,7 +52,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
     if (!open) return;
     if (selectedMode === "roleplay") {
       // Fetch character cards for roleplay mode
-      listCharacterCards().then((data) => {
+      listCharacterCards(sessionId).then((data) => {
         setCharacters(data.cards);
         setSelectedCharacter(data.activeAi || "");
       });
@@ -62,7 +62,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
       // Fetch projects for writer/forge
       getProjects(selectedMode).then((p) => setProjects(p.projects ?? []));
     }
-  }, [open, selectedMode]);
+  }, [open, selectedMode, sessionId]);
 
   async function handleApply() {
     setSaving(true);

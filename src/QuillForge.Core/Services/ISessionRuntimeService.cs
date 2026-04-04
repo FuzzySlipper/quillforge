@@ -11,6 +11,11 @@ public interface ISessionRuntimeService
         SetSessionProfileCommand command,
         CancellationToken ct = default);
 
+    Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(
+        Guid? sessionId,
+        SetSessionRoleplayCommand command,
+        CancellationToken ct = default);
+
     Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(
         Guid? sessionId,
         SetSessionModeCommand command,

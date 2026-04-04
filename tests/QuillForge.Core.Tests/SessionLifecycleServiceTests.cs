@@ -35,6 +35,13 @@ public sealed class SessionLifecycleServiceTests
                 ProfileId = "grim",
                 ActiveLoreSet = "custom-lore",
             },
+            Roleplay = new RoleplayRuntimeState
+            {
+                HasExplicitAiCharacterSelection = true,
+                ActiveAiCharacter = "captain",
+                HasExplicitUserCharacterSelection = true,
+                ActiveUserCharacter = "envoy",
+            },
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Pending review text",
@@ -63,6 +70,8 @@ public sealed class SessionLifecycleServiceTests
         Assert.Equal("novel", forkedRuntime.Mode.ProjectName);
         Assert.Equal("grim", forkedRuntime.Profile.ProfileId);
         Assert.Equal("custom-lore", forkedRuntime.Profile.ActiveLoreSet);
+        Assert.Equal("captain", forkedRuntime.Roleplay.ActiveAiCharacter);
+        Assert.Equal("envoy", forkedRuntime.Roleplay.ActiveUserCharacter);
         Assert.Null(forkedRuntime.Writer.PendingContent);
         Assert.Equal(WriterState.Idle, forkedRuntime.Writer.State);
         Assert.Equal("Keep the pressure rising.", forkedRuntime.Narrative.DirectorNotes);
@@ -93,6 +102,13 @@ public sealed class SessionLifecycleServiceTests
             SessionId = sourceTree.SessionId,
             Mode = new ModeSelectionState { ActiveModeName = "roleplay", Character = "captain" },
             Profile = new ProfileState { ProfileId = "grim", ActiveConductor = "grim-captain" },
+            Roleplay = new RoleplayRuntimeState
+            {
+                HasExplicitAiCharacterSelection = true,
+                ActiveAiCharacter = "captain",
+                HasExplicitUserCharacterSelection = true,
+                ActiveUserCharacter = "envoy",
+            },
             Narrative = new NarrativeRuntimeState
             {
                 DirectorNotes = "The captain already distrusts the envoy.",
@@ -110,6 +126,8 @@ public sealed class SessionLifecycleServiceTests
         Assert.Equal("captain", forkedRuntime.Mode.Character);
         Assert.Equal("grim", forkedRuntime.Profile.ProfileId);
         Assert.Equal("grim-captain", forkedRuntime.Profile.ActiveConductor);
+        Assert.Equal("captain", forkedRuntime.Roleplay.ActiveAiCharacter);
+        Assert.Equal("envoy", forkedRuntime.Roleplay.ActiveUserCharacter);
         Assert.Equal("The captain already distrusts the envoy.", forkedRuntime.Narrative.DirectorNotes);
     }
 
@@ -237,6 +255,13 @@ internal sealed class InMemoryRuntimeStore : ISessionRuntimeStore
                 ActiveLoreSet = state.Profile.ActiveLoreSet,
                 ActiveNarrativeRules = state.Profile.ActiveNarrativeRules,
                 ActiveWritingStyle = state.Profile.ActiveWritingStyle,
+            },
+            Roleplay = new RoleplayRuntimeState
+            {
+                HasExplicitAiCharacterSelection = state.Roleplay.HasExplicitAiCharacterSelection,
+                ActiveAiCharacter = state.Roleplay.ActiveAiCharacter,
+                HasExplicitUserCharacterSelection = state.Roleplay.HasExplicitUserCharacterSelection,
+                ActiveUserCharacter = state.Roleplay.ActiveUserCharacter,
             },
             Writer = new WriterRuntimeState
             {

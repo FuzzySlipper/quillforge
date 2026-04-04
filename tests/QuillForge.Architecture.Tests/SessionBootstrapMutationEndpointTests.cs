@@ -223,6 +223,9 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
             }));
         }
 
+        public Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
         public Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
         {
             LastModeSessionId = sessionId;
@@ -296,6 +299,9 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
 
         public Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
             => Task.FromResult(SessionMutationResult<SessionRuntimeState>.Busy("session is busy"));
+
+        public Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
+            => throw new NotSupportedException();
 
         public Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();

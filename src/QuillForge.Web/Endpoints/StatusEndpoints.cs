@@ -53,8 +53,8 @@ public static class StatusEndpoints
                 WritingStyle = readView.ActiveWritingStyle,
                 Model = config.Models.Orchestrator,
                 Layout = config.Layout.Active,
-                AiCharacter = config.Roleplay.AiCharacter ?? "",
-                UserCharacter = config.Roleplay.UserCharacter ?? "",
+                AiCharacter = readView.ActiveAiCharacter ?? "",
+                UserCharacter = readView.ActiveUserCharacter ?? "",
                 ConversationTurns = 0, // requires active session tracking
                 LoreFiles = loreFiles,
                 ContextLimit = 0, // provider-specific, needs registry lookup

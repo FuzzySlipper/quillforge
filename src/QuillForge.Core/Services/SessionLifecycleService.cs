@@ -83,6 +83,13 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
                 ActiveNarrativeRules = source.Profile.ActiveNarrativeRules,
                 ActiveWritingStyle = source.Profile.ActiveWritingStyle,
             },
+            Roleplay = new RoleplayRuntimeState
+            {
+                HasExplicitAiCharacterSelection = source.Roleplay.HasExplicitAiCharacterSelection,
+                ActiveAiCharacter = source.Roleplay.ActiveAiCharacter,
+                HasExplicitUserCharacterSelection = source.Roleplay.HasExplicitUserCharacterSelection,
+                ActiveUserCharacter = source.Roleplay.ActiveUserCharacter,
+            },
             Writer = new WriterRuntimeState
             {
                 PendingContent = null,

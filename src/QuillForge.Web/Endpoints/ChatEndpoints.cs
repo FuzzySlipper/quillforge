@@ -106,6 +106,8 @@ public static class ChatEndpoints
             // Load per-session runtime state
             var sessionState = await runtimeService.LoadViewAsync(sessionId, ct);
             var sessionContext = await sessionContextService.BuildAsync(sessionState, ct);
+            var assistantPortraitUrl = await GetPortraitUrlAsync(sessionState.Roleplay.ActiveAiCharacter, cardStore, ct);
+            var userPortraitUrl = await GetPortraitUrlAsync(sessionState.Roleplay.ActiveUserCharacter, cardStore, ct);
 
             var context = new AgentContext
             {
@@ -149,7 +151,7 @@ public static class ChatEndpoints
                 {
                     TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new ChatTextDeltaDto { Text = text.Text }, s_jsonOptions)}\n\n",
                     ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new ChatToolDto { Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
-                    DoneEvent done => $"data: {JsonSerializer.Serialize(new ChatDoneDto { SessionId = sessionId, ParentId = appendParentId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new ChatUsageDto { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = GetPortraitUrl(appConfig.Roleplay.AiCharacter, cardStore), UserPortrait = GetPortraitUrl(appConfig.Roleplay.UserCharacter, cardStore) }, s_jsonOptions)}\n\n",
+                    DoneEvent done => $"data: {JsonSerializer.Serialize(new ChatDoneDto { SessionId = sessionId, ParentId = appendParentId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new ChatUsageDto { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = assistantPortraitUrl, UserPortrait = userPortraitUrl }, s_jsonOptions)}\n\n",
                     ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new ChatReasoningDeltaDto { Text = reasoning.Text }, s_jsonOptions)}\n\n",
                     DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new ChatDiagnosticDto { Category = diag.Category, Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
                     _ => null,
@@ -327,10 +329,10 @@ public static class ChatEndpoints
         });
     }
 
-    private static string? GetPortraitUrl(string? characterName, ICharacterCardStore cardStore)
+    private static async Task<string?> GetPortraitUrlAsync(string? characterName, ICharacterCardStore cardStore, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(characterName)) return null;
-        var card = cardStore.LoadAsync(characterName).GetAwaiter().GetResult();
+        var card = await cardStore.LoadAsync(characterName, ct);
         return card?.Portrait is not null ? $"/content/character-cards/{card.Portrait}" : null;
     }
 }

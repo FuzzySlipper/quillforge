@@ -95,6 +95,22 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         Assert.Equal("session-lore", root.GetProperty("loreSet").GetString());
         Assert.Equal("session-conductor", root.GetProperty("conductor").GetString());
         Assert.Equal("session-style", root.GetProperty("writingStyle").GetString());
+        Assert.Equal("SessionGuide", root.GetProperty("aiCharacter").GetString());
+        Assert.Equal("SessionAuthor", root.GetProperty("userCharacter").GetString());
+    }
+
+    [Fact]
+    public async Task CharacterCardsEndpoint_UsesSessionSpecificActiveSelections()
+    {
+        await using var app = BuildApp();
+        var sessionId = Guid.CreateVersion7();
+
+        var json = await InvokeGetAsync(app, "/api/character-cards", sessionId);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Equal("SessionGuide", root.GetProperty("activeAi").GetString());
+        Assert.Equal("SessionAuthor", root.GetProperty("activeUser").GetString());
     }
 
     private WebApplication BuildApp()
@@ -135,10 +151,12 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         builder.Services.AddSingleton<ISessionBootstrapService>(new NoOpSessionBootstrapService());
         builder.Services.AddSingleton<ISessionLifecycleService>(new NoOpSessionLifecycleService());
         builder.Services.AddSingleton<ISessionProfileReadService, SessionProfileReadService>();
+        builder.Services.AddSingleton<ICharacterCardStore>(new TestCharacterCardStore());
 
         var app = builder.Build();
         app.MapModeEndpoints();
         app.MapProfileEndpoints(_contentRoot);
+        app.MapCharacterCardEndpoints(_contentRoot);
         app.MapStatusEndpoints();
         return app;
     }
@@ -223,6 +241,11 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
                         ActiveNarrativeRules = "session-rules",
                         ActiveWritingStyle = "session-style",
                     },
+                    Roleplay = new RoleplayRuntimeState
+                    {
+                        ActiveAiCharacter = "SessionGuide",
+                        ActiveUserCharacter = "SessionAuthor",
+                    },
                 }
                 : new SessionRuntimeState
                 {
@@ -235,12 +258,20 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
                         ActiveNarrativeRules = "default-rules",
                         ActiveWritingStyle = "default-style",
                     },
+                    Roleplay = new RoleplayRuntimeState
+                    {
+                        ActiveAiCharacter = "Guide",
+                        ActiveUserCharacter = "Author",
+                    },
                 };
 
             return Task.FromResult(state);
         }
 
         public Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
         public Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
@@ -345,6 +376,34 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
 
         public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<string>>(["default-style", "session-style"]);
+    }
+
+    private sealed class TestCharacterCardStore : ICharacterCardStore
+    {
+        public Task<CharacterCard?> LoadAsync(string fileName, CancellationToken ct = default)
+            => Task.FromResult<CharacterCard?>(new CharacterCard
+            {
+                FileName = fileName,
+                Name = fileName,
+            });
+
+        public Task SaveAsync(string fileName, CharacterCard card, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CharacterCard>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<CharacterCard>>([
+                new CharacterCard { FileName = "SessionGuide", Name = "Session Guide" },
+                new CharacterCard { FileName = "SessionAuthor", Name = "Session Author" },
+            ]);
+
+        public string CardToPrompt(CharacterCard card)
+            => card.Name;
+
+        public CharacterCard NewTemplate(string name = "New Character")
+            => new() { Name = name, FileName = name };
+
+        public Task<CharacterCard> ImportTavernCardAsync(string pngPath, CancellationToken ct = default)
+            => throw new NotSupportedException();
     }
 
     private sealed class NoOpSessionBootstrapService : ISessionBootstrapService

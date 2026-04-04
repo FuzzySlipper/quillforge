@@ -536,12 +536,13 @@ export interface CharacterCard {
   _filename?: string;
 }
 
-export async function listCharacterCards(): Promise<{
+export async function listCharacterCards(sessionId?: string | null): Promise<{
   cards: CharacterCardSummary[];
   activeAi: string | null;
   activeUser: string | null;
 }> {
-  return request("/api/character-cards");
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return request(`/api/character-cards${query}`);
 }
 
 export async function readCharacterCard(name: string): Promise<CharacterCard> {
@@ -567,9 +568,10 @@ export async function deleteCharacterCard(name: string): Promise<unknown> {
 }
 
 export async function activateCharacterCards(config: {
+  sessionId?: string | null;
   aiCharacter?: string | null;
   userCharacter?: string | null;
-}): Promise<unknown> {
+}): Promise<{ status: string; sessionId?: string | null; aiCharacter: string | null; userCharacter: string | null }> {
   return request("/api/character-cards/activate", {
     method: "POST",
     body: JSON.stringify(config),

@@ -59,6 +59,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         {
             var state = await LoadStateAsync(sessionId, ct);
             var currentView = await HydrateProfileViewAsync(state, ct);
+            var currentProfile = await LoadProfileForViewAsync(state.Profile.ProfileId, ct);
             var targetProfileId = NormalizeChoice(command.ProfileId) ?? currentView.Profile.ProfileId;
             var targetProfile = await _profileService.LoadResolvedAsync(targetProfileId, ct);
             var profileChanged = !string.Equals(
@@ -92,18 +93,37 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             state.Profile.ActiveLoreSet = ToSparseOverride(effectiveLoreSet, targetProfile.Config.LoreSet);
             state.Profile.ActiveNarrativeRules = ToSparseOverride(effectiveNarrativeRules, targetProfile.Config.NarrativeRules);
             state.Profile.ActiveWritingStyle = ToSparseOverride(effectiveWritingStyle, targetProfile.Config.WritingStyle);
+            state.Roleplay.ActiveAiCharacter = ResolveRoleplaySelectionForProfileChange(
+                state.Roleplay.ActiveAiCharacter,
+                state.Roleplay.HasExplicitAiCharacterSelection,
+                currentProfile.Config.Roleplay.AiCharacter,
+                targetProfile.Config.Roleplay.AiCharacter,
+                profileChanged);
+            state.Roleplay.ActiveUserCharacter = ResolveRoleplaySelectionForProfileChange(
+                state.Roleplay.ActiveUserCharacter,
+                state.Roleplay.HasExplicitUserCharacterSelection,
+                currentProfile.Config.Roleplay.UserCharacter,
+                targetProfile.Config.Roleplay.UserCharacter,
+                profileChanged);
+
+            if (string.Equals(state.Mode.ActiveModeName, RoleplayMode.NameConst, StringComparison.OrdinalIgnoreCase))
+            {
+                state.Mode.Character = state.Roleplay.ActiveAiCharacter;
+            }
 
             await _store.SaveAsync(state, ct);
 
             var hydrated = await HydrateProfileViewAsync(state, ct);
             _logger.LogInformation(
-                "Session profile updated: session={SessionId} profileId={ProfileId} conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
+                "Session profile updated: session={SessionId} profileId={ProfileId} conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
                 sessionId,
                 hydrated.Profile.ProfileId,
                 hydrated.Profile.ActiveConductor,
                 hydrated.Profile.ActiveLoreSet,
                 hydrated.Profile.ActiveNarrativeRules,
-                hydrated.Profile.ActiveWritingStyle);
+                hydrated.Profile.ActiveWritingStyle,
+                hydrated.Roleplay.ActiveAiCharacter,
+                hydrated.Roleplay.ActiveUserCharacter);
 
             return SessionMutationResult<SessionRuntimeState>.Success(hydrated);
         }
@@ -117,6 +137,54 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             _logger.LogWarning(ex, "Session profile update rejected: session={SessionId} invalid request", sessionId);
             return SessionMutationResult<SessionRuntimeState>.Invalid(ex.Message);
         }
+    }
+
+    public async Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(
+        Guid? sessionId,
+        SetSessionRoleplayCommand command,
+        CancellationToken ct = default)
+    {
+        const string operationName = "set_roleplay";
+
+        await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
+        if (lease is null)
+        {
+            return SessionMutationResult<SessionRuntimeState>.Busy(
+                "Another mutating operation is already running for this session.");
+        }
+
+        var state = await LoadStateAsync(sessionId, ct);
+
+        if (command.HasAiCharacterSelection)
+        {
+            state.Roleplay.ActiveAiCharacter = NormalizeChoice(command.AiCharacter);
+            state.Roleplay.HasExplicitAiCharacterSelection = true;
+        }
+
+        if (command.HasUserCharacterSelection)
+        {
+            state.Roleplay.ActiveUserCharacter = NormalizeChoice(command.UserCharacter);
+            state.Roleplay.HasExplicitUserCharacterSelection = true;
+        }
+
+        if (string.Equals(state.Mode.ActiveModeName, RoleplayMode.NameConst, StringComparison.OrdinalIgnoreCase)
+            && command.HasAiCharacterSelection)
+        {
+            state.Mode.Character = state.Roleplay.ActiveAiCharacter;
+        }
+
+        await _store.SaveAsync(state, ct);
+        var hydrated = await HydrateProfileViewAsync(state, ct);
+
+        _logger.LogInformation(
+            "Session roleplay updated: session={SessionId} aiCharacter={AiCharacter} userCharacter={UserCharacter} explicitAi={ExplicitAi} explicitUser={ExplicitUser}",
+            sessionId,
+            hydrated.Roleplay.ActiveAiCharacter,
+            hydrated.Roleplay.ActiveUserCharacter,
+            state.Roleplay.HasExplicitAiCharacterSelection,
+            state.Roleplay.HasExplicitUserCharacterSelection);
+
+        return SessionMutationResult<SessionRuntimeState>.Success(hydrated);
     }
 
     public async Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(
@@ -143,6 +211,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         }
 
         var state = await LoadStateAsync(sessionId, ct);
+        var resolvedProfile = await LoadProfileForViewAsync(state.Profile.ProfileId, ct);
         var oldMode = state.Mode.ActiveModeName;
 
         if (string.Equals(oldMode, WriterModeName, StringComparison.OrdinalIgnoreCase)
@@ -156,7 +225,28 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         state.Mode.ActiveModeName = command.Mode;
         state.Mode.ProjectName = command.Project;
         state.Mode.CurrentFile = command.File;
-        state.Mode.Character = command.Character;
+
+        if (string.Equals(command.Mode, RoleplayMode.NameConst, StringComparison.OrdinalIgnoreCase))
+        {
+            var requestedCharacter = NormalizeChoice(command.Character);
+            if (requestedCharacter is not null)
+            {
+                state.Roleplay.ActiveAiCharacter = requestedCharacter;
+                state.Roleplay.HasExplicitAiCharacterSelection = true;
+                state.Mode.Character = requestedCharacter;
+            }
+            else
+            {
+                state.Mode.Character = ResolveRoleplayViewChoice(
+                    state.Roleplay.ActiveAiCharacter,
+                    state.Roleplay.HasExplicitAiCharacterSelection,
+                    resolvedProfile.Config.Roleplay.AiCharacter);
+            }
+        }
+        else
+        {
+            state.Mode.Character = command.Character;
+        }
 
         await _store.SaveAsync(state, ct);
         var hydrated = await HydrateProfileViewAsync(state, ct);
@@ -427,20 +517,31 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 ActiveNarrativeRules = NormalizeStoredOverride(state.Profile.ActiveNarrativeRules, resolved.Config.NarrativeRules),
                 ActiveWritingStyle = NormalizeStoredOverride(state.Profile.ActiveWritingStyle, resolved.Config.WritingStyle),
             };
+        var normalizedRoleplay = new RoleplayRuntimeState
+        {
+            HasExplicitAiCharacterSelection = state.Roleplay.HasExplicitAiCharacterSelection,
+            ActiveAiCharacter = NormalizeChoice(state.Roleplay.ActiveAiCharacter),
+            HasExplicitUserCharacterSelection = state.Roleplay.HasExplicitUserCharacterSelection,
+            ActiveUserCharacter = NormalizeChoice(state.Roleplay.ActiveUserCharacter),
+        };
 
-        if (ProfileStatesEqual(state.Profile, normalizedProfile))
+        if (ProfileStatesEqual(state.Profile, normalizedProfile)
+            && RoleplayStatesEqual(state.Roleplay, normalizedRoleplay))
         {
             return state;
         }
 
         state.Profile = normalizedProfile;
+        state.Roleplay = normalizedRoleplay;
         await _store.SaveAsync(state, ct);
 
         _logger.LogInformation(
-            "Normalized stored session profile state for session {SessionId}: profileId={ProfileId} legacyHydratedDefaults={LegacyHydratedDefaults}",
+            "Normalized stored session profile state for session {SessionId}: profileId={ProfileId} legacyHydratedDefaults={LegacyHydratedDefaults} explicitAi={ExplicitAi} explicitUser={ExplicitUser}",
             state.SessionId,
             state.Profile.ProfileId,
-            normalizeLegacyHydratedDefaults);
+            normalizeLegacyHydratedDefaults,
+            state.Roleplay.HasExplicitAiCharacterSelection,
+            state.Roleplay.HasExplicitUserCharacterSelection);
 
         return state;
     }
@@ -450,6 +551,14 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         CancellationToken ct)
     {
         var resolved = await LoadProfileForViewAsync(state.Profile.ProfileId, ct);
+        var activeAiCharacter = ResolveRoleplayViewChoice(
+            state.Roleplay.ActiveAiCharacter,
+            state.Roleplay.HasExplicitAiCharacterSelection,
+            resolved.Config.Roleplay.AiCharacter);
+        var activeUserCharacter = ResolveRoleplayViewChoice(
+            state.Roleplay.ActiveUserCharacter,
+            state.Roleplay.HasExplicitUserCharacterSelection,
+            resolved.Config.Roleplay.UserCharacter);
 
         return new SessionRuntimeState
         {
@@ -460,7 +569,9 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 ActiveModeName = state.Mode.ActiveModeName,
                 ProjectName = state.Mode.ProjectName,
                 CurrentFile = state.Mode.CurrentFile,
-                Character = state.Mode.Character,
+                Character = string.Equals(state.Mode.ActiveModeName, RoleplayMode.NameConst, StringComparison.OrdinalIgnoreCase)
+                    ? NormalizeChoice(state.Mode.Character) ?? activeAiCharacter
+                    : state.Mode.Character,
             },
             Profile = new ProfileState
             {
@@ -469,6 +580,13 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 ActiveLoreSet = NormalizeChoice(state.Profile.ActiveLoreSet) ?? resolved.Config.LoreSet,
                 ActiveNarrativeRules = NormalizeChoice(state.Profile.ActiveNarrativeRules) ?? resolved.Config.NarrativeRules,
                 ActiveWritingStyle = NormalizeChoice(state.Profile.ActiveWritingStyle) ?? resolved.Config.WritingStyle,
+            },
+            Roleplay = new RoleplayRuntimeState
+            {
+                HasExplicitAiCharacterSelection = state.Roleplay.HasExplicitAiCharacterSelection,
+                ActiveAiCharacter = activeAiCharacter,
+                HasExplicitUserCharacterSelection = state.Roleplay.HasExplicitUserCharacterSelection,
+                ActiveUserCharacter = activeUserCharacter,
             },
             Writer = new WriterRuntimeState
             {
@@ -565,6 +683,8 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             && string.IsNullOrWhiteSpace(state.Mode.ProjectName)
             && string.IsNullOrWhiteSpace(state.Mode.CurrentFile)
             && string.IsNullOrWhiteSpace(state.Mode.Character)
+            && !state.Roleplay.HasExplicitAiCharacterSelection
+            && !state.Roleplay.HasExplicitUserCharacterSelection
             && state.Writer.State == WriterState.Idle
             && string.IsNullOrWhiteSpace(state.Writer.PendingContent)
             && string.IsNullOrWhiteSpace(state.Narrative.DirectorNotes)
@@ -581,6 +701,55 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             && string.Equals(left.ActiveLoreSet, right.ActiveLoreSet, StringComparison.Ordinal)
             && string.Equals(left.ActiveNarrativeRules, right.ActiveNarrativeRules, StringComparison.Ordinal)
             && string.Equals(left.ActiveWritingStyle, right.ActiveWritingStyle, StringComparison.Ordinal);
+    }
+
+    private static bool RoleplayStatesEqual(RoleplayRuntimeState left, RoleplayRuntimeState right)
+    {
+        return left.HasExplicitAiCharacterSelection == right.HasExplicitAiCharacterSelection
+            && string.Equals(left.ActiveAiCharacter, right.ActiveAiCharacter, StringComparison.Ordinal)
+            && left.HasExplicitUserCharacterSelection == right.HasExplicitUserCharacterSelection
+            && string.Equals(left.ActiveUserCharacter, right.ActiveUserCharacter, StringComparison.Ordinal);
+    }
+
+    private static string? ResolveRoleplaySelectionForProfileChange(
+        string? currentValue,
+        bool hasExplicitSelection,
+        string? currentProfileDefault,
+        string? targetProfileDefault,
+        bool profileChanged)
+    {
+        var normalizedCurrentValue = NormalizeChoice(currentValue);
+        var effectiveCurrentValue = normalizedCurrentValue ?? NormalizeChoice(currentProfileDefault);
+        if (hasExplicitSelection)
+        {
+            return normalizedCurrentValue;
+        }
+
+        if (!profileChanged)
+        {
+            return effectiveCurrentValue;
+        }
+
+        if (string.Equals(effectiveCurrentValue, NormalizeChoice(currentProfileDefault), StringComparison.OrdinalIgnoreCase))
+        {
+            return NormalizeChoice(targetProfileDefault);
+        }
+
+        return effectiveCurrentValue;
+    }
+
+    private static string? ResolveRoleplayViewChoice(
+        string? currentValue,
+        bool hasExplicitSelection,
+        string? profileDefault)
+    {
+        var normalizedCurrentValue = NormalizeChoice(currentValue);
+        if (hasExplicitSelection)
+        {
+            return normalizedCurrentValue;
+        }
+
+        return normalizedCurrentValue ?? NormalizeChoice(profileDefault);
     }
 
     private static string? NormalizeChoice(string? value)

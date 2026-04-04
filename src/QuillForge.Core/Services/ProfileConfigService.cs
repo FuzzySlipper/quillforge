@@ -64,12 +64,14 @@ public sealed class ProfileConfigService : IProfileConfigService
         var config = await _store.LoadAsync(resolvedProfileId, ct);
 
         _logger.LogInformation(
-            "Loaded resolved profile config {ProfileId}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
+            "Loaded resolved profile config {ProfileId}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
             resolvedProfileId,
             config.Conductor,
             config.LoreSet,
             config.NarrativeRules,
-            config.WritingStyle);
+            config.WritingStyle,
+            config.Roleplay.AiCharacter,
+            config.Roleplay.UserCharacter);
 
         return new ResolvedProfileConfig
         {
@@ -87,12 +89,14 @@ public sealed class ProfileConfigService : IProfileConfigService
         await _store.SaveAsync(resolvedProfileId, normalizedConfig, ct);
 
         _logger.LogInformation(
-            "Saved durable profile config {ProfileId}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
+            "Saved durable profile config {ProfileId}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
             resolvedProfileId,
             normalizedConfig.Conductor,
             normalizedConfig.LoreSet,
             normalizedConfig.NarrativeRules,
-            normalizedConfig.WritingStyle);
+            normalizedConfig.WritingStyle,
+            normalizedConfig.Roleplay.AiCharacter,
+            normalizedConfig.Roleplay.UserCharacter);
 
         return new ResolvedProfileConfig
         {
@@ -172,12 +176,14 @@ public sealed class ProfileConfigService : IProfileConfigService
             ApplySelectedProfileToCompatibilityAppConfigState(current, resolvedProfileId, config), ct);
 
         _logger.LogInformation(
-            "Selected default profile {ProfileId}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
+            "Selected default profile {ProfileId}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
             resolvedProfileId,
             config.Conductor,
             config.LoreSet,
             config.NarrativeRules,
-            config.WritingStyle);
+            config.WritingStyle,
+            config.Roleplay.AiCharacter,
+            config.Roleplay.UserCharacter);
 
         return new ProfileSelectionResult
         {
@@ -257,12 +263,22 @@ public sealed class ProfileConfigService : IProfileConfigService
             LoreSet = NormalizeChoice(config.LoreSet),
             NarrativeRules = NormalizeChoice(config.NarrativeRules),
             WritingStyle = NormalizeChoice(config.WritingStyle),
+            Roleplay = config.Roleplay with
+            {
+                AiCharacter = NormalizeOptionalChoice(config.Roleplay.AiCharacter),
+                UserCharacter = NormalizeOptionalChoice(config.Roleplay.UserCharacter),
+            },
         };
     }
 
     private static string NormalizeChoice(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? CompatibilityDefaultProfileId : value.Trim();
+    }
+
+    private static string? NormalizeOptionalChoice(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static ProfileConfig CreateCompatibilityProfile(AppConfig appConfig)
@@ -273,6 +289,7 @@ public sealed class ProfileConfigService : IProfileConfigService
             LoreSet = appConfig.Lore.Active,
             NarrativeRules = appConfig.NarrativeRules.Active,
             WritingStyle = appConfig.WritingStyle.Active,
+            Roleplay = appConfig.Roleplay with { },
         });
     }
 
@@ -304,6 +321,11 @@ public sealed class ProfileConfigService : IProfileConfigService
             WritingStyle = current.WritingStyle with
             {
                 Active = config.WritingStyle,
+            },
+            Roleplay = current.Roleplay with
+            {
+                AiCharacter = config.Roleplay.AiCharacter,
+                UserCharacter = config.Roleplay.UserCharacter,
             },
         };
     }

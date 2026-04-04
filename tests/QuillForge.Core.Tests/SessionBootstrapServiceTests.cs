@@ -32,6 +32,8 @@ public sealed class SessionBootstrapServiceTests
         Assert.Equal(tree.SessionId, runtimeState.SessionId);
         Assert.Equal("grim", runtimeState.Profile.ProfileId);
         Assert.Null(runtimeState.Profile.ActiveConductor);
+        Assert.Equal("grim-guide", runtimeState.Roleplay.ActiveAiCharacter);
+        Assert.Equal("grim-author", runtimeState.Roleplay.ActiveUserCharacter);
         Assert.Equal("general", runtimeState.Mode.ActiveModeName);
     }
 
@@ -88,7 +90,41 @@ public sealed class SessionBootstrapServiceTests
             => Task.FromResult("default");
 
         public Task<ResolvedProfileConfig> LoadResolvedAsync(string? profileId = null, CancellationToken ct = default)
-            => throw new NotSupportedException();
+        {
+            var resolvedProfileId = string.IsNullOrWhiteSpace(profileId) ? "default" : profileId;
+            var config = resolvedProfileId == "grim"
+                ? new ProfileConfig
+                {
+                    Conductor = "grim-conductor",
+                    LoreSet = "grim-lore",
+                    NarrativeRules = "grim-rules",
+                    WritingStyle = "grim-style",
+                    Roleplay = new RoleplayConfig
+                    {
+                        AiCharacter = "grim-guide",
+                        UserCharacter = "grim-author",
+                    },
+                }
+                : new ProfileConfig
+                {
+                    Conductor = "default-conductor",
+                    LoreSet = "default-lore",
+                    NarrativeRules = "default-rules",
+                    WritingStyle = "default-style",
+                    Roleplay = new RoleplayConfig
+                    {
+                        AiCharacter = "default-guide",
+                        UserCharacter = "default-author",
+                    },
+                };
+
+            return Task.FromResult(new ResolvedProfileConfig
+            {
+                ProfileId = resolvedProfileId,
+                Config = config,
+                Persisted = true,
+            });
+        }
 
         public Task<ResolvedProfileConfig> SaveAsync(string profileId, ProfileConfig config, CancellationToken ct = default)
             => throw new NotSupportedException();

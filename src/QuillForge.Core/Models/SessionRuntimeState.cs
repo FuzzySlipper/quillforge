@@ -27,6 +27,9 @@ public sealed class SessionRuntimeState
     /// <summary>Active profile selections (conductor, narrative rules, lore, writing style).</summary>
     public ProfileState Profile { get; set; } = new();
 
+    /// <summary>Roleplay character selections for this live session.</summary>
+    public RoleplayRuntimeState Roleplay { get; set; } = new();
+
     /// <summary>Writer-mode-specific runtime state (pending content, review workflow).</summary>
     public WriterRuntimeState Writer { get; set; } = new();
 
@@ -94,6 +97,20 @@ public sealed class ProfileState
 
     /// <summary>Active writing style name override. Null means "use the session profile default".</summary>
     public string? ActiveWritingStyle { get; set; }
+}
+
+/// <summary>
+/// Session-owned roleplay selections. When the explicit flag is false, the active
+/// value is inherited from the session profile default. When true, the stored
+/// value is the active session selection and may itself be null to mean
+/// "explicitly no character".
+/// </summary>
+public sealed class RoleplayRuntimeState
+{
+    public bool HasExplicitAiCharacterSelection { get; set; }
+    public string? ActiveAiCharacter { get; set; }
+    public bool HasExplicitUserCharacterSelection { get; set; }
+    public string? ActiveUserCharacter { get; set; }
 }
 
 /// <summary>

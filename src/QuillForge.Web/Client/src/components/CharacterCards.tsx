@@ -16,7 +16,8 @@ import {
 interface CharacterCardsProps {
   open: boolean;
   onClose: () => void;
-  onChanged: () => void;
+  onChanged: (sessionId?: string | null) => void;
+  sessionId?: string | null;
   portraits: { filename: string; url: string }[];
 }
 
@@ -29,7 +30,7 @@ const EMPTY_CARD: CharacterCard = {
   greeting: "",
 };
 
-export default function CharacterCards({ open, onClose, onChanged, portraits }: CharacterCardsProps) {
+export default function CharacterCards({ open, onClose, onChanged, sessionId, portraits }: CharacterCardsProps) {
   const [cards, setCards] = useState<CharacterCardSummary[]>([]);
   const [activeAi, setActiveAi] = useState<string | null>(null);
   const [activeUser, setActiveUser] = useState<string | null>(null);
@@ -46,10 +47,10 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
   useEffect(() => {
     if (!open) return;
     refresh();
-  }, [open]);
+  }, [open, sessionId]);
 
-  async function refresh() {
-    const data = await listCharacterCards();
+  async function refresh(sessionIdOverride?: string | null) {
+    const data = await listCharacterCards(sessionIdOverride ?? sessionId);
     setCards(data.cards);
     setActiveAi(data.activeAi);
     setActiveUser(data.activeUser);
@@ -98,13 +99,13 @@ export default function CharacterCards({ open, onClose, onChanged, portraits }: 
   }
 
   async function handleActivate(role: "ai" | "user", filename: string | null) {
-    if (role === "ai") {
-      await activateCharacterCards({ aiCharacter: filename ?? "" });
-    } else {
-      await activateCharacterCards({ userCharacter: filename ?? "" });
-    }
-    await refresh();
-    onChanged();
+    const result = role === "ai"
+      ? await activateCharacterCards({ sessionId, aiCharacter: filename ?? "" })
+      : await activateCharacterCards({ sessionId, userCharacter: filename ?? "" });
+    const nextSessionId = result.sessionId ?? sessionId;
+
+    await refresh(nextSessionId);
+    onChanged(nextSessionId);
   }
 
   const inputClass =

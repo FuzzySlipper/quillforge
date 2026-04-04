@@ -32,14 +32,20 @@ public static class CharacterCardEndpoints
         });
 
         // Character cards (YAML-backed via ICharacterCardStore)
-        app.MapGet("/api/character-cards", async (ICharacterCardStore store, AppConfig config, CancellationToken ct) =>
+        app.MapGet("/api/character-cards", async (
+            HttpContext httpContext,
+            ICharacterCardStore store,
+            ISessionRuntimeService runtimeService,
+            CancellationToken ct) =>
         {
             var cards = await store.ListAsync(ct);
+            var sessionId = httpContext.TryGetSessionId();
+            var sessionState = await runtimeService.LoadViewAsync(sessionId, ct);
             return Results.Ok(new
             {
                 Cards = cards,
-                ActiveAi = config.Roleplay.AiCharacter,
-                ActiveUser = config.Roleplay.UserCharacter,
+                ActiveAi = sessionState.Roleplay.ActiveAiCharacter,
+                ActiveUser = sessionState.Roleplay.ActiveUserCharacter,
             });
         });
 
@@ -111,31 +117,61 @@ public static class CharacterCardEndpoints
 
         app.MapPost("/api/character-cards/activate", async (
             HttpContext httpContext,
-            AppConfig runtimeConfig,
-            IAppConfigStore configStore,
+            ISessionRuntimeService runtimeService,
+            ISessionBootstrapService bootstrapService,
+            ISessionLifecycleService lifecycleService,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
+            var sessionId = root.GetOptionalGuid("sessionId");
             var aiCharacter = root.TryGetProperty("aiCharacter", out var ai) ? ai.GetString() : null;
             var userCharacter = root.TryGetProperty("userCharacter", out var user) ? user.GetString() : null;
+            Guid? createdSessionId = null;
 
-            var updatedConfig = await configStore.UpdateAsync(current => current with
+            if (!sessionId.HasValue)
             {
-                Roleplay = current.Roleplay with
-                {
-                    AiCharacter = aiCharacter ?? current.Roleplay.AiCharacter,
-                    UserCharacter = userCharacter ?? current.Roleplay.UserCharacter,
-                }
-            }, ct);
-            AppConfigRuntimeSync.CopyFrom(runtimeConfig, updatedConfig);
+                var tree = await bootstrapService.CreateAsync(
+                    new CreateSessionCommand
+                    {
+                        Name = "New Session",
+                    },
+                    ct);
+                sessionId = tree.SessionId;
+                createdSessionId = tree.SessionId;
+            }
 
+            var result = await runtimeService.SetRoleplayAsync(
+                sessionId,
+                new SetSessionRoleplayCommand(
+                    root.TryGetProperty("aiCharacter", out _),
+                    aiCharacter,
+                    root.TryGetProperty("userCharacter", out _),
+                    userCharacter),
+                ct);
+
+            if (result.Status == SessionMutationStatus.Busy)
+            {
+                if (createdSessionId.HasValue)
+                {
+                    await lifecycleService.DeleteAsync(createdSessionId.Value, ct);
+                }
+
+                return Results.Conflict(new
+                {
+                    error = "session_busy",
+                    message = result.Error,
+                });
+            }
+
+            var state = result.Value!;
             return Results.Ok(new
             {
                 Status = "ok",
-                AiCharacter = updatedConfig.Roleplay.AiCharacter,
-                UserCharacter = updatedConfig.Roleplay.UserCharacter
+                SessionId = state.SessionId,
+                AiCharacter = state.Roleplay.ActiveAiCharacter,
+                UserCharacter = state.Roleplay.ActiveUserCharacter
             });
         });
 

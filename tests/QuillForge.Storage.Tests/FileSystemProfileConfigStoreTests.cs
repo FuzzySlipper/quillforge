@@ -38,6 +38,11 @@ public sealed class FileSystemProfileConfigStoreTests : IDisposable
             LoreSet = "fantasy",
             NarrativeRules = "default",
             WritingStyle = "literary",
+            Roleplay = new RoleplayConfig
+            {
+                AiCharacter = "guide",
+                UserCharacter = "author",
+            },
         };
 
         await store.SaveAsync("authoring", profile);
@@ -47,6 +52,8 @@ public sealed class FileSystemProfileConfigStoreTests : IDisposable
         Assert.Equal("fantasy", loaded.LoreSet);
         Assert.Equal("default", loaded.NarrativeRules);
         Assert.Equal("literary", loaded.WritingStyle);
+        Assert.Equal("guide", loaded.Roleplay.AiCharacter);
+        Assert.Equal("author", loaded.Roleplay.UserCharacter);
     }
 
     [Fact]

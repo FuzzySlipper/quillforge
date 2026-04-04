@@ -28,6 +28,7 @@ public sealed class SessionBootstrapService : ISessionBootstrapService
     public async Task<ConversationTree> CreateAsync(CreateSessionCommand command, CancellationToken ct = default)
     {
         var runtimeProfile = await _profileService.BuildSessionProfileStateAsync(command.ProfileId, ct);
+        var resolvedProfile = await _profileService.LoadResolvedAsync(command.ProfileId, ct);
         var sessionId = command.SessionId ?? Guid.CreateVersion7();
         var sessionName = string.IsNullOrWhiteSpace(command.Name) ? "New Session" : command.Name.Trim();
 
@@ -44,6 +45,11 @@ public sealed class SessionBootstrapService : ISessionBootstrapService
             {
                 SessionId = sessionId,
                 Profile = runtimeProfile,
+                Roleplay = new RoleplayRuntimeState
+                {
+                    ActiveAiCharacter = resolvedProfile.Config.Roleplay.AiCharacter,
+                    ActiveUserCharacter = resolvedProfile.Config.Roleplay.UserCharacter,
+                },
             }, ct);
         }
         catch
@@ -64,10 +70,12 @@ public sealed class SessionBootstrapService : ISessionBootstrapService
         }
 
         _logger.LogInformation(
-            "Created session bootstrap: session={SessionId} name={Name} profileId={ProfileId}",
+            "Created session bootstrap: session={SessionId} name={Name} profileId={ProfileId} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
             sessionId,
             sessionName,
-            runtimeProfile.ProfileId);
+            runtimeProfile.ProfileId,
+            resolvedProfile.Config.Roleplay.AiCharacter,
+            resolvedProfile.Config.Roleplay.UserCharacter);
 
         return tree;
     }

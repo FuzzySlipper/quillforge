@@ -9,7 +9,9 @@ namespace QuillForge.Core.Agents.Modes;
 /// </summary>
 public sealed class RoleplayMode : IMode
 {
-    public string Name => "roleplay";
+    public const string NameConst = "roleplay";
+
+    public string Name => NameConst;
 
     public string BuildSystemPromptSection(ModeContext context)
     {

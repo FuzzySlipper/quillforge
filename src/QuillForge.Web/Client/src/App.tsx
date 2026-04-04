@@ -770,7 +770,8 @@ function App() {
       <CharacterCards
         open={charactersOpen}
         onClose={() => setCharactersOpen(false)}
-        onChanged={refreshStatus}
+        onChanged={handleSessionScopedRefresh}
+        sessionId={currentSessionId}
         portraits={portraits}
       />
       <TextThemePicker

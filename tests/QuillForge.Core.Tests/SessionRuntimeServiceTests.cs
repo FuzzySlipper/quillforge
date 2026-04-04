@@ -233,6 +233,8 @@ public sealed class SessionRuntimeServiceTests
         Assert.Equal("default-lore", view.Profile.ActiveLoreSet);
         Assert.Equal("default-rules", view.Profile.ActiveNarrativeRules);
         Assert.Equal("default-style", view.Profile.ActiveWritingStyle);
+        Assert.Equal("default-guide", view.Roleplay.ActiveAiCharacter);
+        Assert.Equal("default-author", view.Roleplay.ActiveUserCharacter);
 
         var raw = await store.LoadAsync(sessionId);
         Assert.Null(raw.Profile.ProfileId);
@@ -240,6 +242,54 @@ public sealed class SessionRuntimeServiceTests
         Assert.Null(raw.Profile.ActiveLoreSet);
         Assert.Null(raw.Profile.ActiveNarrativeRules);
         Assert.Null(raw.Profile.ActiveWritingStyle);
+        Assert.False(raw.Roleplay.HasExplicitAiCharacterSelection);
+        Assert.False(raw.Roleplay.HasExplicitUserCharacterSelection);
+        Assert.Null(raw.Roleplay.ActiveAiCharacter);
+        Assert.Null(raw.Roleplay.ActiveUserCharacter);
+    }
+
+    [Fact]
+    public async Task SetRoleplayAsync_StoresExplicitSelectionsPerSession()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        var result = await service.SetRoleplayAsync(
+            sessionId,
+            new SetSessionRoleplayCommand(true, "session-guide", true, "session-author"));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Equal("session-guide", result.Value.Roleplay.ActiveAiCharacter);
+        Assert.Equal("session-author", result.Value.Roleplay.ActiveUserCharacter);
+
+        var raw = await store.LoadAsync(sessionId);
+        Assert.True(raw.Roleplay.HasExplicitAiCharacterSelection);
+        Assert.Equal("session-guide", raw.Roleplay.ActiveAiCharacter);
+        Assert.True(raw.Roleplay.HasExplicitUserCharacterSelection);
+        Assert.Equal("session-author", raw.Roleplay.ActiveUserCharacter);
+    }
+
+    [Fact]
+    public async Task SetRoleplayAsync_AllowsExplicitClearAgainstProfileDefaults()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        var result = await service.SetRoleplayAsync(
+            sessionId,
+            new SetSessionRoleplayCommand(true, null, false, null));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Null(result.Value.Roleplay.ActiveAiCharacter);
+        Assert.Equal("default-author", result.Value.Roleplay.ActiveUserCharacter);
+
+        var raw = await store.LoadAsync(sessionId);
+        Assert.True(raw.Roleplay.HasExplicitAiCharacterSelection);
+        Assert.Null(raw.Roleplay.ActiveAiCharacter);
     }
 
     [Fact]
@@ -323,6 +373,39 @@ public sealed class SessionRuntimeServiceTests
         Assert.Equal("default", viewB.Profile.ProfileId);
         Assert.Equal("session-b-conductor", viewB.Profile.ActiveConductor);
         Assert.Equal("default-lore", viewB.Profile.ActiveLoreSet);
+        Assert.Equal("grim-guide", viewA.Roleplay.ActiveAiCharacter);
+        Assert.Equal("default-guide", viewB.Roleplay.ActiveAiCharacter);
+    }
+
+    [Fact]
+    public async Task SetProfileAsync_ProfileSwitchUpdatesImplicitRoleplayDefaultsButKeepsExplicitSelections()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        await service.SetProfileAsync(
+            sessionId,
+            new SetSessionProfileCommand("grim", null, null, null, null));
+        await service.SetRoleplayAsync(
+            sessionId,
+            new SetSessionRoleplayCommand(false, null, true, "session-author"));
+
+        var result = await service.SetProfileAsync(
+            sessionId,
+            new SetSessionProfileCommand("storm", null, null, null, null));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Equal("storm", result.Value.Profile.ProfileId);
+        Assert.Equal("storm-guide", result.Value.Roleplay.ActiveAiCharacter);
+        Assert.Equal("session-author", result.Value.Roleplay.ActiveUserCharacter);
+
+        var raw = await store.LoadAsync(sessionId);
+        Assert.False(raw.Roleplay.HasExplicitAiCharacterSelection);
+        Assert.Equal("storm-guide", raw.Roleplay.ActiveAiCharacter);
+        Assert.True(raw.Roleplay.HasExplicitUserCharacterSelection);
+        Assert.Equal("session-author", raw.Roleplay.ActiveUserCharacter);
     }
 
     [Fact]
@@ -658,6 +741,13 @@ internal sealed class InMemorySessionRuntimeStore : ISessionRuntimeStore
                 ActiveNarrativeRules = state.Profile.ActiveNarrativeRules,
                 ActiveWritingStyle = state.Profile.ActiveWritingStyle,
             },
+            Roleplay = new RoleplayRuntimeState
+            {
+                HasExplicitAiCharacterSelection = state.Roleplay.HasExplicitAiCharacterSelection,
+                ActiveAiCharacter = state.Roleplay.ActiveAiCharacter,
+                HasExplicitUserCharacterSelection = state.Roleplay.HasExplicitUserCharacterSelection,
+                ActiveUserCharacter = state.Roleplay.ActiveUserCharacter,
+            },
             Writer = new WriterRuntimeState
             {
                 PendingContent = state.Writer.PendingContent,
@@ -688,6 +778,11 @@ internal sealed class FakeProfileConfigService : IProfileConfigService
             LoreSet = "default-lore",
             NarrativeRules = "default-rules",
             WritingStyle = "default-style",
+            Roleplay = new RoleplayConfig
+            {
+                AiCharacter = "default-guide",
+                UserCharacter = "default-author",
+            },
         },
         ["grim"] = new()
         {
@@ -695,6 +790,23 @@ internal sealed class FakeProfileConfigService : IProfileConfigService
             LoreSet = "grim-lore",
             NarrativeRules = "grim-rules",
             WritingStyle = "grim-style",
+            Roleplay = new RoleplayConfig
+            {
+                AiCharacter = "grim-guide",
+                UserCharacter = "grim-author",
+            },
+        },
+        ["storm"] = new()
+        {
+            Conductor = "storm-conductor",
+            LoreSet = "storm-lore",
+            NarrativeRules = "storm-rules",
+            WritingStyle = "storm-style",
+            Roleplay = new RoleplayConfig
+            {
+                AiCharacter = "storm-guide",
+                UserCharacter = "storm-author",
+            },
         },
     };
 

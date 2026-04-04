@@ -13,6 +13,12 @@ public sealed record SetSessionProfileCommand(
     string? NarrativeRules,
     string? WritingStyle);
 
+public sealed record SetSessionRoleplayCommand(
+    bool HasAiCharacterSelection,
+    string? AiCharacter,
+    bool HasUserCharacterSelection,
+    string? UserCharacter);
+
 public sealed record CaptureWriterPendingCommand(
     string Content,
     string SourceMode);
