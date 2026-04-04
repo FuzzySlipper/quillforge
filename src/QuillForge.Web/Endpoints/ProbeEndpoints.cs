@@ -24,8 +24,7 @@ public static class ProbeEndpoints
             ICompletionService completionService,
             OrchestratorAgent orchestrator,
             IEnumerable<IToolHandler> toolHandlers,
-            ISessionRuntimeService runtimeService,
-            IInteractiveSessionContextService sessionContextService,
+            ISessionProfileReadService profileReadService,
             IConductorStore conductorStore,
             AppConfig appConfig,
             AtomicFileWriter fileWriter,
@@ -34,8 +33,12 @@ public static class ProbeEndpoints
         {
             // Resolve session context
             var sessionId = httpContext.TryGetSessionId();
-            var sessionState = await runtimeService.LoadViewAsync(sessionId, ct);
-            var sessionContext = await sessionContextService.BuildAsync(sessionState, ct);
+            var prepared = await profileReadService.PrepareInteractiveRequestAsync(
+                sessionId,
+                new PrepareInteractiveRequestOptions(),
+                ct);
+            var sessionState = prepared.ProfileView.SessionState;
+            var sessionContext = prepared.SessionContext;
             var activeModeName = sessionState.Mode.ActiveModeName;
             var model = appConfig.Models.Orchestrator;
 
@@ -49,7 +52,7 @@ public static class ProbeEndpoints
                 StoryStateSummary = sessionContext.StoryStateSummary,
                 FileContext = sessionContext.FileContext,
                 WriterPendingContent = sessionContext.WriterPendingContent,
-                ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(sessionState.Profile),
+                ActiveLoreSet = prepared.ProfileView.ActiveLoreSet,
             };
             var modeSection = activeMode.BuildSystemPromptSection(modeContext);
 
@@ -58,7 +61,7 @@ public static class ProbeEndpoints
             try
             {
                 conductorPromptText = await conductorStore.LoadAsync(
-                    SessionProfileHydration.RequireActiveConductor(sessionState.Profile),
+                    prepared.Conductor,
                     appConfig.Persona.MaxTokens,
                     ct);
             }

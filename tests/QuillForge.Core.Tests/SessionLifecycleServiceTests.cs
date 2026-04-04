@@ -21,7 +21,7 @@ public sealed class SessionLifecycleServiceTests
         sourceTree.Append(sourceTree.ActiveLeafId, "assistant", new MessageContent("Reply"));
         await sessionStore.SaveAsync(sourceTree);
 
-        await runtimeStore.SaveAsync(new SessionRuntimeState
+        await runtimeStore.SaveAsync(new SessionState
         {
             SessionId = sourceTree.SessionId,
             Mode = new ModeSelectionState
@@ -97,7 +97,7 @@ public sealed class SessionLifecycleServiceTests
         sourceTree.Append(assistant1.Id, "user", new MessageContent("Three"));
         await sessionStore.SaveAsync(sourceTree);
 
-        await runtimeStore.SaveAsync(new SessionRuntimeState
+        await runtimeStore.SaveAsync(new SessionState
         {
             SessionId = sourceTree.SessionId,
             Mode = new ModeSelectionState { ActiveModeName = "roleplay", Character = "captain" },
@@ -140,7 +140,7 @@ public sealed class SessionLifecycleServiceTests
 
         var sessionId = Guid.CreateVersion7();
         await sessionStore.SaveAsync(new ConversationTree(sessionId, "Delete Me", NullLogger<ConversationTree>.Instance));
-        await runtimeStore.SaveAsync(new SessionRuntimeState
+        await runtimeStore.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveModeName = "writer" },
@@ -196,21 +196,21 @@ internal sealed class InMemorySessionStore : ISessionStore
     }
 }
 
-internal sealed class InMemoryRuntimeStore : ISessionRuntimeStore
+internal sealed class InMemoryRuntimeStore : ISessionStateStore
 {
-    private readonly Dictionary<Guid, SessionRuntimeState> _states = [];
+    private readonly Dictionary<Guid, SessionState> _states = [];
 
-    public Task<SessionRuntimeState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
     {
         if (sessionId.HasValue && _states.TryGetValue(sessionId.Value, out var state))
         {
             return Task.FromResult(Clone(state, sessionId));
         }
 
-        return Task.FromResult(new SessionRuntimeState { SessionId = sessionId });
+        return Task.FromResult(new SessionState { SessionId = sessionId });
     }
 
-    public Task SaveAsync(SessionRuntimeState state, CancellationToken ct = default)
+    public Task SaveAsync(SessionState state, CancellationToken ct = default)
     {
         if (state.SessionId.HasValue)
         {
@@ -235,9 +235,9 @@ internal sealed class InMemoryRuntimeStore : ISessionRuntimeStore
         return Task.FromResult<IReadOnlyList<Guid>>(sessionIds);
     }
 
-    private static SessionRuntimeState Clone(SessionRuntimeState state, Guid? sessionId)
+    private static SessionState Clone(SessionState state, Guid? sessionId)
     {
-        return new SessionRuntimeState
+        return new SessionState
         {
             SessionId = sessionId,
             LastModified = state.LastModified,

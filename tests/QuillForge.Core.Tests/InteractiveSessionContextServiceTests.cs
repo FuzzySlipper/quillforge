@@ -30,7 +30,7 @@ public sealed class InteractiveSessionContextServiceTests
             plots,
             NullLogger<InteractiveSessionContextService>.Instance);
 
-        var context = await service.BuildAsync(new SessionRuntimeState
+        var context = await service.BuildAsync(new SessionState
         {
             SessionId = Guid.CreateVersion7(),
             Mode = new ModeSelectionState
@@ -76,7 +76,7 @@ public sealed class InteractiveSessionContextServiceTests
     {
         var runtimeService = new FakeRuntimeViewService
         {
-            State = new SessionRuntimeState
+            State = new SessionState
             {
                 SessionId = Guid.CreateVersion7(),
                 Mode = new ModeSelectionState
@@ -103,41 +103,41 @@ public sealed class InteractiveSessionContextServiceTests
     }
 }
 
-internal sealed class FakeRuntimeViewService : ISessionRuntimeService
+internal sealed class FakeRuntimeViewService : ISessionStateService
 {
-    public SessionRuntimeState State { get; set; } = new();
+    public SessionState State { get; set; } = new();
 
-    public Task<SessionRuntimeState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
     {
         State.SessionId = sessionId;
         return Task.FromResult(State);
     }
 
-    public Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
         => throw new NotSupportedException();
 
-    public Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
         => throw new NotSupportedException();
 
-    public Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
         => throw new NotSupportedException();
 
-    public Task<SessionMutationResult<SessionRuntimeState>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
         => throw new NotSupportedException();
 
     public Task<SessionMutationResult<WriterPendingDecisionResult>> AcceptWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
         => throw new NotSupportedException();
 
-    public Task<SessionMutationResult<SessionRuntimeState>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
         => throw new NotSupportedException();
 
-    public Task<SessionMutationResult<SessionRuntimeState>> UpdateNarrativeStateAsync(Guid? sessionId, UpdateNarrativeStateCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> UpdateNarrativeStateAsync(Guid? sessionId, UpdateNarrativeStateCommand command, CancellationToken ct = default)
         => throw new NotSupportedException();
 
-    public Task<SessionMutationResult<SessionRuntimeState>> SetActivePlotAsync(Guid? sessionId, SetActivePlotCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> SetActivePlotAsync(Guid? sessionId, SetActivePlotCommand command, CancellationToken ct = default)
         => throw new NotSupportedException();
 
-    public Task<SessionMutationResult<SessionRuntimeState>> ClearActivePlotAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> ClearActivePlotAsync(Guid? sessionId, CancellationToken ct = default)
         => throw new NotSupportedException();
 }
 
@@ -148,6 +148,9 @@ internal sealed class FakeCharacterCardStoreForContext : ICharacterCardStore
 
     public Task SaveAsync(string fileName, CharacterCard card, CancellationToken ct = default)
         => Task.CompletedTask;
+
+    public Task<bool> DeleteAsync(string fileName, CancellationToken ct = default)
+        => Task.FromResult(false);
 
     public Task<IReadOnlyList<CharacterCard>> ListAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<CharacterCard>>([]);

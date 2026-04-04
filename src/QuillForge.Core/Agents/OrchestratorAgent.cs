@@ -8,7 +8,7 @@ namespace QuillForge.Core.Agents;
 /// <summary>
 /// The user's conversational partner. Delegates to sub-agents via tool handlers.
 /// Mode-specific behavior is handled by IMode implementations, not branches in a god class.
-/// Stateless — all mutable session state is in SessionRuntimeState, passed per-request.
+/// Stateless — all mutable session state is in SessionState, passed per-request.
 /// </summary>
 public sealed class OrchestratorAgent
 {
@@ -55,7 +55,7 @@ public sealed class OrchestratorAgent
     /// Handles a user message through the tool loop with mode-specific behavior.
     /// </summary>
     public async Task<AgentResponse> HandleAsync(
-        SessionRuntimeState state,
+        SessionState state,
         string conductorName,
         string model,
         int maxTokens,
@@ -101,7 +101,7 @@ public sealed class OrchestratorAgent
     /// Streams a response. Tool dispatch rounds are non-streaming; final text is streamed.
     /// </summary>
     public IAsyncEnumerable<StreamEvent> HandleStreamAsync(
-        SessionRuntimeState state,
+        SessionState state,
         string conductorName,
         string model,
         int maxTokens,
@@ -115,7 +115,7 @@ public sealed class OrchestratorAgent
     }
 
     private async IAsyncEnumerable<StreamEvent> StreamInternalAsync(
-        SessionRuntimeState state,
+        SessionState state,
         string conductorName,
         string model,
         int maxTokens,

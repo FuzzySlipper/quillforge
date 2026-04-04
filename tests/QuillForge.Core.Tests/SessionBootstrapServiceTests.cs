@@ -32,9 +32,13 @@ public sealed class SessionBootstrapServiceTests
         Assert.Equal(tree.SessionId, runtimeState.SessionId);
         Assert.Equal("grim", runtimeState.Profile.ProfileId);
         Assert.Null(runtimeState.Profile.ActiveConductor);
-        Assert.Equal("grim-guide", runtimeState.Roleplay.ActiveAiCharacter);
-        Assert.Equal("grim-author", runtimeState.Roleplay.ActiveUserCharacter);
+        Assert.False(runtimeState.Roleplay.HasExplicitAiCharacterSelection);
+        Assert.False(runtimeState.Roleplay.HasExplicitUserCharacterSelection);
+        Assert.Null(runtimeState.Roleplay.ActiveAiCharacter);
+        Assert.Null(runtimeState.Roleplay.ActiveUserCharacter);
         Assert.Equal("general", runtimeState.Mode.ActiveModeName);
+        Assert.Equal(1, profileService.LoadResolvedCallCount);
+        Assert.Equal(0, profileService.BuildSessionProfileStateCallCount);
     }
 
     [Fact]
@@ -83,6 +87,9 @@ public sealed class SessionBootstrapServiceTests
 
     private sealed class BootstrapProfileConfigService : IProfileConfigService
     {
+        public int LoadResolvedCallCount { get; private set; }
+        public int BuildSessionProfileStateCallCount { get; private set; }
+
         public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<string>>(["default", "grim"]);
 
@@ -91,6 +98,7 @@ public sealed class SessionBootstrapServiceTests
 
         public Task<ResolvedProfileConfig> LoadResolvedAsync(string? profileId = null, CancellationToken ct = default)
         {
+            LoadResolvedCallCount++;
             var resolvedProfileId = string.IsNullOrWhiteSpace(profileId) ? "default" : profileId;
             var config = resolvedProfileId == "grim"
                 ? new ProfileConfig
@@ -143,6 +151,7 @@ public sealed class SessionBootstrapServiceTests
 
         public Task<ProfileState> BuildSessionProfileStateAsync(string? profileId = null, CancellationToken ct = default)
         {
+            BuildSessionProfileStateCallCount++;
             return Task.FromResult(new ProfileState
             {
                 ProfileId = profileId ?? "default",
@@ -150,14 +159,14 @@ public sealed class SessionBootstrapServiceTests
         }
     }
 
-    private sealed class FailingRuntimeStore : ISessionRuntimeStore
+    private sealed class FailingRuntimeStore : ISessionStateStore
     {
         public Guid? AttemptedSessionId { get; private set; }
 
-        public Task<SessionRuntimeState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
-            => Task.FromResult(new SessionRuntimeState { SessionId = sessionId });
+        public Task<SessionState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
+            => Task.FromResult(new SessionState { SessionId = sessionId });
 
-        public Task SaveAsync(SessionRuntimeState state, CancellationToken ct = default)
+        public Task SaveAsync(SessionState state, CancellationToken ct = default)
         {
             AttemptedSessionId = state.SessionId;
             throw new InvalidOperationException("Simulated runtime store failure");

@@ -284,7 +284,7 @@ internal sealed class InMemoryAppConfigStore : IAppConfigStore
     }
 }
 
-internal sealed class InMemoryProfileUsageRuntimeStore : ISessionRuntimeStore
+internal sealed class InMemoryProfileUsageRuntimeStore : ISessionStateStore
 {
     private readonly Dictionary<string, List<Guid>> _usageByProfileId = new(StringComparer.OrdinalIgnoreCase);
 
@@ -293,10 +293,10 @@ internal sealed class InMemoryProfileUsageRuntimeStore : ISessionRuntimeStore
         _usageByProfileId[profileId] = [.. sessionIds];
     }
 
-    public Task<SessionRuntimeState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
-        => Task.FromResult(new SessionRuntimeState { SessionId = sessionId });
+    public Task<SessionState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
+        => Task.FromResult(new SessionState { SessionId = sessionId });
 
-    public Task SaveAsync(SessionRuntimeState state, CancellationToken ct = default)
+    public Task SaveAsync(SessionState state, CancellationToken ct = default)
         => Task.CompletedTask;
 
     public Task DeleteAsync(Guid sessionId, CancellationToken ct = default)

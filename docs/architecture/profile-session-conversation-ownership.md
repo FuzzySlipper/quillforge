@@ -95,9 +95,9 @@ It does not own:
 - app defaults
 - the persisted message tree itself
 
-`SessionState` is a conceptual name first. The current implementation type
-`SessionRuntimeState` is the existing concrete precursor and should be treated as
-the implementation of this concept until follow-on refactors land.
+`SessionState` is now the primary implementation name in code. The older
+`SessionRuntimeState` name remains only as a compatibility shim while the rest
+of the codebase and tests finish converging.
 
 ### `ConversationTree`
 
@@ -138,7 +138,7 @@ Today the codebase still mixes old and new concepts:
 - [`AppConfig`](../../src/QuillForge.Core/Models/AppConfig.cs) still carries
   active profile-like selections such as `Persona.Active`, `Lore.Active`,
   `NarrativeRules.Active`, and `WritingStyle.Active`.
-- [`SessionRuntimeState`](../../src/QuillForge.Core/Models/SessionRuntimeState.cs)
+- [`SessionState`](../../src/QuillForge.Core/Models/SessionRuntimeState.cs)
   already has the right general ownership shape for session runtime, but its
   `Profile` sub-state currently mirrors global config defaults rather than
   pointing at a first-class reusable profile.

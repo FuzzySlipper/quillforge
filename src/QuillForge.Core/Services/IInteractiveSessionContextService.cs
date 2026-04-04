@@ -5,7 +5,7 @@ namespace QuillForge.Core.Services;
 public interface IInteractiveSessionContextService
 {
     Task<InteractiveSessionContext> BuildAsync(
-        SessionRuntimeState state,
+        SessionState state,
         CancellationToken ct = default);
 
     Task<InteractiveSessionContext> LoadAsync(

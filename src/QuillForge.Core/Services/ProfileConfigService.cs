@@ -9,13 +9,13 @@ public sealed class ProfileConfigService : IProfileConfigService
 
     private readonly IProfileConfigStore _store;
     private readonly IAppConfigStore _appConfigStore;
-    private readonly ISessionRuntimeStore _sessionRuntimeStore;
+    private readonly ISessionStateStore _sessionRuntimeStore;
     private readonly ILogger<ProfileConfigService> _logger;
 
     public ProfileConfigService(
         IProfileConfigStore store,
         IAppConfigStore appConfigStore,
-        ISessionRuntimeStore sessionRuntimeStore,
+        ISessionStateStore sessionRuntimeStore,
         ILogger<ProfileConfigService> logger)
     {
         _store = store;

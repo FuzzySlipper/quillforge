@@ -19,12 +19,11 @@ public static class DebugBridgeEndpoints
         group.MapPost("/chat", async (
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
-            ISessionRuntimeService runtimeService,
+            ISessionStateService runtimeService,
             ISessionBootstrapService bootstrapService,
-            IInteractiveSessionContextService sessionContextService,
+            ISessionProfileReadService profileReadService,
             ISessionStore sessionStore,
             IEnumerable<IToolHandler> toolHandlers,
-            AppConfig appConfig,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -63,21 +62,17 @@ public static class DebugBridgeEndpoints
                 ?.Content
                 .GetText();
 
-            var sessionState = await runtimeService.LoadViewAsync(sessionId, ct);
-            var sessionContext = await sessionContextService.BuildAsync(sessionState, ct);
-            var context = new AgentContext
-            {
-                SessionId = sessionId,
-                ActiveMode = sessionState.Mode.ActiveModeName,
-                ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(sessionState.Profile),
-                ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(sessionState.Profile),
-                ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(sessionState.Profile),
-                SessionContext = sessionContext,
-                LastAssistantResponse = lastAssistantResponse,
-            };
-            var conductor = string.IsNullOrWhiteSpace(requestedConductor)
-                ? SessionProfileHydration.RequireActiveConductor(sessionState.Profile)
-                : requestedConductor;
+            var prepared = await profileReadService.PrepareInteractiveRequestAsync(
+                sessionId,
+                new PrepareInteractiveRequestOptions
+                {
+                    RequestedConductor = requestedConductor,
+                    LastAssistantResponse = lastAssistantResponse,
+                },
+                ct);
+            var sessionState = prepared.ProfileView.SessionState;
+            var context = prepared.AgentContext;
+            var conductor = prepared.Conductor;
 
             var tools = toolHandlers.ToList();
             var response = await orchestrator.HandleAsync(
@@ -117,7 +112,7 @@ public static class DebugBridgeEndpoints
 
         group.MapPost("/mode", async (
             HttpContext httpContext,
-            ISessionRuntimeService runtimeService,
+            ISessionStateService runtimeService,
             ISessionBootstrapService bootstrapService,
             ISessionLifecycleService lifecycleService,
             CancellationToken ct) =>
@@ -234,7 +229,7 @@ public static class DebugBridgeEndpoints
             });
         });
 
-        group.MapGet("/state", async (ISessionRuntimeService runtimeService, CancellationToken ct) =>
+        group.MapGet("/state", async (ISessionStateService runtimeService, CancellationToken ct) =>
         {
             var state = await runtimeService.LoadViewAsync(null, ct);
             return Results.Ok(new

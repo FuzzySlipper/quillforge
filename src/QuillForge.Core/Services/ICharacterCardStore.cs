@@ -6,6 +6,7 @@ public interface ICharacterCardStore
 {
     Task<CharacterCard?> LoadAsync(string fileName, CancellationToken ct = default);
     Task SaveAsync(string fileName, CharacterCard card, CancellationToken ct = default);
+    Task<bool> DeleteAsync(string fileName, CancellationToken ct = default);
     Task<IReadOnlyList<CharacterCard>> ListAsync(CancellationToken ct = default);
     string CardToPrompt(CharacterCard card);
     CharacterCard NewTemplate(string name = "New Character");

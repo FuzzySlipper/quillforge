@@ -55,7 +55,7 @@ public sealed class SessionRuntimeServiceTests
     {
         var store = new InMemorySessionRuntimeStore();
         var sessionId = Guid.CreateVersion7();
-        await store.SaveAsync(new SessionRuntimeState
+        await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveModeName = "writer", ProjectName = "novel" },
@@ -82,7 +82,7 @@ public sealed class SessionRuntimeServiceTests
     {
         var store = new InMemorySessionRuntimeStore();
         var sessionId = Guid.CreateVersion7();
-        await store.SaveAsync(new SessionRuntimeState
+        await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveModeName = "writer" },
@@ -105,7 +105,7 @@ public sealed class SessionRuntimeServiceTests
     {
         var store = new InMemorySessionRuntimeStore();
         var sessionId = Guid.CreateVersion7();
-        await store.SaveAsync(new SessionRuntimeState
+        await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveModeName = "general" },
@@ -127,7 +127,7 @@ public sealed class SessionRuntimeServiceTests
     {
         var store = new InMemorySessionRuntimeStore();
         var sessionId = Guid.CreateVersion7();
-        await store.SaveAsync(new SessionRuntimeState
+        await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveModeName = "writer" },
@@ -155,7 +155,7 @@ public sealed class SessionRuntimeServiceTests
     {
         var store = new InMemorySessionRuntimeStore();
         var sessionId = Guid.CreateVersion7();
-        await store.SaveAsync(new SessionRuntimeState
+        await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveModeName = "writer" },
@@ -416,7 +416,7 @@ public sealed class SessionRuntimeServiceTests
         var service = CreateService(store, profiles);
         var sessionId = Guid.CreateVersion7();
 
-        await store.SaveAsync(new SessionRuntimeState
+        await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Profile = new ProfileState
@@ -500,7 +500,7 @@ public sealed class SessionRuntimeServiceTests
         var service = CreateService(store, profiles);
         var sessionId = Guid.CreateVersion7();
 
-        await store.SaveAsync(new SessionRuntimeState
+        await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveModeName = "writer" },
@@ -604,7 +604,7 @@ public sealed class SessionRuntimeServiceTests
     {
         var store = new InMemorySessionRuntimeStore();
         var sessionId = Guid.CreateVersion7();
-        await store.SaveAsync(new SessionRuntimeState
+        await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Narrative = new NarrativeRuntimeState
@@ -636,7 +636,7 @@ public sealed class SessionRuntimeServiceTests
     {
         var store = new InMemorySessionRuntimeStore();
         var sessionId = Guid.CreateVersion7();
-        await store.SaveAsync(new SessionRuntimeState
+        await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Narrative = new NarrativeRuntimeState
@@ -675,21 +675,21 @@ public sealed class SessionRuntimeServiceTests
     }
 }
 
-internal sealed class InMemorySessionRuntimeStore : ISessionRuntimeStore
+internal sealed class InMemorySessionRuntimeStore : ISessionStateStore
 {
-    private readonly Dictionary<string, SessionRuntimeState> _states = [];
+    private readonly Dictionary<string, SessionState> _states = [];
 
-    public Task<SessionRuntimeState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
     {
         if (_states.TryGetValue(GetKey(sessionId), out var state))
         {
             return Task.FromResult(Clone(state, sessionId));
         }
 
-        return Task.FromResult(new SessionRuntimeState { SessionId = sessionId });
+        return Task.FromResult(new SessionState { SessionId = sessionId });
     }
 
-    public Task SaveAsync(SessionRuntimeState state, CancellationToken ct = default)
+    public Task SaveAsync(SessionState state, CancellationToken ct = default)
     {
         _states[GetKey(state.SessionId)] = Clone(state, state.SessionId);
         return Task.CompletedTask;
@@ -720,9 +720,9 @@ internal sealed class InMemorySessionRuntimeStore : ISessionRuntimeStore
         return sessionId?.ToString() ?? "default";
     }
 
-    private static SessionRuntimeState Clone(SessionRuntimeState state, Guid? sessionId)
+    private static SessionState Clone(SessionState state, Guid? sessionId)
     {
-        return new SessionRuntimeState
+        return new SessionState
         {
             SessionId = sessionId,
             LastModified = state.LastModified,

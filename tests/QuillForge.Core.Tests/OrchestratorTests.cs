@@ -37,7 +37,7 @@ public class OrchestratorTests
     [Fact]
     public void DefaultState_IsGeneral()
     {
-        var state = new SessionRuntimeState();
+        var state = new SessionState();
         Assert.Equal("general", state.Mode.ActiveModeName);
     }
 
@@ -47,7 +47,7 @@ public class OrchestratorTests
         var fake = new FakeCompletionService();
         fake.EnqueueText("Hello from the orchestrator!");
         var orchestrator = CreateOrchestrator(fake);
-        var state = new SessionRuntimeState();
+        var state = new SessionState();
 
         var messages = new List<CompletionMessage>
         {

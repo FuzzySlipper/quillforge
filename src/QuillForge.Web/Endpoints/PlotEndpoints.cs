@@ -14,7 +14,7 @@ public static class PlotEndpoints
         app.MapGet("/api/plots", async (
             HttpContext httpContext,
             IPlotStore plotStore,
-            ISessionRuntimeService runtimeService,
+            ISessionStateService runtimeService,
             CancellationToken ct) =>
         {
             var sessionId = httpContext.TryGetSessionId();
@@ -70,28 +70,19 @@ public static class PlotEndpoints
         app.MapPost("/api/plots/generate", async (
             PlotGenerateRequest request,
             NarrativeDirectorAgent narrativeDirector,
-            ISessionRuntimeService runtimeService,
-            IInteractiveSessionContextService sessionContextService,
+            ISessionProfileReadService profileReadService,
             IPlotStore plotStore,
-            AppConfig appConfig,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            var runtimeState = await runtimeService.LoadViewAsync(request.SessionId, ct);
-            var sessionContext = await sessionContextService.BuildAsync(runtimeState, ct);
-            var context = new AgentContext
-            {
-                SessionId = runtimeState.SessionId ?? Guid.CreateVersion7(),
-                ActiveMode = runtimeState.Mode.ActiveModeName,
-                ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(runtimeState.Profile),
-                ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(runtimeState.Profile),
-                ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(runtimeState.Profile),
-                SessionContext = sessionContext,
-            };
+            var prepared = await profileReadService.PrepareInteractiveRequestAsync(
+                request.SessionId,
+                new PrepareInteractiveRequestOptions(),
+                ct);
 
             var result = await narrativeDirector.GeneratePlotAsync(
                 new PlotGenerationRequest { Prompt = request.Prompt },
-                context,
+                prepared.AgentContext,
                 ct);
 
             var name = await ChoosePlotNameAsync(plotStore, request.Prompt, result.Markdown, ct);
@@ -114,7 +105,7 @@ public static class PlotEndpoints
         app.MapPost("/api/plots/load", async (
             PlotLoadRequest request,
             IPlotStore plotStore,
-            ISessionRuntimeService runtimeService,
+            ISessionStateService runtimeService,
             CancellationToken ct) =>
         {
             if (!await plotStore.ExistsAsync(request.Name, ct))
@@ -146,7 +137,7 @@ public static class PlotEndpoints
 
         app.MapPost("/api/plots/unload", async (
             PlotUnloadRequest request,
-            ISessionRuntimeService runtimeService,
+            ISessionStateService runtimeService,
             CancellationToken ct) =>
         {
             var result = await runtimeService.ClearActivePlotAsync(request.SessionId, ct);

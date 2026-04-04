@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace QuillForge.Core.Models;
 
 /// <summary>
-/// Top-level per-session runtime aggregate. Owns all mutable state for a single
+/// Top-level per-session state aggregate. Owns all mutable state for a single
 /// user session. Loaded at the start of a request, mutated during processing,
 /// and persisted at the end.
 ///
@@ -13,7 +13,7 @@ namespace QuillForge.Core.Models;
 ///   - New fields go into the sub-state that owns the concern, never top-level.
 ///   - If a new concern doesn't fit an existing sub-state, create a new one.
 /// </summary>
-public sealed class SessionRuntimeState
+public class SessionState
 {
     /// <summary>
     /// The session this state belongs to. Null for the global/default state
@@ -40,6 +40,14 @@ public sealed class SessionRuntimeState
     /// Timestamp of last mutation. Used to detect stale state on concurrent access.
     /// </summary>
     public DateTimeOffset LastModified { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>
+/// Compatibility shim for older code paths while the codebase converges on
+/// SessionState as the primary architectural name.
+/// </summary>
+public sealed class SessionRuntimeState : SessionState
+{
 }
 
 /// <summary>

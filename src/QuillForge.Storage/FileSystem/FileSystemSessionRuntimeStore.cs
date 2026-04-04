@@ -9,10 +9,10 @@ using QuillForge.Storage.Utilities;
 namespace QuillForge.Storage.FileSystem;
 
 /// <summary>
-/// Persists SessionRuntimeState as JSON files, one per session.
+/// Persists SessionState as JSON files, one per session.
 /// SessionId == null is a transient pre-session view and is not persisted.
 /// </summary>
-public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
+public sealed class FileSystemSessionRuntimeStore : ISessionStateStore, ISessionRuntimeStore
 {
     private readonly string _basePath;
     private readonly AtomicFileWriter _writer;
@@ -37,12 +37,12 @@ public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
         Directory.CreateDirectory(_basePath);
     }
 
-    public Task<SessionRuntimeState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
     {
         if (!sessionId.HasValue)
         {
             _logger.LogDebug("Loading transient pre-session runtime view");
-            return Task.FromResult(new SessionRuntimeState());
+            return Task.FromResult(new SessionState());
         }
 
         var path = GetPath(sessionId.Value);
@@ -50,14 +50,14 @@ public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
         if (!File.Exists(path))
         {
             _logger.LogDebug("No persisted runtime state for session {SessionId}, returning defaults", sessionId);
-            return Task.FromResult(new SessionRuntimeState { SessionId = sessionId });
+            return Task.FromResult(new SessionState { SessionId = sessionId });
         }
 
         try
         {
             var json = File.ReadAllText(path);
-            var state = JsonSerializer.Deserialize<SessionRuntimeState>(json, JsonOptions)
-                ?? new SessionRuntimeState { SessionId = sessionId };
+            var state = JsonSerializer.Deserialize<SessionState>(json, JsonOptions)
+                ?? new SessionState { SessionId = sessionId };
             state.SessionId = sessionId;
             _logger.LogDebug("Loaded runtime state for session {SessionId}", sessionId);
             return Task.FromResult(state);
@@ -65,11 +65,11 @@ public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to load runtime state for session {SessionId}, returning defaults", sessionId);
-            return Task.FromResult(new SessionRuntimeState { SessionId = sessionId });
+            return Task.FromResult(new SessionState { SessionId = sessionId });
         }
     }
 
-    public async Task SaveAsync(SessionRuntimeState state, CancellationToken ct = default)
+    public async Task SaveAsync(SessionState state, CancellationToken ct = default)
     {
         if (!state.SessionId.HasValue)
         {
@@ -96,15 +96,19 @@ public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<Guid>> FindSessionIdsByProfileIdAsync(string profileId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Guid>> FindSessionIdsByProfileIdAsync(string profileId, CancellationToken ct = default)
     {
         var matches = new List<Guid>();
+
+        // This is currently a rare validation path used during profile deletion.
+        // A full scan is acceptable until real session counts justify a dedicated
+        // index or metadata shortcut.
         foreach (var path in Directory.GetFiles(_basePath, "*.json", SearchOption.TopDirectoryOnly))
         {
             try
             {
-                var json = File.ReadAllText(path);
-                var state = JsonSerializer.Deserialize<SessionRuntimeState>(json, JsonOptions);
+                var json = await File.ReadAllTextAsync(path, ct);
+                var state = JsonSerializer.Deserialize<SessionState>(json, JsonOptions);
                 if (state?.SessionId is not Guid sessionId)
                 {
                     continue;
@@ -129,7 +133,7 @@ public sealed class FileSystemSessionRuntimeStore : ISessionRuntimeStore
             matches.Count,
             profileId);
 
-        return Task.FromResult<IReadOnlyList<Guid>>(matches);
+        return matches;
     }
 
     private string GetPath(Guid sessionId)

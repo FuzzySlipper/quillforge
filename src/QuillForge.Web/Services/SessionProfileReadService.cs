@@ -8,6 +8,10 @@ public interface ISessionProfileReadService
 {
     Task<SessionProfileReadView> LoadAsync(Guid? sessionId, CancellationToken ct = default);
     Task<ProfilesResponse> BuildProfilesResponseAsync(Guid? sessionId, CancellationToken ct = default);
+    Task<PreparedInteractiveRequest> PrepareInteractiveRequestAsync(
+        Guid? sessionId,
+        PrepareInteractiveRequestOptions options,
+        CancellationToken ct = default);
 }
 
 internal static class SessionProfileHydration
@@ -30,7 +34,7 @@ internal static class SessionProfileHydration
 
 public sealed record SessionProfileReadView
 {
-    public required SessionRuntimeState SessionState { get; init; }
+    public required SessionState SessionState { get; init; }
     public required string DefaultProfileId { get; init; }
     public required string ActiveProfileId { get; init; }
     public required string ActiveConductor { get; init; }
@@ -41,10 +45,29 @@ public sealed record SessionProfileReadView
     public string? ActiveUserCharacter { get; init; }
 }
 
+public sealed record PrepareInteractiveRequestOptions
+{
+    public string? RequestedConductor { get; init; }
+    public string? LastAssistantResponse { get; init; }
+    public bool ResolvePortraits { get; init; }
+}
+
+public sealed record PreparedInteractiveRequest
+{
+    public required SessionProfileReadView ProfileView { get; init; }
+    public required InteractiveSessionContext SessionContext { get; init; }
+    public required AgentContext AgentContext { get; init; }
+    public required string Conductor { get; init; }
+    public string? AssistantPortraitUrl { get; init; }
+    public string? UserPortraitUrl { get; init; }
+}
+
 public sealed class SessionProfileReadService : ISessionProfileReadService
 {
-    private readonly ISessionRuntimeService _runtimeService;
+    private readonly ISessionStateService _runtimeService;
     private readonly IProfileConfigService _profileService;
+    private readonly IInteractiveSessionContextService _sessionContextService;
+    private readonly ICharacterCardStore _characterCardStore;
     private readonly IConductorStore _conductorStore;
     private readonly ILoreStore _loreStore;
     private readonly INarrativeRulesStore _narrativeRulesStore;
@@ -52,8 +75,10 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
     private readonly ILogger<SessionProfileReadService> _logger;
 
     public SessionProfileReadService(
-        ISessionRuntimeService runtimeService,
+        ISessionStateService runtimeService,
         IProfileConfigService profileService,
+        IInteractiveSessionContextService sessionContextService,
+        ICharacterCardStore characterCardStore,
         IConductorStore conductorStore,
         ILoreStore loreStore,
         INarrativeRulesStore narrativeRulesStore,
@@ -62,6 +87,8 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
     {
         _runtimeService = runtimeService;
         _profileService = profileService;
+        _sessionContextService = sessionContextService;
+        _characterCardStore = characterCardStore;
         _conductorStore = conductorStore;
         _loreStore = loreStore;
         _narrativeRulesStore = narrativeRulesStore;
@@ -101,6 +128,55 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         return view;
     }
 
+    public async Task<PreparedInteractiveRequest> PrepareInteractiveRequestAsync(
+        Guid? sessionId,
+        PrepareInteractiveRequestOptions options,
+        CancellationToken ct = default)
+    {
+        var view = await LoadAsync(sessionId, ct);
+        var sessionContext = await _sessionContextService.BuildAsync(view.SessionState, ct);
+        var conductor = NormalizeChoice(options.RequestedConductor) ?? view.ActiveConductor;
+        var resolvedSessionId = view.SessionState.SessionId ?? Guid.CreateVersion7();
+
+        string? assistantPortraitUrl = null;
+        string? userPortraitUrl = null;
+        if (options.ResolvePortraits)
+        {
+            assistantPortraitUrl = await ResolvePortraitUrlAsync(view.ActiveAiCharacter, ct);
+            userPortraitUrl = await ResolvePortraitUrlAsync(view.ActiveUserCharacter, ct);
+        }
+
+        var agentContext = new AgentContext
+        {
+            SessionId = resolvedSessionId,
+            ActiveMode = view.SessionState.Mode.ActiveModeName,
+            ActiveLoreSet = view.ActiveLoreSet,
+            ActiveNarrativeRules = view.ActiveNarrativeRules,
+            ActiveWritingStyle = view.ActiveWritingStyle,
+            SessionContext = sessionContext,
+            LastAssistantResponse = NormalizeChoice(options.LastAssistantResponse),
+        };
+
+        _logger.LogInformation(
+            "Prepared interactive request context: session={SessionId} mode={Mode} conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
+            resolvedSessionId,
+            view.SessionState.Mode.ActiveModeName,
+            conductor,
+            view.ActiveLoreSet,
+            view.ActiveNarrativeRules,
+            view.ActiveWritingStyle);
+
+        return new PreparedInteractiveRequest
+        {
+            ProfileView = view,
+            SessionContext = sessionContext,
+            AgentContext = agentContext,
+            Conductor = conductor,
+            AssistantPortraitUrl = assistantPortraitUrl,
+            UserPortraitUrl = userPortraitUrl,
+        };
+    }
+
     public async Task<ProfilesResponse> BuildProfilesResponseAsync(Guid? sessionId, CancellationToken ct = default)
     {
         var view = await LoadAsync(sessionId, ct);
@@ -133,5 +209,22 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
             response.LoreSets.Count);
 
         return response;
+    }
+
+    private async Task<string?> ResolvePortraitUrlAsync(string? characterName, CancellationToken ct)
+    {
+        var normalizedCharacterName = NormalizeChoice(characterName);
+        if (normalizedCharacterName is null)
+        {
+            return null;
+        }
+
+        var card = await _characterCardStore.LoadAsync(normalizedCharacterName, ct);
+        return card?.Portrait is not null ? $"/content/character-cards/{card.Portrait}" : null;
+    }
+
+    private static string? NormalizeChoice(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }

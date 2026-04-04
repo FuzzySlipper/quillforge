@@ -184,12 +184,17 @@ builder.Services.AddSingleton<IMode, CouncilMode>();
 builder.Services.AddSingleton<IMode, ResearchMode>();
 
 builder.Services.AddSingleton<ISessionMutationGate, InMemorySessionMutationGate>();
-builder.Services.AddSingleton<ISessionRuntimeService, SessionRuntimeService>();
+builder.Services.AddSingleton<SessionRuntimeService>();
+builder.Services.AddSingleton<ISessionStateService>(sp =>
+    sp.GetRequiredService<SessionRuntimeService>());
+builder.Services.AddSingleton<ISessionRuntimeService>(sp =>
+    sp.GetRequiredService<SessionRuntimeService>());
 builder.Services.AddSingleton<ISessionBootstrapService, SessionBootstrapService>();
 builder.Services.AddSingleton<ISessionLifecycleService, SessionLifecycleService>();
 builder.Services.AddSingleton<IInteractiveSessionContextService, InteractiveSessionContextService>();
 builder.Services.AddSingleton<IProfileConfigService, ProfileConfigService>();
 builder.Services.AddSingleton<ISessionProfileReadService, SessionProfileReadService>();
+builder.Services.AddSingleton<ICharacterCardCommandService, CharacterCardCommandService>();
 
 // --- Orchestrator ---
 builder.Services.AddSingleton<OrchestratorAgent>();

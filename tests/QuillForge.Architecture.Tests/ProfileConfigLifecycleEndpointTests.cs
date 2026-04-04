@@ -78,7 +78,7 @@ public sealed class ProfileConfigLifecycleEndpointTests
         builder.Services.AddSingleton<IContentFileService>(new NoOpContentFileService());
         builder.Services.AddSingleton<ISessionProfileReadService>(new NoOpSessionProfileReadService());
         builder.Services.AddSingleton<ISessionBootstrapService>(new NoOpSessionBootstrapService());
-        builder.Services.AddSingleton<ISessionRuntimeService>(new NoOpSessionRuntimeService());
+        builder.Services.AddSingleton<ISessionStateService>(new NoOpSessionRuntimeService());
         builder.Services.AddSingleton<ISessionLifecycleService>(new NoOpSessionLifecycleService());
         builder.Services.AddSingleton(new AppConfig());
         builder.Services.AddSingleton<IAppConfigStore>(new NoOpAppConfigStore());
@@ -273,6 +273,9 @@ public sealed class ProfileConfigLifecycleEndpointTests
 
         public Task<ProfilesResponse> BuildProfilesResponseAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
+
+        public Task<PreparedInteractiveRequest> PrepareInteractiveRequestAsync(Guid? sessionId, PrepareInteractiveRequestOptions options, CancellationToken ct = default)
+            => throw new NotSupportedException();
     }
 
     private sealed class NoOpSessionBootstrapService : ISessionBootstrapService
@@ -281,36 +284,36 @@ public sealed class ProfileConfigLifecycleEndpointTests
             => throw new NotSupportedException();
     }
 
-    private sealed class NoOpSessionRuntimeService : ISessionRuntimeService
+    private sealed class NoOpSessionRuntimeService : ISessionStateService
     {
-        public Task<SessionRuntimeState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
+        public Task<SessionState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
         public Task<SessionMutationResult<WriterPendingDecisionResult>> AcceptWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> UpdateNarrativeStateAsync(Guid? sessionId, UpdateNarrativeStateCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> UpdateNarrativeStateAsync(Guid? sessionId, UpdateNarrativeStateCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> SetActivePlotAsync(Guid? sessionId, SetActivePlotCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> SetActivePlotAsync(Guid? sessionId, SetActivePlotCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> ClearActivePlotAsync(Guid? sessionId, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> ClearActivePlotAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
     }
 

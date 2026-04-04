@@ -19,12 +19,11 @@ public static class ChatEndpoints
         app.MapPost("/api/chat/stream", async (
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
-            ISessionRuntimeService runtimeService,
+            ISessionStateService runtimeService,
             ISessionBootstrapService bootstrapService,
-            IInteractiveSessionContextService sessionContextService,
+            ISessionProfileReadService profileReadService,
             ISessionStore sessionStore,
             IEnumerable<IToolHandler> toolHandlers,
-            ICharacterCardStore cardStore,
             AppConfig appConfig,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -104,24 +103,18 @@ public static class ChatEndpoints
                 .GetText();
 
             // Load per-session runtime state
-            var sessionState = await runtimeService.LoadViewAsync(sessionId, ct);
-            var sessionContext = await sessionContextService.BuildAsync(sessionState, ct);
-            var assistantPortraitUrl = await GetPortraitUrlAsync(sessionState.Roleplay.ActiveAiCharacter, cardStore, ct);
-            var userPortraitUrl = await GetPortraitUrlAsync(sessionState.Roleplay.ActiveUserCharacter, cardStore, ct);
-
-            var context = new AgentContext
-            {
-                SessionId = sessionId,
-                ActiveMode = sessionState.Mode.ActiveModeName,
-                ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(sessionState.Profile),
-                ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(sessionState.Profile),
-                ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(sessionState.Profile),
-                SessionContext = sessionContext,
-                LastAssistantResponse = lastAssistantResponse,
-            };
-            var conductor = string.IsNullOrWhiteSpace(requestedConductor)
-                ? SessionProfileHydration.RequireActiveConductor(sessionState.Profile)
-                : requestedConductor;
+            var prepared = await profileReadService.PrepareInteractiveRequestAsync(
+                sessionId,
+                new PrepareInteractiveRequestOptions
+                {
+                    RequestedConductor = requestedConductor,
+                    LastAssistantResponse = lastAssistantResponse,
+                    ResolvePortraits = true,
+                },
+                ct);
+            var sessionState = prepared.ProfileView.SessionState;
+            var context = prepared.AgentContext;
+            var conductor = prepared.Conductor;
 
             // Stream SSE response, collecting assistant text for persistence
             httpContext.Response.ContentType = "text/event-stream";
@@ -151,7 +144,7 @@ public static class ChatEndpoints
                 {
                     TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new ChatTextDeltaDto { Text = text.Text }, s_jsonOptions)}\n\n",
                     ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new ChatToolDto { Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
-                    DoneEvent done => $"data: {JsonSerializer.Serialize(new ChatDoneDto { SessionId = sessionId, ParentId = appendParentId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new ChatUsageDto { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = assistantPortraitUrl, UserPortrait = userPortraitUrl }, s_jsonOptions)}\n\n",
+                    DoneEvent done => $"data: {JsonSerializer.Serialize(new ChatDoneDto { SessionId = sessionId, ParentId = appendParentId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new ChatUsageDto { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = prepared.AssistantPortraitUrl, UserPortrait = prepared.UserPortraitUrl }, s_jsonOptions)}\n\n",
                     ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new ChatReasoningDeltaDto { Text = reasoning.Text }, s_jsonOptions)}\n\n",
                     DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new ChatDiagnosticDto { Category = diag.Category, Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
                     _ => null,
@@ -329,10 +322,4 @@ public static class ChatEndpoints
         });
     }
 
-    private static async Task<string?> GetPortraitUrlAsync(string? characterName, ICharacterCardStore cardStore, CancellationToken ct)
-    {
-        if (string.IsNullOrEmpty(characterName)) return null;
-        var card = await cardStore.LoadAsync(characterName, ct);
-        return card?.Portrait is not null ? $"/content/character-cards/{card.Portrait}" : null;
-    }
 }

@@ -3,7 +3,7 @@ using QuillForge.Core.Models;
 namespace QuillForge.Core.Services;
 
 /// <summary>
-/// Persistence for per-session runtime state. Keyed by session ID.
+/// Persistence for per-session state. Keyed by session ID.
 /// Implementations should use atomic writes for crash safety.
 ///
 /// Persistence plan:
@@ -15,19 +15,19 @@ namespace QuillForge.Core.Services;
 /// SessionId == null is a transient pre-session view used by read paths before a
 /// real session has been created. It is not persisted.
 /// </summary>
-public interface ISessionRuntimeStore
+public interface ISessionStateStore
 {
     /// <summary>
-    /// Loads runtime state for the given session. Returns a fresh default state
+    /// Loads session state for the given session. Returns a fresh default state
     /// if no persisted state exists. Passing null returns the transient
     /// pre-session default view.
     /// </summary>
-    Task<SessionRuntimeState> LoadAsync(Guid? sessionId, CancellationToken ct = default);
+    Task<SessionState> LoadAsync(Guid? sessionId, CancellationToken ct = default);
 
     /// <summary>
-    /// Persists runtime state for the given session. Atomic write.
+    /// Persists session state for the given session. Atomic write.
     /// </summary>
-    Task SaveAsync(SessionRuntimeState state, CancellationToken ct = default);
+    Task SaveAsync(SessionState state, CancellationToken ct = default);
 
     /// <summary>
     /// Deletes persisted runtime state for a session (e.g., when session is deleted).
@@ -39,4 +39,8 @@ public interface ISessionRuntimeStore
     /// given durable profile ID.
     /// </summary>
     Task<IReadOnlyList<Guid>> FindSessionIdsByProfileIdAsync(string profileId, CancellationToken ct = default);
+}
+
+public interface ISessionRuntimeStore : ISessionStateStore
+{
 }

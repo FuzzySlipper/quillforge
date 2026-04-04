@@ -15,7 +15,7 @@ public static class ProfileEndpoints
         app.MapPost("/api/profiles/switch", async (
             ProfileSwitchRequest request,
             ISessionBootstrapService bootstrapService,
-            ISessionRuntimeService runtimeService,
+            ISessionStateService runtimeService,
             ISessionLifecycleService lifecycleService,
             CancellationToken ct) =>
         {

@@ -14,12 +14,12 @@ namespace QuillForge.Architecture.Tests;
 public class SessionRuntimeStateTests
 {
     [Fact]
-    public void SessionRuntimeState_OwnsExactlyFiveSubStates()
+    public void SessionState_OwnsExactlyFiveSubStates()
     {
         // The aggregate should have exactly Mode, Profile, Roleplay, Writer, and
         // Narrative sub-states
         // plus SessionId and LastModified metadata. No flat bag of nullable fields.
-        var props = typeof(SessionRuntimeState).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        var props = typeof(SessionState).GetProperties(BindingFlags.Public | BindingFlags.Instance);
         var subStateProps = props.Where(p =>
             p.PropertyType == typeof(ModeSelectionState) ||
             p.PropertyType == typeof(ProfileState) ||
@@ -39,7 +39,7 @@ public class SessionRuntimeStateTests
     [Fact]
     public void SubStates_AreNotNullByDefault()
     {
-        var state = new SessionRuntimeState();
+        var state = new SessionState();
         Assert.NotNull(state.Mode);
         Assert.NotNull(state.Profile);
         Assert.NotNull(state.Roleplay);
@@ -70,7 +70,7 @@ public class SessionRuntimeStateTests
     [Fact]
     public void ProfileState_DeserializesLegacyActivePersonaIntoActiveConductor()
     {
-        var state = JsonSerializer.Deserialize<SessionRuntimeState>(
+        var state = JsonSerializer.Deserialize<SessionState>(
             """
             {
               "profile": {
@@ -111,7 +111,7 @@ public class SessionRuntimeStateTests
     public void ModeFields_DoNotExist_OnTopLevelAggregate()
     {
         // Ensure mode-specific fields aren't duplicated at the top level
-        var topProps = typeof(SessionRuntimeState).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+        var topProps = typeof(SessionState).GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Select(p => p.Name)
             .ToHashSet();
 
@@ -123,17 +123,17 @@ public class SessionRuntimeStateTests
     }
 
     [Fact]
-    public void ISessionRuntimeStore_ExistsInCore()
+    public void ISessionStateStore_ExistsInCore()
     {
-        var storeType = typeof(ISessionRuntimeStore);
+        var storeType = typeof(ISessionStateStore);
         Assert.True(storeType.IsInterface);
         Assert.Equal("QuillForge.Core", storeType.Assembly.GetName().Name);
     }
 
     [Fact]
-    public void ISessionRuntimeStore_HasLoadSaveDelete()
+    public void ISessionStateStore_HasLoadSaveDelete()
     {
-        var methods = typeof(ISessionRuntimeStore).GetMethods()
+        var methods = typeof(ISessionStateStore).GetMethods()
             .Select(m => m.Name)
             .ToHashSet();
 
@@ -143,11 +143,19 @@ public class SessionRuntimeStateTests
     }
 
     [Fact]
-    public void ISessionRuntimeService_ExistsInCore()
+    public void ISessionStateService_ExistsInCore()
     {
-        var serviceType = typeof(ISessionRuntimeService);
+        var serviceType = typeof(ISessionStateService);
         Assert.True(serviceType.IsInterface);
         Assert.Equal("QuillForge.Core", serviceType.Assembly.GetName().Name);
+    }
+
+    [Fact]
+    public void LegacyRuntimeNames_RemainAvailableAsCompatibilityShims()
+    {
+        Assert.True(typeof(ISessionRuntimeService).IsInterface);
+        Assert.True(typeof(ISessionRuntimeStore).IsInterface);
+        Assert.True(typeof(SessionRuntimeState).IsAssignableTo(typeof(SessionState)));
     }
 
     [Fact]
@@ -208,10 +216,10 @@ public class SessionRuntimeStateTests
     }
 
     [Fact]
-    public void SessionRuntimeState_FullyPopulated_HasExpectedValues()
+    public void SessionState_FullyPopulated_HasExpectedValues()
     {
         var sessionId = Guid.NewGuid();
-        var state = new SessionRuntimeState
+        var state = new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState

@@ -147,7 +147,8 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         builder.Services.AddSingleton<INarrativeRulesStore>(new TestNarrativeRulesStore());
         builder.Services.AddSingleton<IWritingStyleStore>(new TestWritingStyleStore());
         builder.Services.AddSingleton<IProfileConfigService>(new TestProfileConfigService());
-        builder.Services.AddSingleton<ISessionRuntimeService>(new TestSessionRuntimeService());
+        builder.Services.AddSingleton<ISessionStateService>(new TestSessionRuntimeService());
+        builder.Services.AddSingleton<IInteractiveSessionContextService>(new TestInteractiveSessionContextService());
         builder.Services.AddSingleton<ISessionBootstrapService>(new NoOpSessionBootstrapService());
         builder.Services.AddSingleton<ISessionLifecycleService>(new NoOpSessionLifecycleService());
         builder.Services.AddSingleton<ISessionProfileReadService, SessionProfileReadService>();
@@ -219,12 +220,12 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         return metadata is null || metadata.HttpMethods.Contains(method, StringComparer.OrdinalIgnoreCase);
     }
 
-    private sealed class TestSessionRuntimeService : ISessionRuntimeService
+    private sealed class TestSessionRuntimeService : ISessionStateService
     {
-        public Task<SessionRuntimeState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
+        public Task<SessionState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
         {
             var state = sessionId.HasValue
-                ? new SessionRuntimeState
+                ? new SessionState
                 {
                     SessionId = sessionId,
                     Mode = new ModeSelectionState
@@ -247,7 +248,7 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
                         ActiveUserCharacter = "SessionAuthor",
                     },
                 }
-                : new SessionRuntimeState
+                : new SessionState
                 {
                     Mode = new ModeSelectionState { ActiveModeName = "general" },
                     Profile = new ProfileState
@@ -268,31 +269,31 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
             return Task.FromResult(state);
         }
 
-        public Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
         public Task<SessionMutationResult<WriterPendingDecisionResult>> AcceptWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> UpdateNarrativeStateAsync(Guid? sessionId, UpdateNarrativeStateCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> UpdateNarrativeStateAsync(Guid? sessionId, UpdateNarrativeStateCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> SetActivePlotAsync(Guid? sessionId, SetActivePlotCommand command, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> SetActivePlotAsync(Guid? sessionId, SetActivePlotCommand command, CancellationToken ct = default)
             => throw new NotSupportedException();
 
-        public Task<SessionMutationResult<SessionRuntimeState>> ClearActivePlotAsync(Guid? sessionId, CancellationToken ct = default)
+        public Task<SessionMutationResult<SessionState>> ClearActivePlotAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
     }
 
@@ -323,6 +324,21 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
             => throw new NotSupportedException();
 
         public Task<ProfileState> BuildSessionProfileStateAsync(string? profileId = null, CancellationToken ct = default)
+            => throw new NotSupportedException();
+    }
+
+    private sealed class TestInteractiveSessionContextService : IInteractiveSessionContextService
+    {
+        public Task<InteractiveSessionContext> BuildAsync(SessionState state, CancellationToken ct = default)
+            => Task.FromResult(new InteractiveSessionContext
+            {
+                ActiveModeName = state.Mode.ActiveModeName,
+                ProjectName = state.Mode.ProjectName ?? "session-project",
+                StoryStatePath = $"{state.Mode.ProjectName ?? "session-project"}/.state.yaml",
+                CurrentFile = state.Mode.CurrentFile,
+            });
+
+        public Task<InteractiveSessionContext> LoadAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
     }
 
@@ -389,6 +405,9 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
 
         public Task SaveAsync(string fileName, CharacterCard card, CancellationToken ct = default)
             => throw new NotSupportedException();
+
+        public Task<bool> DeleteAsync(string fileName, CancellationToken ct = default)
+            => Task.FromResult(false);
 
         public Task<IReadOnlyList<CharacterCard>> ListAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<CharacterCard>>([

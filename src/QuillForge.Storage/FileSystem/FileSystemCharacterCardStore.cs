@@ -97,6 +97,20 @@ public sealed class FileSystemCharacterCardStore : ICharacterCardStore
         _logger.LogInformation("Saved character card: {FileName}", fileName);
     }
 
+    public Task<bool> DeleteAsync(string fileName, CancellationToken ct = default)
+    {
+        var path = Path.Combine(_cardsPath, fileName + ".yaml");
+        if (!File.Exists(path))
+        {
+            _logger.LogWarning("Character card not found for delete: {Path}", path);
+            return Task.FromResult(false);
+        }
+
+        File.Delete(path);
+        _logger.LogInformation("Deleted character card: {FileName}", fileName);
+        return Task.FromResult(true);
+    }
+
     public Task<IReadOnlyList<CharacterCard>> ListAsync(CancellationToken ct = default)
     {
         if (!Directory.Exists(_cardsPath))

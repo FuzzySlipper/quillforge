@@ -6,7 +6,7 @@ namespace QuillForge.Core.Services;
 
 public sealed class InteractiveSessionContextService : IInteractiveSessionContextService
 {
-    private readonly ISessionRuntimeService _runtimeService;
+    private readonly ISessionStateService _runtimeService;
     private readonly ICharacterCardStore _characterCardStore;
     private readonly IStoryStateService _storyStateService;
     private readonly IContentFileService _contentFileService;
@@ -14,7 +14,7 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
     private readonly ILogger<InteractiveSessionContextService> _logger;
 
     public InteractiveSessionContextService(
-        ISessionRuntimeService runtimeService,
+        ISessionStateService runtimeService,
         ICharacterCardStore characterCardStore,
         IStoryStateService storyStateService,
         IContentFileService contentFileService,
@@ -30,7 +30,7 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
     }
 
     public async Task<InteractiveSessionContext> BuildAsync(
-        SessionRuntimeState state,
+        SessionState state,
         CancellationToken ct = default)
     {
         string? characterSection = null;

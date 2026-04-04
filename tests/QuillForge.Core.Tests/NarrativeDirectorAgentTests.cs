@@ -144,57 +144,57 @@ internal sealed class EmptyLoreStore : ILoreStore
     }
 }
 
-internal sealed class FakeSessionRuntimeService : ISessionRuntimeService
+internal sealed class FakeSessionRuntimeService : ISessionStateService
 {
     public Task<SessionMutationResult<WriterPendingDecisionResult>> AcceptWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }
 
-    public Task<SessionMutationResult<SessionRuntimeState>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }
 
-    public Task<SessionRuntimeState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
     {
-        return Task.FromResult(new SessionRuntimeState { SessionId = sessionId });
+        return Task.FromResult(new SessionState { SessionId = sessionId });
     }
 
-    public Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }
 
-    public Task<SessionMutationResult<SessionRuntimeState>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }
 
-    public Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }
 
-    public Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }
 
-    public Task<SessionMutationResult<SessionRuntimeState>> SetActivePlotAsync(Guid? sessionId, SetActivePlotCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> SetActivePlotAsync(Guid? sessionId, SetActivePlotCommand command, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }
 
-    public Task<SessionMutationResult<SessionRuntimeState>> ClearActivePlotAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> ClearActivePlotAsync(Guid? sessionId, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }
 
-    public Task<SessionMutationResult<SessionRuntimeState>> UpdateNarrativeStateAsync(Guid? sessionId, UpdateNarrativeStateCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<SessionState>> UpdateNarrativeStateAsync(Guid? sessionId, UpdateNarrativeStateCommand command, CancellationToken ct = default)
     {
-        return Task.FromResult(SessionMutationResult<SessionRuntimeState>.Success(
-            new SessionRuntimeState
+        return Task.FromResult(SessionMutationResult<SessionState>.Success(
+            new SessionState
             {
                 SessionId = sessionId,
                 Narrative = new NarrativeRuntimeState

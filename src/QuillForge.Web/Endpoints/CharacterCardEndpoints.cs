@@ -1,7 +1,9 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Web.Services;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -35,7 +37,7 @@ public static class CharacterCardEndpoints
         app.MapGet("/api/character-cards", async (
             HttpContext httpContext,
             ICharacterCardStore store,
-            ISessionRuntimeService runtimeService,
+            ISessionStateService runtimeService,
             CancellationToken ct) =>
         {
             var cards = await store.ListAsync(ct);
@@ -103,48 +105,33 @@ public static class CharacterCardEndpoints
             return Results.Ok(new { Status = "ok" });
         });
 
-        app.MapDelete("/api/character-cards/{name}", (string name, ICharacterCardStore store) =>
+        app.MapDelete("/api/character-cards/{name}", async (
+            string name,
+            [FromServices] ICharacterCardCommandService commandService,
+            CancellationToken ct) =>
         {
-            var cardsDir = Path.Combine(contentRoot, ContentPaths.CharacterCards);
-            var path = Path.Combine(cardsDir, name + ".yaml");
-            if (!File.Exists(path))
+            var deleted = await commandService.DeleteAsync(name, ct);
+            if (!deleted)
             {
                 return Results.NotFound(new { Error = "Card not found" });
             }
-            File.Delete(path);
+
             return Results.Ok(new { Deleted = name });
         });
 
         app.MapPost("/api/character-cards/activate", async (
             HttpContext httpContext,
-            ISessionRuntimeService runtimeService,
-            ISessionBootstrapService bootstrapService,
-            ISessionLifecycleService lifecycleService,
+            [FromServices] ICharacterCardCommandService commandService,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var sessionId = root.GetOptionalGuid("sessionId");
             var aiCharacter = root.TryGetProperty("aiCharacter", out var ai) ? ai.GetString() : null;
             var userCharacter = root.TryGetProperty("userCharacter", out var user) ? user.GetString() : null;
-            Guid? createdSessionId = null;
-
-            if (!sessionId.HasValue)
-            {
-                var tree = await bootstrapService.CreateAsync(
-                    new CreateSessionCommand
-                    {
-                        Name = "New Session",
-                    },
-                    ct);
-                sessionId = tree.SessionId;
-                createdSessionId = tree.SessionId;
-            }
-
-            var result = await runtimeService.SetRoleplayAsync(
-                sessionId,
-                new SetSessionRoleplayCommand(
+            var result = await commandService.ActivateAsync(
+                new ActivateCharacterCardsCommand(
+                    root.GetOptionalGuid("sessionId"),
                     root.TryGetProperty("aiCharacter", out _),
                     aiCharacter,
                     root.TryGetProperty("userCharacter", out _),
@@ -153,14 +140,18 @@ public static class CharacterCardEndpoints
 
             if (result.Status == SessionMutationStatus.Busy)
             {
-                if (createdSessionId.HasValue)
-                {
-                    await lifecycleService.DeleteAsync(createdSessionId.Value, ct);
-                }
-
                 return Results.Conflict(new
                 {
                     error = "session_busy",
+                    message = result.Error,
+                });
+            }
+
+            if (result.Status == SessionMutationStatus.Invalid)
+            {
+                return Results.BadRequest(new
+                {
+                    error = "invalid_session_mutation",
                     message = result.Error,
                 });
             }

@@ -6,13 +6,13 @@ namespace QuillForge.Core.Services;
 public sealed class SessionLifecycleService : ISessionLifecycleService
 {
     private readonly ISessionStore _sessionStore;
-    private readonly ISessionRuntimeStore _runtimeStore;
+    private readonly ISessionStateStore _runtimeStore;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<SessionLifecycleService> _logger;
 
     public SessionLifecycleService(
         ISessionStore sessionStore,
-        ISessionRuntimeStore runtimeStore,
+        ISessionStateStore runtimeStore,
         ILoggerFactory loggerFactory,
         ILogger<SessionLifecycleService> logger)
     {
@@ -63,9 +63,9 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
         _logger.LogInformation("Deleted session unit {SessionId}", sessionId);
     }
 
-    private static SessionRuntimeState CloneRuntimeStateForFork(SessionRuntimeState source, Guid forkedSessionId)
+    private static SessionState CloneRuntimeStateForFork(SessionState source, Guid forkedSessionId)
     {
-        return new SessionRuntimeState
+        return new SessionState
         {
             SessionId = forkedSessionId,
             Mode = new ModeSelectionState

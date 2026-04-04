@@ -2,26 +2,26 @@ using QuillForge.Core.Models;
 
 namespace QuillForge.Core.Services;
 
-public interface ISessionRuntimeService
+public interface ISessionStateService
 {
-    Task<SessionRuntimeState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default);
+    Task<SessionState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default);
 
-    Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(
+    Task<SessionMutationResult<SessionState>> SetProfileAsync(
         Guid? sessionId,
         SetSessionProfileCommand command,
         CancellationToken ct = default);
 
-    Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(
+    Task<SessionMutationResult<SessionState>> SetRoleplayAsync(
         Guid? sessionId,
         SetSessionRoleplayCommand command,
         CancellationToken ct = default);
 
-    Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(
+    Task<SessionMutationResult<SessionState>> SetModeAsync(
         Guid? sessionId,
         SetSessionModeCommand command,
         CancellationToken ct = default);
 
-    Task<SessionMutationResult<SessionRuntimeState>> CaptureWriterPendingAsync(
+    Task<SessionMutationResult<SessionState>> CaptureWriterPendingAsync(
         Guid? sessionId,
         CaptureWriterPendingCommand command,
         CancellationToken ct = default);
@@ -30,21 +30,25 @@ public interface ISessionRuntimeService
         Guid? sessionId,
         CancellationToken ct = default);
 
-    Task<SessionMutationResult<SessionRuntimeState>> RejectWriterPendingAsync(
+    Task<SessionMutationResult<SessionState>> RejectWriterPendingAsync(
         Guid? sessionId,
         CancellationToken ct = default);
 
-    Task<SessionMutationResult<SessionRuntimeState>> UpdateNarrativeStateAsync(
+    Task<SessionMutationResult<SessionState>> UpdateNarrativeStateAsync(
         Guid? sessionId,
         UpdateNarrativeStateCommand command,
         CancellationToken ct = default);
 
-    Task<SessionMutationResult<SessionRuntimeState>> SetActivePlotAsync(
+    Task<SessionMutationResult<SessionState>> SetActivePlotAsync(
         Guid? sessionId,
         SetActivePlotCommand command,
         CancellationToken ct = default);
 
-    Task<SessionMutationResult<SessionRuntimeState>> ClearActivePlotAsync(
+    Task<SessionMutationResult<SessionState>> ClearActivePlotAsync(
         Guid? sessionId,
         CancellationToken ct = default);
+}
+
+public interface ISessionRuntimeService : ISessionStateService
+{
 }

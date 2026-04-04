@@ -6,14 +6,14 @@ namespace QuillForge.Core.Services;
 public sealed class SessionBootstrapService : ISessionBootstrapService
 {
     private readonly ISessionStore _sessionStore;
-    private readonly ISessionRuntimeStore _runtimeStore;
+    private readonly ISessionStateStore _runtimeStore;
     private readonly IProfileConfigService _profileService;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<SessionBootstrapService> _logger;
 
     public SessionBootstrapService(
         ISessionStore sessionStore,
-        ISessionRuntimeStore runtimeStore,
+        ISessionStateStore runtimeStore,
         IProfileConfigService profileService,
         ILoggerFactory loggerFactory,
         ILogger<SessionBootstrapService> logger)
@@ -27,8 +27,11 @@ public sealed class SessionBootstrapService : ISessionBootstrapService
 
     public async Task<ConversationTree> CreateAsync(CreateSessionCommand command, CancellationToken ct = default)
     {
-        var runtimeProfile = await _profileService.BuildSessionProfileStateAsync(command.ProfileId, ct);
         var resolvedProfile = await _profileService.LoadResolvedAsync(command.ProfileId, ct);
+        var runtimeProfile = new ProfileState
+        {
+            ProfileId = resolvedProfile.ProfileId,
+        };
         var sessionId = command.SessionId ?? Guid.CreateVersion7();
         var sessionName = string.IsNullOrWhiteSpace(command.Name) ? "New Session" : command.Name.Trim();
 
@@ -41,15 +44,10 @@ public sealed class SessionBootstrapService : ISessionBootstrapService
 
         try
         {
-            await _runtimeStore.SaveAsync(new SessionRuntimeState
+            await _runtimeStore.SaveAsync(new SessionState
             {
                 SessionId = sessionId,
                 Profile = runtimeProfile,
-                Roleplay = new RoleplayRuntimeState
-                {
-                    ActiveAiCharacter = resolvedProfile.Config.Roleplay.AiCharacter,
-                    ActiveUserCharacter = resolvedProfile.Config.Roleplay.UserCharacter,
-                },
             }, ct);
         }
         catch
@@ -70,12 +68,11 @@ public sealed class SessionBootstrapService : ISessionBootstrapService
         }
 
         _logger.LogInformation(
-            "Created session bootstrap: session={SessionId} name={Name} profileId={ProfileId} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
+            "Created session bootstrap: session={SessionId} name={Name} profileId={ProfileId} seededRoleplayFromProfileDefaults={SeededRoleplayFromProfileDefaults}",
             sessionId,
             sessionName,
             runtimeProfile.ProfileId,
-            resolvedProfile.Config.Roleplay.AiCharacter,
-            resolvedProfile.Config.Roleplay.UserCharacter);
+            false);
 
         return tree;
     }

@@ -78,7 +78,7 @@ public class SessionRuntimeStoreTests : IDisposable
     public async Task SaveAndLoad_RoundTripsState()
     {
         var sessionId = Guid.NewGuid();
-        var state = new SessionRuntimeState
+        var state = new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState
@@ -150,7 +150,7 @@ public class SessionRuntimeStoreTests : IDisposable
     [Fact]
     public async Task Save_NullSessionId_Throws()
     {
-        var state = new SessionRuntimeState();
+        var state = new SessionState();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => _store.SaveAsync(state));
     }
@@ -161,12 +161,12 @@ public class SessionRuntimeStoreTests : IDisposable
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
 
-        await _store.SaveAsync(new SessionRuntimeState
+        await _store.SaveAsync(new SessionState
         {
             SessionId = id1,
             Mode = new ModeSelectionState { ActiveModeName = "writer", ProjectName = "novel-a" },
         });
-        await _store.SaveAsync(new SessionRuntimeState
+        await _store.SaveAsync(new SessionState
         {
             SessionId = id2,
             Mode = new ModeSelectionState { ActiveModeName = "roleplay", Character = "villain" },
@@ -185,7 +185,7 @@ public class SessionRuntimeStoreTests : IDisposable
     public async Task Delete_RemovesPersistedState()
     {
         var sessionId = Guid.NewGuid();
-        await _store.SaveAsync(new SessionRuntimeState
+        await _store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveModeName = "writer" },
@@ -202,7 +202,7 @@ public class SessionRuntimeStoreTests : IDisposable
     public async Task Save_UpdatesLastModified()
     {
         var sessionId = Guid.NewGuid();
-        var state = new SessionRuntimeState { SessionId = sessionId };
+        var state = new SessionState { SessionId = sessionId };
         var before = DateTimeOffset.UtcNow.AddSeconds(-1);
 
         await _store.SaveAsync(state);
@@ -217,7 +217,7 @@ public class SessionRuntimeStoreTests : IDisposable
         var firstSessionId = Guid.NewGuid();
         var secondSessionId = Guid.NewGuid();
 
-        await _store.SaveAsync(new SessionRuntimeState
+        await _store.SaveAsync(new SessionState
         {
             SessionId = firstSessionId,
             Profile = new ProfileState
@@ -225,7 +225,7 @@ public class SessionRuntimeStoreTests : IDisposable
                 ProfileId = "grim",
             },
         });
-        await _store.SaveAsync(new SessionRuntimeState
+        await _store.SaveAsync(new SessionState
         {
             SessionId = secondSessionId,
             Profile = new ProfileState

@@ -4,20 +4,20 @@ using QuillForge.Core.Models;
 
 namespace QuillForge.Core.Services;
 
-public sealed class SessionRuntimeService : ISessionRuntimeService
+public sealed class SessionRuntimeService : ISessionStateService, ISessionRuntimeService
 {
     private const string GeneralModeName = "general";
     private const string WriterModeName = "writer";
     private const int PendingContentThreshold = 200;
 
-    private readonly ISessionRuntimeStore _store;
+    private readonly ISessionStateStore _store;
     private readonly ISessionMutationGate _gate;
     private readonly IProfileConfigService _profileService;
     private readonly HashSet<string> _knownModes;
     private readonly ILogger<SessionRuntimeService> _logger;
 
     public SessionRuntimeService(
-        ISessionRuntimeStore store,
+        ISessionStateStore store,
         ISessionMutationGate gate,
         IProfileConfigService profileService,
         IEnumerable<IMode> modes,
@@ -35,13 +35,13 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         }
     }
 
-    public async Task<SessionRuntimeState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
+    public async Task<SessionState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
     {
         var state = await LoadStateAsync(sessionId, ct);
         return await HydrateProfileViewAsync(state, ct);
     }
 
-    public async Task<SessionMutationResult<SessionRuntimeState>> SetProfileAsync(
+    public async Task<SessionMutationResult<SessionState>> SetProfileAsync(
         Guid? sessionId,
         SetSessionProfileCommand command,
         CancellationToken ct = default)
@@ -51,7 +51,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<SessionRuntimeState>.Busy(
+            return SessionMutationResult<SessionState>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
@@ -125,21 +125,21 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 hydrated.Roleplay.ActiveAiCharacter,
                 hydrated.Roleplay.ActiveUserCharacter);
 
-            return SessionMutationResult<SessionRuntimeState>.Success(hydrated);
+            return SessionMutationResult<SessionState>.Success(hydrated);
         }
         catch (FileNotFoundException ex)
         {
             _logger.LogWarning(ex, "Session profile update rejected: session={SessionId} profile not found", sessionId);
-            return SessionMutationResult<SessionRuntimeState>.Invalid(ex.Message);
+            return SessionMutationResult<SessionState>.Invalid(ex.Message);
         }
         catch (ArgumentException ex)
         {
             _logger.LogWarning(ex, "Session profile update rejected: session={SessionId} invalid request", sessionId);
-            return SessionMutationResult<SessionRuntimeState>.Invalid(ex.Message);
+            return SessionMutationResult<SessionState>.Invalid(ex.Message);
         }
     }
 
-    public async Task<SessionMutationResult<SessionRuntimeState>> SetRoleplayAsync(
+    public async Task<SessionMutationResult<SessionState>> SetRoleplayAsync(
         Guid? sessionId,
         SetSessionRoleplayCommand command,
         CancellationToken ct = default)
@@ -149,7 +149,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<SessionRuntimeState>.Busy(
+            return SessionMutationResult<SessionState>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
@@ -184,10 +184,10 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             state.Roleplay.HasExplicitAiCharacterSelection,
             state.Roleplay.HasExplicitUserCharacterSelection);
 
-        return SessionMutationResult<SessionRuntimeState>.Success(hydrated);
+        return SessionMutationResult<SessionState>.Success(hydrated);
     }
 
-    public async Task<SessionMutationResult<SessionRuntimeState>> SetModeAsync(
+    public async Task<SessionMutationResult<SessionState>> SetModeAsync(
         Guid? sessionId,
         SetSessionModeCommand command,
         CancellationToken ct = default)
@@ -197,7 +197,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<SessionRuntimeState>.Busy(
+            return SessionMutationResult<SessionState>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
@@ -207,7 +207,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 "Session mode update rejected: session={SessionId} invalidMode={Mode}",
                 sessionId,
                 command.Mode);
-            return SessionMutationResult<SessionRuntimeState>.Invalid($"Unknown mode: {command.Mode}");
+            return SessionMutationResult<SessionState>.Invalid($"Unknown mode: {command.Mode}");
         }
 
         var state = await LoadStateAsync(sessionId, ct);
@@ -260,10 +260,10 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             hydrated.Mode.CurrentFile,
             hydrated.Mode.Character);
 
-        return SessionMutationResult<SessionRuntimeState>.Success(hydrated);
+        return SessionMutationResult<SessionState>.Success(hydrated);
     }
 
-    public async Task<SessionMutationResult<SessionRuntimeState>> CaptureWriterPendingAsync(
+    public async Task<SessionMutationResult<SessionState>> CaptureWriterPendingAsync(
         Guid? sessionId,
         CaptureWriterPendingCommand command,
         CancellationToken ct = default)
@@ -273,7 +273,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<SessionRuntimeState>.Busy(
+            return SessionMutationResult<SessionState>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
@@ -285,7 +285,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 sessionId,
                 state.Mode.ActiveModeName,
                 command.SourceMode);
-            return SessionMutationResult<SessionRuntimeState>.Success(await HydrateProfileViewAsync(state, ct));
+            return SessionMutationResult<SessionState>.Success(await HydrateProfileViewAsync(state, ct));
         }
 
         if (state.Writer.State != WriterState.Idle)
@@ -294,7 +294,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 "Writer pending capture skipped: session={SessionId} writerState={WriterState}",
                 sessionId,
                 state.Writer.State);
-            return SessionMutationResult<SessionRuntimeState>.Success(await HydrateProfileViewAsync(state, ct));
+            return SessionMutationResult<SessionState>.Success(await HydrateProfileViewAsync(state, ct));
         }
 
         if (string.IsNullOrWhiteSpace(command.Content) || command.Content.Length <= PendingContentThreshold)
@@ -303,7 +303,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
                 "Writer pending capture skipped: session={SessionId} contentLength={Length}",
                 sessionId,
                 command.Content.Length);
-            return SessionMutationResult<SessionRuntimeState>.Success(await HydrateProfileViewAsync(state, ct));
+            return SessionMutationResult<SessionState>.Success(await HydrateProfileViewAsync(state, ct));
         }
 
         state.Writer.PendingContent = command.Content;
@@ -316,7 +316,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             sessionId,
             command.Content.Length);
 
-        return SessionMutationResult<SessionRuntimeState>.Success(hydrated);
+        return SessionMutationResult<SessionState>.Success(hydrated);
     }
 
     public async Task<SessionMutationResult<WriterPendingDecisionResult>> AcceptWriterPendingAsync(
@@ -353,7 +353,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             new WriterPendingDecisionResult(accepted));
     }
 
-    public async Task<SessionMutationResult<SessionRuntimeState>> RejectWriterPendingAsync(
+    public async Task<SessionMutationResult<SessionState>> RejectWriterPendingAsync(
         Guid? sessionId,
         CancellationToken ct = default)
     {
@@ -362,7 +362,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<SessionRuntimeState>.Busy(
+            return SessionMutationResult<SessionState>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
@@ -370,7 +370,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         if (state.Writer.State != WriterState.PendingReview)
         {
             _logger.LogWarning("Writer pending reject rejected: session={SessionId} no content pending", sessionId);
-            return SessionMutationResult<SessionRuntimeState>.Invalid("No pending writer content to reject.");
+            return SessionMutationResult<SessionState>.Invalid("No pending writer content to reject.");
         }
 
         state.Writer.PendingContent = null;
@@ -379,10 +379,10 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
 
         _logger.LogInformation("Writer pending content rejected: session={SessionId}", sessionId);
 
-        return SessionMutationResult<SessionRuntimeState>.Success(await HydrateProfileViewAsync(state, ct));
+        return SessionMutationResult<SessionState>.Success(await HydrateProfileViewAsync(state, ct));
     }
 
-    public async Task<SessionMutationResult<SessionRuntimeState>> UpdateNarrativeStateAsync(
+    public async Task<SessionMutationResult<SessionState>> UpdateNarrativeStateAsync(
         Guid? sessionId,
         UpdateNarrativeStateCommand command,
         CancellationToken ct = default)
@@ -392,7 +392,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<SessionRuntimeState>.Busy(
+            return SessionMutationResult<SessionState>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
@@ -401,7 +401,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             _logger.LogWarning(
                 "Narrative state update rejected: session={SessionId} empty director notes",
                 sessionId);
-            return SessionMutationResult<SessionRuntimeState>.Invalid("Director notes are required.");
+            return SessionMutationResult<SessionState>.Invalid("Director notes are required.");
         }
 
         var state = await LoadStateAsync(sessionId, ct);
@@ -426,10 +426,10 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             command.DirectorNotes.Length,
             hydrated.Narrative.ActivePlotFile);
 
-        return SessionMutationResult<SessionRuntimeState>.Success(hydrated);
+        return SessionMutationResult<SessionState>.Success(hydrated);
     }
 
-    public async Task<SessionMutationResult<SessionRuntimeState>> SetActivePlotAsync(
+    public async Task<SessionMutationResult<SessionState>> SetActivePlotAsync(
         Guid? sessionId,
         SetActivePlotCommand command,
         CancellationToken ct = default)
@@ -439,14 +439,14 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<SessionRuntimeState>.Busy(
+            return SessionMutationResult<SessionState>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
         if (string.IsNullOrWhiteSpace(command.PlotFileName))
         {
             _logger.LogWarning("Active plot update rejected: session={SessionId} empty plot file", sessionId);
-            return SessionMutationResult<SessionRuntimeState>.Invalid("Plot file name is required.");
+            return SessionMutationResult<SessionState>.Invalid("Plot file name is required.");
         }
 
         var state = await LoadStateAsync(sessionId, ct);
@@ -460,10 +460,10 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             sessionId,
             hydrated.Narrative.ActivePlotFile);
 
-        return SessionMutationResult<SessionRuntimeState>.Success(hydrated);
+        return SessionMutationResult<SessionState>.Success(hydrated);
     }
 
-    public async Task<SessionMutationResult<SessionRuntimeState>> ClearActivePlotAsync(
+    public async Task<SessionMutationResult<SessionState>> ClearActivePlotAsync(
         Guid? sessionId,
         CancellationToken ct = default)
     {
@@ -472,7 +472,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<SessionRuntimeState>.Busy(
+            return SessionMutationResult<SessionState>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
@@ -483,17 +483,17 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
 
         _logger.LogInformation("Active plot cleared: session={SessionId}", sessionId);
 
-        return SessionMutationResult<SessionRuntimeState>.Success(await HydrateProfileViewAsync(state, ct));
+        return SessionMutationResult<SessionState>.Success(await HydrateProfileViewAsync(state, ct));
     }
 
-    private async Task<SessionRuntimeState> LoadStateAsync(Guid? sessionId, CancellationToken ct)
+    private async Task<SessionState> LoadStateAsync(Guid? sessionId, CancellationToken ct)
     {
         var state = await _store.LoadAsync(sessionId, ct);
         return await NormalizeStoredProfileStateAsync(state, ct);
     }
 
-    private async Task<SessionRuntimeState> NormalizeStoredProfileStateAsync(
-        SessionRuntimeState state,
+    private async Task<SessionState> NormalizeStoredProfileStateAsync(
+        SessionState state,
         CancellationToken ct)
     {
         var resolved = await LoadProfileForViewAsync(state.Profile.ProfileId, ct);
@@ -546,8 +546,8 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
         return state;
     }
 
-    private async Task<SessionRuntimeState> HydrateProfileViewAsync(
-        SessionRuntimeState state,
+    private async Task<SessionState> HydrateProfileViewAsync(
+        SessionState state,
         CancellationToken ct)
     {
         var resolved = await LoadProfileForViewAsync(state.Profile.ProfileId, ct);
@@ -560,7 +560,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             state.Roleplay.HasExplicitUserCharacterSelection,
             resolved.Config.Roleplay.UserCharacter);
 
-        return new SessionRuntimeState
+        return new SessionState
         {
             SessionId = state.SessionId,
             LastModified = state.LastModified,
@@ -677,7 +677,7 @@ public sealed class SessionRuntimeService : ISessionRuntimeService
             && NormalizeChoice(profile.ActiveWritingStyle) is not null;
     }
 
-    private static bool IsUntouchedSessionState(SessionRuntimeState state)
+    private static bool IsUntouchedSessionState(SessionState state)
     {
         return string.Equals(state.Mode.ActiveModeName, GeneralModeName, StringComparison.OrdinalIgnoreCase)
             && string.IsNullOrWhiteSpace(state.Mode.ProjectName)

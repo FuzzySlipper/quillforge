@@ -141,7 +141,7 @@ internal sealed class FakeInteractiveSessionContextService : IInteractiveSession
         _projectsBySession = projectsBySession ?? [];
     }
 
-    public Task<InteractiveSessionContext> BuildAsync(SessionRuntimeState state, CancellationToken ct = default)
+    public Task<InteractiveSessionContext> BuildAsync(SessionState state, CancellationToken ct = default)
     {
         var projectName = state.Mode.ProjectName ?? "default";
         return Task.FromResult(new InteractiveSessionContext
@@ -163,7 +163,7 @@ internal sealed class FakeInteractiveSessionContextService : IInteractiveSession
             projectName = name;
         }
 
-        return BuildAsync(new SessionRuntimeState
+        return BuildAsync(new SessionState
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveModeName = "writer", ProjectName = projectName },

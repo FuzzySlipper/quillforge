@@ -12,11 +12,11 @@ namespace QuillForge.Core.Agents.Tools;
 /// </summary>
 public sealed class UpdateNarrativeStateHandler : IToolHandler
 {
-    private readonly ISessionRuntimeService _runtimeService;
+    private readonly ISessionStateService _runtimeService;
     private readonly ILogger<UpdateNarrativeStateHandler> _logger;
 
     public UpdateNarrativeStateHandler(
-        ISessionRuntimeService runtimeService,
+        ISessionStateService runtimeService,
         ILogger<UpdateNarrativeStateHandler> logger)
     {
         _runtimeService = runtimeService;

@@ -82,10 +82,14 @@ public static class ServiceRegistration
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemProfileConfigStore>>()));
 
-        services.AddSingleton<ISessionRuntimeStore>(sp =>
+        services.AddSingleton<FileSystemSessionRuntimeStore>(sp =>
             new FileSystemSessionRuntimeStore(contentRoot,
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemSessionRuntimeStore>>()));
+        services.AddSingleton<ISessionStateStore>(sp =>
+            sp.GetRequiredService<FileSystemSessionRuntimeStore>());
+        services.AddSingleton<ISessionRuntimeStore>(sp =>
+            sp.GetRequiredService<FileSystemSessionRuntimeStore>());
 
         services.AddSingleton<IStoryStateService>(sp =>
             new FileSystemStoryStateService(

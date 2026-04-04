@@ -12,7 +12,7 @@ public static class ModeEndpoints
     public static void MapModeEndpoints(this WebApplication app)
     {
         app.MapGet("/api/mode", async (
-            ISessionRuntimeService runtimeService,
+            ISessionStateService runtimeService,
             HttpContext httpContext,
             CancellationToken ct) =>
         {
@@ -31,7 +31,7 @@ public static class ModeEndpoints
 
         app.MapPost("/api/mode", async (
             HttpContext httpContext,
-            ISessionRuntimeService runtimeService,
+            ISessionStateService runtimeService,
             ISessionBootstrapService bootstrapService,
             ISessionLifecycleService lifecycleService,
             CancellationToken ct) =>
