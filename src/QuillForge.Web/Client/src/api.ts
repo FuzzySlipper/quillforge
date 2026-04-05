@@ -683,11 +683,14 @@ export async function fetchModelsForNew(provider: {
 
 export interface AgentAssignments {
   orchestrator: string;
+  narrativeDirector: string;
   proseWriter: string;
   librarian: string;
   forgeWriter: string;
   forgePlanner: string;
   forgeReviewer: string;
+  delegateTechnical: string;
+  artifact: string;
   research: string;
 }
 

@@ -73,11 +73,14 @@ public sealed record AgentAssignmentsResponse
 public sealed record AgentModelAssignments
 {
     public required string Orchestrator { get; init; }
+    public required string NarrativeDirector { get; init; }
     public required string ProseWriter { get; init; }
     public required string Librarian { get; init; }
     public required string ForgeWriter { get; init; }
     public required string ForgePlanner { get; init; }
     public required string ForgeReviewer { get; init; }
+    public required string DelegateTechnical { get; init; }
+    public required string Artifact { get; init; }
     public required string Research { get; init; }
 }
 

@@ -120,11 +120,14 @@ public static class ModeEndpoints
                 Assignments = new AgentModelAssignments
                 {
                     Orchestrator = config.Models.Orchestrator,
+                    NarrativeDirector = config.Models.NarrativeDirector,
                     ProseWriter = config.Models.ProseWriter,
                     Librarian = config.Models.Librarian,
                     ForgeWriter = config.Models.ForgeWriter,
                     ForgePlanner = config.Models.ForgePlanner,
                     ForgeReviewer = config.Models.ForgeReviewer,
+                    DelegateTechnical = config.Models.DelegateTechnical,
+                    Artifact = config.Models.Artifact,
                     Research = config.Models.Research,
                 }
             });
@@ -141,11 +144,14 @@ public static class ModeEndpoints
             var root = body.RootElement;
 
             var orchestrator = root.TryGetProperty("orchestrator", out var o) ? o.GetString() : null;
+            var narrativeDirector = root.TryGetProperty("narrativeDirector", out var nd) ? nd.GetString() : null;
             var proseWriter = root.TryGetProperty("proseWriter", out var pw) ? pw.GetString() : null;
             var librarian = root.TryGetProperty("librarian", out var lb) ? lb.GetString() : null;
             var forgeWriter = root.TryGetProperty("forgeWriter", out var fw) ? fw.GetString() : null;
             var forgePlanner = root.TryGetProperty("forgePlanner", out var fp) ? fp.GetString() : null;
             var forgeReviewer = root.TryGetProperty("forgeReviewer", out var fr) ? fr.GetString() : null;
+            var delegateTechnical = root.TryGetProperty("delegateTechnical", out var dt) ? dt.GetString() : null;
+            var artifact = root.TryGetProperty("artifact", out var ar) ? ar.GetString() : null;
             var research = root.TryGetProperty("research", out var rs) ? rs.GetString() : null;
 
             var updatedConfig = await configStore.UpdateAsync(current => current with
@@ -153,11 +159,14 @@ public static class ModeEndpoints
                 Models = current.Models with
                 {
                     Orchestrator = orchestrator ?? current.Models.Orchestrator,
+                    NarrativeDirector = narrativeDirector ?? current.Models.NarrativeDirector,
                     ProseWriter = proseWriter ?? current.Models.ProseWriter,
                     Librarian = librarian ?? current.Models.Librarian,
                     ForgeWriter = forgeWriter ?? current.Models.ForgeWriter,
                     ForgePlanner = forgePlanner ?? current.Models.ForgePlanner,
                     ForgeReviewer = forgeReviewer ?? current.Models.ForgeReviewer,
+                    DelegateTechnical = delegateTechnical ?? current.Models.DelegateTechnical,
+                    Artifact = artifact ?? current.Models.Artifact,
                     Research = research ?? current.Models.Research,
                 }
             }, ct);
@@ -174,11 +183,14 @@ public static class ModeEndpoints
                 Assignments = new AgentModelAssignments
                 {
                     Orchestrator = updatedConfig.Models.Orchestrator,
+                    NarrativeDirector = updatedConfig.Models.NarrativeDirector,
                     ProseWriter = updatedConfig.Models.ProseWriter,
                     Librarian = updatedConfig.Models.Librarian,
                     ForgeWriter = updatedConfig.Models.ForgeWriter,
                     ForgePlanner = updatedConfig.Models.ForgePlanner,
                     ForgeReviewer = updatedConfig.Models.ForgeReviewer,
+                    DelegateTechnical = updatedConfig.Models.DelegateTechnical,
+                    Artifact = updatedConfig.Models.Artifact,
                     Research = updatedConfig.Models.Research,
                 }
             });

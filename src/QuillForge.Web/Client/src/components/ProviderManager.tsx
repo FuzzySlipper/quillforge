@@ -570,7 +570,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
           <div>
             <div className="text-xs text-text-muted uppercase tracking-wider mb-2">Agent Assignments</div>
             <div className="flex flex-col gap-2">
-              {(["orchestrator", "proseWriter", "librarian", "research"] as const).map((agent) => (
+              {(["orchestrator", "narrativeDirector", "proseWriter", "librarian", "delegateTechnical", "artifact", "research", "forgeWriter", "forgePlanner", "forgeReviewer"] as const).map((agent) => (
                 <div key={agent} className="flex items-center justify-between gap-3">
                   <span className="text-sm text-text min-w-[100px]">
                     {agent.replace(/([A-Z])/g, " $1").toLowerCase()}
@@ -580,13 +580,14 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                     onChange={(e) => handleAssignmentChange(agent, e.target.value)}
                     className="flex-1 bg-input-bg text-text border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent"
                   >
+                    <option value="default">default (primary model)</option>
                     {providers.map((p) => (
                       <option key={p.alias} value={p.alias}>
                         {p.alias} ({p.defaultModel || "no model"})
                       </option>
                     ))}
-                    {/* Show current value if it doesn't match any provider (raw model ID) */}
-                    {!providers.some((p) => p.alias === assignments[agent]) && (
+                    {/* Show current value if it doesn't match any provider or "default" */}
+                    {assignments[agent] !== "default" && !providers.some((p) => p.alias === assignments[agent]) && (
                       <option value={assignments[agent]}>
                         {assignments[agent]} (not configured)
                       </option>
