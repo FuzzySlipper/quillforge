@@ -31,5 +31,3 @@ public sealed record SessionMutationResult<T>
         Error = message,
     };
 }
-
-public sealed record WriterPendingDecisionResult(string AcceptedContent);

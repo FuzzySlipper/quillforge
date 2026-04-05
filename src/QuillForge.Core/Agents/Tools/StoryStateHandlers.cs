@@ -37,7 +37,7 @@ public sealed class GetStoryStateHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
         var sessionContext = context.SessionContext ?? await _sessionContextService.LoadAsync(context.SessionId, ct);
         _logger.LogDebug(
@@ -90,39 +90,23 @@ public sealed class UpdateStoryStateHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
         var sessionContext = context.SessionContext ?? await _sessionContextService.LoadAsync(context.SessionId, ct);
         var path = sessionContext.StoryStatePath;
         _logger.LogDebug("UpdateStoryStateHandler: updating state at {Path} for session {SessionId}", path, context.SessionId);
 
-        if (input.TryGetProperty("updates", out var updates))
+        var updates = input.GetOptionalObjectMap("updates");
+        if (updates is not null)
         {
-            var dict = new Dictionary<string, object>();
-            foreach (var prop in updates.EnumerateObject())
-            {
-                dict[prop.Name] = ConvertJsonElement(prop.Value);
-            }
-            await _storyState.MergeAsync(path, dict, ct);
+            await _storyState.MergeAsync(path, updates, ct);
         }
 
-        if (input.TryGetProperty("increment_counter", out var inc) && inc.GetBoolean())
+        if (input.GetOptionalBool("increment_counter") == true)
         {
             await _storyState.IncrementCounterAsync(path, "_event_counter", ct);
         }
 
         return ToolResult.Ok("State updated.");
     }
-
-    private static object ConvertJsonElement(JsonElement element) => element.ValueKind switch
-    {
-        JsonValueKind.String => element.GetString()!,
-        JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
-        JsonValueKind.True => true,
-        JsonValueKind.False => false,
-        JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElement).ToList(),
-        JsonValueKind.Object => element.EnumerateObject()
-            .ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value)),
-        _ => element.ToString(),
-    };
 }

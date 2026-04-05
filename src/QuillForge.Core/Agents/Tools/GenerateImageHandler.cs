@@ -35,15 +35,15 @@ public sealed class GenerateImageHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
-        var prompt = input.GetProperty("prompt").GetString() ?? "";
+        var prompt = input.GetRequiredString("prompt");
         _logger.LogDebug("GenerateImageHandler: generating image for prompt");
 
         var options = new ImageOptions
         {
-            Width = input.TryGetProperty("width", out var w) ? w.GetInt32() : null,
-            Height = input.TryGetProperty("height", out var h) ? h.GetInt32() : null,
+            Width = input.GetOptionalInt("width"),
+            Height = input.GetOptionalInt("height"),
         };
 
         var result = await _imageGenerator.GenerateAsync(prompt, options, ct);

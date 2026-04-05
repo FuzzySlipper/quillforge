@@ -209,45 +209,36 @@ public sealed class ReasoningCompletionService : ICompletionService
                     _logger.LogWarning("Failed to parse streamed tool call arguments for {Name}: {Json}", name, argsJson);
                     argsElement = JsonDocument.Parse("{}").RootElement.Clone();
                 }
-                yield return new ToolCallEvent(name, id, argsElement);
+                yield return new ToolCallDeltaReceivedEvent(name, id, argsElement);
             }
         }
 
-        // Build raw provider message for lossless round-tripping of reasoning_content
-        JsonObject? rawMessage = null;
+        // Build a typed replay envelope for lossless round-tripping of reasoning content.
+        ProviderReplayEnvelope? providerReplay = null;
         if (toolCallIds.Count > 0 || reasoningAccumulator.Length > 0)
         {
-            rawMessage = new JsonObject { ["role"] = "assistant" };
-
             var fullText = textAccumulator.Length > 0 ? textAccumulator.ToString() : null;
-            rawMessage["content"] = fullText is not null ? (JsonNode)fullText : null;
-
-            if (reasoningAccumulator.Length > 0)
-                rawMessage["reasoning_content"] = reasoningAccumulator.ToString();
-
+            var replayToolCalls = new List<ReasoningReplayToolCall>();
             if (toolCallIds.Count > 0)
             {
-                var tcArray = new JsonArray();
                 foreach (var index in toolCallIds.Keys.OrderBy(k => k))
                 {
-                    tcArray.Add(new JsonObject
-                    {
-                        ["id"] = toolCallIds[index],
-                        ["type"] = "function",
-                        ["function"] = new JsonObject
-                        {
-                            ["name"] = toolCallNames.GetValueOrDefault(index, ""),
-                            ["arguments"] = toolCallArgs.TryGetValue(index, out var argSb) ? argSb.ToString() : "{}",
-                        },
-                    });
+                    replayToolCalls.Add(new ReasoningReplayToolCall(
+                        toolCallIds[index],
+                        toolCallNames.GetValueOrDefault(index, ""),
+                        toolCallArgs.TryGetValue(index, out var argSb) ? argSb.ToString() : "{}"));
                 }
-                rawMessage["tool_calls"] = tcArray;
             }
+
+            providerReplay = new ReasoningReplayEnvelope(
+                fullText,
+                reasoningAccumulator.Length > 0 ? reasoningAccumulator.ToString() : null,
+                replayToolCalls);
         }
 
         yield return new DoneEvent(finishReason ?? "end_turn", new TokenUsage(inputTokens, outputTokens))
         {
-            RawProviderMessage = rawMessage,
+            ProviderReplay = providerReplay,
         };
     }
 
@@ -332,11 +323,11 @@ public sealed class ReasoningCompletionService : ICompletionService
 
     private static JsonObject BuildMessageJson(CompletionMessage msg)
     {
-        // If we have a raw JSON representation (from a previous response), use it directly.
-        // This preserves reasoning_content and any other provider-specific fields.
-        if (msg.RawProviderMessage is JsonObject rawObj)
+        // If we have a typed replay envelope from a previous response, rebuild the
+        // provider-shaped JSON locally inside the adapter.
+        if (msg.ProviderReplay is ReasoningReplayEnvelope reasoningReplay)
         {
-            return rawObj.Deserialize<JsonObject>()!; // Deep copy
+            return BuildReasoningReplayJson(msg, reasoningReplay);
         }
 
         var role = msg.Role.ToLowerInvariant();
@@ -444,7 +435,7 @@ public sealed class ReasoningCompletionService : ICompletionService
                 var name = fn.GetProperty("name").GetString()!;
                 var argsStr = fn.GetProperty("arguments").GetString() ?? "{}";
                 var args = JsonDocument.Parse(argsStr).RootElement.Clone();
-                contentBlocks.Add(new ToolUseBlock(id, name, args));
+                contentBlocks.Add(new ToolUseBlock(id, name, new ToolInput(args)));
             }
         }
 
@@ -462,8 +453,31 @@ public sealed class ReasoningCompletionService : ICompletionService
             if (usage.TryGetProperty("completion_tokens", out var ct2)) outputTokens = ct2.GetInt32();
         }
 
-        // Preserve the raw message JSON for replay in tool loops
-        var rawMessage = JsonNode.Parse(message.GetRawText())?.AsObject();
+        ProviderReplayEnvelope? providerReplay = null;
+        JsonElement replayToolCallsElement = default;
+        var hasReplayToolCalls = message.TryGetProperty("tool_calls", out replayToolCallsElement);
+        if (reasoning is not null || hasReplayToolCalls)
+        {
+            var replayToolCalls = new List<ReasoningReplayToolCall>();
+            if (hasReplayToolCalls && replayToolCallsElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var tc in replayToolCallsElement.EnumerateArray())
+                {
+                    var id = tc.GetProperty("id").GetString()!;
+                    var fn = tc.GetProperty("function");
+                    var name = fn.GetProperty("name").GetString()!;
+                    var argsJson = fn.GetProperty("arguments").GetString() ?? "{}";
+                    replayToolCalls.Add(new ReasoningReplayToolCall(id, name, argsJson));
+                }
+            }
+
+            providerReplay = new ReasoningReplayEnvelope(
+                message.TryGetProperty("content", out var replayContentEl) && replayContentEl.ValueKind == JsonValueKind.String
+                    ? replayContentEl.GetString()
+                    : null,
+                reasoning,
+                replayToolCalls);
+        }
 
         return new CompletionResponse
         {
@@ -471,7 +485,45 @@ public sealed class ReasoningCompletionService : ICompletionService
             StopReason = finishReason,
             Usage = new TokenUsage(inputTokens, outputTokens),
             Reasoning = reasoning,
-            RawProviderMessage = rawMessage,
+            ProviderReplay = providerReplay,
         };
+    }
+
+    private static JsonObject BuildReasoningReplayJson(
+        CompletionMessage message,
+        ReasoningReplayEnvelope replay)
+    {
+        var msgObj = new JsonObject
+        {
+            ["role"] = message.Role.ToLowerInvariant(),
+            ["content"] = replay.Content is not null ? (JsonNode)replay.Content : null,
+        };
+
+        if (replay.ReasoningContent is not null)
+        {
+            msgObj["reasoning_content"] = replay.ReasoningContent;
+        }
+
+        if (replay.ToolCalls.Count > 0)
+        {
+            var toolCalls = new JsonArray();
+            foreach (var toolCall in replay.ToolCalls)
+            {
+                toolCalls.Add(new JsonObject
+                {
+                    ["id"] = toolCall.Id,
+                    ["type"] = "function",
+                    ["function"] = new JsonObject
+                    {
+                        ["name"] = toolCall.Name,
+                        ["arguments"] = toolCall.ArgumentsJson,
+                    },
+                });
+            }
+
+            msgObj["tool_calls"] = toolCalls;
+        }
+
+        return msgObj;
     }
 }

@@ -78,7 +78,7 @@ public sealed class ProseWriterAgent
         var loreQueries = messages
             .SelectMany(m => m.Content.Blocks.OfType<ToolUseBlock>())
             .Where(b => b.Name == "query_lore")
-            .Select(b => b.Input.TryGetProperty("query", out var q) ? q.GetString() ?? "" : "")
+            .Select(b => b.Input.GetOptionalString("query") ?? "")
             .Where(q => !string.IsNullOrEmpty(q))
             .ToList();
 

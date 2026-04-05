@@ -1,4 +1,3 @@
-using System.Text.Json;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 
@@ -9,21 +8,25 @@ namespace QuillForge.Core.Tests.Fakes;
 /// </summary>
 public sealed class FakeToolHandler : IToolHandler
 {
-    private readonly Func<JsonElement, AgentContext, CancellationToken, Task<ToolResult>> _handler;
+    private readonly Func<ToolInput, AgentContext, CancellationToken, Task<ToolResult>> _handler;
 
-    public FakeToolHandler(string name, Func<JsonElement, AgentContext, CancellationToken, Task<ToolResult>>? handler = null)
+    public FakeToolHandler(
+        string name,
+        Func<ToolInput, AgentContext, CancellationToken, Task<ToolResult>>? handler = null,
+        string? inputSchemaJson = null)
     {
         Name = name;
         Definition = new ToolDefinition(name, $"Fake tool: {name}",
-            JsonDocument.Parse("""{"type":"object","properties":{}}""").RootElement);
+            System.Text.Json.JsonDocument.Parse(inputSchemaJson ?? """{"type":"object","properties":{}}""").RootElement);
         _handler = handler ?? ((_, _, _) => Task.FromResult(ToolResult.Ok($"{name} result")));
     }
 
     public string Name { get; }
     public ToolDefinition Definition { get; }
 
-    public Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
+        CallCount++;
         return _handler(input, context, ct);
     }
 
@@ -34,12 +37,6 @@ public sealed class FakeToolHandler : IToolHandler
     /// </summary>
     public static FakeToolHandler WithTracking(string name, string result = "ok")
     {
-        var handler = new FakeToolHandler(name);
-        var counting = new FakeToolHandler(name, (input, ctx, ct) =>
-        {
-            handler.CallCount++;
-            return Task.FromResult(ToolResult.Ok(result));
-        });
-        return counting;
+        return new FakeToolHandler(name, (_, _, _) => Task.FromResult(ToolResult.Ok(result)));
     }
 }

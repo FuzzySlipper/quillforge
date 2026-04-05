@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace QuillForge.Core.Models;
 
 /// <summary>
@@ -22,12 +20,12 @@ public sealed class TextBlock(string text) : ContentBlock
 /// <summary>
 /// A tool invocation requested by the model.
 /// </summary>
-public sealed class ToolUseBlock(string id, string name, JsonElement input) : ContentBlock
+public sealed class ToolUseBlock(string id, string name, ToolInput input) : ContentBlock
 {
     public override string Type => "tool_use";
     public string Id { get; } = id;
     public string Name { get; } = name;
-    public JsonElement Input { get; } = input;
+    public ToolInput Input { get; } = input;
 }
 
 /// <summary>

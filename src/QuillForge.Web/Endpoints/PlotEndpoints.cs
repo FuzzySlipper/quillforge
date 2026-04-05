@@ -75,31 +75,54 @@ public static class PlotEndpoints
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
-            var prepared = await profileReadService.PrepareInteractiveRequestAsync(
-                request.SessionId,
-                new PrepareInteractiveRequestOptions(),
-                ct);
-
-            var result = await narrativeDirector.GeneratePlotAsync(
-                new PlotGenerationRequest { Prompt = request.Prompt },
-                prepared.AgentContext,
-                ct);
-
-            var name = await ChoosePlotNameAsync(plotStore, request.Prompt, result.Markdown, ct);
-            await plotStore.SaveAsync(name, result.Markdown, ct);
-
-            logger.LogInformation(
-                "Generated plot file {PlotName} for session {SessionId}",
-                name,
-                request.SessionId);
-
-            return Results.Ok(new PlotGenerateResponse
+            try
             {
-                Name = name,
-                Content = result.Markdown,
-                ToolRoundsUsed = result.ToolRoundsUsed,
-                SessionId = request.SessionId,
-            });
+                var prepared = await profileReadService.PrepareInteractiveRequestAsync(
+                    request.SessionId,
+                    new PrepareInteractiveRequestOptions(),
+                    ct);
+
+                var result = await narrativeDirector.GeneratePlotAsync(
+                    new PlotGenerationRequest { Prompt = request.Prompt },
+                    prepared.AgentContext,
+                    ct);
+
+                var name = await ChoosePlotNameAsync(plotStore, request.Prompt, result.Markdown, ct);
+                await plotStore.SaveAsync(name, result.Markdown, ct);
+
+                logger.LogInformation(
+                    "Generated plot file {PlotName} for session {SessionId}",
+                    name,
+                    request.SessionId);
+
+                return Results.Ok(new PlotGenerateResponse
+                {
+                    Name = name,
+                    Content = result.Markdown,
+                    ToolRoundsUsed = result.ToolRoundsUsed,
+                    SessionId = request.SessionId,
+                });
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                logger.LogWarning("Plot generation timed out for session {SessionId}", request.SessionId);
+                return Results.Json(new { Error = "timeout", Message = "Plot generation timed out." }, statusCode: 504);
+            }
+            catch (HttpRequestException ex)
+            {
+                logger.LogError(ex, "Provider request failed during plot generation for session {SessionId}", request.SessionId);
+                return Results.Json(new { Error = "provider_error", Message = "LLM provider request failed." }, statusCode: 502);
+            }
+            catch (InvalidOperationException ex)
+            {
+                logger.LogWarning(ex, "Plot generation rejected for session {SessionId}: {Message}", request.SessionId, ex.Message);
+                return Results.BadRequest(new { Error = "invalid_session_state", Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unexpected error during plot generation for session {SessionId}", request.SessionId);
+                return Results.Json(new { Error = "internal_error", Message = "Plot generation failed unexpectedly." }, statusCode: 500);
+            }
         });
 
         app.MapPost("/api/plots/load", async (

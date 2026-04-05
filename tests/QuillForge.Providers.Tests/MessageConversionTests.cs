@@ -137,7 +137,7 @@ public class MessageConversionTests
                 new CompletionMessage("user", new MessageContent("weather?")),
                 new CompletionMessage("assistant", new MessageContent(
                     [new ToolUseBlock("call_123", "get_weather",
-                        JsonDocument.Parse("""{"city":"London"}""").RootElement)])),
+                        new ToolInput(JsonDocument.Parse("""{"city":"London"}""").RootElement))])),
                 new CompletionMessage("user", toolResultContent),
             ],
         };

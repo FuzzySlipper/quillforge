@@ -54,22 +54,14 @@ public sealed class RequestCodeChangeHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
-        var title = input.GetProperty("title").GetString() ?? "Untitled";
-        var description = input.GetProperty("description").GetString() ?? "";
-        var rationale = input.TryGetProperty("rationale", out var rat) ? rat.GetString() ?? "" : "";
-        var changes = input.TryGetProperty("changes", out var ch) ? ch.GetString() ?? "" : "";
+        var title = input.GetOptionalString("title") ?? "Untitled";
+        var description = input.GetRequiredString("description");
+        var rationale = input.GetOptionalString("rationale") ?? "";
+        var changes = input.GetOptionalString("changes") ?? "";
 
-        var filesAffected = new List<string>();
-        if (input.TryGetProperty("files_affected", out var files))
-        {
-            foreach (var f in files.EnumerateArray())
-            {
-                var val = f.GetString();
-                if (val is not null) filesAffected.Add(val);
-            }
-        }
+        var filesAffected = input.GetOptionalStringList("files_affected");
 
         // Build the slug and filename
         var slug = new string(title.ToLowerInvariant()

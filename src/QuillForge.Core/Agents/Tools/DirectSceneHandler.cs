@@ -9,7 +9,7 @@ namespace QuillForge.Core.Agents.Tools;
 /// Delegates interactive scene direction to the NarrativeDirectorAgent.
 /// The director owns scene decisions, story-state updates, and prose handoff.
 /// </summary>
-public sealed class DirectSceneHandler : IToolHandler
+public sealed class DirectSceneHandler : TypedToolHandler<DirectSceneArgs>
 {
     private readonly NarrativeDirectorAgent _narrativeDirector;
     private readonly ILogger<DirectSceneHandler> _logger;
@@ -22,9 +22,9 @@ public sealed class DirectSceneHandler : IToolHandler
         _logger = logger;
     }
 
-    public string Name => "direct_scene";
+    public override string Name => "direct_scene";
 
-    public ToolDefinition Definition => new(
+    public override ToolDefinition Definition => new(
         Name,
         "Direct the next beat of an interactive scene, update story state, and return the final prose response.",
         JsonDocument.Parse("""
@@ -40,9 +40,9 @@ public sealed class DirectSceneHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    protected override async Task<ToolResult> HandleTypedAsync(DirectSceneArgs input, AgentContext context, CancellationToken ct = default)
     {
-        var userMessage = input.GetProperty("user_message").GetString();
+        var userMessage = input.UserMessage;
         if (string.IsNullOrWhiteSpace(userMessage))
         {
             return ToolResult.Fail("user_message is required.");
@@ -62,4 +62,9 @@ public sealed class DirectSceneHandler : IToolHandler
 
         return ToolResult.Ok(result.ResponseText);
     }
+}
+
+public sealed record DirectSceneArgs
+{
+    public string UserMessage { get; init; } = "";
 }

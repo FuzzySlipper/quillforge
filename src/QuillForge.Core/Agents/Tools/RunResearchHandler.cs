@@ -6,7 +6,7 @@ using QuillForge.Core.Services;
 
 namespace QuillForge.Core.Agents.Tools;
 
-public sealed class RunResearchHandler : IToolHandler
+public sealed class RunResearchHandler : TypedToolHandler<RunResearchArgs>
 {
     private readonly ResearchPool _pool;
     private readonly ILogger<RunResearchHandler> _logger;
@@ -21,9 +21,9 @@ public sealed class RunResearchHandler : IToolHandler
         _timeoutMinutes = Math.Max(appConfig.Timeouts.ToolExecutionSeconds / 6, 10);
     }
 
-    public string Name => "run_research";
+    public override string Name => "run_research";
 
-    public ToolDefinition Definition => new(Name,
+    public override ToolDefinition Definition => new(Name,
         "Run parallel research agents on multiple topics. Each agent performs multi-step web searches and writes findings to markdown files.",
         JsonDocument.Parse("""
             {
@@ -52,27 +52,24 @@ public sealed class RunResearchHandler : IToolHandler
                         "description": "Research project name (files saved to research/{project}/)"
                     }
                 },
-                "required": ["topics", "project"]
+                "required": ["topics"]
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    protected override async Task<ToolResult> HandleTypedAsync(RunResearchArgs input, AgentContext context, CancellationToken ct = default)
     {
-        if (!input.TryGetProperty("topics", out var topicsEl) || topicsEl.GetArrayLength() == 0)
+        if (input.Topics.Count == 0)
             return ToolResult.Fail("At least one topic is required.");
 
-        var project = input.TryGetProperty("project", out var projEl)
-            ? projEl.GetString() ?? "default"
-            : "default";
+        var project = string.IsNullOrWhiteSpace(input.Project) ? "default" : input.Project;
 
         var topics = new List<ResearchTopic>();
-        foreach (var item in topicsEl.EnumerateArray())
+        foreach (var item in input.Topics)
         {
-            var topic = item.GetProperty("topic").GetString();
+            var topic = item.Topic;
             if (string.IsNullOrWhiteSpace(topic)) continue;
 
-            var focus = item.TryGetProperty("focus", out var f) ? f.GetString() : null;
-            topics.Add(new ResearchTopic { Topic = topic, Focus = focus });
+            topics.Add(new ResearchTopic { Topic = topic, Focus = item.Focus });
         }
 
         if (topics.Count == 0)
@@ -123,4 +120,16 @@ public sealed class RunResearchHandler : IToolHandler
 
         return sb.ToString();
     }
+}
+
+public sealed record RunResearchArgs
+{
+    public IReadOnlyList<RunResearchTopicArgs> Topics { get; init; } = [];
+    public string? Project { get; init; }
+}
+
+public sealed record RunResearchTopicArgs
+{
+    public string Topic { get; init; } = "";
+    public string? Focus { get; init; }
 }

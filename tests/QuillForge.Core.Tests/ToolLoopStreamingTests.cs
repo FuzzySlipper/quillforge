@@ -79,8 +79,9 @@ public class ToolLoopStreamingTests
             events.Add(evt);
         }
 
-        // Should have: ToolCallEvent, DoneEvent (from round 1), TextDeltaEvent, DoneEvent (from round 2)
-        Assert.Contains(events, e => e is ToolCallEvent tc && tc.ToolName == "my_tool");
+        // Should have: ToolCallValidatedEvent, TextDeltaEvent, DoneEvent
+        Assert.Contains(events, e => e is ToolCallValidatedEvent tc && tc.ToolName == "my_tool");
+        Assert.DoesNotContain(events, e => e is ToolCallDeltaReceivedEvent);
         Assert.Contains(events, e => e is TextDeltaEvent td && td.Text == "result after tool");
 
         var doneEvents = events.OfType<DoneEvent>().ToList();
@@ -137,6 +138,78 @@ public class ToolLoopStreamingTests
         Assert.True(fake.NonStreamingRequests.Count >= 1);
     }
 
+    [Fact]
+    public async Task StreamInvalidToolPayload_EmitsDiagnosticAndSkipsHandler()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueToolCall("my_tool", "call_1", "{}");
+        fake.EnqueueText("validation handled");
+
+        var config = DefaultConfig with { MaxToolRounds = 2 };
+        var handler = new FakeToolHandler(
+            "my_tool",
+            (_, _, _) => Task.FromResult(ToolResult.Ok("should not run")),
+            """
+            {
+                "type": "object",
+                "properties": {
+                    "topic": { "type": "string" }
+                },
+                "required": ["topic"]
+            }
+            """);
+
+        var loop = CreateLoop(fake);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("use tool")),
+        };
+
+        var events = new List<StreamEvent>();
+        await foreach (var evt in loop.RunStreamAsync(config, [handler], messages, DefaultContext))
+        {
+            events.Add(evt);
+        }
+
+        Assert.Equal(0, handler.CallCount);
+        Assert.DoesNotContain(events, e => e is ToolCallValidatedEvent);
+        Assert.Contains(events, e =>
+            e is DiagnosticEvent diag &&
+            diag.Category == "tool" &&
+            diag.Level == DiagnosticLevel.Error &&
+            diag.Message.Contains("invalid input", StringComparison.Ordinal));
+        Assert.Contains(events, e => e is TextDeltaEvent td && td.Text == "validation handled");
+    }
+
+    [Fact]
+    public async Task StreamTypedDeserializationFailure_EmitsDiagnosticAndSkipsHandler()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueToolCall("typed_tool", "call_1", """{"count":"seven"}""");
+        fake.EnqueueText("typed validation handled");
+
+        var handler = new StringSchemaIntHandler();
+        var loop = CreateLoop(fake);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("use typed tool")),
+        };
+
+        var events = new List<StreamEvent>();
+        await foreach (var evt in loop.RunStreamAsync(DefaultConfig, [handler], messages, DefaultContext))
+        {
+            events.Add(evt);
+        }
+
+        Assert.Equal(0, handler.TypedCallCount);
+        Assert.Contains(events, e =>
+            e is DiagnosticEvent diag &&
+            diag.Category == "tool" &&
+            diag.Level == DiagnosticLevel.Error &&
+            diag.Message.Contains("invalid typed arguments", StringComparison.Ordinal));
+        Assert.Contains(events, e => e is TextDeltaEvent td && td.Text == "typed validation handled");
+    }
+
     private sealed class RecoveryStreamingCompletionService : ICompletionService
     {
         public List<CompletionRequest> StreamRequests { get; } = [];
@@ -151,7 +224,7 @@ public class ToolLoopStreamingTests
                 var toolInput = System.Text.Json.JsonDocument.Parse("{}").RootElement.Clone();
                 return Task.FromResult(new CompletionResponse
                 {
-                    Content = new MessageContent([new ToolUseBlock("call_1", "my_tool", toolInput)]),
+                    Content = new MessageContent([new ToolUseBlock("call_1", "my_tool", new ToolInput(toolInput))]),
                     StopReason = "tool_use",
                     Usage = new TokenUsage(10, 20),
                 });
@@ -181,5 +254,37 @@ public class ToolLoopStreamingTests
             yield return new DoneEvent("end_turn", new TokenUsage(10, 20));
             await Task.CompletedTask;
         }
+    }
+
+    private sealed class StringSchemaIntHandler : TypedToolHandler<StringSchemaIntArgs>
+    {
+        public int TypedCallCount { get; private set; }
+
+        public override string Name => "typed_tool";
+
+        public override ToolDefinition Definition => new(
+            Name,
+            "Test typed handler",
+            System.Text.Json.JsonDocument.Parse(
+                """
+                {
+                    "type": "object",
+                    "properties": {
+                        "count": { "type": "string" }
+                    },
+                    "required": ["count"]
+                }
+                """).RootElement);
+
+        protected override Task<ToolResult> HandleTypedAsync(StringSchemaIntArgs input, AgentContext context, CancellationToken ct = default)
+        {
+            TypedCallCount++;
+            return Task.FromResult(ToolResult.Ok(input.Count.ToString()));
+        }
+    }
+
+    private sealed record StringSchemaIntArgs
+    {
+        public int Count { get; init; }
     }
 }

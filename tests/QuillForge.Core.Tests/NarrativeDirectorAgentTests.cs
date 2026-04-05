@@ -146,12 +146,12 @@ internal sealed class EmptyLoreStore : ILoreStore
 
 internal sealed class FakeSessionRuntimeService : ISessionStateService
 {
-    public Task<SessionMutationResult<WriterPendingDecisionResult>> AcceptWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionMutationResult<WriterPendingContentAcceptedEvent>> AcceptWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }
 
-    public Task<SessionMutationResult<SessionState>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
+    public Task<SessionMutationResult<WriterPendingCaptureEvent>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }
@@ -166,7 +166,7 @@ internal sealed class FakeSessionRuntimeService : ISessionStateService
         throw new NotSupportedException();
     }
 
-    public Task<SessionMutationResult<SessionState>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
+    public Task<SessionMutationResult<WriterPendingContentRejectedEvent>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
     {
         throw new NotSupportedException();
     }

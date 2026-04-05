@@ -10,7 +10,7 @@ namespace QuillForge.Core.Agents.Tools;
 /// boundary. This keeps narrative memory inside SessionRuntimeService rather
 /// than ad hoc endpoint or agent plumbing.
 /// </summary>
-public sealed class UpdateNarrativeStateHandler : IToolHandler
+public sealed class UpdateNarrativeStateHandler : TypedToolHandler<UpdateNarrativeStateArgs>
 {
     private readonly ISessionStateService _runtimeService;
     private readonly ILogger<UpdateNarrativeStateHandler> _logger;
@@ -23,9 +23,9 @@ public sealed class UpdateNarrativeStateHandler : IToolHandler
         _logger = logger;
     }
 
-    public string Name => "update_narrative_state";
+    public override string Name => "update_narrative_state";
 
-    public ToolDefinition Definition => new(
+    public override ToolDefinition Definition => new(
         Name,
         "Update session-embedded narrative state with concise director notes and optional active plot file.",
         JsonDocument.Parse("""
@@ -64,31 +64,24 @@ public sealed class UpdateNarrativeStateHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    protected override async Task<ToolResult> HandleTypedAsync(UpdateNarrativeStateArgs input, AgentContext context, CancellationToken ct = default)
     {
-        var directorNotes = input.GetProperty("director_notes").GetString();
+        var directorNotes = input.DirectorNotes;
         if (string.IsNullOrWhiteSpace(directorNotes))
         {
             return ToolResult.Fail("director_notes is required.");
         }
 
-        var activePlotFile = input.TryGetProperty("active_plot_file", out var plotElement)
-            ? plotElement.GetString()
-            : null;
-        PlotProgressUpdate? plotProgress = null;
-        if (input.TryGetProperty("plot_progress", out var progressElement) && progressElement.ValueKind == JsonValueKind.Object)
-        {
-            plotProgress = new PlotProgressUpdate(
-                progressElement.TryGetProperty("current_beat", out var currentBeatElement)
-                    ? currentBeatElement.GetString()
-                    : null,
-                ReadStringArray(progressElement, "completed_beats"),
-                ReadStringArray(progressElement, "deviations"));
-        }
+        var plotProgress = input.PlotProgress is null
+            ? null
+            : new PlotProgressUpdate(
+                input.PlotProgress.CurrentBeat,
+                input.PlotProgress.CompletedBeats,
+                input.PlotProgress.Deviations);
 
         var result = await _runtimeService.UpdateNarrativeStateAsync(
             context.SessionId,
-            new UpdateNarrativeStateCommand(directorNotes, activePlotFile, plotProgress),
+            new UpdateNarrativeStateCommand(directorNotes, input.ActivePlotFile, plotProgress),
             ct);
 
         if (result.Status == SessionMutationStatus.Busy)
@@ -110,24 +103,18 @@ public sealed class UpdateNarrativeStateHandler : IToolHandler
 
         return ToolResult.Ok("Narrative state updated.");
     }
+}
 
-    private static IReadOnlyList<string>? ReadStringArray(JsonElement element, string propertyName)
-    {
-        if (!element.TryGetProperty(propertyName, out var arrayElement) || arrayElement.ValueKind != JsonValueKind.Array)
-        {
-            return null;
-        }
+public sealed record UpdateNarrativeStateArgs
+{
+    public string DirectorNotes { get; init; } = "";
+    public string? ActivePlotFile { get; init; }
+    public NarrativePlotProgressArgs? PlotProgress { get; init; }
+}
 
-        var items = new List<string>();
-        foreach (var item in arrayElement.EnumerateArray())
-        {
-            var value = item.GetString();
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                items.Add(value);
-            }
-        }
-
-        return items;
-    }
+public sealed record NarrativePlotProgressArgs
+{
+    public string? CurrentBeat { get; init; }
+    public IReadOnlyList<string>? CompletedBeats { get; init; }
+    public IReadOnlyList<string>? Deviations { get; init; }
 }

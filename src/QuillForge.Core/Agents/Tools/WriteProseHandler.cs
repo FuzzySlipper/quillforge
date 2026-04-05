@@ -10,7 +10,7 @@ namespace QuillForge.Core.Agents.Tools;
 /// Resolves the active writing style and story path from prepared interactive
 /// session context at call time, not from values captured at construction.
 /// </summary>
-public sealed class WriteProseHandler : IToolHandler
+public sealed class WriteProseHandler : TypedToolHandler<WriteProseArgs>
 {
     private readonly ProseWriterAgent _proseWriter;
     private readonly IInteractiveSessionContextService _sessionContextService;
@@ -29,9 +29,9 @@ public sealed class WriteProseHandler : IToolHandler
         _logger = logger;
     }
 
-    public string Name => "write_prose";
+    public override string Name => "write_prose";
 
-    public ToolDefinition Definition => new(Name,
+    public override ToolDefinition Definition => new(Name,
         "Generate prose for a scene. Returns the generated text.",
         JsonDocument.Parse("""
             {
@@ -50,15 +50,13 @@ public sealed class WriteProseHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    protected override async Task<ToolResult> HandleTypedAsync(WriteProseArgs input, AgentContext context, CancellationToken ct = default)
     {
-        var sceneDescription = input.GetProperty("scene_description").GetString();
+        var sceneDescription = input.SceneDescription;
         if (string.IsNullOrWhiteSpace(sceneDescription))
         {
             return ToolResult.Fail("scene_description is required.");
         }
-
-        var toneNotes = input.TryGetProperty("tone_notes", out var tn) ? tn.GetString() : null;
 
         var sessionContext = context.SessionContext ?? await _sessionContextService.LoadAsync(context.SessionId, ct);
         var storyStateData = await _storyState.LoadAsync(sessionContext.StoryStatePath, ct);
@@ -71,10 +69,16 @@ public sealed class WriteProseHandler : IToolHandler
         {
             SceneDescription = sceneDescription,
             StoryContext = storyContext,
-            ToneNotes = toneNotes,
+            ToneNotes = input.ToneNotes,
         };
 
         var result = await _proseWriter.WriteAsync(request, context.ActiveWritingStyle, storyContext, context, ct);
         return ToolResult.Ok(result.GeneratedText);
     }
+}
+
+public sealed record WriteProseArgs
+{
+    public string SceneDescription { get; init; } = "";
+    public string? ToneNotes { get; init; }
 }

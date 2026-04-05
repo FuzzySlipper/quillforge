@@ -37,7 +37,7 @@ public sealed class FakeCompletionService : ICompletionService
     public void EnqueueToolCall(string toolName, string toolId, string inputJson, string stopReason = "tool_use")
     {
         var input = System.Text.Json.JsonDocument.Parse(inputJson).RootElement;
-        var content = new MessageContent([new ToolUseBlock(toolId, toolName, input)]);
+        var content = new MessageContent([new ToolUseBlock(toolId, toolName, new ToolInput(input))]);
         EnqueueResponse(new CompletionResponse
         {
             Content = content,
@@ -72,7 +72,7 @@ public sealed class FakeCompletionService : ICompletionService
                     yield return new TextDeltaEvent(text.Text);
                     break;
                 case ToolUseBlock tool:
-                    yield return new ToolCallEvent(tool.Name, tool.Id, tool.Input);
+                    yield return new ToolCallDeltaReceivedEvent(tool.Name, tool.Id, tool.Input.ToJsonElement());
                     break;
             }
         }

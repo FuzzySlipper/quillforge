@@ -143,11 +143,11 @@ public sealed class ToolLoop
             }
 
             // Append assistant message with tool_use blocks.
-            // RawProviderMessage carries provider-specific data (e.g., reasoning_content JSON)
-            // for adapters that need lossless round-tripping. Ignored by the default adapter.
+            // ProviderReplay carries adapter-owned replay data for providers that need
+            // lossless round-tripping across tool-loop rounds. Ignored by the default adapter.
             messages.Add(new CompletionMessage("assistant", response.Content)
             {
-                RawProviderMessage = response.RawProviderMessage,
+                ProviderReplay = response.ProviderReplay,
             });
 
             // Execute all tool calls and build results
@@ -220,10 +220,10 @@ public sealed class ToolLoop
                 toolsCount: toolDefs.Count);
 
             var collectedText = new List<string>();
-            var collectedToolCalls = new List<ToolCallEvent>();
+            var collectedToolCalls = new List<ToolCallDeltaReceivedEvent>();
             string? stopReason = null;
             TokenUsage? usage = null;
-            object? rawProviderMessage = null;
+            ProviderReplayEnvelope? providerReplay = null;
 
             await foreach (var evt in _completionService.StreamAsync(request, ct))
             {
@@ -234,15 +234,14 @@ public sealed class ToolLoop
                         yield return textDelta;
                         break;
 
-                    case ToolCallEvent toolCall:
+                    case ToolCallDeltaReceivedEvent toolCall:
                         collectedToolCalls.Add(toolCall);
-                        yield return toolCall;
                         break;
 
                     case DoneEvent done:
                         stopReason = done.StopReason;
                         usage = done.Usage;
-                        rawProviderMessage = done.RawProviderMessage;
+                        providerReplay = done.ProviderReplay;
                         break;
 
                     default:
@@ -302,13 +301,16 @@ public sealed class ToolLoop
 
                 stopReason = recoveryResponse.StopReason;
                 usage = recoveryResponse.Usage;
-                rawProviderMessage = recoveryResponse.RawProviderMessage;
+                providerReplay = recoveryResponse.ProviderReplay;
                 collectedText.Clear();
                 collectedToolCalls.Clear();
 
                 foreach (var toolCall in recoveryResponse.Content.GetToolCalls())
                 {
-                    collectedToolCalls.Add(new ToolCallEvent(toolCall.Name, toolCall.Id, toolCall.Input));
+                    collectedToolCalls.Add(new ToolCallDeltaReceivedEvent(
+                        toolCall.Name,
+                        toolCall.Id,
+                        toolCall.Input.ToJsonElement()));
                 }
 
                 var recoveredText = recoveryResponse.Content.GetText();
@@ -366,24 +368,63 @@ public sealed class ToolLoop
             }
             foreach (var tc in collectedToolCalls)
             {
-                assistantBlocks.Add(new ToolUseBlock(tc.ToolId, tc.ToolName, tc.Input));
+                assistantBlocks.Add(new ToolUseBlock(tc.ToolId, tc.ToolName, new ToolInput(tc.Input)));
             }
-            // RawProviderMessage carries provider-specific data (e.g., reasoning_content JSON)
-            // for adapters that need lossless round-tripping. Ignored by the default adapter.
+            // ProviderReplay carries adapter-owned replay data for providers that need
+            // lossless round-tripping across tool-loop rounds. Ignored by the default adapter.
             messages.Add(new CompletionMessage("assistant", new MessageContent(assistantBlocks))
             {
-                RawProviderMessage = rawProviderMessage,
+                ProviderReplay = providerReplay,
             });
 
             // Execute tools
             var resultBlocks = new List<ContentBlock>();
             foreach (var tc in collectedToolCalls)
             {
+                var toolUse = new ToolUseBlock(tc.ToolId, tc.ToolName, new ToolInput(tc.Input));
+                var diagnostics = new List<DiagnosticEvent>();
+                if (!toolMap.TryGetValue(tc.ToolName, out var handler))
+                {
+                    var missingTool = ToolResult.Fail($"Tool '{tc.ToolName}' not found.");
+                    yield return new DiagnosticEvent("tool", missingTool.Error!, DiagnosticLevel.Error);
+                    resultBlocks.Add(new ToolResultBlock(tc.ToolId, missingTool.Error!, isError: true));
+                    continue;
+                }
+
+                if (!TryValidateToolInput(handler, toolUse, context, diagnostics.Add, out var validationFailure))
+                {
+                    foreach (var diagnostic in diagnostics)
+                    {
+                        yield return diagnostic;
+                    }
+
+                    if (_diagnosticsEnabled)
+                    {
+                        yield return new DiagnosticEvent(
+                            "tool",
+                            $"{tc.ToolName} rejected before dispatch",
+                            DiagnosticLevel.Error);
+                    }
+
+                    resultBlocks.Add(new ToolResultBlock(
+                        tc.ToolId,
+                        validationFailure.Error ?? "Unknown validation failure",
+                        isError: true));
+                    continue;
+                }
+
+                var validatedInput = new ToolInput(tc.Input);
+                yield return new ToolCallValidatedEvent(tc.ToolName, tc.ToolId, validatedInput);
+
                 if (_diagnosticsEnabled)
                     yield return new DiagnosticEvent("tool", $"Dispatching {tc.ToolName}");
 
-                var fakeToolUse = new ToolUseBlock(tc.ToolId, tc.ToolName, tc.Input);
-                var result = await DispatchToolAsync(toolMap, fakeToolUse, context, ct);
+                var result = await DispatchToolAsync(toolMap, toolUse, context, ct, diagnostics.Add, skipValidation: true);
+
+                foreach (var diagnostic in diagnostics)
+                {
+                    yield return diagnostic;
+                }
 
                 if (_diagnosticsEnabled)
                     yield return new DiagnosticEvent("tool",
@@ -408,12 +449,19 @@ public sealed class ToolLoop
         Dictionary<string, IToolHandler> toolMap,
         ToolUseBlock toolCall,
         AgentContext context,
-        CancellationToken ct)
+        CancellationToken ct,
+        Action<DiagnosticEvent>? diagnosticSink = null,
+        bool skipValidation = false)
     {
         if (!toolMap.TryGetValue(toolCall.Name, out var handler))
         {
             _logger.LogWarning("Tool not found: {ToolName}", toolCall.Name);
             return ToolResult.Fail($"Tool '{toolCall.Name}' not found.");
+        }
+
+        if (!skipValidation && !TryValidateToolInput(handler, toolCall, context, diagnosticSink, out var validationFailure))
+        {
+            return validationFailure;
         }
 
         try
@@ -434,11 +482,54 @@ public sealed class ToolLoop
             _logger.LogWarning("Tool {ToolName} timed out after {Timeout}s", toolCall.Name, _toolTimeoutSeconds);
             return ToolResult.Fail($"Tool '{toolCall.Name}' timed out after {_toolTimeoutSeconds} seconds.");
         }
+        catch (ToolArgsParseException ex)
+        {
+            var message = $"Tool '{toolCall.Name}' received invalid typed arguments.";
+            _logger.LogWarning(
+                ex,
+                "Tool argument deserialization failed: session={SessionId}, tool={ToolName}, toolId={ToolId}, input={Input}",
+                context.SessionId,
+                toolCall.Name,
+                toolCall.Id,
+                toolCall.Input.GetRawText());
+            diagnosticSink?.Invoke(new DiagnosticEvent(
+                "tool",
+                $"{message} Input matched the schema but could not be converted to the handler's expected argument model.",
+                DiagnosticLevel.Error));
+            return ToolResult.Fail(message);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Tool {ToolName} threw an exception", toolCall.Name);
             return ToolResult.Fail($"Tool '{toolCall.Name}' failed: {ex.Message}");
         }
+    }
+
+    private bool TryValidateToolInput(
+        IToolHandler handler,
+        ToolUseBlock toolCall,
+        AgentContext context,
+        Action<DiagnosticEvent>? diagnosticSink,
+        out ToolResult failure)
+    {
+        if (ToolInputSchemaValidator.TryValidate(toolCall.Input, handler.Definition.InputSchema, out var error))
+        {
+            failure = ToolResult.Ok(string.Empty);
+            return true;
+        }
+
+        var message = $"Tool '{toolCall.Name}' received invalid input: {error}";
+        _logger.LogWarning(
+            "Tool input validation failed: session={SessionId}, tool={ToolName}, toolId={ToolId}, error={Error}, input={Input}",
+            context.SessionId,
+            toolCall.Name,
+            toolCall.Id,
+            error,
+            toolCall.Input.GetRawText());
+
+        diagnosticSink?.Invoke(new DiagnosticEvent("tool", message, DiagnosticLevel.Error));
+        failure = ToolResult.Fail(message);
+        return false;
     }
 
     private static Dictionary<string, IToolHandler> BuildToolMap(IReadOnlyList<IToolHandler> tools)

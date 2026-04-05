@@ -22,7 +22,7 @@ public sealed class StoryStateHandlerTests
         var handler = new GetStoryStateHandler(storyState, sessionContextService, NullLogger<GetStoryStateHandler>.Instance);
         var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
 
-        await handler.HandleAsync(JsonDocument.Parse("{}").RootElement, context);
+        await handler.HandleAsync(ToolInput.Empty, context);
 
         Assert.Single(storyState.LoadedPaths);
         Assert.Equal("alpha/.state.yaml", storyState.LoadedPaths[0]);
@@ -39,9 +39,9 @@ public sealed class StoryStateHandlerTests
         });
         var handler = new GetStoryStateHandler(storyState, sessionContextService, NullLogger<GetStoryStateHandler>.Instance);
 
-        await handler.HandleAsync(JsonDocument.Parse("{}").RootElement,
+        await handler.HandleAsync(ToolInput.Empty,
             new AgentContext { SessionId = SessionA, ActiveMode = "writer" });
-        await handler.HandleAsync(JsonDocument.Parse("{}").RootElement,
+        await handler.HandleAsync(ToolInput.Empty,
             new AgentContext { SessionId = SessionB, ActiveMode = "writer" });
 
         Assert.Equal(2, storyState.LoadedPaths.Count);
@@ -59,12 +59,49 @@ public sealed class StoryStateHandlerTests
         });
         var handler = new UpdateStoryStateHandler(storyState, sessionContextService, NullLogger<UpdateStoryStateHandler>.Instance);
         var context = new AgentContext { SessionId = SessionA, ActiveMode = "roleplay" };
-        var input = JsonDocument.Parse("""{"updates": {"tension": "high"}}""").RootElement;
+        var input = new ToolInput(JsonDocument.Parse("""{"updates": {"tension": "high"}}""").RootElement);
 
         await handler.HandleAsync(input, context);
 
         Assert.Single(storyState.MergedPaths);
         Assert.Equal("alpha/.state.yaml", storyState.MergedPaths[0]);
+        Assert.NotNull(storyState.LastMergedUpdates);
+        Assert.Equal("high", storyState.LastMergedUpdates!["tension"]);
+    }
+
+    [Fact]
+    public async Task UpdateStoryState_ConvertsNestedUpdatesWithoutRawJsonWalking()
+    {
+        var storyState = new TrackingStoryStateService();
+        var sessionContextService = new FakeInteractiveSessionContextService(new Dictionary<Guid, string>
+        {
+            [SessionA] = "alpha",
+        });
+        var handler = new UpdateStoryStateHandler(storyState, sessionContextService, NullLogger<UpdateStoryStateHandler>.Instance);
+        var context = new AgentContext { SessionId = SessionA, ActiveMode = "roleplay" };
+        var input = new ToolInput(JsonDocument.Parse(
+            """
+            {
+              "updates": {
+                "plot": {
+                  "beat": "reveal"
+                },
+                "flags": [true, false],
+                "count": 3
+              }
+            }
+            """).RootElement);
+
+        await handler.HandleAsync(input, context);
+
+        Assert.NotNull(storyState.LastMergedUpdates);
+        var plot = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object>>(storyState.LastMergedUpdates!["plot"]);
+        Assert.Equal("reveal", plot["beat"]);
+
+        var flags = Assert.IsType<List<object>>(storyState.LastMergedUpdates["flags"]);
+        Assert.Equal([true, false], flags);
+        var count = Assert.IsAssignableFrom<IConvertible>(storyState.LastMergedUpdates["count"]);
+        Assert.Equal(3d, count.ToDouble(null));
     }
 
     [Fact]
@@ -81,7 +118,7 @@ public sealed class StoryStateHandlerTests
         // ProseWriterAgent is null — handler will fail at WriteAsync, but we verify story context resolution first
         var handler = new WriteProseHandler(null!, sessionContextService, storyState, NullLogger<WriteProseHandler>.Instance);
         var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
-        var input = JsonDocument.Parse("""{"scene_description": "test scene"}""").RootElement;
+        var input = new ToolInput(JsonDocument.Parse("""{"scene_description": "test scene"}""").RootElement);
 
         // The handler will throw NullReferenceException when calling _proseWriter.WriteAsync,
         // but story state resolution happens before that call
@@ -99,9 +136,39 @@ public sealed class StoryStateHandlerTests
         var handler = new GetStoryStateHandler(storyState, sessionContextService, NullLogger<GetStoryStateHandler>.Instance);
         var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
 
-        await handler.HandleAsync(JsonDocument.Parse("{}").RootElement, context);
+        await handler.HandleAsync(ToolInput.Empty, context);
 
         Assert.Equal("default/.state.yaml", storyState.LoadedPaths[0]);
+    }
+
+    [Fact]
+    public async Task UpdateNarrativeStateHandler_UsesTypedArgsForNestedPlotProgress()
+    {
+        var runtimeService = new CapturingSessionStateService();
+        var handler = new UpdateNarrativeStateHandler(runtimeService, NullLogger<UpdateNarrativeStateHandler>.Instance);
+        var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
+        var input = new ToolInput(JsonDocument.Parse(
+            """
+            {
+                "director_notes": "Keep the pressure on the heroine.",
+                "active_plot_file": "gate-arc.md",
+                "plot_progress": {
+                    "current_beat": "gate-confrontation",
+                    "completed_beats": ["arrival", "inspection"],
+                    "deviations": ["guard recognized her crest"]
+                }
+            }
+            """).RootElement);
+
+        var result = await handler.HandleAsync(input, context);
+
+        Assert.True(result.Success);
+        Assert.NotNull(runtimeService.LastNarrativeCommand);
+        Assert.Equal("Keep the pressure on the heroine.", runtimeService.LastNarrativeCommand!.DirectorNotes);
+        Assert.Equal("gate-arc.md", runtimeService.LastNarrativeCommand.ActivePlotFile);
+        Assert.Equal("gate-confrontation", runtimeService.LastNarrativeCommand.PlotProgress!.CurrentBeat);
+        Assert.Equal(["arrival", "inspection"], runtimeService.LastNarrativeCommand.PlotProgress.CompletedBeats);
+        Assert.Equal(["guard recognized her crest"], runtimeService.LastNarrativeCommand.PlotProgress.Deviations);
     }
 }
 
@@ -109,6 +176,7 @@ internal sealed class TrackingStoryStateService : IStoryStateService
 {
     public List<string> LoadedPaths { get; } = [];
     public List<string> MergedPaths { get; } = [];
+    public IReadOnlyDictionary<string, object>? LastMergedUpdates { get; private set; }
 
     public Task<IReadOnlyDictionary<string, object>> LoadAsync(string stateFilePath, CancellationToken ct = default)
     {
@@ -122,6 +190,7 @@ internal sealed class TrackingStoryStateService : IStoryStateService
     public Task<IReadOnlyDictionary<string, object>> MergeAsync(string stateFilePath, IReadOnlyDictionary<string, object> updates, CancellationToken ct = default)
     {
         MergedPaths.Add(stateFilePath);
+        LastMergedUpdates = updates;
         return Task.FromResult(updates);
     }
 
@@ -169,4 +238,42 @@ internal sealed class FakeInteractiveSessionContextService : IInteractiveSession
             Mode = new ModeSelectionState { ActiveModeName = "writer", ProjectName = projectName },
         }, ct);
     }
+}
+
+internal sealed class CapturingSessionStateService : ISessionStateService
+{
+    public UpdateNarrativeStateCommand? LastNarrativeCommand { get; private set; }
+
+    public Task<SessionState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
+        => Task.FromResult(new SessionState { SessionId = sessionId });
+
+    public Task<SessionMutationResult<SessionState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
+    public Task<SessionMutationResult<SessionState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
+    public Task<SessionMutationResult<SessionState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
+    public Task<SessionMutationResult<WriterPendingCaptureEvent>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
+    public Task<SessionMutationResult<WriterPendingContentAcceptedEvent>> AcceptWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
+    public Task<SessionMutationResult<WriterPendingContentRejectedEvent>> RejectWriterPendingAsync(Guid? sessionId, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
+    public Task<SessionMutationResult<SessionState>> UpdateNarrativeStateAsync(Guid? sessionId, UpdateNarrativeStateCommand command, CancellationToken ct = default)
+    {
+        LastNarrativeCommand = command;
+        return Task.FromResult(SessionMutationResult<SessionState>.Success(new SessionState { SessionId = sessionId }));
+    }
+
+    public Task<SessionMutationResult<SessionState>> SetActivePlotAsync(Guid? sessionId, SetActivePlotCommand command, CancellationToken ct = default)
+        => throw new NotSupportedException();
+
+    public Task<SessionMutationResult<SessionState>> ClearActivePlotAsync(Guid? sessionId, CancellationToken ct = default)
+        => throw new NotSupportedException();
 }

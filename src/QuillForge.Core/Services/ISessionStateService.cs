@@ -21,16 +21,16 @@ public interface ISessionStateService
         SetSessionModeCommand command,
         CancellationToken ct = default);
 
-    Task<SessionMutationResult<SessionState>> CaptureWriterPendingAsync(
+    Task<SessionMutationResult<WriterPendingCaptureEvent>> CaptureWriterPendingAsync(
         Guid? sessionId,
         CaptureWriterPendingCommand command,
         CancellationToken ct = default);
 
-    Task<SessionMutationResult<WriterPendingDecisionResult>> AcceptWriterPendingAsync(
+    Task<SessionMutationResult<WriterPendingContentAcceptedEvent>> AcceptWriterPendingAsync(
         Guid? sessionId,
         CancellationToken ct = default);
 
-    Task<SessionMutationResult<SessionState>> RejectWriterPendingAsync(
+    Task<SessionMutationResult<WriterPendingContentRejectedEvent>> RejectWriterPendingAsync(
         Guid? sessionId,
         CancellationToken ct = default);
 

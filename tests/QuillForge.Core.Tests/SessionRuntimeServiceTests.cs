@@ -95,9 +95,11 @@ public sealed class SessionRuntimeServiceTests
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
-        Assert.Equal(WriterState.PendingReview, result.Value.Writer.State);
-        Assert.NotNull(result.Value.Writer.PendingContent);
-        Assert.Equal("default", result.Value.Profile.ProfileId);
+        var captured = Assert.IsType<WriterPendingContentCapturedEvent>(result.Value);
+        Assert.Equal(WriterState.PendingReview, captured.SessionView.Writer.State);
+        Assert.NotNull(captured.SessionView.Writer.PendingContent);
+        Assert.Equal("default", captured.SessionView.Profile.ProfileId);
+        Assert.Equal("writer", captured.SourceMode);
     }
 
     [Fact]
@@ -118,8 +120,10 @@ public sealed class SessionRuntimeServiceTests
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
-        Assert.Equal(WriterState.Idle, result.Value.Writer.State);
-        Assert.Null(result.Value.Writer.PendingContent);
+        var skipped = Assert.IsType<WriterPendingCaptureSkippedEvent>(result.Value);
+        Assert.Equal("mode_mismatch", skipped.ReasonCode);
+        Assert.Equal(WriterState.Idle, skipped.SessionView.Writer.State);
+        Assert.Null(skipped.SessionView.Writer.PendingContent);
     }
 
     [Fact]
@@ -144,6 +148,7 @@ public sealed class SessionRuntimeServiceTests
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
         Assert.Equal("Accepted text", result.Value.AcceptedContent);
+        Assert.Equal(sessionId, result.Value.SessionId);
 
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(WriterState.Idle, saved.Writer.State);
@@ -170,6 +175,9 @@ public sealed class SessionRuntimeServiceTests
         var result = await service.RejectWriterPendingAsync(sessionId);
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Equal(WriterState.Idle, result.Value.SessionView.Writer.State);
+        Assert.Null(result.Value.SessionView.Writer.PendingContent);
 
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(WriterState.Idle, saved.Writer.State);

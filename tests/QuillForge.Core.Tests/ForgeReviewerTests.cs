@@ -92,6 +92,27 @@ public class ForgeReviewerTests
     }
 
     [Fact]
+    public void WrongJsonShape_ReturnsFailingFallback()
+    {
+        var reviewer = CreateReviewer();
+        var json = """
+            {
+                "continuity": "high",
+                "brief_adherence": 7,
+                "voice_consistency": 7,
+                "quality": 7,
+                "feedback": "Wrong type."
+            }
+            """;
+
+        var result = reviewer.ParseReviewResult(json);
+
+        Assert.False(result.Passed);
+        Assert.Equal(0, result.Overall);
+        Assert.Contains("\"continuity\": \"high\"", result.Feedback);
+    }
+
+    [Fact]
     public void CustomPassThreshold_IsRespected()
     {
         var json = """

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using QuillForge.Core.Models;
 
 namespace QuillForge.Core.Services;
@@ -11,5 +10,5 @@ public interface IToolHandler
 {
     string Name { get; }
     ToolDefinition Definition { get; }
-    Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default);
+    Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default);
 }

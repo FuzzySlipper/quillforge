@@ -34,11 +34,11 @@ public sealed record CompletionRequest
 public sealed record CompletionMessage(string Role, MessageContent Content)
 {
     /// <summary>
-    /// Opaque provider-specific message data for lossless round-tripping.
-    /// Used by ReasoningCompletionService to preserve raw JSON (including reasoning_content)
-    /// during tool loop round-trips. Ignored by ChatClientCompletionService.
+    /// QuillForge-owned replay envelope for adapter-specific round-tripping.
+    /// Used by ReasoningCompletionService to preserve reasoning content and tool calls
+    /// across tool loop rounds. Ignored by adapters that do not need replay data.
     /// </summary>
-    public object? RawProviderMessage { get; init; }
+    public ProviderReplayEnvelope? ProviderReplay { get; init; }
 }
 
 /// <summary>
@@ -50,13 +50,13 @@ public sealed record CompletionResponse
     public required string StopReason { get; init; }
     public required TokenUsage Usage { get; init; }
     /// <summary>
-    /// Reasoning/thinking content from the model (for UI display).
-    /// </summary>
+     /// Reasoning/thinking content from the model (for UI display).
+     /// </summary>
     public string? Reasoning { get; init; }
     /// <summary>
-    /// Opaque provider-specific message data for lossless round-tripping.
-    /// </summary>
-    public object? RawProviderMessage { get; init; }
+    /// QuillForge-owned replay envelope for adapter-specific round-tripping.
+     /// </summary>
+    public ProviderReplayEnvelope? ProviderReplay { get; init; }
 }
 
 /// <summary>

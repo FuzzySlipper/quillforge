@@ -33,9 +33,9 @@ public sealed class RunCouncilHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
-        var query = input.GetProperty("query").GetString();
+        var query = input.GetOptionalString("query");
         if (string.IsNullOrWhiteSpace(query))
             return ToolResult.Fail("Query is required.");
 

@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -163,45 +163,33 @@ public sealed class LibrarianAgent
     private static bool TryParseJson(string json, out LoreBundle bundle)
     {
         bundle = default!;
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            var passages = root.TryGetProperty("relevant_passages", out var passagesEl)
-                ? passagesEl.EnumerateArray().Select(e => e.GetString() ?? "").ToList()
-                : [];
-
-            var sources = root.TryGetProperty("source_files", out var sourcesEl)
-                ? sourcesEl.EnumerateArray().Select(e => e.GetString() ?? "").ToList()
-                : [];
-
-            var confidence = LoreConfidence.High;
-            if (root.TryGetProperty("confidence", out var confEl))
-            {
-                var confStr = confEl.GetString() ?? "high";
-                confidence = confStr.ToLowerInvariant() switch
-                {
-                    "high" => LoreConfidence.High,
-                    "medium" => LoreConfidence.Medium,
-                    "low" => LoreConfidence.Low,
-                    _ => LoreConfidence.High,
-                };
-            }
-
-            bundle = new LoreBundle
-            {
-                RelevantPassages = passages,
-                SourceFiles = sources,
-                Confidence = confidence,
-            };
-            return true;
-        }
-        catch (JsonException)
+        if (!StructuredJsonParser.TryParse<LoreBundleDto>(json, out var dto))
         {
             return false;
         }
+        var parsed = dto!;
+
+        var confidence = (parsed.Confidence ?? "high").ToLowerInvariant() switch
+        {
+            "high" => LoreConfidence.High,
+            "medium" => LoreConfidence.Medium,
+            "low" => LoreConfidence.Low,
+            _ => LoreConfidence.High,
+        };
+
+        bundle = new LoreBundle
+        {
+            RelevantPassages = parsed.RelevantPassages?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList() ?? [],
+            SourceFiles = parsed.SourceFiles?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList() ?? [],
+            Confidence = confidence,
+        };
+        return true;
     }
+
+    private sealed record LoreBundleDto(
+        [property: JsonPropertyName("relevant_passages")] IReadOnlyList<string>? RelevantPassages,
+        [property: JsonPropertyName("source_files")] IReadOnlyList<string>? SourceFiles,
+        string? Confidence);
 
     internal static string StripMarkdownFences(string text)
     {

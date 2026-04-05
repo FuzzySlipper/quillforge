@@ -61,13 +61,22 @@ Examples in the current codebase:
 
 - streaming output events such as
   [`TextDeltaEvent`](../../src/QuillForge.Core/Models/StreamEvent.cs),
-  [`ToolCallEvent`](../../src/QuillForge.Core/Models/StreamEvent.cs), and
+  [`ToolCallDeltaReceivedEvent`](../../src/QuillForge.Core/Models/StreamEvent.cs),
+  [`ToolCallValidatedEvent`](../../src/QuillForge.Core/Models/StreamEvent.cs), and
   [`DoneEvent`](../../src/QuillForge.Core/Models/StreamEvent.cs)
 - forge pipeline events such as `StageStartedEvent` and `ForgeCompletedEvent`
   under `src/QuillForge.Core/Pipeline/`
 
 Events are not commands with a different suffix. They should describe facts, not
 requests.
+
+For streaming specifically, transport-facing facts and app-facing facts may both
+exist in the same overall flow:
+
+- transport facts describe what the provider emitted, such as
+  `ToolCallDeltaReceivedEvent`
+- app facts describe what QuillForge accepted or produced, such as
+  `ToolCallValidatedEvent` and `DiagnosticEvent`
 
 ## When Not To Add Commands
 
@@ -116,6 +125,21 @@ Why it fits:
 
 This is the model future session/profile/runtime mutation work should generally
 follow.
+
+The writer-pending review flow is now the concrete reference implementation:
+
+- command input:
+  [`CaptureWriterPendingCommand`](../../src/QuillForge.Core/Models/SessionRuntimeCommands.cs)
+- event outputs:
+  [`WriterPendingContentCapturedEvent`](../../src/QuillForge.Core/Models/SessionRuntimeEvents.cs),
+  [`WriterPendingCaptureSkippedEvent`](../../src/QuillForge.Core/Models/SessionRuntimeEvents.cs),
+  [`WriterPendingContentAcceptedEvent`](../../src/QuillForge.Core/Models/SessionRuntimeEvents.cs),
+  and
+  [`WriterPendingContentRejectedEvent`](../../src/QuillForge.Core/Models/SessionRuntimeEvents.cs)
+
+See
+[`session-runtime-command-event-reference.md`](./session-runtime-command-event-reference.md)
+for the reasoning, authority model, and expected call pattern.
 
 ### Profile Config Service
 

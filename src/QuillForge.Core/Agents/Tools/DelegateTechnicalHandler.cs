@@ -37,9 +37,9 @@ public sealed class DelegateTechnicalHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
-        var question = input.GetProperty("question").GetString() ?? "";
+        var question = input.GetRequiredString("question");
         _logger.LogDebug("DelegateTechnicalHandler: delegating question");
 
         var request = new CompletionRequest

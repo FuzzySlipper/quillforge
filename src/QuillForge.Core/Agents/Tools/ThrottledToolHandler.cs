@@ -1,4 +1,3 @@
-using System.Text.Json;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 
@@ -24,7 +23,7 @@ public sealed class ThrottledToolHandler : IToolHandler
     public string Name => _inner.Name;
     public ToolDefinition Definition => _inner.Definition;
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct);
         try

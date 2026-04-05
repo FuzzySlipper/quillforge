@@ -54,6 +54,9 @@ export default function HeaderBar({ status, layoutName, mode, onOpenProfile, onO
             {status.project ? ` / ${status.project}` : ""}
           </button>
         )}
+        {ready && (
+          <LabeledBtn label="profile" onClick={onOpenProfile} title="Active profile and conductor">{status.conductor}</LabeledBtn>
+        )}
       </div>
 
       <div className="flex items-end gap-2">
@@ -81,7 +84,6 @@ export default function HeaderBar({ status, layoutName, mode, onOpenProfile, onO
             <LabeledBtn label="model" onClick={onOpenProviders} title="Configure AI providers">
               {status.model.split("-").slice(0, 2).join("-")}
             </LabeledBtn>
-            <LabeledBtn label="tone" onClick={onOpenProfile} title="Active conductor">{status.conductor}</LabeledBtn>
           </>
         )}
         {!ready && (

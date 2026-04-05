@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -115,51 +115,43 @@ public sealed class ForgeReviewerAgent
     private bool TryParseScores(string json, out ReviewResult result)
     {
         result = default!;
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            var continuity = GetDouble(root, "continuity");
-            var briefAdherence = GetDouble(root, "brief_adherence");
-            var voiceConsistency = GetDouble(root, "voice_consistency");
-            var quality = GetDouble(root, "quality");
-            var feedback = root.TryGetProperty("feedback", out var fb) ? fb.GetString() ?? "" : "";
-
-            var extractedDetails = root.TryGetProperty("extracted_details", out var detailsEl)
-                ? detailsEl.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => s.Length > 0).ToList()
-                : [];
-
-            var overall =
-                continuity * ScoreWeights["continuity"] +
-                briefAdherence * ScoreWeights["brief_adherence"] +
-                voiceConsistency * ScoreWeights["voice_consistency"] +
-                quality * ScoreWeights["quality"];
-
-            result = new ReviewResult
-            {
-                Continuity = continuity,
-                BriefAdherence = briefAdherence,
-                VoiceConsistency = voiceConsistency,
-                Quality = quality,
-                Overall = overall,
-                Feedback = feedback,
-                Passed = overall >= PassThreshold,
-                ExtractedDetails = extractedDetails,
-            };
-            return true;
-        }
-        catch (JsonException)
+        if (!StructuredJsonParser.TryParse<ReviewResultDto>(json, out var dto))
         {
             return false;
         }
+        var parsed = dto!;
+
+        var extractedDetails = parsed.ExtractedDetails?
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .ToList() ?? [];
+
+        var overall =
+            parsed.Continuity * ScoreWeights["continuity"] +
+            parsed.BriefAdherence * ScoreWeights["brief_adherence"] +
+            parsed.VoiceConsistency * ScoreWeights["voice_consistency"] +
+            parsed.Quality * ScoreWeights["quality"];
+
+        result = new ReviewResult
+        {
+            Continuity = parsed.Continuity,
+            BriefAdherence = parsed.BriefAdherence,
+            VoiceConsistency = parsed.VoiceConsistency,
+            Quality = parsed.Quality,
+            Overall = overall,
+            Feedback = parsed.Feedback ?? "",
+            Passed = overall >= PassThreshold,
+            ExtractedDetails = extractedDetails,
+        };
+        return true;
     }
 
-    private static double GetDouble(JsonElement root, string property)
-    {
-        if (!root.TryGetProperty(property, out var el)) return 0;
-        return el.ValueKind == JsonValueKind.Number ? el.GetDouble() : 0;
-    }
+    private sealed record ReviewResultDto(
+        double Continuity,
+        [property: JsonPropertyName("brief_adherence")] double BriefAdherence,
+        [property: JsonPropertyName("voice_consistency")] double VoiceConsistency,
+        double Quality,
+        string? Feedback,
+        [property: JsonPropertyName("extracted_details")] IReadOnlyList<string>? ExtractedDetails);
 
     internal const string DefaultReviewerPrompt = """
         You are a meticulous fiction editor reviewing a chapter draft. Score the chapter on

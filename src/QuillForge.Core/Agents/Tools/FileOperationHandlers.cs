@@ -34,10 +34,10 @@ public sealed class ReadFileHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
-        var dir = input.GetProperty("directory").GetString() ?? "";
-        var path = input.GetProperty("path").GetString() ?? "";
+        var dir = input.GetRequiredString("directory");
+        var path = input.GetRequiredString("path");
         _logger.LogDebug("ReadFileHandler: reading {Dir}/{Path}", dir, path);
         var content = await _fileService.ReadAsync($"{dir}/{path}", ct);
         return ToolResult.Ok(content);
@@ -74,11 +74,11 @@ public sealed class WriteFileHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
-        var dir = input.GetProperty("directory").GetString() ?? "";
-        var path = input.GetProperty("path").GetString() ?? "";
-        var content = input.GetProperty("content").GetString() ?? "";
+        var dir = input.GetRequiredString("directory");
+        var path = input.GetRequiredString("path");
+        var content = input.GetRequiredString("content");
         _logger.LogDebug("WriteFileHandler: writing {Dir}/{Path} ({Length} chars)", dir, path, content.Length);
         await _fileService.WriteAsync($"{dir}/{path}", content, ct);
         return ToolResult.Ok($"Written to {dir}/{path}");
@@ -114,10 +114,10 @@ public sealed class ListFilesHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
-        var dir = input.GetProperty("directory").GetString() ?? "";
-        var pattern = input.TryGetProperty("pattern", out var p) ? p.GetString() : null;
+        var dir = input.GetRequiredString("directory");
+        var pattern = input.GetOptionalString("pattern");
         _logger.LogDebug("ListFilesHandler: listing {Dir} pattern={Pattern}", dir, pattern);
         var files = await _fileService.ListAsync(dir, pattern, ct);
         return ToolResult.Ok(JsonSerializer.Serialize(files));
@@ -153,10 +153,10 @@ public sealed class SearchFilesHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
-        var dir = input.GetProperty("directory").GetString() ?? "";
-        var query = input.GetProperty("query").GetString() ?? "";
+        var dir = input.GetRequiredString("directory");
+        var query = input.GetRequiredString("query");
         _logger.LogDebug("SearchFilesHandler: searching {Dir} for \"{Query}\"", dir, query);
         var results = await _fileService.SearchAsync(dir, query, ct);
         var formatted = results.Select(r => new { file = r.FilePath, snippet = r.Snippet });

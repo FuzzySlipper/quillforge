@@ -10,7 +10,7 @@ namespace QuillForge.Core.Agents.Tools;
 /// Resolves the active lore set from AgentContext at call time,
 /// not from a value captured at construction.
 /// </summary>
-public sealed class QueryLoreHandler : IToolHandler
+public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
 {
     private readonly LibrarianAgent _librarian;
     private readonly ILoreStore _loreStore;
@@ -25,9 +25,9 @@ public sealed class QueryLoreHandler : IToolHandler
         _logger = logger;
     }
 
-    public string Name => "query_lore";
+    public override string Name => "query_lore";
 
-    public ToolDefinition Definition => new(Name,
+    public override ToolDefinition Definition => new(Name,
         "Query the Librarian for lore details about characters, locations, events, or world-building.",
         JsonDocument.Parse("""
             {
@@ -42,9 +42,9 @@ public sealed class QueryLoreHandler : IToolHandler
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    protected override async Task<ToolResult> HandleTypedAsync(QueryLoreArgs input, AgentContext context, CancellationToken ct = default)
     {
-        var query = input.GetProperty("query").GetString();
+        var query = input.Query;
         if (string.IsNullOrWhiteSpace(query))
         {
             return ToolResult.Fail("Query is required.");
@@ -87,4 +87,9 @@ public sealed class QueryLoreHandler : IToolHandler
         var bundle = await _librarian.QueryAsync(query, context.ActiveLoreSet, context, runLore, ct);
         return ToolResult.Ok(JsonSerializer.Serialize(bundle));
     }
+}
+
+public sealed record QueryLoreArgs
+{
+    public string Query { get; init; } = "";
 }

@@ -263,7 +263,7 @@ public sealed class SessionRuntimeService : ISessionStateService
         return SessionMutationResult<SessionState>.Success(hydrated);
     }
 
-    public async Task<SessionMutationResult<SessionState>> CaptureWriterPendingAsync(
+    public async Task<SessionMutationResult<WriterPendingCaptureEvent>> CaptureWriterPendingAsync(
         Guid? sessionId,
         CaptureWriterPendingCommand command,
         CancellationToken ct = default)
@@ -273,7 +273,7 @@ public sealed class SessionRuntimeService : ISessionStateService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<SessionState>.Busy(
+            return SessionMutationResult<WriterPendingCaptureEvent>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
@@ -285,7 +285,10 @@ public sealed class SessionRuntimeService : ISessionStateService
                 sessionId,
                 state.Mode.ActiveModeName,
                 command.SourceMode);
-            return SessionMutationResult<SessionState>.Success(await HydrateProfileViewAsync(state, ct));
+            return SessionMutationResult<WriterPendingCaptureEvent>.Success(
+                new WriterPendingCaptureSkippedEvent(
+                    await HydrateProfileViewAsync(state, ct),
+                    "mode_mismatch"));
         }
 
         if (state.Writer.State != WriterState.Idle)
@@ -294,7 +297,10 @@ public sealed class SessionRuntimeService : ISessionStateService
                 "Writer pending capture skipped: session={SessionId} writerState={WriterState}",
                 sessionId,
                 state.Writer.State);
-            return SessionMutationResult<SessionState>.Success(await HydrateProfileViewAsync(state, ct));
+            return SessionMutationResult<WriterPendingCaptureEvent>.Success(
+                new WriterPendingCaptureSkippedEvent(
+                    await HydrateProfileViewAsync(state, ct),
+                    "writer_not_idle"));
         }
 
         if (string.IsNullOrWhiteSpace(command.Content) || command.Content.Length <= PendingContentThreshold)
@@ -303,7 +309,10 @@ public sealed class SessionRuntimeService : ISessionStateService
                 "Writer pending capture skipped: session={SessionId} contentLength={Length}",
                 sessionId,
                 command.Content.Length);
-            return SessionMutationResult<SessionState>.Success(await HydrateProfileViewAsync(state, ct));
+            return SessionMutationResult<WriterPendingCaptureEvent>.Success(
+                new WriterPendingCaptureSkippedEvent(
+                    await HydrateProfileViewAsync(state, ct),
+                    "content_below_threshold"));
         }
 
         state.Writer.PendingContent = command.Content;
@@ -316,10 +325,11 @@ public sealed class SessionRuntimeService : ISessionStateService
             sessionId,
             command.Content.Length);
 
-        return SessionMutationResult<SessionState>.Success(hydrated);
+        return SessionMutationResult<WriterPendingCaptureEvent>.Success(
+            new WriterPendingContentCapturedEvent(hydrated, command.Content.Length, command.SourceMode));
     }
 
-    public async Task<SessionMutationResult<WriterPendingDecisionResult>> AcceptWriterPendingAsync(
+    public async Task<SessionMutationResult<WriterPendingContentAcceptedEvent>> AcceptWriterPendingAsync(
         Guid? sessionId,
         CancellationToken ct = default)
     {
@@ -328,7 +338,7 @@ public sealed class SessionRuntimeService : ISessionStateService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<WriterPendingDecisionResult>.Busy(
+            return SessionMutationResult<WriterPendingContentAcceptedEvent>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
@@ -336,7 +346,7 @@ public sealed class SessionRuntimeService : ISessionStateService
         if (state.Writer.State != WriterState.PendingReview || state.Writer.PendingContent is null)
         {
             _logger.LogWarning("Writer pending accept rejected: session={SessionId} no content pending", sessionId);
-            return SessionMutationResult<WriterPendingDecisionResult>.Invalid("No pending writer content to accept.");
+            return SessionMutationResult<WriterPendingContentAcceptedEvent>.Invalid("No pending writer content to accept.");
         }
 
         var accepted = state.Writer.PendingContent;
@@ -349,11 +359,11 @@ public sealed class SessionRuntimeService : ISessionStateService
             sessionId,
             accepted.Length);
 
-        return SessionMutationResult<WriterPendingDecisionResult>.Success(
-            new WriterPendingDecisionResult(accepted));
+        return SessionMutationResult<WriterPendingContentAcceptedEvent>.Success(
+            new WriterPendingContentAcceptedEvent(sessionId, accepted));
     }
 
-    public async Task<SessionMutationResult<SessionState>> RejectWriterPendingAsync(
+    public async Task<SessionMutationResult<WriterPendingContentRejectedEvent>> RejectWriterPendingAsync(
         Guid? sessionId,
         CancellationToken ct = default)
     {
@@ -362,7 +372,7 @@ public sealed class SessionRuntimeService : ISessionStateService
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
-            return SessionMutationResult<SessionState>.Busy(
+            return SessionMutationResult<WriterPendingContentRejectedEvent>.Busy(
                 "Another mutating operation is already running for this session.");
         }
 
@@ -370,7 +380,7 @@ public sealed class SessionRuntimeService : ISessionStateService
         if (state.Writer.State != WriterState.PendingReview)
         {
             _logger.LogWarning("Writer pending reject rejected: session={SessionId} no content pending", sessionId);
-            return SessionMutationResult<SessionState>.Invalid("No pending writer content to reject.");
+            return SessionMutationResult<WriterPendingContentRejectedEvent>.Invalid("No pending writer content to reject.");
         }
 
         state.Writer.PendingContent = null;
@@ -379,7 +389,8 @@ public sealed class SessionRuntimeService : ISessionStateService
 
         _logger.LogInformation("Writer pending content rejected: session={SessionId}", sessionId);
 
-        return SessionMutationResult<SessionState>.Success(await HydrateProfileViewAsync(state, ct));
+        return SessionMutationResult<WriterPendingContentRejectedEvent>.Success(
+            new WriterPendingContentRejectedEvent(await HydrateProfileViewAsync(state, ct)));
     }
 
     public async Task<SessionMutationResult<SessionState>> UpdateNarrativeStateAsync(

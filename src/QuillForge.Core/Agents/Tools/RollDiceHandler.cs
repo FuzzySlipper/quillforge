@@ -37,9 +37,9 @@ public sealed partial class RollDiceHandler : IToolHandler
             }
             """).RootElement);
 
-    public Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
-        var notation = input.GetProperty("notation").GetString() ?? "";
+        var notation = input.GetRequiredString("notation");
         _logger.LogDebug("RollDiceHandler: rolling {Notation}", notation);
 
         try

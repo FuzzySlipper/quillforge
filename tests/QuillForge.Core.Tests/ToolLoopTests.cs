@@ -1,7 +1,9 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
+using QuillForge.Core.Services;
 using QuillForge.Core.Tests.Fakes;
 
 namespace QuillForge.Core.Tests;
@@ -186,6 +188,73 @@ public class ToolLoopTests
     }
 
     [Fact]
+    public async Task InvalidToolPayload_FailsAtBoundary_BeforeHandlerRuns()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueToolCall("get_weather", "call_1", "{}");
+        fake.EnqueueText("I handled the validation error.");
+
+        var handler = new FakeToolHandler(
+            "get_weather",
+            (_, _, _) => Task.FromResult(ToolResult.Ok("sunny")),
+            """
+            {
+                "type": "object",
+                "properties": {
+                    "city": { "type": "string" }
+                },
+                "required": ["city"]
+            }
+            """);
+
+        var loop = CreateLoop(fake);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("what's the weather?")),
+        };
+
+        var result = await loop.RunAsync(DefaultConfig, [handler], messages, DefaultContext);
+
+        Assert.Equal("I handled the validation error.", result.Content.GetText());
+        Assert.Equal(0, handler.CallCount);
+
+        var toolResult = messages
+            .SelectMany(m => m.Content.Blocks.OfType<ToolResultBlock>())
+            .Single();
+
+        Assert.True(toolResult.IsError);
+        Assert.Contains("invalid input", toolResult.Content);
+        Assert.Contains("$.city is required", toolResult.Content);
+    }
+
+    [Fact]
+    public async Task SchemaValidButTypedDeserializationFailure_ReturnsSanitizedToolResult()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueToolCall("typed_tool", "call_1", """{"count":"seven"}""");
+        fake.EnqueueText("I handled the typed-args error.");
+
+        var handler = new StringSchemaIntHandler();
+        var loop = CreateLoop(fake);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("call the typed tool")),
+        };
+
+        var result = await loop.RunAsync(DefaultConfig, [handler], messages, DefaultContext);
+
+        Assert.Equal("I handled the typed-args error.", result.Content.GetText());
+        Assert.Equal(0, handler.TypedCallCount);
+
+        var toolResult = messages
+            .SelectMany(m => m.Content.Blocks.OfType<ToolResultBlock>())
+            .Single();
+
+        Assert.True(toolResult.IsError);
+        Assert.Equal("Tool 'typed_tool' received invalid typed arguments.", toolResult.Content);
+    }
+
+    [Fact]
     public async Task MaxTokensContinuation_MergesResponses()
     {
         var fake = new FakeCompletionService();
@@ -263,5 +332,37 @@ public class ToolLoopTests
         Assert.NotNull(req.Tools);
         Assert.Single(req.Tools);
         Assert.Equal("my_tool", req.Tools[0].Name);
+    }
+
+    private sealed class StringSchemaIntHandler : TypedToolHandler<StringSchemaIntArgs>
+    {
+        public int TypedCallCount { get; private set; }
+
+        public override string Name => "typed_tool";
+
+        public override ToolDefinition Definition => new(
+            Name,
+            "Test typed handler",
+            JsonDocument.Parse(
+                """
+                {
+                    "type": "object",
+                    "properties": {
+                        "count": { "type": "string" }
+                    },
+                    "required": ["count"]
+                }
+                """).RootElement);
+
+        protected override Task<ToolResult> HandleTypedAsync(StringSchemaIntArgs input, AgentContext context, CancellationToken ct = default)
+        {
+            TypedCallCount++;
+            return Task.FromResult(ToolResult.Ok(input.Count.ToString()));
+        }
+    }
+
+    private sealed record StringSchemaIntArgs
+    {
+        public int Count { get; init; }
     }
 }

@@ -79,7 +79,7 @@ public sealed class ChatClientCompletionService : ICompletionService
                             {
                                 // Complete tool call — emit immediately
                                 emittedToolCallIds.Add(callId);
-                                yield return new ToolCallEvent(
+                                yield return new ToolCallDeltaReceivedEvent(
                                     funcCall.Name,
                                     callId,
                                     SerializeArguments(funcCall.Arguments));
@@ -132,7 +132,7 @@ public sealed class ChatClientCompletionService : ICompletionService
                 _logger.LogWarning("Failed to parse accumulated tool call arguments for {Name}: {Json}", name, argsJson);
                 args = JsonDocument.Parse("{}").RootElement.Clone();
             }
-            yield return new ToolCallEvent(name, callId, args);
+            yield return new ToolCallDeltaReceivedEvent(name, callId, args);
         }
 
         if (finishReason == "tool_use" && emittedToolCallIds.Count == 0 && pendingToolCalls.Count == 0)
@@ -180,7 +180,7 @@ public sealed class ChatClientCompletionService : ICompletionService
                         break;
                     case Core.Models.ToolUseBlock toolUse:
                         contents.Add(new FunctionCallContent(toolUse.Id, toolUse.Name,
-                            DeserializeArguments(toolUse.Input)));
+                            DeserializeArguments(toolUse.Input.ToJsonElement())));
                         break;
                     case Core.Models.ToolResultBlock toolResult:
                         contents.Add(new FunctionResultContent(toolResult.ToolUseId, toolResult.Content));
@@ -280,7 +280,7 @@ public sealed class ChatClientCompletionService : ICompletionService
                         contentBlocks.Add(new Core.Models.ToolUseBlock(
                             funcCall.CallId ?? Guid.NewGuid().ToString(),
                             funcCall.Name,
-                            SerializeArguments(funcCall.Arguments)));
+                            new ToolInput(SerializeArguments(funcCall.Arguments))));
                         break;
                 }
             }

@@ -32,15 +32,15 @@ public sealed class EmailDeveloperHandler : IToolHandler
                     "body": { "type": "string", "description": "Email body with details" },
                     "type": { "type": "string", "enum": ["bug", "feature"], "description": "Report type" }
                 },
-                "required": ["subject", "body", "type"]
+                "required": ["subject", "body"]
             }
             """).RootElement);
 
-    public async Task<ToolResult> HandleAsync(JsonElement input, AgentContext context, CancellationToken ct = default)
+    public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
-        var subject = input.GetProperty("subject").GetString() ?? "";
-        var body = input.GetProperty("body").GetString() ?? "";
-        var type = input.TryGetProperty("type", out var t) ? t.GetString() ?? "bug" : "bug";
+        var subject = input.GetRequiredString("subject");
+        var body = input.GetRequiredString("body");
+        var type = input.GetOptionalString("type") ?? "bug";
 
         _logger.LogInformation("EmailDeveloperHandler: sending {Type} report: \"{Subject}\"", type, subject);
 

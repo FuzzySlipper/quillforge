@@ -72,6 +72,25 @@ public class LibrarianParsingTests
     }
 
     [Fact]
+    public void WrongJsonShape_FallsBackToRawText()
+    {
+        var text = """
+            {
+                "relevant_passages": "not-an-array",
+                "source_files": ["forest.md"],
+                "confidence": "high"
+            }
+            """;
+
+        var bundle = LibrarianAgent.ParseLoreBundle(text);
+
+        Assert.Single(bundle.RelevantPassages);
+        Assert.Equal(text.Trim(), bundle.RelevantPassages[0]);
+        Assert.Empty(bundle.SourceFiles);
+        Assert.Equal(LoreConfidence.Low, bundle.Confidence);
+    }
+
+    [Fact]
     public void EmptyInput_ReturnsEmptyBundle()
     {
         var bundle = LibrarianAgent.ParseLoreBundle("   ");

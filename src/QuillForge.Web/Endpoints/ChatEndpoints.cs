@@ -143,7 +143,7 @@ public static class ChatEndpoints
                 var eventData = evt switch
                 {
                     TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new ChatTextDeltaDto { Text = text.Text }, s_jsonOptions)}\n\n",
-                    ToolCallEvent tool => $"data: {JsonSerializer.Serialize(new ChatToolDto { Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
+                    ToolCallValidatedEvent tool => $"data: {JsonSerializer.Serialize(new ChatToolDto { Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
                     DoneEvent done => $"data: {JsonSerializer.Serialize(new ChatDoneDto { SessionId = sessionId, ParentId = appendParentId, Content = assistantText.ToString(), StopReason = done.StopReason, ResponseType = done.ResponseType.ToString(), Usage = new ChatUsageDto { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = prepared.AssistantPortraitUrl, UserPortrait = prepared.UserPortraitUrl }, s_jsonOptions)}\n\n",
                     ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new ChatReasoningDeltaDto { Text = reasoning.Text }, s_jsonOptions)}\n\n",
                     DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new ChatDiagnosticDto { Category = diag.Category, Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
