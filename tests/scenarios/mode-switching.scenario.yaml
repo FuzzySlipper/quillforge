@@ -1,0 +1,23 @@
+name: "mode-switching"
+description: "Verify mode switches update session state and chat continues correctly"
+steps:
+  - set_mode: writer
+    expect:
+      mode: writer
+      writer_state: idle
+
+  - chat: "Write a scene about a dragon"
+    expect:
+      mode: writer
+      has_content: true
+
+  - set_mode: general
+    expect:
+      mode: general
+      writer_state: idle
+
+  - chat: "What were we just talking about?"
+    expect:
+      mode: general
+      has_content: true
+      message_count_gte: 4

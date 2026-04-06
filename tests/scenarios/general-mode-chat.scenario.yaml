@@ -1,0 +1,21 @@
+name: "general-mode-basic-chat"
+description: "Verify basic chat in general mode produces a response and persists correctly"
+steps:
+  - chat: "Hello, what can you help me with?"
+    expect:
+      mode: general
+      has_content: true
+      stop_reason: end_turn
+
+  - chat: "Tell me more about that"
+    expect:
+      mode: general
+      has_content: true
+      message_count_gte: 4
+
+  - reload_session: true
+
+  - chat: "Can you continue from where we left off?"
+    expect:
+      has_content: true
+      message_count_gte: 6

@@ -115,6 +115,176 @@ public static class DebugBridgeEndpoints
             });
         });
 
+        group.MapPost("/chat/stream", async (
+            HttpContext httpContext,
+            OrchestratorAgent orchestrator,
+            ISessionStateService runtimeService,
+            ISessionBootstrapService bootstrapService,
+            ISessionProfileReadService profileReadService,
+            ISessionStore sessionStore,
+            IEnumerable<IToolHandler> toolHandlers,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var root = body.RootElement;
+
+            var sessionId = root.GetOptionalGuid("sessionId") ?? Guid.CreateVersion7();
+            var message = root.GetProperty("message").GetString() ?? "";
+            var model = root.GetStringOrDefault("model", "default");
+            var requestedConductor = root.GetOptionalString("conductor");
+            var maxTokens = root.GetIntOrDefault("maxTokens", 4096);
+
+            ConversationTree tree;
+            try
+            {
+                tree = await sessionStore.LoadAsync(sessionId, ct);
+            }
+            catch (FileNotFoundException)
+            {
+                tree = await bootstrapService.CreateAsync(
+                    new CreateSessionCommand { SessionId = sessionId, Name = "Debug Session" }, ct);
+            }
+
+            tree.Append(tree.ActiveLeafId, "user", new MessageContent(message));
+            var appendParentId = tree.ActiveLeafId;
+
+            var thread = tree.ToFlatThread();
+            var messages = thread.Select(n => new CompletionMessage(n.Role, n.Content)).ToList();
+            var lastAssistantResponse = thread
+                .LastOrDefault(n => string.Equals(n.Role, "assistant", StringComparison.OrdinalIgnoreCase))
+                ?.Content.GetText();
+
+            var prepared = await profileReadService.PrepareInteractiveRequestAsync(
+                sessionId,
+                new PrepareInteractiveRequestOptions
+                {
+                    RequestedConductor = requestedConductor,
+                    LastAssistantResponse = lastAssistantResponse,
+                },
+                ct);
+            var sessionState = prepared.ProfileView.SessionState;
+            var context = prepared.AgentContext;
+            var conductor = prepared.Conductor;
+
+            var assistantText = new System.Text.StringBuilder();
+            StopReason? stopReason = null;
+            int inputTokens = 0, outputTokens = 0;
+            int toolRounds = 0;
+            var collectedEvents = new List<DebugBridgeStreamEventDto>();
+
+            var tools = toolHandlers.ToList();
+            await foreach (var evt in orchestrator.HandleStreamAsync(
+                sessionState, conductor, model, maxTokens, tools, messages, context, ct: ct))
+            {
+                switch (evt)
+                {
+                    case TextDeltaEvent text:
+                        assistantText.Append(text.Text);
+                        collectedEvents.Add(new DebugBridgeStreamEventDto
+                        {
+                            Type = "text_delta",
+                            Text = text.Text,
+                        });
+                        break;
+                    case ToolCallValidatedEvent tool:
+                        toolRounds++;
+                        collectedEvents.Add(new DebugBridgeStreamEventDto
+                        {
+                            Type = "tool",
+                            ToolName = tool.ToolName,
+                            ToolId = tool.ToolId,
+                        });
+                        break;
+                    case DoneEvent done:
+                        stopReason = done.StopReason;
+                        inputTokens = done.Usage.InputTokens;
+                        outputTokens = done.Usage.OutputTokens;
+                        collectedEvents.Add(new DebugBridgeStreamEventDto
+                        {
+                            Type = "done",
+                            StopReason = done.StopReason.ToWireString(),
+                            Usage = new DebugBridgeUsageDto
+                            {
+                                InputTokens = done.Usage.InputTokens,
+                                OutputTokens = done.Usage.OutputTokens,
+                            },
+                        });
+                        break;
+                    case ReasoningDeltaEvent reasoning:
+                        collectedEvents.Add(new DebugBridgeStreamEventDto
+                        {
+                            Type = "reasoning_delta",
+                            Text = reasoning.Text,
+                        });
+                        break;
+                    case DiagnosticEvent diag:
+                        collectedEvents.Add(new DebugBridgeStreamEventDto
+                        {
+                            Type = "diagnostic",
+                            Category = diag.Category.ToString().ToLowerInvariant(),
+                            Message = diag.Message,
+                            Level = diag.Level.ToString().ToLowerInvariant(),
+                        });
+                        break;
+                }
+            }
+
+            // Persist the assistant reply
+            Guid? assistantNodeId = null;
+            if (assistantText.Length > 0)
+            {
+                var assistantNode = tree.Append(appendParentId, "assistant",
+                    new MessageContent(assistantText.ToString()),
+                    new MessageMetadata
+                    {
+                        Model = model,
+                        InputTokens = inputTokens,
+                        OutputTokens = outputTokens,
+                        StopReason = stopReason,
+                    });
+                assistantNodeId = assistantNode.Id;
+            }
+
+            await sessionStore.SaveAsync(tree, ct);
+
+            // Writer pending capture
+            string? writerState = null;
+            if (assistantText.Length > 0)
+            {
+                await runtimeService.CaptureWriterPendingAsync(
+                    sessionId,
+                    new CaptureWriterPendingCommand(assistantText.ToString(), sessionState.Mode.ActiveMode),
+                    ct);
+            }
+
+            var reloadedState = await runtimeService.LoadViewAsync(sessionId, ct);
+            writerState = reloadedState.Writer.State.ToString().ToLowerInvariant();
+
+            var userNodeId = appendParentId;
+
+            return Results.Ok(new DebugBridgeStreamResponse
+            {
+                SessionId = sessionId,
+                Events = collectedEvents,
+                FinalContent = assistantText.ToString(),
+                NodeIds = new DebugBridgeNodeIds
+                {
+                    User = userNodeId,
+                    Assistant = assistantNodeId,
+                },
+                Mode = sessionState.Mode.ActiveMode.ToWireString(),
+                MessageCount = tree.ToFlatThread().Count,
+                ToolRounds = toolRounds,
+                StopReason = (stopReason ?? StopReason.EndTurn).ToWireString(),
+                Usage = new DebugBridgeUsageDto
+                {
+                    InputTokens = inputTokens,
+                    OutputTokens = outputTokens,
+                },
+                WriterState = writerState,
+            });
+        });
+
         group.MapPost("/mode", async (
             HttpContext httpContext,
             ISessionStateService runtimeService,
