@@ -396,8 +396,8 @@ function App() {
           const msg: Message = { ...partial, id: uuid(), timestamp: Date.now() };
           setMessages((prev) => [...prev, msg]);
         },
-        setMode: async (m: Mode) => {
-          const result = await apiSetMode(m, undefined, undefined, undefined, currentSessionId);
+        setMode: async (m: Mode, project?: string, file?: string, character?: string) => {
+          const result = await apiSetMode(m, project, file, character, currentSessionId);
           if (result.sessionId) {
             setCurrentSessionId(result.sessionId);
           }
@@ -483,6 +483,18 @@ function App() {
         addSystemMessage(`Unknown command \`/${parsed.name}\`. Type \`/help\` for available commands.`);
       } else if (result.output) {
         addSystemMessage(result.output);
+      }
+
+      // Auto-send a follow-up chat message if the command requested it
+      if (result?.autoSend) {
+        const autoMsg: Message = {
+          id: uuid(),
+          role: "user",
+          content: result.autoSend,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, autoMsg]);
+        await doSend(result.autoSend);
       }
       return;
     }

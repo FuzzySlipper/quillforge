@@ -76,5 +76,9 @@ public sealed class ForgePlannerAgent
 
         Be thorough and specific. Each chapter brief should be detailed enough for a writer
         to implement without access to the full outline.
+
+        IMPORTANT: Do NOT embed file paths or file references in any planning document. All documents
+        should be self-contained prose. The writing pipeline retrieves lore and character details at
+        runtime via query_lore — it does not follow file path references embedded in documents.
         """;
 }

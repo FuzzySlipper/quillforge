@@ -28,10 +28,14 @@ public sealed class ForgeMode : IMode
             5. **Structure** — Arc type (complete/episodic), chapter count, pacing
 
             Save design artifacts using:
-            - write_file(directory="forge", path="{context.ProjectName}/plan/premise.md")
+            - write_file(directory="forge", path="{context.ProjectName}/plan/premise.md") for the story premise
             - write_file(directory="lore", ...) for character bios and world-building entries
 
-            IMPORTANT: Do NOT write manifest.yaml — it is auto-managed by the pipeline.
+            IMPORTANT:
+            - Do NOT write manifest.yaml — it is auto-managed by the pipeline.
+            - Do NOT embed file paths or file references in planning documents. Planning documents
+              (premise.md, outlines, briefs) should be self-contained prose. The autonomous pipeline
+              retrieves lore at runtime via the query_lore tool — it does not follow file paths in documents.
             """;
     }
 

@@ -26,6 +26,18 @@ public sealed class WritingStage : IPipelineStage
         _logger.LogInformation("Writing stage starting for project {Project}", context.Manifest.ProjectName);
         yield return new StageStartedEvent(StageName);
 
+        // Load premise once for all chapters — grounds the writer on story context
+        var premise = "";
+        var premisePath = $"forge/{context.Manifest.ProjectName}/plan/premise.md";
+        try
+        {
+            premise = await context.FileService.ReadAsync(premisePath, ct);
+        }
+        catch (FileNotFoundException)
+        {
+            _logger.LogWarning("No premise found at {Path}, writer will proceed without it", premisePath);
+        }
+
         var chapterIds = context.Manifest.Chapters.Keys.OrderBy(k => k).ToList();
         var previousChapter = "";
 
@@ -67,7 +79,7 @@ public sealed class WritingStage : IPipelineStage
             }
 
             var result = await context.Writer.WriteChapterAsync(
-                brief, previousChapter, context.WritingStyle,
+                brief, previousChapter, context.WritingStyle, premise,
                 context.WriterTools, context.AgentContext, ct: ct);
 
             // Save draft

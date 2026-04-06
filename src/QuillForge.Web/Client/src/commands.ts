@@ -18,7 +18,7 @@ export interface CommandContext {
   /** Actions */
   newSession: () => Promise<void>;
   clearMessages: () => void;
-  setMode: (mode: Mode) => Promise<void>;
+  setMode: (mode: Mode, project?: string, file?: string, character?: string) => Promise<void>;
   refreshStatus: () => void;
   /**
    * Inject a message directly into the chat log without sending to the API.
@@ -43,6 +43,12 @@ export interface CommandResult {
    * (via ctx.streamRequest) and the caller should not add a system message.
    */
   streaming?: boolean;
+  /**
+   * If set, automatically send this text as a user chat message after the
+   * command completes, triggering a streamed LLM response. Useful for
+   * commands that switch context and want the assistant to acknowledge.
+   */
+  autoSend?: string;
 }
 
 interface CommandDef {
@@ -486,8 +492,11 @@ const commands: Record<string, CommandDef> = {
           });
           const data = await res.json();
           if (data.status === "ok") {
-            await ctx.setMode("forge" as Mode);
-            return { output: `Forge project **${name}** created. You're now in planning mode — describe your story idea. When ready, run \`/forge design ${name}\` to generate the full story architecture.` };
+            await ctx.setMode("forge" as Mode, name);
+            return {
+              output: null,
+              autoSend: `I just created a new forge project called "${name}". Help me design the story.`,
+            };
           }
           return { output: data.error || "Failed to create project." };
         } catch {
