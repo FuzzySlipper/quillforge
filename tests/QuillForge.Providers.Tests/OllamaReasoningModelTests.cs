@@ -146,10 +146,8 @@ public class OllamaReasoningModelTests
         var done = events.OfType<DoneEvent>().LastOrDefault();
         Assert.NotNull(done);
 
-        // Stop reason should be a recognized value, not null or empty
-        Assert.False(string.IsNullOrWhiteSpace(done.StopReason),
-            "DoneEvent.StopReason was blank from reasoning model");
-        var validReasons = new[] { "end_turn", "max_tokens", "stop" };
+        // Stop reason should be a recognized value
+        var validReasons = new[] { StopReason.EndTurn, StopReason.MaxTokens };
         Assert.Contains(done.StopReason, validReasons);
     }
 

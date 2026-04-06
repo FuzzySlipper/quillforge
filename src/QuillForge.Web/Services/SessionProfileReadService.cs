@@ -149,7 +149,7 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         var agentContext = new AgentContext
         {
             SessionId = resolvedSessionId,
-            ActiveMode = view.SessionState.Mode.ActiveModeName,
+            ActiveMode = view.SessionState.Mode.ActiveMode,
             ActiveLoreSet = view.ActiveLoreSet,
             ActiveNarrativeRules = view.ActiveNarrativeRules,
             ActiveWritingStyle = view.ActiveWritingStyle,
@@ -160,7 +160,7 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         _logger.LogInformation(
             "Prepared interactive request context: session={SessionId} mode={Mode} conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
             resolvedSessionId,
-            view.SessionState.Mode.ActiveModeName,
+            view.SessionState.Mode.ActiveMode,
             conductor,
             view.ActiveLoreSet,
             view.ActiveNarrativeRules,

@@ -36,7 +36,7 @@ public sealed class SessionBootstrapServiceTests
         Assert.False(runtimeState.Roleplay.HasExplicitUserCharacterSelection);
         Assert.Null(runtimeState.Roleplay.ActiveAiCharacter);
         Assert.Null(runtimeState.Roleplay.ActiveUserCharacter);
-        Assert.Equal("general", runtimeState.Mode.ActiveModeName);
+        Assert.Equal(Mode.General, runtimeState.Mode.ActiveMode);
         Assert.Equal(1, profileService.LoadResolvedCallCount);
         Assert.Equal(0, profileService.BuildSessionProfileStateCallCount);
     }

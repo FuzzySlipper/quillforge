@@ -32,7 +32,7 @@ public sealed class ToolInput
     public string GetRequiredString(string propertyName)
     {
         var value = GetOptionalString(propertyName);
-        if (string.IsNullOrWhiteSpace(value))
+        if (value is null || string.IsNullOrWhiteSpace(value))
         {
             throw new JsonException($"Missing required string property '{propertyName}'.");
         }
@@ -87,16 +87,6 @@ public sealed class ToolInput
         return values;
     }
 
-    public IReadOnlyDictionary<string, object>? GetOptionalObjectMap(string propertyName)
-    {
-        if (!TryGetProperty(propertyName, out var prop) || prop.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        return ConvertObject(prop);
-    }
-
     public bool TryGetProperty(string propertyName, out JsonElement value)
     {
         if (_json.ValueKind == JsonValueKind.Object && _json.TryGetProperty(propertyName, out var prop))
@@ -108,27 +98,4 @@ public sealed class ToolInput
         value = default;
         return false;
     }
-
-    private static IReadOnlyDictionary<string, object> ConvertObject(JsonElement element)
-    {
-        var values = new Dictionary<string, object>(StringComparer.Ordinal);
-        foreach (var property in element.EnumerateObject())
-        {
-            values[property.Name] = ConvertValue(property.Value);
-        }
-
-        return values;
-    }
-
-    private static object ConvertValue(JsonElement element) => element.ValueKind switch
-    {
-        JsonValueKind.Null => string.Empty,
-        JsonValueKind.String => element.GetString() ?? string.Empty,
-        JsonValueKind.Number => element.TryGetInt64(out var longValue) ? longValue : element.GetDouble(),
-        JsonValueKind.True => true,
-        JsonValueKind.False => false,
-        JsonValueKind.Array => element.EnumerateArray().Select(ConvertValue).ToList(),
-        JsonValueKind.Object => ConvertObject(element),
-        _ => element.ToString() ?? string.Empty,
-    };
 }

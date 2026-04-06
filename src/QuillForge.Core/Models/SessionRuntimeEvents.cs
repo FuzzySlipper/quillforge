@@ -9,7 +9,7 @@ public abstract record WriterPendingCaptureEvent;
 public sealed record WriterPendingContentCapturedEvent(
     SessionState SessionView,
     int ContentLength,
-    string SourceMode) : WriterPendingCaptureEvent;
+    Mode SourceMode) : WriterPendingCaptureEvent;
 
 public sealed record WriterPendingCaptureSkippedEvent(
     SessionState SessionView,

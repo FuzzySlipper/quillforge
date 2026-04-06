@@ -70,7 +70,7 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
             SessionId = forkedSessionId,
             Mode = new ModeSelectionState
             {
-                ActiveModeName = source.Mode.ActiveModeName,
+                ActiveMode = source.Mode.ActiveMode,
                 ProjectName = source.Mode.ProjectName,
                 CurrentFile = source.Mode.CurrentFile,
                 Character = source.Mode.Character,

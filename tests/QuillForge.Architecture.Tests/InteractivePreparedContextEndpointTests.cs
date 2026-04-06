@@ -216,7 +216,7 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
             var resolvedSessionId = sessionId ?? Guid.CreateVersion7();
             var sessionContext = new InteractiveSessionContext
             {
-                ActiveModeName = "general",
+                ActiveMode = Mode.General,
                 ProjectName = "prepared-project",
                 StoryStatePath = "prepared-project/.state.yaml",
                 CurrentFile = "scene.md",
@@ -226,7 +226,7 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
                 SessionId = resolvedSessionId,
                 Mode = new ModeSelectionState
                 {
-                    ActiveModeName = "general",
+                    ActiveMode = Mode.General,
                     ProjectName = "prepared-project",
                     CurrentFile = "scene.md",
                 },
@@ -256,7 +256,7 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
                 AgentContext = new AgentContext
                 {
                     SessionId = resolvedSessionId,
-                    ActiveMode = "general",
+                    ActiveMode = Mode.General,
                     ActiveLoreSet = "prepared-lore",
                     ActiveNarrativeRules = "prepared-rules",
                     ActiveWritingStyle = "prepared-style",
@@ -291,7 +291,7 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
             _responses.Enqueue(new CompletionResponse
             {
                 Content = new MessageContent(text),
-                StopReason = "end_turn",
+                StopReason = StopReason.EndTurn,
                 Usage = new TokenUsage(1, 1),
             });
         }

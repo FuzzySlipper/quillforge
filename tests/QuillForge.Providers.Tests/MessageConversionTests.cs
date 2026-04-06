@@ -40,7 +40,7 @@ public class MessageConversionTests
         var response = await service.CompleteAsync(request);
 
         Assert.Equal("Hello!", response.Content.GetText());
-        Assert.Equal("end_turn", response.StopReason);
+        Assert.Equal(StopReason.EndTurn, response.StopReason);
         Assert.Equal(5, response.Usage.InputTokens);
         Assert.Equal(3, response.Usage.OutputTokens);
     }
@@ -68,7 +68,7 @@ public class MessageConversionTests
 
         var response = await service.CompleteAsync(request);
 
-        Assert.Equal("tool_use", response.StopReason);
+        Assert.Equal(StopReason.ToolUse, response.StopReason);
         var toolCalls = response.Content.GetToolCalls().ToList();
         Assert.Single(toolCalls);
         Assert.Equal("get_weather", toolCalls[0].Name);
@@ -91,7 +91,7 @@ public class MessageConversionTests
         };
 
         var response = await service.CompleteAsync(request);
-        Assert.Equal("max_tokens", response.StopReason);
+        Assert.Equal(StopReason.MaxTokens, response.StopReason);
     }
 
     [Fact]

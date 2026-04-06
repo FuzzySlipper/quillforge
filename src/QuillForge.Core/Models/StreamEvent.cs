@@ -37,12 +37,19 @@ public sealed class ReasoningDeltaEvent(string text) : TransportStreamEvent
 
 /// <summary>
 /// The provider emitted a tool-call delta payload.
+/// When ParseError is non-null, the provider attempted a tool call but the
+/// arguments were malformed or incomplete at the transport boundary.
 /// </summary>
-public sealed class ToolCallDeltaReceivedEvent(string toolName, string toolId, JsonElement input) : TransportStreamEvent
+public sealed class ToolCallDeltaReceivedEvent(
+    string toolName,
+    string toolId,
+    JsonElement input,
+    string? parseError = null) : TransportStreamEvent
 {
     public string ToolName { get; } = toolName;
     public string ToolId { get; } = toolId;
     public JsonElement Input { get; } = input;
+    public string? ParseError { get; } = parseError;
 }
 
 /// <summary>
@@ -59,9 +66,9 @@ public sealed class ToolCallValidatedEvent(string toolName, string toolId, ToolI
 /// <summary>
 /// The streaming response is complete.
 /// </summary>
-public sealed class DoneEvent(string stopReason, TokenUsage usage) : TransportStreamEvent
+public sealed class DoneEvent(StopReason stopReason, TokenUsage usage) : TransportStreamEvent
 {
-    public string StopReason { get; } = stopReason;
+    public StopReason StopReason { get; } = stopReason;
     public TokenUsage Usage { get; } = usage;
     public ResponseType ResponseType { get; init; } = ResponseType.Discussion;
 
@@ -77,11 +84,29 @@ public sealed class DoneEvent(string stopReason, TokenUsage usage) : TransportSt
 /// A diagnostic entry for the live diagnostics panel.
 /// Ephemeral display only — not persisted into sessions or chat history.
 /// </summary>
-public sealed class DiagnosticEvent(string category, string message, DiagnosticLevel level = DiagnosticLevel.Info) : AppStreamEvent
+public sealed class DiagnosticEvent(DiagnosticCategory category, string message, DiagnosticLevel level = DiagnosticLevel.Info) : AppStreamEvent
 {
-    public string Category { get; } = category;
+    public DiagnosticCategory Category { get; } = category;
     public string Message { get; } = message;
     public DiagnosticLevel Level { get; } = level;
+}
+
+/// <summary>
+/// Categories for diagnostic events.
+/// </summary>
+public enum DiagnosticCategory
+{
+    /// <summary>Streaming lifecycle events.</summary>
+    Stream,
+
+    /// <summary>LLM call events.</summary>
+    Llm,
+
+    /// <summary>Tool dispatch and validation events.</summary>
+    Tool,
+
+    /// <summary>General warnings.</summary>
+    Warning,
 }
 
 public enum DiagnosticLevel

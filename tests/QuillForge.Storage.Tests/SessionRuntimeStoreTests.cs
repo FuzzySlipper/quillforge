@@ -34,7 +34,7 @@ public class SessionRuntimeStoreTests : IDisposable
     {
         var state = await _store.LoadAsync(Guid.NewGuid());
 
-        Assert.Equal("general", state.Mode.ActiveModeName);
+        Assert.Equal(Mode.General, state.Mode.ActiveMode);
         Assert.Null(state.Mode.ProjectName);
         Assert.Equal(WriterState.Idle, state.Writer.State);
         Assert.Null(state.Profile.ProfileId);
@@ -49,7 +49,7 @@ public class SessionRuntimeStoreTests : IDisposable
         var state = await _store.LoadAsync(null);
 
         Assert.Null(state.SessionId);
-        Assert.Equal("general", state.Mode.ActiveModeName);
+        Assert.Equal(Mode.General, state.Mode.ActiveMode);
         Assert.Null(state.Profile.ProfileId);
     }
 
@@ -70,7 +70,7 @@ public class SessionRuntimeStoreTests : IDisposable
 
         var loaded = await _store.LoadAsync(Guid.NewGuid());
 
-        Assert.Equal("general", loaded.Mode.ActiveModeName);
+        Assert.Equal(Mode.General, loaded.Mode.ActiveMode);
         Assert.Null(loaded.Mode.ProjectName);
     }
 
@@ -83,7 +83,7 @@ public class SessionRuntimeStoreTests : IDisposable
             SessionId = sessionId,
             Mode = new ModeSelectionState
             {
-                ActiveModeName = "writer",
+                ActiveMode = Mode.Writer,
                 ProjectName = "test-project",
                 CurrentFile = "chapter1.md",
                 Character = "hero",
@@ -125,7 +125,7 @@ public class SessionRuntimeStoreTests : IDisposable
         var loaded = await _store.LoadAsync(sessionId);
 
         Assert.Equal(sessionId, loaded.SessionId);
-        Assert.Equal("writer", loaded.Mode.ActiveModeName);
+        Assert.Equal(Mode.Writer, loaded.Mode.ActiveMode);
         Assert.Equal("test-project", loaded.Mode.ProjectName);
         Assert.Equal("chapter1.md", loaded.Mode.CurrentFile);
         Assert.Equal("hero", loaded.Mode.Character);
@@ -164,20 +164,20 @@ public class SessionRuntimeStoreTests : IDisposable
         await _store.SaveAsync(new SessionState
         {
             SessionId = id1,
-            Mode = new ModeSelectionState { ActiveModeName = "writer", ProjectName = "novel-a" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Writer, ProjectName = "novel-a" },
         });
         await _store.SaveAsync(new SessionState
         {
             SessionId = id2,
-            Mode = new ModeSelectionState { ActiveModeName = "roleplay", Character = "villain" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Roleplay, Character = "villain" },
         });
 
         var state1 = await _store.LoadAsync(id1);
         var state2 = await _store.LoadAsync(id2);
 
-        Assert.Equal("writer", state1.Mode.ActiveModeName);
+        Assert.Equal(Mode.Writer, state1.Mode.ActiveMode);
         Assert.Equal("novel-a", state1.Mode.ProjectName);
-        Assert.Equal("roleplay", state2.Mode.ActiveModeName);
+        Assert.Equal(Mode.Roleplay, state2.Mode.ActiveMode);
         Assert.Equal("villain", state2.Mode.Character);
     }
 
@@ -188,14 +188,14 @@ public class SessionRuntimeStoreTests : IDisposable
         await _store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveModeName = "writer" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Writer },
         });
 
         await _store.DeleteAsync(sessionId);
         var loaded = await _store.LoadAsync(sessionId);
 
         // Should get fresh defaults after delete
-        Assert.Equal("general", loaded.Mode.ActiveModeName);
+        Assert.Equal(Mode.General, loaded.Mode.ActiveMode);
     }
 
     [Fact]

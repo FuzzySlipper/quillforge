@@ -2,6 +2,28 @@ using System.Text.Json.Serialization;
 
 namespace QuillForge.Core.Models;
 
+public static class ModeExtensions
+{
+    /// <summary>Lowercase wire string for serialization and logging.</summary>
+    public static string ToWireString(this Mode mode) => mode switch
+    {
+        Mode.General => "general",
+        Mode.Writer => "writer",
+        Mode.Roleplay => "roleplay",
+        Mode.Forge => "forge",
+        Mode.Council => "council",
+        Mode.Research => "research",
+        _ => "general",
+    };
+
+    /// <summary>Parse a string to Mode enum. Case-insensitive. Returns null on failure.</summary>
+    public static Mode? TryParseMode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return Enum.TryParse<Mode>(value, ignoreCase: true, out var mode) ? mode : null;
+    }
+}
+
 /// <summary>
 /// Top-level per-session state aggregate. Owns all mutable state for a single
 /// user session. Loaded at the start of a request, mutated during processing,
@@ -49,7 +71,14 @@ public class SessionState
 /// </summary>
 public sealed class ModeSelectionState
 {
-    public string ActiveModeName { get; set; } = "general";
+    /// <summary>
+    /// The active mode for this session. Persisted as the lowercase mode name
+    /// under the JSON key "activeModeName" for backwards compatibility with
+    /// existing session state files.
+    /// </summary>
+    [JsonPropertyName("activeModeName")]
+    public Mode ActiveMode { get; set; } = Mode.General;
+
     public string? ProjectName { get; set; }
     public string? CurrentFile { get; set; }
     public string? Character { get; set; }

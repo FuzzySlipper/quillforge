@@ -65,7 +65,7 @@ public sealed class AutoUpdateService : BackgroundService
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        var tagName = root.GetProperty("tag_name").GetString();
+        var tagName = root.TryGetProperty("tag_name", out var tagEl) ? tagEl.GetString() : null;
         if (string.IsNullOrEmpty(tagName)) return;
 
         var currentVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
@@ -74,7 +74,7 @@ public sealed class AutoUpdateService : BackgroundService
         if (string.Compare(LatestVersion, currentVersion, StringComparison.Ordinal) > 0)
         {
             UpdateAvailable = true;
-            DownloadUrl = root.GetProperty("html_url").GetString();
+            DownloadUrl = root.TryGetProperty("html_url", out var urlEl) ? urlEl.GetString() : null;
             _logger.LogInformation("Update available: {Current} → {Latest}", currentVersion, LatestVersion);
         }
         else

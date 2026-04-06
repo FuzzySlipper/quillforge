@@ -21,7 +21,7 @@ public sealed record SetSessionRoleplayCommand(
 
 public sealed record CaptureWriterPendingCommand(
     string Content,
-    string SourceMode);
+    Mode SourceMode);
 
 public sealed record UpdateNarrativeStateCommand(
     string DirectorNotes,

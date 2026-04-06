@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -92,21 +93,53 @@ public sealed class UpdateStoryStateHandler : IToolHandler
 
     public async Task<ToolResult> HandleAsync(ToolInput input, AgentContext context, CancellationToken ct = default)
     {
+        var args = ToolArgs<UpdateStoryStateArgs>.Parse(input);
         var sessionContext = context.SessionContext ?? await _sessionContextService.LoadAsync(context.SessionId, ct);
         var path = sessionContext.StoryStatePath;
         _logger.LogDebug("UpdateStoryStateHandler: updating state at {Path} for session {SessionId}", path, context.SessionId);
 
-        var updates = input.GetOptionalObjectMap("updates");
-        if (updates is not null)
+        if (args.Updates.ValueKind == JsonValueKind.Object)
         {
+            var updates = ConvertJsonToObjectMap(args.Updates);
             await _storyState.MergeAsync(path, updates, ct);
         }
 
-        if (input.GetOptionalBool("increment_counter") == true)
+        if (args.IncrementCounter)
         {
             await _storyState.IncrementCounterAsync(path, "_event_counter", ct);
         }
 
         return ToolResult.Ok("State updated.");
     }
+
+    private static IReadOnlyDictionary<string, object> ConvertJsonToObjectMap(JsonElement element)
+    {
+        var values = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (var property in element.EnumerateObject())
+        {
+            values[property.Name] = ConvertJsonValue(property.Value);
+        }
+        return values;
+    }
+
+    private static object ConvertJsonValue(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.Null => string.Empty,
+        JsonValueKind.String => element.GetString() ?? string.Empty,
+        JsonValueKind.Number => element.TryGetInt64(out var longValue) ? longValue : element.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonValue).ToList(),
+        JsonValueKind.Object => ConvertJsonToObjectMap(element),
+        _ => element.ToString() ?? string.Empty,
+    };
+}
+
+public sealed record UpdateStoryStateArgs
+{
+    [JsonPropertyName("updates")]
+    public JsonElement Updates { get; init; }
+
+    [JsonPropertyName("increment_counter")]
+    public bool IncrementCounter { get; init; }
 }

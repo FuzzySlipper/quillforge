@@ -29,7 +29,7 @@ public sealed class SessionRuntimeServiceTests
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
-        Assert.Equal("writer", result.Value.Mode.ActiveModeName);
+        Assert.Equal(Mode.Writer, result.Value.Mode.ActiveMode);
         Assert.Equal("novel", result.Value.Mode.ProjectName);
         Assert.Equal("chapter1.md", result.Value.Mode.CurrentFile);
         Assert.Equal("hero", result.Value.Mode.Character);
@@ -58,7 +58,7 @@ public sealed class SessionRuntimeServiceTests
         await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveModeName = "writer", ProjectName = "novel" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Writer, ProjectName = "novel" },
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Pending chapter text",
@@ -85,13 +85,13 @@ public sealed class SessionRuntimeServiceTests
         await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveModeName = "writer" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Writer },
         });
 
         var service = CreateService(store);
         var result = await service.CaptureWriterPendingAsync(
             sessionId,
-            new CaptureWriterPendingCommand(new string('x', 300), "writer"));
+            new CaptureWriterPendingCommand(new string('x', 300), Mode.Writer));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
@@ -99,7 +99,7 @@ public sealed class SessionRuntimeServiceTests
         Assert.Equal(WriterState.PendingReview, captured.SessionView.Writer.State);
         Assert.NotNull(captured.SessionView.Writer.PendingContent);
         Assert.Equal("default", captured.SessionView.Profile.ProfileId);
-        Assert.Equal("writer", captured.SourceMode);
+        Assert.Equal(Mode.Writer, captured.SourceMode);
     }
 
     [Fact]
@@ -110,13 +110,13 @@ public sealed class SessionRuntimeServiceTests
         await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveModeName = "general" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.General },
         });
 
         var service = CreateService(store);
         var result = await service.CaptureWriterPendingAsync(
             sessionId,
-            new CaptureWriterPendingCommand(new string('x', 300), "writer"));
+            new CaptureWriterPendingCommand(new string('x', 300), Mode.Writer));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
@@ -134,7 +134,7 @@ public sealed class SessionRuntimeServiceTests
         await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveModeName = "writer" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Writer },
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Accepted text",
@@ -163,7 +163,7 @@ public sealed class SessionRuntimeServiceTests
         await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveModeName = "writer" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Writer },
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Rejected text",
@@ -511,7 +511,7 @@ public sealed class SessionRuntimeServiceTests
         await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveModeName = "writer" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Writer },
             Profile = new ProfileState
             {
                 ProfileId = "grim",
@@ -736,7 +736,7 @@ internal sealed class InMemorySessionRuntimeStore : ISessionStateStore
             LastModified = state.LastModified,
             Mode = new ModeSelectionState
             {
-                ActiveModeName = state.Mode.ActiveModeName,
+                ActiveMode = state.Mode.ActiveMode,
                 ProjectName = state.Mode.ProjectName,
                 CurrentFile = state.Mode.CurrentFile,
                 Character = state.Mode.Character,

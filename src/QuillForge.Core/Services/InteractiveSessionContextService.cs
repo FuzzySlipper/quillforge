@@ -112,7 +112,7 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
 
         return new InteractiveSessionContext
         {
-            ActiveModeName = state.Mode.ActiveModeName,
+            ActiveMode = state.Mode.ActiveMode,
             ProjectName = projectName,
             StoryStatePath = storyStatePath,
             CurrentFile = state.Mode.CurrentFile,

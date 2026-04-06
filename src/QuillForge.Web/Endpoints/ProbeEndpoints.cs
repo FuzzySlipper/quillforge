@@ -39,7 +39,7 @@ public static class ProbeEndpoints
                 ct);
             var sessionState = prepared.ProfileView.SessionState;
             var sessionContext = prepared.SessionContext;
-            var activeModeName = sessionState.Mode.ActiveModeName;
+            var activeModeName = sessionState.Mode.ActiveMode;
             var model = appConfig.Models.Orchestrator;
 
             // Resolve the active mode and build its system prompt section
@@ -79,7 +79,7 @@ public static class ProbeEndpoints
             var toolDefs = toolHandlers.Select(t => t.Definition).ToList();
 
             // Build the probe prompt
-            var probePrompt = ProbeBattery.BuildProbePrompt(systemPrompt, toolDefs, activeModeName);
+            var probePrompt = ProbeBattery.BuildProbePrompt(systemPrompt, toolDefs, activeModeName.ToWireString());
 
             logger.LogInformation(
                 "Running interpretation probe: mode={Mode}, model={Model}, tools={ToolCount}, scenarios={ScenarioCount}",

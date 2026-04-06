@@ -21,33 +21,23 @@ public sealed class ToolInputTests
     }
 
     [Fact]
-    public void GetOptionalObjectMap_ConvertsNestedValues()
+    public void GetRequiredString_ThrowsOnNullValue()
     {
         var input = new ToolInput(JsonDocument.Parse(
             """
             {
-              "updates": {
-                "tension": "high",
-                "count": 2,
-                "flags": [true, false],
-                "plot": {
-                  "beat": "arrival"
-                }
-              }
+              "name": null
             }
             """).RootElement);
 
-        var updates = input.GetOptionalObjectMap("updates");
+        Assert.Throws<JsonException>(() => input.GetRequiredString("name"));
+    }
 
-        Assert.NotNull(updates);
-        Assert.Equal("high", updates["tension"]);
-        var count = Assert.IsAssignableFrom<IConvertible>(updates["count"]);
-        Assert.Equal(2d, count.ToDouble(null));
+    [Fact]
+    public void GetRequiredString_ThrowsOnMissingProperty()
+    {
+        var input = new ToolInput(JsonDocument.Parse("{}").RootElement);
 
-        var flags = Assert.IsType<List<object>>(updates["flags"]);
-        Assert.Equal([true, false], flags);
-
-        var plot = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object>>(updates["plot"]);
-        Assert.Equal("arrival", plot["beat"]);
+        Assert.Throws<JsonException>(() => input.GetRequiredString("name"));
     }
 }

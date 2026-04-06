@@ -2,6 +2,7 @@ using System.Text.Json;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Web.Contracts;
 using QuillForge.Web.Services;
 
 namespace QuillForge.Web.Endpoints;
@@ -89,7 +90,7 @@ public static class DebugBridgeEndpoints
             await sessionStore.SaveAsync(tree, ct);
             var pendingCapture = await runtimeService.CaptureWriterPendingAsync(
                 sessionId,
-                new CaptureWriterPendingCommand(response.Content.GetText(), sessionState.Mode.ActiveModeName),
+                new CaptureWriterPendingCommand(response.Content.GetText(), sessionState.Mode.ActiveMode),
                 ct);
             if (pendingCapture.Status == SessionMutationStatus.Busy)
             {
@@ -98,15 +99,19 @@ public static class DebugBridgeEndpoints
                     sessionId);
             }
 
-            return Results.Ok(new
+            return Results.Ok(new DebugBridgeChatResponse
             {
-                sessionId,
-                responseText = response.Content.GetText(),
-                response.StopReason,
-                response.ToolRoundsUsed,
-                usage = new { response.Usage.InputTokens, response.Usage.OutputTokens },
-                mode = sessionState.Mode.ActiveModeName,
-                messageCount = tree.ToFlatThread().Count,
+                SessionId = sessionId,
+                ResponseText = response.Content.GetText(),
+                StopReason = response.StopReason.ToWireString(),
+                ToolRoundsUsed = response.ToolRoundsUsed,
+                Usage = new DebugBridgeUsageDto
+                {
+                    InputTokens = response.Usage.InputTokens,
+                    OutputTokens = response.Usage.OutputTokens,
+                },
+                Mode = sessionState.Mode.ActiveMode.ToWireString(),
+                MessageCount = tree.ToFlatThread().Count,
             });
         });
 
@@ -120,7 +125,7 @@ public static class DebugBridgeEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var mode = root.GetProperty("mode").GetString()!;
+            var mode = root.TryGetProperty("mode", out var modeEl) ? modeEl.GetString() ?? "general" : "general";
             var project = root.TryGetProperty("project", out var proj) ? proj.GetString() : null;
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
             var sessionId = root.GetOptionalGuid("sessionId");
@@ -173,12 +178,12 @@ public static class DebugBridgeEndpoints
 
             var sessionState = result.Value!;
 
-            return Results.Ok(new
+            return Results.Ok(new DebugBridgeModeResponse
             {
-                sessionId = sessionState.SessionId,
-                mode = sessionState.Mode.ActiveModeName,
-                project = sessionState.Mode.ProjectName,
-                file = sessionState.Mode.CurrentFile,
+                SessionId = sessionState.SessionId,
+                Mode = sessionState.Mode.ActiveMode.ToWireString(),
+                Project = sessionState.Mode.ProjectName,
+                File = sessionState.Mode.CurrentFile,
             });
         });
 
@@ -191,17 +196,17 @@ public static class DebugBridgeEndpoints
             {
                 var tree = await sessionStore.LoadAsync(id, ct);
                 var thread = tree.ToFlatThread();
-                return Results.Ok(new
+                return Results.Ok(new DebugBridgeSessionResponse
                 {
-                    sessionId = tree.SessionId,
-                    name = tree.Name,
-                    messageCount = thread.Count,
-                    messages = thread.Select(n => new
+                    SessionId = tree.SessionId,
+                    Name = tree.Name,
+                    MessageCount = thread.Count,
+                    Messages = thread.Select(n => new DebugBridgeMessageDto
                     {
-                        id = n.Id,
-                        role = n.Role,
-                        content = n.Content.GetText(),
-                        createdAt = n.CreatedAt,
+                        Id = n.Id,
+                        Role = n.Role,
+                        Content = n.Content.GetText(),
+                        CreatedAt = n.CreatedAt,
                     }),
                 });
             }
@@ -232,11 +237,11 @@ public static class DebugBridgeEndpoints
         group.MapGet("/state", async (ISessionStateService runtimeService, CancellationToken ct) =>
         {
             var state = await runtimeService.LoadViewAsync(null, ct);
-            return Results.Ok(new
+            return Results.Ok(new DebugBridgeStateResponse
             {
-                mode = state.Mode.ActiveModeName,
-                project = state.Mode.ProjectName,
-                file = state.Mode.CurrentFile,
+                Mode = state.Mode.ActiveMode.ToWireString(),
+                Project = state.Mode.ProjectName,
+                File = state.Mode.CurrentFile,
             });
         });
     }

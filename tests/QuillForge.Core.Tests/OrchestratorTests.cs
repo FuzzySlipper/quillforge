@@ -38,7 +38,7 @@ public class OrchestratorTests
     public void DefaultState_IsGeneral()
     {
         var state = new SessionState();
-        Assert.Equal("general", state.Mode.ActiveModeName);
+        Assert.Equal(Mode.General, state.Mode.ActiveMode);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class OrchestratorTests
         {
             new("user", new MessageContent("hi")),
         };
-        var context = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = "general" };
+        var context = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = Mode.General };
 
         await orchestrator.HandleAsync(state, "default", "test-model", 1024, [], messages, context);
 
@@ -75,7 +75,7 @@ public class OrchestratorTests
             ActiveLoreSet = "builder",
         };
 
-        var generalMode = orchestrator.ResolveMode("general");
+        var generalMode = orchestrator.ResolveMode(Mode.General);
         var prompt = orchestrator.BuildSystemPrompt("I am a helpful persona.", generalMode, modeContext);
 
         Assert.Contains("I am a helpful persona.", prompt);

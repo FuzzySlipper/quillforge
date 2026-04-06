@@ -3,6 +3,64 @@ using System.Text.Json;
 namespace QuillForge.Core.Models;
 
 /// <summary>
+/// Why the model stopped generating. Internal enum — provider adapters translate
+/// provider-specific strings at the boundary; web/persistence layers convert back
+/// to wire-format strings at their respective boundaries.
+/// </summary>
+public enum StopReason
+{
+    /// <summary>The model finished naturally.</summary>
+    EndTurn,
+
+    /// <summary>The model hit the max_tokens limit.</summary>
+    MaxTokens,
+
+    /// <summary>The model wants to invoke one or more tools.</summary>
+    ToolUse,
+
+    /// <summary>A content filter blocked the response.</summary>
+    ContentFilter,
+
+    /// <summary>QuillForge-internal: the tool loop exhausted its max rounds budget.</summary>
+    MaxRounds,
+
+    /// <summary>QuillForge-internal: a recovery attempt failed.</summary>
+    Error,
+}
+
+public static class StopReasonExtensions
+{
+    /// <summary>
+    /// Converts to the snake_case wire format used by SSE, DTOs, and persisted metadata.
+    /// </summary>
+    public static string ToWireString(this StopReason reason) => reason switch
+    {
+        StopReason.EndTurn => "end_turn",
+        StopReason.MaxTokens => "max_tokens",
+        StopReason.ToolUse => "tool_use",
+        StopReason.ContentFilter => "content_filter",
+        StopReason.MaxRounds => "max_rounds",
+        StopReason.Error => "error",
+        _ => "end_turn",
+    };
+
+    /// <summary>
+    /// Parses a provider/wire string to a StopReason. Case-insensitive.
+    /// Returns EndTurn for unrecognised values.
+    /// </summary>
+    public static StopReason ParseStopReason(string? value) => value?.ToLowerInvariant() switch
+    {
+        "end_turn" or "stop" => StopReason.EndTurn,
+        "max_tokens" or "length" => StopReason.MaxTokens,
+        "tool_use" or "tool_calls" => StopReason.ToolUse,
+        "content_filter" => StopReason.ContentFilter,
+        "max_rounds" => StopReason.MaxRounds,
+        "error" => StopReason.Error,
+        _ => StopReason.EndTurn,
+    };
+}
+
+/// <summary>
 /// A tool definition that the model can invoke.
 /// </summary>
 public sealed record ToolDefinition(string Name, string Description, JsonElement InputSchema);
@@ -47,7 +105,7 @@ public sealed record CompletionMessage(string Role, MessageContent Content)
 public sealed record CompletionResponse
 {
     public required MessageContent Content { get; init; }
-    public required string StopReason { get; init; }
+    public required StopReason StopReason { get; init; }
     public required TokenUsage Usage { get; init; }
     /// <summary>
      /// Reasoning/thinking content from the model (for UI display).

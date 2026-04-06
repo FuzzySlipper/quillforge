@@ -230,7 +230,7 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
                     SessionId = sessionId,
                     Mode = new ModeSelectionState
                     {
-                        ActiveModeName = "writer",
+                        ActiveMode = Mode.Writer,
                         ProjectName = "session-project",
                         CurrentFile = "scene-01.md",
                     },
@@ -250,7 +250,7 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
                 }
                 : new SessionState
                 {
-                    Mode = new ModeSelectionState { ActiveModeName = "general" },
+                    Mode = new ModeSelectionState { ActiveMode = Mode.General },
                     Profile = new ProfileState
                     {
                         ProfileId = "default",
@@ -332,7 +332,7 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         public Task<InteractiveSessionContext> BuildAsync(SessionState state, CancellationToken ct = default)
             => Task.FromResult(new InteractiveSessionContext
             {
-                ActiveModeName = state.Mode.ActiveModeName,
+                ActiveMode = state.Mode.ActiveMode,
                 ProjectName = state.Mode.ProjectName ?? "session-project",
                 StoryStatePath = $"{state.Mode.ProjectName ?? "session-project"}/.state.yaml",
                 CurrentFile = state.Mode.CurrentFile,

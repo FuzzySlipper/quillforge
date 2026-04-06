@@ -20,7 +20,7 @@ public sealed class StoryStateHandlerTests
             [SessionA] = "alpha",
         });
         var handler = new GetStoryStateHandler(storyState, sessionContextService, NullLogger<GetStoryStateHandler>.Instance);
-        var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
+        var context = new AgentContext { SessionId = SessionA, ActiveMode = Mode.Writer };
 
         await handler.HandleAsync(ToolInput.Empty, context);
 
@@ -40,9 +40,9 @@ public sealed class StoryStateHandlerTests
         var handler = new GetStoryStateHandler(storyState, sessionContextService, NullLogger<GetStoryStateHandler>.Instance);
 
         await handler.HandleAsync(ToolInput.Empty,
-            new AgentContext { SessionId = SessionA, ActiveMode = "writer" });
+            new AgentContext { SessionId = SessionA, ActiveMode = Mode.Writer });
         await handler.HandleAsync(ToolInput.Empty,
-            new AgentContext { SessionId = SessionB, ActiveMode = "writer" });
+            new AgentContext { SessionId = SessionB, ActiveMode = Mode.Writer });
 
         Assert.Equal(2, storyState.LoadedPaths.Count);
         Assert.Equal("alpha/.state.yaml", storyState.LoadedPaths[0]);
@@ -58,7 +58,7 @@ public sealed class StoryStateHandlerTests
             [SessionA] = "alpha",
         });
         var handler = new UpdateStoryStateHandler(storyState, sessionContextService, NullLogger<UpdateStoryStateHandler>.Instance);
-        var context = new AgentContext { SessionId = SessionA, ActiveMode = "roleplay" };
+        var context = new AgentContext { SessionId = SessionA, ActiveMode = Mode.Roleplay };
         var input = new ToolInput(JsonDocument.Parse("""{"updates": {"tension": "high"}}""").RootElement);
 
         await handler.HandleAsync(input, context);
@@ -78,7 +78,7 @@ public sealed class StoryStateHandlerTests
             [SessionA] = "alpha",
         });
         var handler = new UpdateStoryStateHandler(storyState, sessionContextService, NullLogger<UpdateStoryStateHandler>.Instance);
-        var context = new AgentContext { SessionId = SessionA, ActiveMode = "roleplay" };
+        var context = new AgentContext { SessionId = SessionA, ActiveMode = Mode.Roleplay };
         var input = new ToolInput(JsonDocument.Parse(
             """
             {
@@ -117,7 +117,7 @@ public sealed class StoryStateHandlerTests
         });
         // ProseWriterAgent is null — handler will fail at WriteAsync, but we verify story context resolution first
         var handler = new WriteProseHandler(null!, sessionContextService, storyState, NullLogger<WriteProseHandler>.Instance);
-        var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
+        var context = new AgentContext { SessionId = SessionA, ActiveMode = Mode.Writer };
         var input = new ToolInput(JsonDocument.Parse("""{"scene_description": "test scene"}""").RootElement);
 
         // The handler will throw NullReferenceException when calling _proseWriter.WriteAsync,
@@ -134,7 +134,7 @@ public sealed class StoryStateHandlerTests
         var storyState = new TrackingStoryStateService();
         var sessionContextService = new FakeInteractiveSessionContextService(new Dictionary<Guid, string>());
         var handler = new GetStoryStateHandler(storyState, sessionContextService, NullLogger<GetStoryStateHandler>.Instance);
-        var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
+        var context = new AgentContext { SessionId = SessionA, ActiveMode = Mode.Writer };
 
         await handler.HandleAsync(ToolInput.Empty, context);
 
@@ -146,7 +146,7 @@ public sealed class StoryStateHandlerTests
     {
         var runtimeService = new CapturingSessionStateService();
         var handler = new UpdateNarrativeStateHandler(runtimeService, NullLogger<UpdateNarrativeStateHandler>.Instance);
-        var context = new AgentContext { SessionId = SessionA, ActiveMode = "writer" };
+        var context = new AgentContext { SessionId = SessionA, ActiveMode = Mode.Writer };
         var input = new ToolInput(JsonDocument.Parse(
             """
             {
@@ -215,7 +215,7 @@ internal sealed class FakeInteractiveSessionContextService : IInteractiveSession
         var projectName = state.Mode.ProjectName ?? "default";
         return Task.FromResult(new InteractiveSessionContext
         {
-            ActiveModeName = state.Mode.ActiveModeName,
+            ActiveMode = state.Mode.ActiveMode,
             ProjectName = projectName,
             CurrentFile = state.Mode.CurrentFile,
             Character = state.Mode.Character,
@@ -235,7 +235,7 @@ internal sealed class FakeInteractiveSessionContextService : IInteractiveSession
         return BuildAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveModeName = "writer", ProjectName = projectName },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Writer, ProjectName = projectName },
         }, ct);
     }
 }

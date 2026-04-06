@@ -21,7 +21,7 @@ public sealed class FakeCompletionService : ICompletionService
     /// <summary>
     /// Helper: enqueue a simple text response with end_turn.
     /// </summary>
-    public void EnqueueText(string text, string stopReason = "end_turn")
+    public void EnqueueText(string text, StopReason stopReason = StopReason.EndTurn)
     {
         EnqueueResponse(new CompletionResponse
         {
@@ -34,7 +34,7 @@ public sealed class FakeCompletionService : ICompletionService
     /// <summary>
     /// Helper: enqueue a response that contains a tool_use block.
     /// </summary>
-    public void EnqueueToolCall(string toolName, string toolId, string inputJson, string stopReason = "tool_use")
+    public void EnqueueToolCall(string toolName, string toolId, string inputJson, StopReason stopReason = StopReason.ToolUse)
     {
         var input = System.Text.Json.JsonDocument.Parse(inputJson).RootElement;
         var content = new MessageContent([new ToolUseBlock(toolId, toolName, new ToolInput(input))]);

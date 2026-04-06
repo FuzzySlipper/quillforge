@@ -150,7 +150,7 @@ public sealed class FileSystemSessionStore : ISessionStore
                     Model = nodeDto.Metadata.Model,
                     InputTokens = nodeDto.Metadata.InputTokens,
                     OutputTokens = nodeDto.Metadata.OutputTokens,
-                    StopReason = nodeDto.Metadata.StopReason,
+                    StopReason = StopReasonExtensions.ParseStopReason(nodeDto.Metadata.StopReason),
                 } : null,
             };
         }
@@ -183,7 +183,7 @@ public sealed class FileSystemSessionStore : ISessionStore
                 Model = n.Metadata.Model,
                 InputTokens = n.Metadata.InputTokens,
                 OutputTokens = n.Metadata.OutputTokens,
-                StopReason = n.Metadata.StopReason,
+                StopReason = n.Metadata.StopReason?.ToWireString(),
             } : null,
         }).ToList();
 

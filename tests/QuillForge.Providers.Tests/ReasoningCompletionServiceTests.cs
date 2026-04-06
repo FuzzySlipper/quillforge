@@ -52,7 +52,7 @@ public sealed class ReasoningCompletionServiceTests
             Messages = [new CompletionMessage("user", new MessageContent("Tell me about the moon temple."))],
         });
 
-        Assert.Equal("tool_use", response.StopReason);
+        Assert.Equal(StopReason.ToolUse, response.StopReason);
         Assert.Equal("I found something.", response.Content.GetText());
 
         var replay = Assert.IsType<ReasoningReplayEnvelope>(response.ProviderReplay);
@@ -159,6 +159,48 @@ public sealed class ReasoningCompletionServiceTests
         Assert.Single(replay.ToolCalls);
         Assert.Equal("call_4", replay.ToolCalls[0].Id);
         Assert.Equal("{\"query\":\"sun vault\"}", replay.ToolCalls[0].ArgumentsJson);
+    }
+
+    [Fact]
+    public async Task StreamAsync_MalformedToolArguments_EmitDiagnosticAndMarkedToolCall()
+    {
+        var handler = new RecordingHandler(
+            """
+            data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_bad","function":{"name":"query_lore","arguments":"{\"query\": "}}]}}]}
+
+            data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":9,"completion_tokens":4}}
+
+            data: [DONE]
+            """);
+
+        var service = CreateService(handler);
+
+        var events = new List<StreamEvent>();
+        await foreach (var evt in service.StreamAsync(new CompletionRequest
+        {
+            Model = "default",
+            MaxTokens = 100,
+            Messages = [new CompletionMessage("user", new MessageContent("Find the broken payload."))],
+        }))
+        {
+            events.Add(evt);
+        }
+
+        Assert.Contains(events, e =>
+            e is DiagnosticEvent diag &&
+            diag.Category == DiagnosticCategory.Tool &&
+            diag.Level == DiagnosticLevel.Error &&
+            diag.Message.Contains("malformed JSON arguments", StringComparison.Ordinal));
+
+        var toolCall = Assert.Single(events.OfType<ToolCallDeltaReceivedEvent>());
+        Assert.Equal("query_lore", toolCall.ToolName);
+        Assert.Equal("call_bad", toolCall.ToolId);
+        Assert.Equal("Provider emitted malformed JSON arguments for tool 'query_lore'.", toolCall.ParseError);
+        Assert.Equal(JsonValueKind.Object, toolCall.Input.ValueKind);
+        Assert.Empty(toolCall.Input.EnumerateObject().ToList());
+
+        var done = Assert.IsType<DoneEvent>(events[^1]);
+        Assert.Equal(StopReason.ToolUse, done.StopReason);
     }
 
     private static ReasoningCompletionService CreateService(RecordingHandler handler)

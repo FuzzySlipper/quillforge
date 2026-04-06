@@ -35,13 +35,13 @@ public sealed class NarrativeDirectorAgentTests
             new AgentContext
             {
                 SessionId = Guid.CreateVersion7(),
-                ActiveMode = "roleplay",
+                ActiveMode = Mode.Roleplay,
                 ActiveLoreSet = "default",
                 ActiveNarrativeRules = "default",
                 LastAssistantResponse = "The captain narrows his eyes and keeps the gate shut.",
                 SessionContext = new InteractiveSessionContext
                 {
-                    ActiveModeName = "roleplay",
+                    ActiveMode = Mode.Roleplay,
                     ProjectName = "gatehouse",
                     CurrentFile = "chapter-01.md",
                     CharacterSection = "Captain Elian guards the city gate.",
@@ -92,12 +92,12 @@ public sealed class NarrativeDirectorAgentTests
             new AgentContext
             {
                 SessionId = Guid.CreateVersion7(),
-                ActiveMode = "roleplay",
+                ActiveMode = Mode.Roleplay,
                 ActiveLoreSet = "default",
                 ActiveNarrativeRules = "default",
                 SessionContext = new InteractiveSessionContext
                 {
-                    ActiveModeName = "roleplay",
+                    ActiveMode = Mode.Roleplay,
                     ProjectName = "moonfall",
                     StoryStatePath = "moonfall/.state.yaml",
                     CharacterSection = "Princess Ilya is brilliant and reckless.",

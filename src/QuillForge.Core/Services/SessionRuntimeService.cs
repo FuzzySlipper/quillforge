@@ -6,33 +6,24 @@ namespace QuillForge.Core.Services;
 
 public sealed class SessionRuntimeService : ISessionStateService
 {
-    private const string GeneralModeName = "general";
-    private const string WriterModeName = "writer";
     private const int PendingContentThreshold = 200;
 
     private readonly ISessionStateStore _store;
     private readonly ISessionMutationGate _gate;
     private readonly IProfileConfigService _profileService;
-    private readonly HashSet<string> _knownModes;
     private readonly ILogger<SessionRuntimeService> _logger;
 
     public SessionRuntimeService(
         ISessionStateStore store,
         ISessionMutationGate gate,
         IProfileConfigService profileService,
-        IEnumerable<IMode> modes,
+        IEnumerable<IMode> _,
         ILogger<SessionRuntimeService> logger)
     {
         _store = store;
         _gate = gate;
         _profileService = profileService;
         _logger = logger;
-
-        _knownModes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var mode in modes)
-        {
-            _knownModes.Add(mode.Name);
-        }
     }
 
     public async Task<SessionState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
@@ -106,7 +97,7 @@ public sealed class SessionRuntimeService : ISessionStateService
                 targetProfile.Config.Roleplay.UserCharacter,
                 profileChanged);
 
-            if (string.Equals(state.Mode.ActiveModeName, RoleplayMode.NameConst, StringComparison.OrdinalIgnoreCase))
+            if (state.Mode.ActiveMode == Mode.Roleplay)
             {
                 state.Mode.Character = state.Roleplay.ActiveAiCharacter;
             }
@@ -167,8 +158,7 @@ public sealed class SessionRuntimeService : ISessionStateService
             state.Roleplay.HasExplicitUserCharacterSelection = true;
         }
 
-        if (string.Equals(state.Mode.ActiveModeName, RoleplayMode.NameConst, StringComparison.OrdinalIgnoreCase)
-            && command.HasAiCharacterSelection)
+        if (state.Mode.ActiveMode == Mode.Roleplay && command.HasAiCharacterSelection)
         {
             state.Mode.Character = state.Roleplay.ActiveAiCharacter;
         }
@@ -201,7 +191,7 @@ public sealed class SessionRuntimeService : ISessionStateService
                 "Another mutating operation is already running for this session.");
         }
 
-        if (!_knownModes.Contains(command.Mode))
+        if (!Enum.TryParse<Mode>(command.Mode, ignoreCase: true, out var parsedMode))
         {
             _logger.LogWarning(
                 "Session mode update rejected: session={SessionId} invalidMode={Mode}",
@@ -212,21 +202,20 @@ public sealed class SessionRuntimeService : ISessionStateService
 
         var state = await LoadStateAsync(sessionId, ct);
         var resolvedProfile = await LoadProfileForViewAsync(state.Profile.ProfileId, ct);
-        var oldMode = state.Mode.ActiveModeName;
+        var oldMode = state.Mode.ActiveMode;
 
-        if (string.Equals(oldMode, WriterModeName, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(command.Mode, WriterModeName, StringComparison.OrdinalIgnoreCase))
+        if (oldMode == Mode.Writer && parsedMode != Mode.Writer)
         {
             state.Writer.PendingContent = null;
             state.Writer.State = WriterState.Idle;
             _logger.LogInformation("Writer pending state reset during mode change for session {SessionId}", sessionId);
         }
 
-        state.Mode.ActiveModeName = command.Mode;
+        state.Mode.ActiveMode = parsedMode;
         state.Mode.ProjectName = command.Project;
         state.Mode.CurrentFile = command.File;
 
-        if (string.Equals(command.Mode, RoleplayMode.NameConst, StringComparison.OrdinalIgnoreCase))
+        if (parsedMode == Mode.Roleplay)
         {
             var requestedCharacter = NormalizeChoice(command.Character);
             if (requestedCharacter is not null)
@@ -255,7 +244,7 @@ public sealed class SessionRuntimeService : ISessionStateService
             "Session mode updated: session={SessionId} oldMode={OldMode} newMode={NewMode} project={Project} file={File} character={Character}",
             sessionId,
             oldMode,
-            hydrated.Mode.ActiveModeName,
+            hydrated.Mode.ActiveMode,
             hydrated.Mode.ProjectName,
             hydrated.Mode.CurrentFile,
             hydrated.Mode.Character);
@@ -278,12 +267,12 @@ public sealed class SessionRuntimeService : ISessionStateService
         }
 
         var state = await LoadStateAsync(sessionId, ct);
-        if (!string.Equals(state.Mode.ActiveModeName, WriterModeName, StringComparison.OrdinalIgnoreCase))
+        if (state.Mode.ActiveMode != Mode.Writer)
         {
             _logger.LogInformation(
                 "Writer pending capture skipped: session={SessionId} currentMode={CurrentMode} sourceMode={SourceMode}",
                 sessionId,
-                state.Mode.ActiveModeName,
+                state.Mode.ActiveMode,
                 command.SourceMode);
             return SessionMutationResult<WriterPendingCaptureEvent>.Success(
                 new WriterPendingCaptureSkippedEvent(
@@ -577,10 +566,10 @@ public sealed class SessionRuntimeService : ISessionStateService
             LastModified = state.LastModified,
             Mode = new ModeSelectionState
             {
-                ActiveModeName = state.Mode.ActiveModeName,
+                ActiveMode = state.Mode.ActiveMode,
                 ProjectName = state.Mode.ProjectName,
                 CurrentFile = state.Mode.CurrentFile,
-                Character = string.Equals(state.Mode.ActiveModeName, RoleplayMode.NameConst, StringComparison.OrdinalIgnoreCase)
+                Character = state.Mode.ActiveMode == Mode.Roleplay
                     ? NormalizeChoice(state.Mode.Character) ?? activeAiCharacter
                     : state.Mode.Character,
             },
@@ -690,7 +679,7 @@ public sealed class SessionRuntimeService : ISessionStateService
 
     private static bool IsUntouchedSessionState(SessionState state)
     {
-        return string.Equals(state.Mode.ActiveModeName, GeneralModeName, StringComparison.OrdinalIgnoreCase)
+        return state.Mode.ActiveMode == Mode.General
             && string.IsNullOrWhiteSpace(state.Mode.ProjectName)
             && string.IsNullOrWhiteSpace(state.Mode.CurrentFile)
             && string.IsNullOrWhiteSpace(state.Mode.Character)

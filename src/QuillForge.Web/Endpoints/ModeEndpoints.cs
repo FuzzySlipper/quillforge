@@ -21,7 +21,7 @@ public static class ModeEndpoints
             return Results.Ok(new ModeResponse
             {
                 SessionId = state.SessionId,
-                Mode = state.Mode.ActiveModeName,
+                Mode = state.Mode.ActiveMode.ToWireString(),
                 Project = state.Mode.ProjectName,
                 File = state.Mode.CurrentFile,
                 Character = state.Mode.Character,
@@ -96,7 +96,7 @@ public static class ModeEndpoints
             return Results.Ok(new ModeResponse
             {
                 SessionId = state.SessionId,
-                Mode = state.Mode.ActiveModeName,
+                Mode = state.Mode.ActiveMode.ToWireString(),
                 Project = state.Mode.ProjectName,
                 File = state.Mode.CurrentFile,
                 Character = state.Mode.Character,

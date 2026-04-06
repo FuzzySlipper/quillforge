@@ -21,7 +21,7 @@ public class ToolLoopTests
     private static readonly AgentContext DefaultContext = new()
     {
         SessionId = Guid.CreateVersion7(),
-        ActiveMode = "general",
+        ActiveMode = Mode.General,
     };
 
     private static ToolLoop CreateLoop(FakeCompletionService fakeService)
@@ -31,6 +31,17 @@ public class ToolLoopTests
             loggerFactory.CreateLogger<ContinuationStrategy>());
         return new ToolLoop(fakeService, continuation,
             loggerFactory.CreateLogger<ToolLoop>(), new AppConfig());
+    }
+
+    private static ToolLoop CreateLoop(
+        ICompletionService completionService,
+        ILogger<ToolLoop> logger,
+        QuillForge.Core.Diagnostics.ILlmDebugLogger? debugLogger = null)
+    {
+        var loggerFactory = NullLoggerFactory.Instance;
+        var continuation = new ContinuationStrategy(
+            loggerFactory.CreateLogger<ContinuationStrategy>());
+        return new ToolLoop(completionService, continuation, logger, new AppConfig(), debugLogger);
     }
 
     [Fact]
@@ -48,7 +59,7 @@ public class ToolLoopTests
         var result = await loop.RunAsync(DefaultConfig, [], messages, DefaultContext);
 
         Assert.Equal("Hello world!", result.Content.GetText());
-        Assert.Equal("end_turn", result.StopReason);
+        Assert.Equal(StopReason.EndTurn, result.StopReason);
         Assert.Equal(0, result.ToolRoundsUsed);
         Assert.Single(fake.ReceivedRequests);
     }
@@ -129,7 +140,7 @@ public class ToolLoopTests
 
         var result = await loop.RunAsync(config, [handler], messages, DefaultContext);
 
-        Assert.Equal("max_rounds", result.StopReason);
+        Assert.Equal(StopReason.MaxRounds, result.StopReason);
         // Should have stopped after 3 tool rounds, meaning 4 requests total:
         // initial + 3 rounds of tool dispatch
         Assert.True(fake.ReceivedRequests.Count <= 4);
@@ -259,9 +270,9 @@ public class ToolLoopTests
     {
         var fake = new FakeCompletionService();
         // First response truncated at max_tokens
-        fake.EnqueueText("The beginning of a long ", "max_tokens");
+        fake.EnqueueText("The beginning of a long ", StopReason.MaxTokens);
         // Continuation completes
-        fake.EnqueueText("story about dragons.", "end_turn");
+        fake.EnqueueText("story about dragons.", StopReason.EndTurn);
 
         var loop = CreateLoop(fake);
         var messages = new List<CompletionMessage>
@@ -272,7 +283,7 @@ public class ToolLoopTests
         var result = await loop.RunAsync(DefaultConfig, [], messages, DefaultContext);
 
         // The loop should have auto-continued and we get the final text
-        Assert.Equal("end_turn", result.StopReason);
+        Assert.Equal(StopReason.EndTurn, result.StopReason);
         Assert.Equal(2, fake.ReceivedRequests.Count);
     }
 
@@ -334,6 +345,52 @@ public class ToolLoopTests
         Assert.Equal("my_tool", req.Tools[0].Name);
     }
 
+    [Fact]
+    public async Task CompletionFailure_LogsThroughPrimaryLogger_WhenDebugLoggerIsAbsent()
+    {
+        var logger = new CollectingLogger<ToolLoop>();
+        var loop = CreateLoop(new ThrowingCompletionService(), logger);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("hi")),
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            loop.RunAsync(DefaultConfig, [], messages, DefaultContext));
+
+        Assert.Equal("boom", exception.Message);
+
+        var errorEntry = Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Error);
+        Assert.Equal(
+            "ToolLoop round {Round}: completion service call failed for model {Model}",
+            errorEntry.Template);
+        Assert.Same(exception, errorEntry.Exception);
+        Assert.Equal("ToolLoop round 0: completion service call failed for model test-model", errorEntry.Message);
+        Assert.Equal(0, Assert.IsType<int>(errorEntry.Properties["Round"]));
+        Assert.Equal("test-model", errorEntry.Properties["Model"]);
+    }
+
+    [Fact]
+    public void CollectingLogger_CapturesStructuredProperties_AndFormattedMessage()
+    {
+        var logger = new CollectingLogger<ToolLoop>();
+        var exception = new InvalidOperationException("kaboom");
+
+        logger.LogWarning(
+            exception,
+            "Tool {ToolName} failed after {Attempts} attempts",
+            "query_lore",
+            3);
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Equal("Tool query_lore failed after 3 attempts", entry.Message);
+        Assert.Equal("Tool {ToolName} failed after {Attempts} attempts", entry.Template);
+        Assert.Same(exception, entry.Exception);
+        Assert.Equal("query_lore", entry.Properties["ToolName"]);
+        Assert.Equal(3, Assert.IsType<int>(entry.Properties["Attempts"]));
+    }
+
     private sealed class StringSchemaIntHandler : TypedToolHandler<StringSchemaIntArgs>
     {
         public int TypedCallCount { get; private set; }
@@ -364,5 +421,19 @@ public class ToolLoopTests
     private sealed record StringSchemaIntArgs
     {
         public int Count { get; init; }
+    }
+
+    private sealed class ThrowingCompletionService : ICompletionService
+    {
+        public Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
+            => throw new InvalidOperationException("boom");
+
+        public async IAsyncEnumerable<StreamEvent> StreamAsync(
+            CompletionRequest request,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            yield break;
+        }
     }
 }

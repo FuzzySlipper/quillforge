@@ -20,7 +20,7 @@ public class ToolLoopStreamingTests
     private static readonly AgentContext DefaultContext = new()
     {
         SessionId = Guid.CreateVersion7(),
-        ActiveMode = "general",
+        ActiveMode = Mode.General,
     };
 
     private static ToolLoop CreateLoop(ICompletionService completionService)
@@ -54,7 +54,7 @@ public class ToolLoopStreamingTests
         Assert.IsType<TextDeltaEvent>(events[0]);
         Assert.Equal("streamed text", ((TextDeltaEvent)events[0]).Text);
         Assert.IsType<DoneEvent>(events[1]);
-        Assert.Equal("end_turn", ((DoneEvent)events[1]).StopReason);
+        Assert.Equal(StopReason.EndTurn, ((DoneEvent)events[1]).StopReason);
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class ToolLoopStreamingTests
 
         var doneEvents = events.OfType<DoneEvent>().ToList();
         Assert.Single(doneEvents); // Only the final done
-        Assert.Equal("end_turn", doneEvents[0].StopReason);
+        Assert.Equal(StopReason.EndTurn, doneEvents[0].StopReason);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class ToolLoopStreamingTests
         }
 
         var done = events.OfType<DoneEvent>().Last();
-        Assert.Equal("max_rounds", done.StopReason);
+        Assert.Equal(StopReason.MaxRounds, done.StopReason);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class ToolLoopStreamingTests
         Assert.DoesNotContain(events, e => e is ToolCallValidatedEvent);
         Assert.Contains(events, e =>
             e is DiagnosticEvent diag &&
-            diag.Category == "tool" &&
+            diag.Category == DiagnosticCategory.Tool &&
             diag.Level == DiagnosticLevel.Error &&
             diag.Message.Contains("invalid input", StringComparison.Ordinal));
         Assert.Contains(events, e => e is TextDeltaEvent td && td.Text == "validation handled");
@@ -204,10 +204,45 @@ public class ToolLoopStreamingTests
         Assert.Equal(0, handler.TypedCallCount);
         Assert.Contains(events, e =>
             e is DiagnosticEvent diag &&
-            diag.Category == "tool" &&
+            diag.Category == DiagnosticCategory.Tool &&
             diag.Level == DiagnosticLevel.Error &&
             diag.Message.Contains("invalid typed arguments", StringComparison.Ordinal));
         Assert.Contains(events, e => e is TextDeltaEvent td && td.Text == "typed validation handled");
+    }
+
+    [Fact]
+    public async Task StreamTransportMarkedInvalidToolArgs_ProducesFailureToolResultWithoutRunningHandler()
+    {
+        var completion = new InvalidToolArgsStreamingCompletionService();
+        var handler = new FakeToolHandler("my_tool");
+        var loop = CreateLoop(completion);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("use the tool")),
+        };
+
+        var events = new List<StreamEvent>();
+        await foreach (var evt in loop.RunStreamAsync(DefaultConfig, [handler], messages, DefaultContext))
+        {
+            events.Add(evt);
+        }
+
+        Assert.Equal(0, handler.CallCount);
+        Assert.Contains(events, e =>
+            e is DiagnosticEvent diag &&
+            diag.Category == DiagnosticCategory.Tool &&
+            diag.Level == DiagnosticLevel.Error &&
+            diag.Message.Contains("malformed JSON arguments", StringComparison.Ordinal));
+        Assert.DoesNotContain(events, e => e is ToolCallValidatedEvent);
+        Assert.Contains(events, e => e is TextDeltaEvent td && td.Text == "retry complete");
+
+        var toolResult = messages
+            .SelectMany(m => m.Content.Blocks.OfType<ToolResultBlock>())
+            .Single();
+
+        Assert.True(toolResult.IsError);
+        Assert.Contains("invalid input from the provider", toolResult.Content);
+        Assert.Contains("malformed JSON arguments", toolResult.Content);
     }
 
     private sealed class RecoveryStreamingCompletionService : ICompletionService
@@ -225,7 +260,7 @@ public class ToolLoopStreamingTests
                 return Task.FromResult(new CompletionResponse
                 {
                     Content = new MessageContent([new ToolUseBlock("call_1", "my_tool", new ToolInput(toolInput))]),
-                    StopReason = "tool_use",
+                    StopReason = StopReason.ToolUse,
                     Usage = new TokenUsage(10, 20),
                 });
             }
@@ -233,7 +268,7 @@ public class ToolLoopStreamingTests
             return Task.FromResult(new CompletionResponse
             {
                 Content = new MessageContent("result after tool"),
-                StopReason = "end_turn",
+                StopReason = StopReason.EndTurn,
                 Usage = new TokenUsage(10, 20),
             });
         }
@@ -246,12 +281,47 @@ public class ToolLoopStreamingTests
 
             if (StreamRequests.Count == 1)
             {
-                yield return new DoneEvent("tool_use", new TokenUsage(10, 20));
+                yield return new DoneEvent(StopReason.ToolUse, new TokenUsage(10, 20));
                 yield break;
             }
 
             yield return new TextDeltaEvent("result after tool");
-            yield return new DoneEvent("end_turn", new TokenUsage(10, 20));
+            yield return new DoneEvent(StopReason.EndTurn, new TokenUsage(10, 20));
+            await Task.CompletedTask;
+        }
+    }
+
+    private sealed class InvalidToolArgsStreamingCompletionService : ICompletionService
+    {
+        public int StreamCallCount { get; private set; }
+
+        public Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
+            => throw new NotSupportedException();
+
+        public async IAsyncEnumerable<StreamEvent> StreamAsync(
+            CompletionRequest request,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            StreamCallCount++;
+
+            if (StreamCallCount == 1)
+            {
+                var emptyInput = System.Text.Json.JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
+                yield return new DiagnosticEvent(
+                    DiagnosticCategory.Tool,
+                    "Provider emitted malformed JSON arguments for tool 'my_tool'.",
+                    DiagnosticLevel.Error);
+                yield return new ToolCallDeltaReceivedEvent(
+                    "my_tool",
+                    "call_bad",
+                    emptyInput,
+                    "Provider emitted malformed JSON arguments for tool 'my_tool'.");
+                yield return new DoneEvent(StopReason.ToolUse, new TokenUsage(10, 20));
+                yield break;
+            }
+
+            yield return new TextDeltaEvent("retry complete");
+            yield return new DoneEvent(StopReason.EndTurn, new TokenUsage(10, 20));
             await Task.CompletedTask;
         }
     }

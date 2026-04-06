@@ -7,7 +7,7 @@ namespace QuillForge.Core.Models;
 /// </summary>
 public sealed record InteractiveSessionContext
 {
-    public required string ActiveModeName { get; init; }
+    public required Mode ActiveMode { get; init; }
     public required string ProjectName { get; init; }
     public required string StoryStatePath { get; init; }
     public string? CurrentFile { get; init; }

@@ -60,7 +60,14 @@ public sealed class OpenAiImageGenerator : IImageGenerator
 
         var responseJson = await response.Content.ReadAsStringAsync(ct);
         using var doc = System.Text.Json.JsonDocument.Parse(responseJson);
-        var imageUrl = doc.RootElement.GetProperty("data")[0].GetProperty("url").GetString()!;
+
+        if (!doc.RootElement.TryGetProperty("data", out var dataArr)
+            || dataArr.GetArrayLength() == 0
+            || !dataArr[0].TryGetProperty("url", out var urlEl)
+            || urlEl.GetString() is not { } imageUrl)
+        {
+            throw new InvalidOperationException("Image generation response missing 'data[0].url'");
+        }
 
         // Download the image
         var imageBytes = await _httpClient.GetByteArrayAsync(imageUrl, ct);

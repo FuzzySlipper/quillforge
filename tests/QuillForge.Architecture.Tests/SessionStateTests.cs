@@ -51,7 +51,7 @@ public class SessionStateTests
     public void ModeSelectionState_DefaultsToGeneral()
     {
         var mode = new ModeSelectionState();
-        Assert.Equal("general", mode.ActiveModeName);
+        Assert.Equal(Mode.General, mode.ActiveMode);
         Assert.Null(mode.ProjectName);
         Assert.Null(mode.CurrentFile);
         Assert.Null(mode.Character);
@@ -216,7 +216,7 @@ public class SessionStateTests
             SessionId = sessionId,
             Mode = new ModeSelectionState
             {
-                ActiveModeName = "writer",
+                ActiveMode = Mode.Writer,
                 ProjectName = "my-novel",
                 CurrentFile = "chapter1.md",
                 Character = "hero",
@@ -252,7 +252,7 @@ public class SessionStateTests
         };
 
         Assert.Equal(sessionId, state.SessionId);
-        Assert.Equal("writer", state.Mode.ActiveModeName);
+        Assert.Equal(Mode.Writer, state.Mode.ActiveMode);
         Assert.Equal("my-novel", state.Mode.ProjectName);
         Assert.Equal("chapter1.md", state.Mode.CurrentFile);
         Assert.Equal("hero", state.Mode.Character);

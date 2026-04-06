@@ -40,7 +40,7 @@ public class ForgePipelineTests
             Reviewer = new ForgeReviewerAgent(fakeCompletionForReviewer, new AppConfig(), LogFactory.CreateLogger<ForgeReviewerAgent>()),
             WriterTools = [],
             FileService = fileService,
-            AgentContext = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = "forge" },
+            AgentContext = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = Mode.Forge },
             WritingStyle = "Write clearly and concisely.",
         };
     }

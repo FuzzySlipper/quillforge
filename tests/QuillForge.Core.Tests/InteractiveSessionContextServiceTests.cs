@@ -35,7 +35,7 @@ public sealed class InteractiveSessionContextServiceTests
             SessionId = Guid.CreateVersion7(),
             Mode = new ModeSelectionState
             {
-                ActiveModeName = "roleplay",
+                ActiveMode = Mode.Roleplay,
                 ProjectName = "novel",
                 CurrentFile = "chapter1.md",
                 Character = "hero",
@@ -58,7 +58,7 @@ public sealed class InteractiveSessionContextServiceTests
             },
         });
 
-        Assert.Equal("roleplay", context.ActiveModeName);
+        Assert.Equal(Mode.Roleplay, context.ActiveMode);
         Assert.Equal("novel", context.ProjectName);
         Assert.Equal("novel/.state.yaml", context.StoryStatePath);
         Assert.Equal("Character: Sir Rowan", context.CharacterSection);
@@ -81,7 +81,7 @@ public sealed class InteractiveSessionContextServiceTests
                 SessionId = Guid.CreateVersion7(),
                 Mode = new ModeSelectionState
                 {
-                    ActiveModeName = "writer",
+                    ActiveMode = Mode.Writer,
                     ProjectName = "novel",
                 },
             },
@@ -97,7 +97,7 @@ public sealed class InteractiveSessionContextServiceTests
 
         var context = await service.LoadAsync(runtimeService.State.SessionId);
 
-        Assert.Equal("writer", context.ActiveModeName);
+        Assert.Equal(Mode.Writer, context.ActiveMode);
         Assert.Equal("novel", context.ProjectName);
         Assert.Equal("novel/.state.yaml", context.StoryStatePath);
     }

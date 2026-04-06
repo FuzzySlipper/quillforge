@@ -25,7 +25,7 @@ public sealed record AgentConfig
 public sealed record AgentResponse
 {
     public required MessageContent Content { get; init; }
-    public required string StopReason { get; init; }
+    public required StopReason StopReason { get; init; }
     public required TokenUsage Usage { get; init; }
     public required int ToolRoundsUsed { get; init; }
     public ResponseType ResponseType { get; init; } = ResponseType.Discussion;
@@ -38,7 +38,7 @@ public sealed record AgentResponse
 public sealed record AgentContext
 {
     public required Guid SessionId { get; init; }
-    public required string ActiveMode { get; init; }
+    public required Mode ActiveMode { get; init; }
 
     /// <summary>
     /// Active lore set for this request. Resolved from session profile state,

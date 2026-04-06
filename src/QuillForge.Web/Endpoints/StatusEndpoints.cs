@@ -45,7 +45,7 @@ public static class StatusEndpoints
             {
                 Version = BuildInfo.Version,
                 Build = BuildInfo.InformationalVersion,
-                Mode = chatState.Mode.ActiveModeName,
+                Mode = chatState.Mode.ActiveMode.ToWireString(),
                 Project = chatState.Mode.ProjectName,
                 File = chatState.Mode.CurrentFile,
                 LoreSet = readView.ActiveLoreSet,

@@ -42,7 +42,12 @@ public sealed class ComfyUiImageGenerator : IImageGenerator
 
         var queueJson = await queueResponse.Content.ReadAsStringAsync(ct);
         using var queueDoc = JsonDocument.Parse(queueJson);
-        var promptId = queueDoc.RootElement.GetProperty("prompt_id").GetString()!;
+
+        if (!queueDoc.RootElement.TryGetProperty("prompt_id", out var pidEl)
+            || pidEl.GetString() is not { } promptId)
+        {
+            throw new InvalidOperationException("ComfyUI queue response missing 'prompt_id'");
+        }
 
         // Poll for completion
         string? outputFileName = null;
@@ -65,7 +70,7 @@ public sealed class ComfyUiImageGenerator : IImageGenerator
                 {
                     if (node.Value.TryGetProperty("images", out var images) && images.GetArrayLength() > 0)
                     {
-                        outputFileName = images[0].GetProperty("filename").GetString();
+                        outputFileName = images[0].TryGetProperty("filename", out var fnEl) ? fnEl.GetString() : null;
                         subfolder = images[0].TryGetProperty("subfolder", out var sf) ? sf.GetString() ?? "" : "";
                         break;
                     }

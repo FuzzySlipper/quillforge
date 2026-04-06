@@ -44,10 +44,11 @@ public sealed class OrchestratorAgent
     /// <summary>
     /// Resolves a mode by name. Throws if not found.
     /// </summary>
-    public IMode ResolveMode(string modeName)
+    public IMode ResolveMode(Mode mode)
     {
-        return _modes.TryGetValue(modeName, out var mode)
-            ? mode
+        var modeName = mode.ToWireString();
+        return _modes.TryGetValue(modeName, out var resolved)
+            ? resolved
             : throw new ArgumentException($"Unknown mode: {modeName}");
     }
 
@@ -65,7 +66,7 @@ public sealed class OrchestratorAgent
         ModeContext? modeContext = null,
         CancellationToken ct = default)
     {
-        var activeMode = ResolveMode(state.Mode.ActiveModeName);
+        var activeMode = ResolveMode(state.Mode.ActiveMode);
 
         _logger.LogInformation(
             "Orchestrator handling message in {Mode} mode, session {SessionId}",
@@ -125,7 +126,7 @@ public sealed class OrchestratorAgent
         ModeContext? modeContext,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        var activeMode = ResolveMode(state.Mode.ActiveModeName);
+        var activeMode = ResolveMode(state.Mode.ActiveMode);
         var conductorPrompt = await _conductorStore.LoadAsync(conductorName, ct: ct);
         var effectiveSessionContext = context.SessionContext ?? await _sessionContextService.BuildAsync(state, ct);
         var effectiveModeContext = modeContext ?? CreateModeContext(effectiveSessionContext, context.ActiveLoreSet);

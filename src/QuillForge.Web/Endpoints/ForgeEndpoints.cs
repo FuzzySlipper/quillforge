@@ -313,7 +313,7 @@ public static class ForgeEndpoints
             AgentContext = new AgentContext
             {
                 SessionId = Guid.CreateVersion7(),
-                ActiveMode = "forge",
+                ActiveMode = Mode.Forge,
                 ActiveLoreSet = activeLoreSet,
                 ActiveWritingStyle = config.WritingStyle.Active,
                 RunLorePath = $"forge/{projectName}/run-lore.md",

@@ -98,7 +98,7 @@ public sealed class ReasoningCompletionService : ICompletionService
         using var reader = new StreamReader(stream);
 
         int inputTokens = 0, outputTokens = 0;
-        string? finishReason = null;
+        StopReason? finishReason = null;
         var textAccumulator = new StringBuilder();
         var reasoningAccumulator = new StringBuilder();
         var toolCallIds = new Dictionary<int, string>();
@@ -116,11 +116,13 @@ public sealed class ReasoningCompletionService : ICompletionService
 
             using var doc = JsonDocument.Parse(data);
             var root = doc.RootElement;
-            var choices = root.GetProperty("choices");
-            if (choices.GetArrayLength() == 0) continue;
+
+            if (!root.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
+                continue;
 
             var choice = choices[0];
-            var delta = choice.GetProperty("delta");
+            if (!choice.TryGetProperty("delta", out var delta))
+                continue;
 
             // Text content
             if (delta.TryGetProperty("content", out var contentEl) && contentEl.ValueKind == JsonValueKind.String)
@@ -149,15 +151,27 @@ public sealed class ReasoningCompletionService : ICompletionService
             {
                 foreach (var tc in toolCallsEl.EnumerateArray())
                 {
-                    var index = tc.GetProperty("index").GetInt32();
+                    if (!tc.TryGetProperty("index", out var indexEl) || !indexEl.TryGetInt32(out var index))
+                    {
+                        _logger.LogWarning("Skipping streamed tool call delta: missing or non-integer 'index'");
+                        continue;
+                    }
 
-                    if (tc.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String)
-                        toolCallIds[index] = idEl.GetString()!;
+                    if (tc.TryGetProperty("id", out var idEl)
+                        && idEl.ValueKind == JsonValueKind.String
+                        && idEl.GetString() is { } idStr)
+                    {
+                        toolCallIds[index] = idStr;
+                    }
 
                     if (tc.TryGetProperty("function", out var fnEl))
                     {
-                        if (fnEl.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
-                            toolCallNames[index] = nameEl.GetString()!;
+                        if (fnEl.TryGetProperty("name", out var nameEl)
+                            && nameEl.ValueKind == JsonValueKind.String
+                            && nameEl.GetString() is { } nameStr)
+                        {
+                            toolCallNames[index] = nameStr;
+                        }
 
                         if (fnEl.TryGetProperty("arguments", out var argsEl) && argsEl.ValueKind == JsonValueKind.String)
                         {
@@ -175,20 +189,16 @@ public sealed class ReasoningCompletionService : ICompletionService
             // Finish reason
             if (choice.TryGetProperty("finish_reason", out var fr) && fr.ValueKind == JsonValueKind.String)
             {
-                finishReason = fr.GetString() switch
-                {
-                    "stop" => "end_turn",
-                    "length" => "max_tokens",
-                    "tool_calls" => "tool_use",
-                    var other => other,
-                };
+                finishReason = StopReasonExtensions.ParseStopReason(fr.GetString());
             }
 
             // Usage
             if (root.TryGetProperty("usage", out var usage))
             {
-                if (usage.TryGetProperty("prompt_tokens", out var pt)) inputTokens = pt.GetInt32();
-                if (usage.TryGetProperty("completion_tokens", out var ct2)) outputTokens = ct2.GetInt32();
+                if (usage.TryGetProperty("prompt_tokens", out var pt) && pt.TryGetInt32(out var ptVal))
+                    inputTokens = ptVal;
+                if (usage.TryGetProperty("completion_tokens", out var ct2) && ct2.TryGetInt32(out var ctVal))
+                    outputTokens = ctVal;
             }
         }
 
@@ -197,19 +207,37 @@ public sealed class ReasoningCompletionService : ICompletionService
         {
             if (toolCallIds.TryGetValue(index, out var id) && toolCallNames.TryGetValue(index, out var name))
             {
-                var argsJson = toolCallArgs.TryGetValue(index, out var sb) && sb.Length > 0
-                    ? sb.ToString() : "{}";
-                JsonElement argsElement;
-                try
+                if (!toolCallArgs.TryGetValue(index, out var sb) || sb.Length == 0)
                 {
-                    argsElement = JsonDocument.Parse(argsJson).RootElement.Clone();
+                    var error = $"Provider emitted tool call '{name}' without any arguments payload.";
+                    _logger.LogWarning(
+                        "Incomplete streamed tool call for {Name} (id={Id}, index={Index}): no argument chunks were captured",
+                        name,
+                        id,
+                        index);
+                    yield return new DiagnosticEvent(DiagnosticCategory.Tool, error, DiagnosticLevel.Error);
+                    yield return new ToolCallDeltaReceivedEvent(name, id, CreateEmptyObject(), error);
+                    continue;
                 }
-                catch (JsonException)
+
+                var argsJson = sb.ToString();
+                if (TryParseToolArguments(argsJson, out var parsedArgs))
                 {
-                    _logger.LogWarning("Failed to parse streamed tool call arguments for {Name}: {Json}", name, argsJson);
-                    argsElement = JsonDocument.Parse("{}").RootElement.Clone();
+                    yield return new ToolCallDeltaReceivedEvent(name, id, parsedArgs);
                 }
-                yield return new ToolCallDeltaReceivedEvent(name, id, argsElement);
+
+                else
+                {
+                    var error = $"Provider emitted malformed JSON arguments for tool '{name}'.";
+                    _logger.LogWarning(
+                        "Failed to parse streamed tool call arguments for {Name} (id={Id}, index={Index}): {Json}",
+                        name,
+                        id,
+                        index,
+                        argsJson);
+                    yield return new DiagnosticEvent(DiagnosticCategory.Tool, error, DiagnosticLevel.Error);
+                    yield return new ToolCallDeltaReceivedEvent(name, id, CreateEmptyObject(), error);
+                }
             }
         }
 
@@ -236,10 +264,46 @@ public sealed class ReasoningCompletionService : ICompletionService
                 replayToolCalls);
         }
 
-        yield return new DoneEvent(finishReason ?? "end_turn", new TokenUsage(inputTokens, outputTokens))
+        yield return new DoneEvent(finishReason ?? StopReason.EndTurn, new TokenUsage(inputTokens, outputTokens))
         {
             ProviderReplay = providerReplay,
         };
+    }
+
+    private static JsonElement CreateEmptyObject()
+    {
+        return JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
+    }
+
+    private static bool TryParseToolArguments(string json, out JsonElement parsed)
+    {
+        try
+        {
+            parsed = JsonDocument.Parse(json).RootElement.Clone();
+            return true;
+        }
+        catch (JsonException)
+        {
+            parsed = default;
+            return false;
+        }
+    }
+
+    private static string GetRequiredToolArgumentsJson(JsonElement functionElement, string toolName)
+    {
+        if (!functionElement.TryGetProperty("arguments", out var argumentsElement)
+            || argumentsElement.ValueKind != JsonValueKind.String)
+        {
+            throw new JsonException($"Provider response omitted string arguments for tool '{toolName}'.");
+        }
+
+        var argumentsJson = argumentsElement.GetString();
+        if (string.IsNullOrWhiteSpace(argumentsJson))
+        {
+            throw new JsonException($"Provider response emitted empty arguments for tool '{toolName}'.");
+        }
+
+        return argumentsJson;
     }
 
     private string BuildRequestJson(CompletionRequest request, bool stream = false)
@@ -382,28 +446,31 @@ public sealed class ReasoningCompletionService : ICompletionService
         using var doc = JsonDocument.Parse(responseBody);
         var root = doc.RootElement;
 
-        var choices = root.GetProperty("choices");
-        if (choices.GetArrayLength() == 0)
+        if (!root.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0)
         {
+            _logger.LogWarning("Provider response missing 'choices' or returned empty choices array");
             return new CompletionResponse
             {
                 Content = new MessageContent(""),
-                StopReason = "end_turn",
+                StopReason = StopReason.EndTurn,
                 Usage = new TokenUsage(0, 0),
             };
         }
 
         var choice = choices[0];
-        var message = choice.GetProperty("message");
-        var finishReason = choice.TryGetProperty("finish_reason", out var fr)
-            ? fr.GetString() switch
+        if (!choice.TryGetProperty("message", out var message))
+        {
+            _logger.LogWarning("Provider response choice missing 'message' property");
+            return new CompletionResponse
             {
-                "stop" => "end_turn",
-                "length" => "max_tokens",
-                "tool_calls" => "tool_use",
-                var other => other ?? "end_turn",
-            }
-            : "end_turn";
+                Content = new MessageContent(""),
+                StopReason = StopReason.EndTurn,
+                Usage = new TokenUsage(0, 0),
+            };
+        }
+
+        var finishReason = StopReasonExtensions.ParseStopReason(
+            choice.TryGetProperty("finish_reason", out var fr) ? fr.GetString() : null);
 
         // Extract content blocks
         var contentBlocks = new List<ContentBlock>();
@@ -430,12 +497,24 @@ public sealed class ReasoningCompletionService : ICompletionService
         {
             foreach (var tc in toolCallsEl.EnumerateArray())
             {
-                var id = tc.GetProperty("id").GetString()!;
-                var fn = tc.GetProperty("function");
-                var name = fn.GetProperty("name").GetString()!;
-                var argsStr = fn.GetProperty("arguments").GetString() ?? "{}";
+                if (!tc.TryGetProperty("id", out var tcIdEl) || tcIdEl.GetString() is not { } tcId)
+                {
+                    _logger.LogWarning("Skipping tool call in response: missing 'id'");
+                    continue;
+                }
+                if (!tc.TryGetProperty("function", out var fn))
+                {
+                    _logger.LogWarning("Skipping tool call '{Id}' in response: missing 'function'", tcId);
+                    continue;
+                }
+                if (!fn.TryGetProperty("name", out var fnNameEl) || fnNameEl.GetString() is not { } tcName)
+                {
+                    _logger.LogWarning("Skipping tool call '{Id}' in response: missing 'function.name'", tcId);
+                    continue;
+                }
+                var argsStr = GetRequiredToolArgumentsJson(fn, tcName);
                 var args = JsonDocument.Parse(argsStr).RootElement.Clone();
-                contentBlocks.Add(new ToolUseBlock(id, name, new ToolInput(args)));
+                contentBlocks.Add(new ToolUseBlock(tcId, tcName, new ToolInput(args)));
             }
         }
 
@@ -449,8 +528,10 @@ public sealed class ReasoningCompletionService : ICompletionService
         var outputTokens = 0;
         if (root.TryGetProperty("usage", out var usage))
         {
-            if (usage.TryGetProperty("prompt_tokens", out var pt)) inputTokens = pt.GetInt32();
-            if (usage.TryGetProperty("completion_tokens", out var ct2)) outputTokens = ct2.GetInt32();
+            if (usage.TryGetProperty("prompt_tokens", out var pt) && pt.TryGetInt32(out var ptVal))
+                inputTokens = ptVal;
+            if (usage.TryGetProperty("completion_tokens", out var ct2) && ct2.TryGetInt32(out var ctVal))
+                outputTokens = ctVal;
         }
 
         ProviderReplayEnvelope? providerReplay = null;
@@ -463,11 +544,23 @@ public sealed class ReasoningCompletionService : ICompletionService
             {
                 foreach (var tc in replayToolCallsElement.EnumerateArray())
                 {
-                    var id = tc.GetProperty("id").GetString()!;
-                    var fn = tc.GetProperty("function");
-                    var name = fn.GetProperty("name").GetString()!;
-                    var argsJson = fn.GetProperty("arguments").GetString() ?? "{}";
-                    replayToolCalls.Add(new ReasoningReplayToolCall(id, name, argsJson));
+                    if (!tc.TryGetProperty("id", out var rpIdEl) || rpIdEl.GetString() is not { } rpId)
+                    {
+                        _logger.LogWarning("Skipping replay tool call: missing 'id'");
+                        continue;
+                    }
+                    if (!tc.TryGetProperty("function", out var rpFn))
+                    {
+                        _logger.LogWarning("Skipping replay tool call '{Id}': missing 'function'", rpId);
+                        continue;
+                    }
+                    if (!rpFn.TryGetProperty("name", out var rpNameEl) || rpNameEl.GetString() is not { } rpName)
+                    {
+                        _logger.LogWarning("Skipping replay tool call '{Id}': missing 'function.name'", rpId);
+                        continue;
+                    }
+                    var argsJson = GetRequiredToolArgumentsJson(rpFn, rpName);
+                    replayToolCalls.Add(new ReasoningReplayToolCall(rpId, rpName, argsJson));
                 }
             }
 

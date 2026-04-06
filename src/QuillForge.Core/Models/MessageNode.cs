@@ -23,5 +23,5 @@ public sealed record MessageMetadata
     public string? Model { get; init; }
     public int? InputTokens { get; init; }
     public int? OutputTokens { get; init; }
-    public string? StopReason { get; init; }
+    public StopReason? StopReason { get; init; }
 }

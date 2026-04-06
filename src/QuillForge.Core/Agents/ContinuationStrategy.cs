@@ -21,7 +21,7 @@ public sealed class ContinuationStrategy
     /// </summary>
     public bool ShouldContinue(CompletionResponse response)
     {
-        return string.Equals(response.StopReason, "max_tokens", StringComparison.OrdinalIgnoreCase);
+        return response.StopReason == StopReason.MaxTokens;
     }
 
     /// <summary>

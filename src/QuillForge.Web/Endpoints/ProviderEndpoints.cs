@@ -186,9 +186,12 @@ public static class ProviderEndpoints
 
                     var json = await response.Content.ReadAsStringAsync(ct);
                     using var doc = JsonDocument.Parse(json);
-                    var models = doc.RootElement.GetProperty("models").EnumerateArray()
-                        .Select(m => m.GetProperty("name").GetString())
-                        .ToList();
+                    var models = doc.RootElement.TryGetProperty("models", out var modelsArr)
+                        ? modelsArr.EnumerateArray()
+                            .Select(m => m.TryGetProperty("name", out var n) ? n.GetString() : null)
+                            .Where(n => n is not null)
+                            .ToList()
+                        : [];
 
                     return Results.Ok(new { Models = models });
                 }
@@ -226,9 +229,12 @@ public static class ProviderEndpoints
 
                     var json = await response.Content.ReadAsStringAsync(ct);
                     using var doc = JsonDocument.Parse(json);
-                    var models = doc.RootElement.GetProperty("data").EnumerateArray()
-                        .Select(m => m.GetProperty("id").GetString())
-                        .ToList();
+                    var models = doc.RootElement.TryGetProperty("data", out var dataArr)
+                        ? dataArr.EnumerateArray()
+                            .Select(m => m.TryGetProperty("id", out var id) ? id.GetString() : null)
+                            .Where(id => id is not null)
+                            .ToList()
+                        : [];
 
                     return Results.Ok(new { Models = models });
                 }
@@ -378,7 +384,8 @@ public static class ProviderEndpoints
                 if (doc.RootElement.TryGetProperty("data", out var data))
                 {
                     var models = data.EnumerateArray()
-                        .Select(m => m.GetProperty("id").GetString())
+                        .Select(m => m.TryGetProperty("id", out var id) ? id.GetString() : null)
+                        .Where(id => id is not null)
                         .ToList();
                     return Results.Ok(new { Models = models });
                 }
@@ -387,7 +394,8 @@ public static class ProviderEndpoints
                 if (doc.RootElement.TryGetProperty("models", out var ollamaModels))
                 {
                     var models = ollamaModels.EnumerateArray()
-                        .Select(m => m.GetProperty("name").GetString())
+                        .Select(m => m.TryGetProperty("name", out var n) ? n.GetString() : null)
+                        .Where(n => n is not null)
                         .ToList();
                     return Results.Ok(new { Models = models });
                 }

@@ -6,6 +6,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using CoreStopReason = QuillForge.Core.Models.StopReason;
 
 namespace QuillForge.Providers.Adapters;
 
@@ -58,7 +59,7 @@ public sealed class ChatClientCompletionService : ICompletionService
         var pendingToolCalls = new Dictionary<string, (string Name, List<string> JsonParts)>();
         var emittedToolCallIds = new HashSet<string>();
         int inputTokens = 0, outputTokens = 0;
-        string? finishReason = null;
+        CoreStopReason? finishReason = null;
 
         await foreach (var update in _client.GetStreamingResponseAsync(chatMessages, options, ct))
         {
@@ -121,27 +122,45 @@ public sealed class ChatClientCompletionService : ICompletionService
             if (emittedToolCallIds.Contains(callId)) continue;
 
             _logger.LogDebug("Emitting accumulated tool call {Name} (id={CallId})", name, callId);
-            var argsJson = jsonParts.Count > 0 ? string.Concat(jsonParts) : "{}";
-            JsonElement args;
-            try
+
+            if (jsonParts.Count == 0)
             {
-                args = JsonDocument.Parse(argsJson).RootElement.Clone();
+                var error = $"Provider emitted tool call '{name}' without any arguments payload.";
+                _logger.LogWarning(
+                    "Incomplete streamed tool call for {Name} (id={CallId}): no argument chunks were captured",
+                    name,
+                    callId);
+                yield return new DiagnosticEvent(DiagnosticCategory.Tool, error, DiagnosticLevel.Error);
+                yield return new ToolCallDeltaReceivedEvent(name, callId, CreateEmptyObject(), error);
+                continue;
             }
-            catch (JsonException)
+
+            var argsJson = string.Concat(jsonParts);
+            if (TryParseToolArguments(argsJson, out var parsedArgs))
             {
-                _logger.LogWarning("Failed to parse accumulated tool call arguments for {Name}: {Json}", name, argsJson);
-                args = JsonDocument.Parse("{}").RootElement.Clone();
+                yield return new ToolCallDeltaReceivedEvent(name, callId, parsedArgs);
             }
-            yield return new ToolCallDeltaReceivedEvent(name, callId, args);
+
+            else
+            {
+                var error = $"Provider emitted malformed JSON arguments for tool '{name}'.";
+                _logger.LogWarning(
+                    "Failed to parse accumulated tool call arguments for {Name} (id={CallId}): {Json}",
+                    name,
+                    callId,
+                    argsJson);
+                yield return new DiagnosticEvent(DiagnosticCategory.Tool, error, DiagnosticLevel.Error);
+                yield return new ToolCallDeltaReceivedEvent(name, callId, CreateEmptyObject(), error);
+            }
         }
 
-        if (finishReason == "tool_use" && emittedToolCallIds.Count == 0 && pendingToolCalls.Count == 0)
+        if (finishReason == CoreStopReason.ToolUse && emittedToolCallIds.Count == 0 && pendingToolCalls.Count == 0)
         {
             _logger.LogWarning("Stream ended with tool_use finish reason but no tool calls were captured");
         }
 
         yield return new DoneEvent(
-            finishReason ?? "end_turn",
+            finishReason ?? CoreStopReason.EndTurn,
             new TokenUsage(inputTokens, outputTokens));
     }
 
@@ -293,7 +312,7 @@ public sealed class ChatClientCompletionService : ICompletionService
 
         var stopReason = response.FinishReason is not null
             ? ConvertFinishReason(response.FinishReason.Value)
-            : "end_turn";
+            : CoreStopReason.EndTurn;
 
         return new CompletionResponse
         {
@@ -305,23 +324,42 @@ public sealed class ChatClientCompletionService : ICompletionService
         };
     }
 
-    private static string ConvertFinishReason(ChatFinishReason reason)
+    private static CoreStopReason ConvertFinishReason(ChatFinishReason reason)
     {
-        if (reason == ChatFinishReason.Stop) return "end_turn";
-        if (reason == ChatFinishReason.Length) return "max_tokens";
-        if (reason == ChatFinishReason.ToolCalls) return "tool_use";
-        if (reason == ChatFinishReason.ContentFilter) return "content_filter";
-        return "end_turn";
+        if (reason == ChatFinishReason.Stop) return CoreStopReason.EndTurn;
+        if (reason == ChatFinishReason.Length) return CoreStopReason.MaxTokens;
+        if (reason == ChatFinishReason.ToolCalls) return CoreStopReason.ToolUse;
+        if (reason == ChatFinishReason.ContentFilter) return CoreStopReason.ContentFilter;
+        return CoreStopReason.EndTurn;
     }
 
     private static JsonElement SerializeArguments(IDictionary<string, object?>? arguments)
     {
         if (arguments is null || arguments.Count == 0)
         {
-            return JsonDocument.Parse("{}").RootElement.Clone();
+            return CreateEmptyObject();
         }
         var json = JsonSerializer.Serialize(arguments);
         return JsonDocument.Parse(json).RootElement.Clone();
+    }
+
+    private static JsonElement CreateEmptyObject()
+    {
+        return JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
+    }
+
+    private static bool TryParseToolArguments(string json, out JsonElement parsed)
+    {
+        try
+        {
+            parsed = JsonDocument.Parse(json).RootElement.Clone();
+            return true;
+        }
+        catch (JsonException)
+        {
+            parsed = default;
+            return false;
+        }
     }
 
     private static IDictionary<string, object?>? DeserializeArguments(JsonElement input)

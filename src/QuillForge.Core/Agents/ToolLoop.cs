@@ -86,6 +86,11 @@ public sealed class ToolLoop
             }
             catch (Exception ex)
             {
+                _logger.LogError(
+                    ex,
+                    "ToolLoop round {Round}: completion service call failed for model {Model}",
+                    round,
+                    config.Model);
                 _debugLogger?.LogError("ToolLoop", config.Model, ex.Message);
                 throw;
             }
@@ -95,7 +100,7 @@ public sealed class ToolLoop
             _debugLogger?.LogResponse(
                 agent: "ToolLoop",
                 model: config.Model,
-                stopReason: response.StopReason,
+                stopReason: response.StopReason.ToWireString(),
                 contentPreview: response.Content.GetText(),
                 inputTokens: response.Usage.InputTokens,
                 outputTokens: response.Usage.OutputTokens);
@@ -117,14 +122,14 @@ public sealed class ToolLoop
                 if (round >= config.MaxToolRounds)
                 {
                     _logger.LogWarning("ToolLoop hit max rounds ({MaxRounds}) during continuation", config.MaxToolRounds);
-                    return BuildResponse(response.Content, "max_rounds", totalUsage, round);
+                    return BuildResponse(response.Content, StopReason.MaxRounds, totalUsage, round);
                 }
                 continue;
             }
 
             // Check for tool calls
             var toolCalls = response.Content.GetToolCalls().ToList();
-            if (toolCalls.Count == 0 || string.Equals(response.StopReason, "end_turn", StringComparison.OrdinalIgnoreCase))
+            if (toolCalls.Count == 0 || response.StopReason == StopReason.EndTurn)
             {
                 _logger.LogInformation(
                     "ToolLoop completed after {Rounds} rounds, stop_reason={StopReason}",
@@ -139,7 +144,7 @@ public sealed class ToolLoop
                 _logger.LogWarning(
                     "ToolLoop hit max rounds ({MaxRounds}), returning last response",
                     config.MaxToolRounds);
-                return BuildResponse(response.Content, "max_rounds", totalUsage, round);
+                return BuildResponse(response.Content, StopReason.MaxRounds, totalUsage, round);
             }
 
             // Append assistant message with tool_use blocks.
@@ -189,7 +194,7 @@ public sealed class ToolLoop
             context.SessionId, config.Model);
 
         if (_diagnosticsEnabled)
-            yield return new DiagnosticEvent("stream",
+            yield return new DiagnosticEvent(DiagnosticCategory.Stream,
                 $"Starting stream: model={config.Model}, tools={toolDefs.Count}, maxRounds={config.MaxToolRounds}");
 
         while (true)
@@ -208,7 +213,7 @@ public sealed class ToolLoop
             };
 
             if (_diagnosticsEnabled)
-                yield return new DiagnosticEvent("llm",
+                yield return new DiagnosticEvent(DiagnosticCategory.Llm,
                     $"Round {round}: calling {config.Model} ({messages.Count} messages, {toolDefs.Count} tools)");
 
             _debugLogger?.LogRequest(
@@ -221,7 +226,7 @@ public sealed class ToolLoop
 
             var collectedText = new List<string>();
             var collectedToolCalls = new List<ToolCallDeltaReceivedEvent>();
-            string? stopReason = null;
+            StopReason? stopReason = null;
             TokenUsage? usage = null;
             ProviderReplayEnvelope? providerReplay = null;
 
@@ -253,13 +258,12 @@ public sealed class ToolLoop
             _debugLogger?.LogResponse(
                 agent: "ToolLoop.Stream",
                 model: config.Model,
-                stopReason: stopReason,
+                stopReason: stopReason?.ToWireString(),
                 contentPreview: string.Join("", collectedText),
                 inputTokens: usage?.InputTokens ?? 0,
                 outputTokens: usage?.OutputTokens ?? 0);
 
-            if (collectedToolCalls.Count == 0 &&
-                string.Equals(stopReason, "tool_use", StringComparison.OrdinalIgnoreCase))
+            if (collectedToolCalls.Count == 0 && stopReason == StopReason.ToolUse)
             {
                 _logger.LogWarning(
                     "ToolLoop (streaming) received stop_reason=tool_use without streamed tool calls; retrying non-streaming recovery");
@@ -267,7 +271,7 @@ public sealed class ToolLoop
                 if (_diagnosticsEnabled)
                 {
                     yield return new DiagnosticEvent(
-                        "warning",
+                        DiagnosticCategory.Warning,
                         "Stream ended with tool_use but no tool call payloads; retrying non-streaming recovery",
                         DiagnosticLevel.Warning);
                 }
@@ -290,12 +294,12 @@ public sealed class ToolLoop
                     if (_diagnosticsEnabled)
                     {
                         yield return new DiagnosticEvent(
-                            "warning",
+                            DiagnosticCategory.Warning,
                             "Tool recovery failed after an incomplete streamed tool call response",
                             DiagnosticLevel.Error);
                     }
 
-                    yield return new DoneEvent("error", usage ?? new TokenUsage(0, 0));
+                    yield return new DoneEvent(StopReason.Error, usage ?? new TokenUsage(0, 0));
                     yield break;
                 }
 
@@ -322,7 +326,7 @@ public sealed class ToolLoop
                 if (_diagnosticsEnabled)
                 {
                     yield return new DiagnosticEvent(
-                        "tool",
+                        DiagnosticCategory.Tool,
                         collectedToolCalls.Count > 0
                             ? $"Recovered {collectedToolCalls.Count} tool call(s) via non-streaming retry"
                             : "Non-streaming retry also returned no tool calls",
@@ -331,20 +335,20 @@ public sealed class ToolLoop
             }
 
             // If no tool calls, we're done
-            if (collectedToolCalls.Count == 0 ||
-                string.Equals(stopReason, "end_turn", StringComparison.OrdinalIgnoreCase))
+            if (collectedToolCalls.Count == 0 || stopReason == StopReason.EndTurn)
             {
+                var effectiveStop = stopReason ?? StopReason.EndTurn;
                 if (_diagnosticsEnabled)
                 {
                     if (collectedText.Count == 0)
-                        yield return new DiagnosticEvent("warning",
+                        yield return new DiagnosticEvent(DiagnosticCategory.Warning,
                             "Stream completed with no text content", DiagnosticLevel.Warning);
 
-                    yield return new DiagnosticEvent("stream",
-                        $"Stream complete: stop={stopReason ?? "end_turn"}, tokens={usage?.InputTokens ?? 0}in/{usage?.OutputTokens ?? 0}out");
+                    yield return new DiagnosticEvent(DiagnosticCategory.Stream,
+                        $"Stream complete: stop={effectiveStop.ToWireString()}, tokens={usage?.InputTokens ?? 0}in/{usage?.OutputTokens ?? 0}out");
                 }
 
-                yield return new DoneEvent(stopReason ?? "end_turn", usage ?? new TokenUsage(0, 0));
+                yield return new DoneEvent(effectiveStop, usage ?? new TokenUsage(0, 0));
                 yield break;
             }
 
@@ -354,9 +358,9 @@ public sealed class ToolLoop
             {
                 _logger.LogWarning("ToolLoop (streaming) hit max rounds ({MaxRounds})", config.MaxToolRounds);
                 if (_diagnosticsEnabled)
-                    yield return new DiagnosticEvent("warning",
+                    yield return new DiagnosticEvent(DiagnosticCategory.Warning,
                         $"Hit max tool rounds ({config.MaxToolRounds})", DiagnosticLevel.Warning);
-                yield return new DoneEvent("max_rounds", usage ?? new TokenUsage(0, 0));
+                yield return new DoneEvent(StopReason.MaxRounds, usage ?? new TokenUsage(0, 0));
                 yield break;
             }
 
@@ -381,12 +385,21 @@ public sealed class ToolLoop
             var resultBlocks = new List<ContentBlock>();
             foreach (var tc in collectedToolCalls)
             {
+                if (!string.IsNullOrWhiteSpace(tc.ParseError))
+                {
+                    resultBlocks.Add(new ToolResultBlock(
+                        tc.ToolId,
+                        $"Tool '{tc.ToolName}' received invalid input from the provider: {tc.ParseError}",
+                        isError: true));
+                    continue;
+                }
+
                 var toolUse = new ToolUseBlock(tc.ToolId, tc.ToolName, new ToolInput(tc.Input));
                 var diagnostics = new List<DiagnosticEvent>();
                 if (!toolMap.TryGetValue(tc.ToolName, out var handler))
                 {
                     var missingTool = ToolResult.Fail($"Tool '{tc.ToolName}' not found.");
-                    yield return new DiagnosticEvent("tool", missingTool.Error!, DiagnosticLevel.Error);
+                    yield return new DiagnosticEvent(DiagnosticCategory.Tool, missingTool.Error!, DiagnosticLevel.Error);
                     resultBlocks.Add(new ToolResultBlock(tc.ToolId, missingTool.Error!, isError: true));
                     continue;
                 }
@@ -401,7 +414,7 @@ public sealed class ToolLoop
                     if (_diagnosticsEnabled)
                     {
                         yield return new DiagnosticEvent(
-                            "tool",
+                            DiagnosticCategory.Tool,
                             $"{tc.ToolName} rejected before dispatch",
                             DiagnosticLevel.Error);
                     }
@@ -417,7 +430,7 @@ public sealed class ToolLoop
                 yield return new ToolCallValidatedEvent(tc.ToolName, tc.ToolId, validatedInput);
 
                 if (_diagnosticsEnabled)
-                    yield return new DiagnosticEvent("tool", $"Dispatching {tc.ToolName}");
+                    yield return new DiagnosticEvent(DiagnosticCategory.Tool, $"Dispatching {tc.ToolName}");
 
                 var result = await DispatchToolAsync(toolMap, toolUse, context, ct, diagnostics.Add, skipValidation: true);
 
@@ -427,7 +440,7 @@ public sealed class ToolLoop
                 }
 
                 if (_diagnosticsEnabled)
-                    yield return new DiagnosticEvent("tool",
+                    yield return new DiagnosticEvent(DiagnosticCategory.Tool,
                         result.Success
                             ? $"{tc.ToolName} completed ({result.Content.Length} chars)"
                             : $"{tc.ToolName} failed: {result.Error}",
@@ -493,7 +506,7 @@ public sealed class ToolLoop
                 toolCall.Id,
                 toolCall.Input.GetRawText());
             diagnosticSink?.Invoke(new DiagnosticEvent(
-                "tool",
+                DiagnosticCategory.Tool,
                 $"{message} Input matched the schema but could not be converted to the handler's expected argument model.",
                 DiagnosticLevel.Error));
             return ToolResult.Fail(message);
@@ -527,7 +540,7 @@ public sealed class ToolLoop
             error,
             toolCall.Input.GetRawText());
 
-        diagnosticSink?.Invoke(new DiagnosticEvent("tool", message, DiagnosticLevel.Error));
+        diagnosticSink?.Invoke(new DiagnosticEvent(DiagnosticCategory.Tool, message, DiagnosticLevel.Error));
         failure = ToolResult.Fail(message);
         return false;
     }
@@ -543,7 +556,7 @@ public sealed class ToolLoop
     }
 
     private static AgentResponse BuildResponse(
-        MessageContent content, string stopReason, TokenUsage usage, int rounds)
+        MessageContent content, StopReason stopReason, TokenUsage usage, int rounds)
     {
         return new AgentResponse
         {

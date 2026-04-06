@@ -26,7 +26,7 @@ public sealed class SessionLifecycleServiceTests
             SessionId = sourceTree.SessionId,
             Mode = new ModeSelectionState
             {
-                ActiveModeName = "writer",
+                ActiveMode = Mode.Writer,
                 ProjectName = "novel",
                 CurrentFile = "chapter-1.md",
             },
@@ -66,7 +66,7 @@ public sealed class SessionLifecycleServiceTests
         Assert.NotEqual(sourceTree.SessionId, forkedTree.SessionId);
         Assert.Equal("Fork of Original Session", forkedTree.Name);
         Assert.Equal(2, forkedTree.ToFlatThread().Count);
-        Assert.Equal("writer", forkedRuntime.Mode.ActiveModeName);
+        Assert.Equal(Mode.Writer, forkedRuntime.Mode.ActiveMode);
         Assert.Equal("novel", forkedRuntime.Mode.ProjectName);
         Assert.Equal("grim", forkedRuntime.Profile.ProfileId);
         Assert.Equal("custom-lore", forkedRuntime.Profile.ActiveLoreSet);
@@ -100,7 +100,7 @@ public sealed class SessionLifecycleServiceTests
         await runtimeStore.SaveAsync(new SessionState
         {
             SessionId = sourceTree.SessionId,
-            Mode = new ModeSelectionState { ActiveModeName = "roleplay", Character = "captain" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Roleplay, Character = "captain" },
             Profile = new ProfileState { ProfileId = "grim", ActiveConductor = "grim-captain" },
             Roleplay = new RoleplayRuntimeState
             {
@@ -122,7 +122,7 @@ public sealed class SessionLifecycleServiceTests
         Assert.Equal(2, flatThread.Count);
         Assert.Equal("One", flatThread[0].Content.GetText());
         Assert.Equal("Two", flatThread[1].Content.GetText());
-        Assert.Equal("roleplay", forkedRuntime.Mode.ActiveModeName);
+        Assert.Equal(Mode.Roleplay, forkedRuntime.Mode.ActiveMode);
         Assert.Equal("captain", forkedRuntime.Mode.Character);
         Assert.Equal("grim", forkedRuntime.Profile.ProfileId);
         Assert.Equal("grim-captain", forkedRuntime.Profile.ActiveConductor);
@@ -143,7 +143,7 @@ public sealed class SessionLifecycleServiceTests
         await runtimeStore.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveModeName = "writer" },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Writer },
         });
 
         await service.DeleteAsync(sessionId);
@@ -151,7 +151,7 @@ public sealed class SessionLifecycleServiceTests
         await Assert.ThrowsAsync<FileNotFoundException>(() => sessionStore.LoadAsync(sessionId));
         var runtime = await runtimeStore.LoadAsync(sessionId);
         Assert.Equal(sessionId, runtime.SessionId);
-        Assert.Equal("general", runtime.Mode.ActiveModeName);
+        Assert.Equal(Mode.General, runtime.Mode.ActiveMode);
     }
 
     private static SessionLifecycleService CreateService(
@@ -243,7 +243,7 @@ internal sealed class InMemoryRuntimeStore : ISessionStateStore
             LastModified = state.LastModified,
             Mode = new ModeSelectionState
             {
-                ActiveModeName = state.Mode.ActiveModeName,
+                ActiveMode = state.Mode.ActiveMode,
                 ProjectName = state.Mode.ProjectName,
                 CurrentFile = state.Mode.CurrentFile,
                 Character = state.Mode.Character,

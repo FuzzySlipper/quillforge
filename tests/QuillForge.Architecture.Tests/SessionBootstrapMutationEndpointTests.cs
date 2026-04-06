@@ -234,7 +234,7 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
                 SessionId = sessionId,
                 Mode = new ModeSelectionState
                 {
-                    ActiveModeName = command.Mode,
+                    ActiveMode = Enum.Parse<Mode>(command.Mode, ignoreCase: true),
                     ProjectName = command.Project,
                     CurrentFile = command.File,
                     Character = command.Character,

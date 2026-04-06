@@ -11,11 +11,11 @@ public class ContinuationStrategyTests
         NullLoggerFactory.Instance.CreateLogger<ContinuationStrategy>());
 
     [Theory]
-    [InlineData("max_tokens", true)]
-    [InlineData("MAX_TOKENS", true)]
-    [InlineData("end_turn", false)]
-    [InlineData("stop", false)]
-    public void ShouldContinue_DetectsMaxTokens(string stopReason, bool expected)
+    [InlineData(StopReason.MaxTokens, true)]
+    [InlineData(StopReason.EndTurn, false)]
+    [InlineData(StopReason.ToolUse, false)]
+    [InlineData(StopReason.Error, false)]
+    public void ShouldContinue_DetectsMaxTokens(StopReason stopReason, bool expected)
     {
         var response = new CompletionResponse
         {
@@ -33,13 +33,13 @@ public class ContinuationStrategyTests
         var first = new CompletionResponse
         {
             Content = new MessageContent("Hello "),
-            StopReason = "max_tokens",
+            StopReason = StopReason.MaxTokens,
             Usage = new TokenUsage(10, 20),
         };
         var second = new CompletionResponse
         {
             Content = new MessageContent("World!"),
-            StopReason = "end_turn",
+            StopReason = StopReason.EndTurn,
             Usage = new TokenUsage(15, 25),
         };
 
