@@ -30,6 +30,8 @@ export interface Message {
 
 export interface Status {
   status: string;
+  version: string;
+  build: string;
   mode: Mode;
   project: string | null;
   file: string | null;
