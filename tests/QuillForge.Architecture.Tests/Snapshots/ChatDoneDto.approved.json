@@ -1,0 +1,14 @@
+{
+  "type": "done",
+  "sessionId": "01234567-89ab-cdef-0123-456789abcdef",
+  "parentId": "fedcba98-7654-3210-fedc-ba9876543210",
+  "content": "The dragon breathed fire across the valley.",
+  "stopReason": "end_turn",
+  "responseType": "Standard",
+  "usage": {
+    "input": 1500,
+    "output": 350
+  },
+  "portrait": "/portraits/ai-guide.png",
+  "userPortrait": "/portraits/user-avatar.png"
+}

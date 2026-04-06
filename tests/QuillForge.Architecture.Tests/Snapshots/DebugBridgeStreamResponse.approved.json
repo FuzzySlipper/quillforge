@@ -1,0 +1,66 @@
+{
+  "sessionId": "01234567-89ab-cdef-0123-456789abcdef",
+  "events": [
+    {
+      "type": "text_delta",
+      "text": "The castle loomed",
+      "toolName": null,
+      "toolId": null,
+      "category": null,
+      "message": null,
+      "level": null,
+      "stopReason": null,
+      "usage": null
+    },
+    {
+      "type": "tool",
+      "text": null,
+      "toolName": "query_lore",
+      "toolId": "tool_call_042",
+      "category": null,
+      "message": null,
+      "level": null,
+      "stopReason": null,
+      "usage": null
+    },
+    {
+      "type": "diagnostic",
+      "text": null,
+      "toolName": null,
+      "toolId": null,
+      "category": "tool_dispatch",
+      "message": "query_lore completed in 85ms",
+      "level": "info",
+      "stopReason": null,
+      "usage": null
+    },
+    {
+      "type": "done",
+      "text": null,
+      "toolName": null,
+      "toolId": null,
+      "category": null,
+      "message": null,
+      "level": null,
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 3200,
+        "outputTokens": 420
+      }
+    }
+  ],
+  "finalContent": "The castle loomed over the forgotten valley.",
+  "nodeIds": {
+    "user": "11111111-2222-3333-4444-555555555555",
+    "assistant": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+  },
+  "mode": "general",
+  "messageCount": 4,
+  "toolRounds": 1,
+  "stopReason": "end_turn",
+  "usage": {
+    "inputTokens": 3200,
+    "outputTokens": 420
+  },
+  "writerState": "idle"
+}

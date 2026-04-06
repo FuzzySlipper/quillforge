@@ -1,0 +1,12 @@
+{
+  "sessionId": "01234567-89ab-cdef-0123-456789abcdef",
+  "responseText": "The ancient tome reveals a prophecy about the northern keep.",
+  "stopReason": "end_turn",
+  "toolRoundsUsed": 2,
+  "usage": {
+    "inputTokens": 2400,
+    "outputTokens": 180
+  },
+  "mode": "writer",
+  "messageCount": 6
+}

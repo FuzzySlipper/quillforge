@@ -1,0 +1,42 @@
+{
+  "sessionId": "01234567-89ab-cdef-0123-456789abcdef",
+  "mode": {
+    "activeModeName": "writer",
+    "projectName": "epic-fantasy",
+    "currentFile": "chapter-07.md",
+    "character": "narrator"
+  },
+  "profile": {
+    "profileId": "dark-fantasy",
+    "activeConductor": "grim-narrator",
+    "activeLoreSet": "shadow-realm",
+    "activeNarrativeRules": "dark-rules",
+    "activeWritingStyle": "gothic-prose"
+  },
+  "roleplay": {
+    "hasExplicitAiCharacterSelection": true,
+    "activeAiCharacter": "ancient-dragon",
+    "hasExplicitUserCharacterSelection": true,
+    "activeUserCharacter": "wandering-knight"
+  },
+  "writer": {
+    "pendingContent": "The knight drew his sword as shadows gathered.",
+    "state": "pendingReview"
+  },
+  "narrative": {
+    "directorNotes": "Building tension before the betrayal scene.",
+    "activePlotFile": "act-2-rising-action.yaml",
+    "plotProgress": {
+      "currentBeat": "the-betrayal",
+      "completedBeats": [
+        "the-call",
+        "crossing-the-threshold",
+        "allies-gathered"
+      ],
+      "deviations": [
+        "skipped-mentor-death"
+      ]
+    }
+  },
+  "lastModified": "2026-03-15T14:30:00+00:00"
+}

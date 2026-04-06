@@ -1,0 +1,6 @@
+{
+  "type": "diagnostic",
+  "category": "tool_dispatch",
+  "message": "query_lore returned 3 results in 120ms",
+  "level": "info"
+}
