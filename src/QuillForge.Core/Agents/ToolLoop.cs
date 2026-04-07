@@ -38,12 +38,17 @@ public sealed class ToolLoop
     /// <summary>
     /// Runs the tool loop to completion, returning the final response.
     /// </summary>
+    /// <param name="progress">
+    /// Optional callback for verbose progress updates (e.g. round starts, tool dispatches).
+    /// Used by forge pipeline stages to stream real-time status to the client.
+    /// </param>
     public async Task<AgentResponse> RunAsync(
         AgentConfig config,
         IReadOnlyList<IToolHandler> tools,
         List<CompletionMessage> messages,
         AgentContext context,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Action<string>? progress = null)
     {
         var toolMap = BuildToolMap(tools);
         var toolDefs = tools.Select(t => t.Definition).ToList();
@@ -53,6 +58,8 @@ public sealed class ToolLoop
         _logger.LogInformation(
             "ToolLoop starting for session {SessionId}, model {Model}, {ToolCount} tools, max {MaxRounds} rounds",
             context.SessionId, config.Model, tools.Count, config.MaxToolRounds);
+
+        progress?.Invoke($"ToolLoop starting: model={config.Model}, {tools.Count} tools, max {config.MaxToolRounds} rounds");
 
         while (true)
         {
@@ -70,6 +77,7 @@ public sealed class ToolLoop
             };
 
             _logger.LogDebug("ToolLoop round {Round}: calling completion service", round);
+            progress?.Invoke($"Round {round}: calling {config.Model} ({messages.Count} messages)...");
 
             _debugLogger?.LogRequest(
                 agent: "ToolLoop",
@@ -92,6 +100,7 @@ public sealed class ToolLoop
                     round,
                     config.Model);
                 _debugLogger?.LogError("ToolLoop", config.Model, ex.Message);
+                progress?.Invoke($"Round {round}: LLM call FAILED — {ex.Message}");
                 throw;
             }
 
@@ -109,10 +118,15 @@ public sealed class ToolLoop
                 "ToolLoop round {Round}: stop_reason={StopReason}, usage={InputTokens}in/{OutputTokens}out",
                 round, response.StopReason, response.Usage.InputTokens, response.Usage.OutputTokens);
 
+            progress?.Invoke(
+                $"Round {round}: response received — stop={response.StopReason.ToWireString()}, " +
+                $"{response.Usage.InputTokens}in/{response.Usage.OutputTokens}out tokens");
+
             // Handle max_tokens with auto-continuation
             if (_continuationStrategy.ShouldContinue(response))
             {
                 _logger.LogInformation("ToolLoop round {Round}: max_tokens hit, auto-continuing", round);
+                progress?.Invoke($"Round {round}: max_tokens hit, auto-continuing...");
 
                 messages.Add(new CompletionMessage("assistant", response.Content));
                 var contMsg = _continuationStrategy.BuildContinuationMessage(response);
@@ -122,6 +136,7 @@ public sealed class ToolLoop
                 if (round >= config.MaxToolRounds)
                 {
                     _logger.LogWarning("ToolLoop hit max rounds ({MaxRounds}) during continuation", config.MaxToolRounds);
+                    progress?.Invoke($"Hit max rounds ({config.MaxToolRounds}) during continuation");
                     return BuildResponse(response.Content, StopReason.MaxRounds, totalUsage, round);
                 }
                 continue;
@@ -134,6 +149,9 @@ public sealed class ToolLoop
                 _logger.LogInformation(
                     "ToolLoop completed after {Rounds} rounds, stop_reason={StopReason}",
                     round, response.StopReason);
+                progress?.Invoke(
+                    $"ToolLoop complete after {round} rounds — " +
+                    $"total {totalUsage.InputTokens}in/{totalUsage.OutputTokens}out tokens");
                 return BuildResponse(response.Content, response.StopReason, totalUsage, round);
             }
 
@@ -144,6 +162,7 @@ public sealed class ToolLoop
                 _logger.LogWarning(
                     "ToolLoop hit max rounds ({MaxRounds}), returning last response",
                     config.MaxToolRounds);
+                progress?.Invoke($"Hit max rounds ({config.MaxToolRounds}), returning last response");
                 return BuildResponse(response.Content, StopReason.MaxRounds, totalUsage, round);
             }
 
@@ -159,7 +178,12 @@ public sealed class ToolLoop
             var resultBlocks = new List<ContentBlock>();
             foreach (var toolCall in toolCalls)
             {
+                progress?.Invoke($"Dispatching tool: {toolCall.Name}");
                 var result = await DispatchToolAsync(toolMap, toolCall, context, ct);
+                progress?.Invoke(
+                    result.Success
+                        ? $"Tool {toolCall.Name} completed ({result.Content.Length} chars)"
+                        : $"Tool {toolCall.Name} FAILED: {result.Error}");
                 resultBlocks.Add(new ToolResultBlock(
                     toolCall.Id,
                     result.Success ? result.Content : result.Error ?? "Unknown error",

@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -48,9 +49,14 @@ public sealed class ForgePipeline : IDiagnosticSource
     /// Persists the manifest after each stage completes.
     /// On error, cancels at the current point — restart will skip completed work.
     /// </summary>
+    /// <param name="pauseAfterStage">
+    /// When set, the pipeline will automatically pause after the specified stage completes.
+    /// Use this instead of <see cref="RequestPause"/> when the stop point is known at call time.
+    /// </param>
     public async IAsyncEnumerable<ForgeEvent> RunAsync(
         ForgeContext context,
-        [EnumeratorCancellation] CancellationToken ct)
+        [EnumeratorCancellation] CancellationToken ct,
+        ForgeStage? pauseAfterStage = null)
     {
         _activeContext = context;
         _pauseRequested = false;
@@ -82,8 +88,8 @@ public sealed class ForgePipeline : IDiagnosticSource
                 continue;
             }
 
-            // Check for pause
-            if (_pauseRequested)
+            // Check for pause — either from RequestPause() (external cancel) or pauseAfterStage
+            if (_pauseRequested || (pauseAfterStage.HasValue && stage.StageEnum > pauseAfterStage.Value))
             {
                 _logger.LogInformation("Pipeline paused before stage {Stage}", stage.StageName);
                 context.Manifest = context.Manifest with { Paused = true };
@@ -208,38 +214,72 @@ public sealed class ForgePipeline : IDiagnosticSource
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(_stageTimeout);
 
-        ForgeEvent? error = null;
-        await using var enumerator = stage.ExecuteAsync(context, timeoutCts.Token).GetAsyncEnumerator(timeoutCts.Token);
+        // Create a unified channel that collects both stage events and progress events.
+        // The stage runs in a background task; ToolLoop callbacks push progress into the
+        // same channel. The pipeline reads a single merged stream.
+        var channel = Channel.CreateUnbounded<ForgeEvent>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+        });
+        context.ProgressChannel = channel;
 
-        while (true)
+        // Run the stage in a background task, forwarding its yielded events into the channel
+        var stageTask = Task.Run(async () =>
         {
             try
             {
-                if (!await enumerator.MoveNextAsync())
-                    break;
+                await foreach (var evt in stage.ExecuteAsync(context, timeoutCts.Token))
+                {
+                    await channel.Writer.WriteAsync(evt, timeoutCts.Token);
+                }
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
                 _logger.LogError("Stage {Stage} timed out after {Timeout}", stage.StageName, _stageTimeout);
-                error = new ForgeErrorEvent($"Stage {stage.StageName} timed out", stage.StageName);
-                break;
+                channel.Writer.TryWrite(new ForgeErrorEvent($"Stage {stage.StageName} timed out", stage.StageName));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(ex, "Stage {Stage} failed with error", stage.StageName);
-                error = new ForgeErrorEvent(ex.Message, stage.StageName);
-                break;
+                channel.Writer.TryWrite(new ForgeErrorEvent(ex.Message, stage.StageName));
             }
+            finally
+            {
+                channel.Writer.TryComplete();
+            }
+        }, timeoutCts.Token);
 
-            yield return enumerator.Current;
-        }
-
-        if (error is not null)
+        // Read all events (stage events + progress events) from the unified channel
+        var hadError = false;
+        await foreach (var evt in channel.Reader.ReadAllAsync(ct))
         {
-            // Persist manifest on error so progress is saved
-            await PersistManifestAsync(context, CancellationToken.None);
-            yield return error;
+            if (evt is ForgeErrorEvent)
+            {
+                hadError = true;
+                await PersistManifestAsync(context, CancellationToken.None);
+            }
+            yield return evt;
         }
+
+        // Ensure the stage task completed (propagate any unhandled exceptions)
+        ForgeEvent? lateError = null;
+        try
+        {
+            await stageTask;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            if (!hadError)
+            {
+                await PersistManifestAsync(context, CancellationToken.None);
+                lateError = new ForgeErrorEvent($"Stage {stage.StageName} timed out", stage.StageName);
+            }
+        }
+
+        if (lateError is not null)
+            yield return lateError;
+
+        context.ProgressChannel = null;
     }
 
     private async Task PersistManifestAsync(ForgeContext context, CancellationToken ct)

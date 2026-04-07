@@ -36,7 +36,21 @@ public sealed class ChatClientCompletionService : ICompletionService
             "Sending completion request: model={Model}, messages={Count}, tools={ToolCount}",
             request.Model, request.Messages.Count, request.Tools?.Count ?? 0);
 
-        var response = await _client.GetResponseAsync(chatMessages, options, ct);
+        ChatResponse response;
+        try
+        {
+            response = await _client.GetResponseAsync(chatMessages, options, ct);
+        }
+        catch (ArgumentOutOfRangeException ex) when (ex.Message.Contains("ChatFinishReason"))
+        {
+            // OpenAI SDK throws when the provider returns a finish_reason it doesn't recognize
+            // (e.g. "end_turn" from Anthropic models via OpenRouter). Fall back to streaming
+            // where we can collect content before the final chunk fails.
+            _logger.LogWarning(
+                ex,
+                "Provider returned unrecognized finish_reason during non-streaming call, falling back to streaming collection");
+            return await CollectViaStreamingFallback(request, ct);
+        }
 
         _logger.LogDebug(
             "Completion response: finishReason={FinishReason}, usage={InputTokens}in/{OutputTokens}out",
@@ -61,8 +75,32 @@ public sealed class ChatClientCompletionService : ICompletionService
         int inputTokens = 0, outputTokens = 0;
         CoreStopReason? finishReason = null;
 
-        await foreach (var update in _client.GetStreamingResponseAsync(chatMessages, options, ct))
+        // Use manual enumeration so we can catch ArgumentOutOfRangeException on MoveNextAsync.
+        // The OpenAI SDK throws when it encounters a finish_reason string it doesn't recognize
+        // (e.g. "end_turn" from Anthropic models via OpenRouter). The exception occurs on the
+        // final chunk, so all content deltas from earlier chunks have already been yielded.
+        await using var enumerator = _client.GetStreamingResponseAsync(chatMessages, options, ct)
+            .GetAsyncEnumerator(ct);
+        var streamDone = false;
+        while (!streamDone)
         {
+            ChatResponseUpdate update;
+            try
+            {
+                if (!await enumerator.MoveNextAsync())
+                    break;
+                update = enumerator.Current;
+            }
+            catch (ArgumentOutOfRangeException ex) when (ex.Message.Contains("ChatFinishReason"))
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Provider returned unrecognized finish_reason in streaming chunk, treating as EndTurn");
+                finishReason ??= CoreStopReason.EndTurn;
+                streamDone = true;
+                continue;
+            }
+
             if (update.Contents is not null)
             {
                 foreach (var content in update.Contents)
@@ -162,6 +200,53 @@ public sealed class ChatClientCompletionService : ICompletionService
         yield return new DoneEvent(
             finishReason ?? CoreStopReason.EndTurn,
             new TokenUsage(inputTokens, outputTokens));
+    }
+
+    /// <summary>
+    /// Fallback for when the non-streaming path throws due to unrecognized finish_reason.
+    /// Collects content via the streaming path (which tolerates the error on the final chunk)
+    /// and assembles a CompletionResponse from the yielded events.
+    /// </summary>
+    private async Task<CompletionResponse> CollectViaStreamingFallback(
+        CompletionRequest request, CancellationToken ct)
+    {
+        var textParts = new List<string>();
+        var toolCalls = new List<Core.Models.ToolUseBlock>();
+        var stopReason = CoreStopReason.EndTurn;
+        var usage = new TokenUsage(0, 0);
+
+        await foreach (var evt in StreamAsync(request, ct))
+        {
+            switch (evt)
+            {
+                case TextDeltaEvent text:
+                    textParts.Add(text.Text);
+                    break;
+                case ToolCallDeltaReceivedEvent tool when tool.ParseError is null:
+                    toolCalls.Add(new Core.Models.ToolUseBlock(tool.ToolId, tool.ToolName, new ToolInput(tool.Input)));
+                    break;
+                case DoneEvent done:
+                    stopReason = done.StopReason;
+                    usage = done.Usage;
+                    break;
+            }
+        }
+
+        var blocks = new List<Core.Models.ContentBlock>();
+        var fullText = string.Concat(textParts);
+        if (!string.IsNullOrEmpty(fullText))
+            blocks.Add(new Core.Models.TextBlock(fullText));
+        foreach (var tc in toolCalls)
+            blocks.Add(tc);
+        if (blocks.Count == 0)
+            blocks.Add(new Core.Models.TextBlock(""));
+
+        return new CompletionResponse
+        {
+            Content = new MessageContent(blocks),
+            StopReason = stopReason,
+            Usage = usage,
+        };
     }
 
     private static List<ChatMessage> ConvertMessages(CompletionRequest request, bool isAnthropic)

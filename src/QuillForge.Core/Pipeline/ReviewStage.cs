@@ -27,18 +27,23 @@ public sealed class ReviewStage : IPipelineStage
         yield return new StageStartedEvent(StageName);
 
         // Load the style doc for the reviewer
+        context.Log("Loading style document for reviewer...", "review");
         string styleDoc;
         try
         {
             var stylePath = $"forge/{context.Manifest.ProjectName}/plan/style.md";
             styleDoc = await context.FileService.ReadAsync(stylePath, ct);
+            context.Log($"Style document loaded ({styleDoc.Length} chars)", "review");
         }
         catch (FileNotFoundException)
         {
             styleDoc = context.WritingStyle;
+            context.Log("No plan-specific style doc, using project writing style", "review");
         }
 
         var chapterIds = context.Manifest.Chapters.Keys.OrderBy(k => k).ToList();
+        var reviewableCount = chapterIds.Count(id => context.Manifest.Chapters[id].State == ChapterState.Review);
+        context.Log($"{reviewableCount} chapters to review (of {chapterIds.Count} total)", "review");
         var previousTail = "";
 
         foreach (var chapterId in chapterIds)
@@ -60,23 +65,34 @@ public sealed class ReviewStage : IPipelineStage
             }
 
             yield return new ChapterProgressEvent(chapterId, "reviewing");
+            context.Log($"--- Reviewing {chapterId} ---", "review");
 
             // Load draft and brief
             var draft = await context.FileService.ReadAsync(
                 $"forge/{context.Manifest.ProjectName}/drafts/{chapterId}.md", ct);
+            context.Log($"Draft loaded ({draft.Length} chars)", "review");
             string brief;
             try
             {
                 brief = await context.FileService.ReadAsync(
                     $"forge/{context.Manifest.ProjectName}/plan/{chapterId}-brief.md", ct);
+                context.Log($"Brief loaded ({brief.Length} chars)", "review");
             }
             catch (FileNotFoundException)
             {
                 brief = "";
+                context.Log("No brief found for comparison", "review");
             }
 
+            context.Log($"Calling ForgeReviewer for {chapterId}...", "review");
             var result = await context.Reviewer.ReviewAsync(
                 draft, brief, styleDoc, previousTail, ct: ct);
+
+            context.Log(
+                $"Review result for {chapterId}: continuity={result.Continuity:F1}, " +
+                $"brief={result.BriefAdherence:F1}, voice={result.VoiceConsistency:F1}, " +
+                $"quality={result.Quality:F1}, overall={result.Overall:F1}, " +
+                $"passed={result.Passed}", "review");
 
             var scores = new Dictionary<string, double>
             {
@@ -101,6 +117,7 @@ public sealed class ReviewStage : IPipelineStage
                 _logger.LogWarning(
                     "Chapter {ChapterId} flagged: failed after {Revisions} revisions, overall={Overall:F1}",
                     chapterId, chapter.RevisionCount, result.Overall);
+                context.Log($"{chapterId} FLAGGED: failed after {chapter.RevisionCount} revisions", "review");
             }
             else
             {
@@ -108,6 +125,7 @@ public sealed class ReviewStage : IPipelineStage
                 _logger.LogInformation(
                     "Chapter {ChapterId} needs revision: overall={Overall:F1}, attempt {Attempt}",
                     chapterId, result.Overall, chapter.RevisionCount + 1);
+                context.Log($"{chapterId} needs revision (attempt {chapter.RevisionCount + 1})", "review");
             }
 
             context.Manifest = context.Manifest with
@@ -129,6 +147,7 @@ public sealed class ReviewStage : IPipelineStage
                 && !string.IsNullOrEmpty(context.RunLorePath))
             {
                 await AppendRunLoreAsync(context, chapterId, result.ExtractedDetails, ct);
+                context.Log($"Appended {result.ExtractedDetails.Count} extracted details to run lore", "review");
             }
 
             previousTail = GetTail(draft);

@@ -32,9 +32,11 @@ public sealed class ForgePlannerAgent
         IReadOnlyList<IToolHandler> tools,
         AgentContext context,
         string? customPrompt = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Action<string>? progress = null)
     {
         _logger.LogInformation("ForgePlanner starting for session {SessionId}", context.SessionId);
+        progress?.Invoke($"ForgePlanner starting (model={_model}, maxTokens={_budget.MaxTokens})");
 
         var systemPrompt = customPrompt ?? DefaultPlannerPrompt;
 
@@ -52,11 +54,12 @@ public sealed class ForgePlannerAgent
                 $"## Premise\n\n{premise}\n\n## Available Lore\n\n{loreContext}")),
         };
 
-        var response = await _toolLoop.RunAsync(config, tools, messages, context, ct);
+        var response = await _toolLoop.RunAsync(config, tools, messages, context, ct, progress);
 
         _logger.LogInformation(
             "ForgePlanner completed: {Rounds} tool rounds used",
             response.ToolRoundsUsed);
+        progress?.Invoke($"ForgePlanner completed: {response.ToolRoundsUsed} rounds");
 
         return response;
     }

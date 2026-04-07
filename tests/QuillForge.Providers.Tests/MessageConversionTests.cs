@@ -147,6 +147,131 @@ public class MessageConversionTests
         // System prompt is null, so only 3 messages sent
         Assert.Equal(3, fakeClient.LastMessages!.Count);
     }
+
+    [Fact]
+    public async Task UnknownFinishReason_StreamingPath_TreatedAsEndTurn()
+    {
+        // Simulate a provider that returns text content, then throws on the final
+        // chunk because the finish_reason is unrecognized by the OpenAI SDK.
+        var fakeClient = new ThrowingFinishReasonChatClient(
+            textToYield: "Chapter one content",
+            throwOnStreaming: true,
+            throwOnNonStreaming: false);
+
+        var service = new ChatClientCompletionService(fakeClient,
+            NullLoggerFactory.Instance.CreateLogger<ChatClientCompletionService>());
+
+        var request = new CompletionRequest
+        {
+            Model = "test",
+            MaxTokens = 1000,
+            Messages = [new CompletionMessage("user", new MessageContent("Write chapter 1"))],
+        };
+
+        var events = new List<StreamEvent>();
+        await foreach (var evt in service.StreamAsync(request))
+        {
+            events.Add(evt);
+        }
+
+        // Text content should be preserved from before the exception
+        var textEvents = events.OfType<TextDeltaEvent>().ToList();
+        Assert.NotEmpty(textEvents);
+        Assert.Equal("Chapter one content", string.Concat(textEvents.Select(e => e.Text)));
+
+        // Should end with DoneEvent defaulting to EndTurn
+        var doneEvent = events.OfType<DoneEvent>().Single();
+        Assert.Equal(StopReason.EndTurn, doneEvent.StopReason);
+    }
+
+    [Fact]
+    public async Task UnknownFinishReason_NonStreamingPath_FallsBackToStreaming()
+    {
+        // Non-streaming GetResponseAsync throws, but streaming works (content is
+        // available before the finish_reason chunk fails).
+        var fakeClient = new ThrowingFinishReasonChatClient(
+            textToYield: "Design output here",
+            throwOnStreaming: true,
+            throwOnNonStreaming: true);
+
+        var service = new ChatClientCompletionService(fakeClient,
+            NullLoggerFactory.Instance.CreateLogger<ChatClientCompletionService>());
+
+        var request = new CompletionRequest
+        {
+            Model = "test",
+            MaxTokens = 1000,
+            Messages = [new CompletionMessage("user", new MessageContent("Design the story"))],
+        };
+
+        var response = await service.CompleteAsync(request);
+
+        // Content should be recovered via the streaming fallback
+        Assert.Equal("Design output here", response.Content.GetText());
+        Assert.Equal(StopReason.EndTurn, response.StopReason);
+    }
+}
+
+/// <summary>
+/// Fake IChatClient that throws ArgumentOutOfRangeException (simulating the OpenAI SDK's
+/// behavior when it encounters an unrecognized finish_reason like "end_turn").
+/// </summary>
+internal sealed class ThrowingFinishReasonChatClient : IChatClient
+{
+    private readonly string _textToYield;
+    private readonly bool _throwOnStreaming;
+    private readonly bool _throwOnNonStreaming;
+
+    public ThrowingFinishReasonChatClient(string textToYield, bool throwOnStreaming, bool throwOnNonStreaming)
+    {
+        _textToYield = textToYield;
+        _throwOnStreaming = throwOnStreaming;
+        _throwOnNonStreaming = throwOnNonStreaming;
+    }
+
+    public Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (_throwOnNonStreaming)
+            throw new ArgumentOutOfRangeException("value", "end_turn", "Unknown ChatFinishReason value.");
+        var response = new ChatResponse([new ChatMessage(ChatRole.Assistant, _textToYield)]);
+        response.FinishReason = ChatFinishReason.Stop;
+        return Task.FromResult(response);
+    }
+
+    public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        return StreamUpdates();
+    }
+
+    private async IAsyncEnumerable<ChatResponseUpdate> StreamUpdates()
+    {
+        // Yield the text content first
+        yield return new ChatResponseUpdate
+        {
+            Role = ChatRole.Assistant,
+            Contents = [new TextContent(_textToYield)],
+        };
+
+        await Task.CompletedTask;
+
+        // Then throw on what would be the finish_reason chunk
+        if (_throwOnStreaming)
+            throw new ArgumentOutOfRangeException("value", "end_turn", "Unknown ChatFinishReason value.");
+
+        yield return new ChatResponseUpdate
+        {
+            FinishReason = ChatFinishReason.Stop,
+        };
+    }
+
+    public void Dispose() { }
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
 }
 
 /// <summary>

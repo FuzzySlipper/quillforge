@@ -27,18 +27,22 @@ public sealed class WritingStage : IPipelineStage
         yield return new StageStartedEvent(StageName);
 
         // Load premise once for all chapters — grounds the writer on story context
+        context.Log("Loading premise for writer context...", "writing");
         var premise = "";
         var premisePath = $"forge/{context.Manifest.ProjectName}/plan/premise.md";
         try
         {
             premise = await context.FileService.ReadAsync(premisePath, ct);
+            context.Log($"Premise loaded ({premise.Length} chars)", "writing");
         }
         catch (FileNotFoundException)
         {
             _logger.LogWarning("No premise found at {Path}, writer will proceed without it", premisePath);
+            context.Log("No premise found, writer will proceed without it", "writing");
         }
 
         var chapterIds = context.Manifest.Chapters.Keys.OrderBy(k => k).ToList();
+        context.Log($"{chapterIds.Count} chapters to process", "writing");
         var previousChapter = "";
 
         foreach (var chapterId in chapterIds)
@@ -51,6 +55,7 @@ public sealed class WritingStage : IPipelineStage
             if (chapter.State is ChapterState.Done or ChapterState.Flagged)
             {
                 _logger.LogDebug("Skipping {State} chapter {ChapterId}", chapter.State, chapterId);
+                context.Log($"Skipping {chapterId} (state={chapter.State})", "writing");
                 var draftPath = $"forge/{context.Manifest.ProjectName}/drafts/{chapterId}.md";
                 try
                 {
@@ -64,6 +69,7 @@ public sealed class WritingStage : IPipelineStage
             }
 
             yield return new ChapterProgressEvent(chapterId, "writing");
+            context.Log($"--- Starting {chapterId} ---", "writing");
 
             // Load the chapter brief
             var briefPath = $"forge/{context.Manifest.ProjectName}/plan/{chapterId}-brief.md";
@@ -71,20 +77,25 @@ public sealed class WritingStage : IPipelineStage
             try
             {
                 brief = await context.FileService.ReadAsync(briefPath, ct);
+                context.Log($"Brief loaded for {chapterId} ({brief.Length} chars)", "writing");
             }
             catch (FileNotFoundException)
             {
                 _logger.LogWarning("No brief found for {ChapterId}, skipping", chapterId);
+                context.Log($"No brief found for {chapterId}, skipping", "writing");
                 continue;
             }
 
+            context.Log($"Calling ForgeWriter for {chapterId} (this may take several minutes)...", "writing");
             var result = await context.Writer.WriteChapterAsync(
                 brief, previousChapter, context.WritingStyle, premise,
-                context.WriterTools, context.AgentContext, ct: ct);
+                context.WriterTools, context.AgentContext, ct: ct,
+                progress: msg => context.Log(msg, $"writer/{chapterId}"));
 
             // Save draft
             var outputPath = $"forge/{context.Manifest.ProjectName}/drafts/{chapterId}.md";
             await context.FileService.WriteAsync(outputPath, result.GeneratedText, ct);
+            context.Log($"Draft saved for {chapterId}: {result.WordCount} words, {result.LoreQueriesMade.Count} lore queries", "writing");
 
             // Update chapter status
             context.Manifest = context.Manifest with

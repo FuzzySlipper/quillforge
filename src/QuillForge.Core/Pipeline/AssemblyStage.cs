@@ -28,6 +28,7 @@ public sealed class AssemblyStage : IPipelineStage
         yield return new StageStartedEvent(StageName);
 
         var chapterIds = context.Manifest.Chapters.Keys.OrderBy(k => k).ToList();
+        context.Log($"Assembling {chapterIds.Count} chapters...", "assembly");
         var assembled = new StringBuilder();
         var totalWords = 0;
 
@@ -46,6 +47,7 @@ public sealed class AssemblyStage : IPipelineStage
             catch (FileNotFoundException)
             {
                 _logger.LogWarning("No draft found for {ChapterId} during assembly", chapterId);
+                context.Log($"WARNING: No draft found for {chapterId}", "assembly");
                 continue;
             }
 
@@ -53,11 +55,14 @@ public sealed class AssemblyStage : IPipelineStage
             {
                 assembled.AppendLine($"<!-- WARNING: Chapter {chapterId} was flagged for quality issues -->");
                 _logger.LogWarning("Including flagged chapter {ChapterId} in assembly", chapterId);
+                context.Log($"Including flagged chapter {chapterId} with warning marker", "assembly");
             }
 
             assembled.AppendLine(draft);
             assembled.AppendLine();
-            totalWords += draft.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+            var chapterWords = draft.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+            totalWords += chapterWords;
+            context.Log($"{chapterId} assembled ({chapterWords} words)", "assembly");
 
             yield return new ChapterProgressEvent(chapterId, "assembled");
         }
@@ -65,6 +70,7 @@ public sealed class AssemblyStage : IPipelineStage
         // Write the assembled output
         var outputPath = $"forge/{context.Manifest.ProjectName}/output/story.md";
         await context.FileService.WriteAsync(outputPath, assembled.ToString(), ct);
+        context.Log($"Final output written to {outputPath}: {totalWords} total words", "assembly");
 
         _logger.LogInformation(
             "Assembly complete: {ChapterCount} chapters, {TotalWords} words",

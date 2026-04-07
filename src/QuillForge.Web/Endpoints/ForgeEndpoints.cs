@@ -103,15 +103,14 @@ public static class ForgeEndpoints
             var context = await BuildForgeContextAsync(name, pipeline, planner, writer, reviewer,
                 fileService, toolHandlers, writingStyleStore, loreStore, config, logger, ct);
 
-            // Design runs the pipeline but requests pause after planning completes
-            pipeline.RequestPause();
+            // Design runs Planning + Design stages, then pauses before Writing
             context.Manifest = context.Manifest with
             {
                 Stage = ForgeStage.Planning,
                 Paused = false,
             };
 
-            await foreach (var evt in pipeline.RunAsync(context, ct))
+            await foreach (var evt in pipeline.RunAsync(context, ct, pauseAfterStage: ForgeStage.Design))
             {
                 var sseData = MapForgeEventToSse(evt);
                 await httpContext.Response.WriteAsync($"data: {sseData}\n\n", ct);
@@ -353,6 +352,9 @@ public static class ForgeEndpoints
 
             ChapterProgressEvent ch => JsonSerializer.Serialize(
                 new { Type = "chapter", Chapter = ch.ChapterId, Status = ch.Status, WordCount = 0, Detail = ch.Detail }, s_jsonOptions),
+
+            ForgeLogEvent log => JsonSerializer.Serialize(
+                new { Type = "progress", Message = log.Message, Source = log.Source }, s_jsonOptions),
 
             ForgeErrorEvent err => JsonSerializer.Serialize(
                 new { Type = "error", Message = err.Message, Stage = err.StageName }, s_jsonOptions),

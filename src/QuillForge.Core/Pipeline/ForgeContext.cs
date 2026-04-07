@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -45,4 +46,20 @@ public sealed class ForgeContext
     /// Maximum revision attempts per chapter before flagging.
     /// </summary>
     public int MaxRevisions { get; init; } = 3;
+
+    /// <summary>
+    /// Channel for verbose progress events. Set by the pipeline before each stage.
+    /// Agents and tool loops push ForgeLogEvents here; the pipeline merges them
+    /// into the SSE stream in real-time alongside stage events.
+    /// </summary>
+    public Channel<ForgeEvent>? ProgressChannel { get; set; }
+
+    /// <summary>
+    /// Push a verbose log event to the progress channel (if set).
+    /// Safe to call even when the channel is null or completed.
+    /// </summary>
+    public void Log(string message, string? source = null)
+    {
+        ProgressChannel?.Writer.TryWrite(new ForgeLogEvent(message, source));
+    }
 }

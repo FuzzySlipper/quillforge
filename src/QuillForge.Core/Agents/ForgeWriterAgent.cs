@@ -37,9 +37,11 @@ public sealed class ForgeWriterAgent
         IReadOnlyList<IToolHandler> tools,
         AgentContext context,
         string? customPrompt = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Action<string>? progress = null)
     {
         _logger.LogInformation("ForgeWriter starting chapter for session {SessionId}", context.SessionId);
+        progress?.Invoke($"ForgeWriter starting (model={_model}, maxTokens={_budget.MaxTokens})");
 
         var systemPrompt = BuildSystemPrompt(writingStyle, customPrompt);
 
@@ -64,7 +66,7 @@ public sealed class ForgeWriterAgent
             new("user", new MessageContent(userPrompt)),
         };
 
-        var response = await _toolLoop.RunAsync(config, tools, messages, context, ct);
+        var response = await _toolLoop.RunAsync(config, tools, messages, context, ct, progress);
         var text = response.Content.GetText();
 
         var loreQueries = messages

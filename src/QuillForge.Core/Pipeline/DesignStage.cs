@@ -28,14 +28,17 @@ public sealed class DesignStage : IPipelineStage
 
         // Load the outline produced by planning
         var outlinePath = $"forge/{context.Manifest.ProjectName}/plan/outline.md";
+        context.Log($"Checking for outline at {outlinePath}...", "design");
         var hasOutline = await context.FileService.ExistsAsync(outlinePath, ct);
         if (!hasOutline)
         {
             _logger.LogWarning("No outline found at {Path}, design stage has nothing to refine", outlinePath);
+            context.Log("No outline found — skipping design refinement", "design");
             yield return new StageCompletedEvent(StageName);
             yield break;
         }
         var outline = await context.FileService.ReadAsync(outlinePath, ct);
+        context.Log($"Outline loaded ({outline.Length} chars)", "design");
 
         var designPrompt = $"""
             You are refining the story design. The outline and chapter briefs already exist.
@@ -52,12 +55,20 @@ public sealed class DesignStage : IPipelineStage
             {outline}
             """;
 
+        context.Log("Calling ForgePlanner for design refinement (this may take several minutes)...", "design");
+
         var response = await context.Planner.PlanAsync(
             designPrompt,
             context.LoreContext,
             context.WriterTools,
             context.AgentContext,
-            ct: ct);
+            ct: ct,
+            progress: msg => context.Log(msg, "design"));
+
+        context.Log(
+            $"Design refinement complete — {response.ToolRoundsUsed} rounds, " +
+            $"{response.Usage.InputTokens + response.Usage.OutputTokens} total tokens",
+            "design");
 
         _logger.LogInformation("Design stage completed: {Rounds} tool rounds", response.ToolRoundsUsed);
         yield return new StageCompletedEvent(StageName);
