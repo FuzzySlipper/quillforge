@@ -14,6 +14,15 @@
     </Exec>
   </Target>
 
+  <!-- Restore npm deps on fresh clones or after package-lock.json changes.
+       npm writes node_modules/.package-lock.json as an install marker, so we
+       use it as the output to compare against the real lockfile. -->
+  <Target Name="NpmInstall" BeforeTargets="BuildClient"
+          Inputs="Client/package-lock.json"
+          Outputs="Client/node_modules/.package-lock.json">
+    <Exec Command="npm ci" WorkingDirectory="Client" />
+  </Target>
+
   <!-- Rebuild React frontend when client source files change -->
   <Target Name="BuildClient" BeforeTargets="Build"
           Inputs="Client/src/**;Client/package.json;Client/tsconfig.json;Client/vite.config.ts"

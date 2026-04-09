@@ -2,8 +2,8 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ['v*']
 
 permissions:
   contents: write
@@ -22,14 +22,13 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: src/QuillForge.Web/Client/package-lock.json
-      - run: npm ci
-        working-directory: src/QuillForge.Web/Client
       - run: dotnet restore QuillForge.slnx
       - run: dotnet build QuillForge.slnx --no-restore -c Release
       - run: dotnet test QuillForge.slnx --no-build -c Release
 
   publish:
     needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       matrix:
         include:
@@ -58,8 +57,6 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: src/QuillForge.Web/Client/package-lock.json
-      - run: npm ci
-        working-directory: src/QuillForge.Web/Client
 
       - name: Publish
         run: >
