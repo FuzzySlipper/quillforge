@@ -215,6 +215,7 @@ public sealed class ChatStreamingEndpointTests
 
         builder.Services.AddSingleton(appConfig);
         builder.Services.AddSingleton<ICompletionService>(completionService);
+        builder.Services.AddSingleton<ITokenUsageTracker>(new InMemoryTokenUsageTracker(NullLogger<InMemoryTokenUsageTracker>.Instance));
         builder.Services.AddSingleton(preparedService);
         builder.Services.AddSingleton<ISessionProfileReadService>(sp => sp.GetRequiredService<PreparedContextService>());
         builder.Services.AddSingleton<IConductorStore>(new RecordingConductorStore());

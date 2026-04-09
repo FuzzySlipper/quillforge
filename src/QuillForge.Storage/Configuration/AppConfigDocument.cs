@@ -25,6 +25,7 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
             ReviewPassThreshold = Math.Clamp(value.Forge.ReviewPassThreshold, 1, 10),
             MaxRevisions = Math.Max(value.Forge.MaxRevisions, 0),
             StageTimeoutMinutes = Math.Max(value.Forge.StageTimeoutMinutes, 1),
+            MaxLoreContextChars = Math.Clamp(value.Forge.MaxLoreContextChars, 1000, 200000),
         },
         Persona = value.Persona with
         {
@@ -53,6 +54,7 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
         {
             ToolExecutionSeconds = Math.Max(value.Timeouts.ToolExecutionSeconds, 5),
             ProviderHttpSeconds = Math.Max(value.Timeouts.ProviderHttpSeconds, 1),
+            CompletionTimeoutSeconds = Math.Clamp(value.Timeouts.CompletionTimeoutSeconds, 30, 600),
             UpdateCheckHours = Math.Max(value.Timeouts.UpdateCheckHours, 1),
         },
     };

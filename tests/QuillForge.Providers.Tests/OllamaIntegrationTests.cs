@@ -35,7 +35,7 @@ public class OllamaIntegrationTests
     private static ProviderRegistry CreateRegistry()
     {
         var factory = new ProviderFactory(LogFactory.CreateLogger<ProviderFactory>());
-        var registry = new ProviderRegistry(factory,
+        var registry = new ProviderRegistry(factory, new AppConfig(),
             LogFactory.CreateLogger<ProviderRegistry>(), LogFactory);
 
         registry.Register(new ProviderConfig

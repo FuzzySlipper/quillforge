@@ -9,6 +9,25 @@
     "input": 1500,
     "output": 350
   },
+  "sessionUsage": {
+    "totalInput": 3000,
+    "totalOutput": 700,
+    "totalRequests": 2,
+    "byAgent": [
+      {
+        "agent": "orchestrator",
+        "input": 1500,
+        "output": 350,
+        "requests": 1
+      },
+      {
+        "agent": "librarian",
+        "input": 1500,
+        "output": 350,
+        "requests": 1
+      }
+    ]
+  },
   "portrait": "/portraits/ai-guide.png",
   "userPortrait": "/portraits/user-avatar.png"
 }

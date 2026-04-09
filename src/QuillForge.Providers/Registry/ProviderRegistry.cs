@@ -1,5 +1,6 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Providers.Adapters;
 
@@ -14,6 +15,7 @@ public sealed class ProviderRegistry : IDiagnosticSource
     private readonly ProviderFactory _factory;
     private readonly ILogger<ProviderRegistry> _logger;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly TimeSpan _completionTimeout;
     private readonly Lock _lock = new();
 
     private readonly Dictionary<string, ProviderConfig> _configs = new(StringComparer.OrdinalIgnoreCase);
@@ -21,12 +23,14 @@ public sealed class ProviderRegistry : IDiagnosticSource
 
     public ProviderRegistry(
         ProviderFactory factory,
+        AppConfig appConfig,
         ILogger<ProviderRegistry> logger,
         ILoggerFactory loggerFactory)
     {
         _factory = factory;
         _logger = logger;
         _loggerFactory = loggerFactory;
+        _completionTimeout = TimeSpan.FromSeconds(appConfig.Timeouts.CompletionTimeoutSeconds);
     }
 
     public string Category => "providers";
@@ -82,7 +86,7 @@ public sealed class ProviderRegistry : IDiagnosticSource
             {
                 _logger.LogDebug("Using ReasoningCompletionService for {Alias} (model={Model})", alias, config.DefaultModel);
                 inner = new ReasoningCompletionService(
-                    new HttpClient(),
+                    new HttpClient { Timeout = _completionTimeout },
                     config.BaseUrl ?? "https://api.openai.com/v1",
                     config.ApiKey,
                     config.DefaultModel ?? "default",

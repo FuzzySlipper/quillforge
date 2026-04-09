@@ -53,6 +53,7 @@ public sealed class LibrarianAgent
             SystemPrompt = systemPrompt,
             MaxToolRounds = _budget.MaxToolRounds,
             CacheSystemPrompt = _budget.CacheSystemPrompt,
+            AgentName = "librarian",
         };
 
         var messages = new List<CompletionMessage>

@@ -101,6 +101,14 @@ public sealed class ContractSnapshotTests
             StopReason = "end_turn",
             ResponseType = "Standard",
             Usage = new ChatUsageDto { Input = 1500, Output = 350 },
+            SessionUsage = new SessionUsageDto
+            {
+                TotalInput = 3000,
+                TotalOutput = 700,
+                TotalRequests = 2,
+                ByAgent = [new AgentUsageDto { Agent = "orchestrator", Input = 1500, Output = 350, Requests = 1 },
+                           new AgentUsageDto { Agent = "librarian", Input = 1500, Output = 350, Requests = 1 }],
+            },
             Portrait = "/portraits/ai-guide.png",
             UserPortrait = "/portraits/user-avatar.png",
         };

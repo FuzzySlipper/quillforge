@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getMode, getStatus, newSession, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork } from "./api";
-import type { Message, MessageVariant, Mode, Status, DiagnosticEntry } from "./types";
+import { getMode, getStatus, getSessionUsage, newSession, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork } from "./api";
+import type { Message, MessageVariant, Mode, Status, DiagnosticEntry, SessionUsage } from "./types";
 import { parseCommand, executeCommand } from "./commands";
 import type { CommandContext } from "./commands";
 import * as tts from "./tts";
@@ -28,6 +28,7 @@ import TextThemePicker from "./components/TextThemePicker";
 import CouncilConfigPanel from "./components/CouncilConfigPanel";
 import ResearchPanel from "./components/ResearchPanel";
 import DiagnosticsPanel from "./components/DiagnosticsPanel";
+import TokenUsageBar from "./components/TokenUsageBar";
 import * as textTheme from "./textTheme";
 import type { TextTheme } from "./textTheme";
 
@@ -73,6 +74,7 @@ function App() {
   const [elapsed, setElapsed] = useState(0);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [diagnosticEntries, setDiagnosticEntries] = useState<DiagnosticEntry[]>([]);
+  const [sessionUsage, setSessionUsage] = useState<SessionUsage | null>(null);
 
   const refreshStatus = useCallback((sessionIdOverride?: string | null) => {
     const effectiveSessionId = sessionIdOverride ?? currentSessionId;
@@ -263,6 +265,12 @@ function App() {
               setCurrentSessionId(responseSessionId);
             }
 
+            // Update session usage from the cumulative tracker
+            const usage = event.data.sessionUsage as SessionUsage | undefined;
+            if (usage) {
+              setSessionUsage(usage);
+            }
+
             // Remove streaming message and add final one
             if (streamingStarted) {
               setMessages((prev) => prev.filter((m) => m.id !== streamMsgId));
@@ -389,6 +397,7 @@ function App() {
           setMessages([]);
           setCurrentSessionId(result.sessionId);
           setHasPending(false);
+          setSessionUsage(null);
           refreshStatus(result.sessionId);
         },
         clearMessages: () => setMessages([]),
@@ -664,6 +673,7 @@ function App() {
           setMessages([]);
           setCurrentSessionId(result.sessionId);
           setHasPending(false);
+          setSessionUsage(null);
           refreshStatus(result.sessionId);
         }}
       />
@@ -734,6 +744,7 @@ function App() {
       )}
 
       <InputBar onSend={handleSend} disabled={sending} />
+      <TokenUsageBar usage={sessionUsage} />
 
       <ProfilePicker
         open={profileOpen}
@@ -821,6 +832,7 @@ function App() {
           setCurrentSessionId(sessionId);
           setHasPending(false);
           refreshStatus(sessionId);
+          getSessionUsage(sessionId).then(setSessionUsage).catch(() => setSessionUsage(null));
         }}
       />
     </div>

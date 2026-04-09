@@ -95,6 +95,7 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
 
         builder.Services.AddSingleton(appConfig);
         builder.Services.AddSingleton<ICompletionService>(completionService);
+        builder.Services.AddSingleton<ITokenUsageTracker>(new InMemoryTokenUsageTracker(NullLogger<InMemoryTokenUsageTracker>.Instance));
         builder.Services.AddSingleton(preparedService);
         builder.Services.AddSingleton<ISessionProfileReadService>(sp => sp.GetRequiredService<RecordingPreparedContextService>());
         builder.Services.AddSingleton<IConductorStore>(conductorStore);

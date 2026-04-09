@@ -1,4 +1,4 @@
-import type { Status, Profiles, ModeInfo, Mode, ProfileSwitchResult } from "./types";
+import type { Status, Profiles, ModeInfo, Mode, ProfileSwitchResult, SessionUsage } from "./types";
 
 const BASE = "";
 
@@ -315,6 +315,10 @@ export async function loadSession(
 
 export async function deleteSession(id: string): Promise<unknown> {
   return request(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function getSessionUsage(id: string): Promise<SessionUsage> {
+  return request(`/api/sessions/${encodeURIComponent(id)}/usage`);
 }
 
 // ── Conversation manipulation (GUID-based, session-scoped) ──

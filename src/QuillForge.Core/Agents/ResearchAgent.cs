@@ -51,6 +51,7 @@ public sealed partial class ResearchAgent
             SystemPrompt = systemPrompt,
             MaxToolRounds = _budget.MaxToolRounds,
             Temperature = _budget.Temperature,
+            AgentName = "research",
         };
 
         var userPrompt = string.IsNullOrWhiteSpace(focus)

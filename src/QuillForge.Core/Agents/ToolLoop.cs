@@ -50,6 +50,10 @@ public sealed class ToolLoop
         CancellationToken ct = default,
         Action<string>? progress = null)
     {
+        using var trackingScope = config.AgentName is not null
+            ? TokenTrackingScope.Begin(context.SessionId, config.AgentName)
+            : null;
+
         var toolMap = BuildToolMap(tools);
         var toolDefs = tools.Select(t => t.Definition).ToList();
         var totalUsage = new TokenUsage(0, 0);
@@ -209,6 +213,10 @@ public sealed class ToolLoop
         AgentContext context,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
+        using var trackingScope = config.AgentName is not null
+            ? TokenTrackingScope.Begin(context.SessionId, config.AgentName)
+            : null;
+
         var toolMap = BuildToolMap(tools);
         var toolDefs = tools.Select(t => t.Definition).ToList();
         var round = 0;

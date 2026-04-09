@@ -84,6 +84,7 @@ public sealed class OrchestratorAgent
             MaxTokens = maxTokens,
             SystemPrompt = systemPrompt,
             MaxToolRounds = _maxToolRounds,
+            AgentName = "orchestrator",
         };
 
         var response = await _toolLoop.RunAsync(config, tools, messages, context, ct);
@@ -138,6 +139,7 @@ public sealed class OrchestratorAgent
             MaxTokens = maxTokens,
             SystemPrompt = systemPrompt,
             MaxToolRounds = _maxToolRounds,
+            AgentName = "orchestrator",
         };
 
         await foreach (var evt in _toolLoop.RunStreamAsync(config, tools, messages, context, ct))

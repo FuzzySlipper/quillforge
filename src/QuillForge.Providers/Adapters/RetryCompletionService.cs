@@ -34,16 +34,23 @@ public sealed class RetryCompletionService : ICompletionService
         "temporarily unavailable",
     ];
 
+    private readonly TimeSpan _rateLimitBaseDelay;
+    private readonly int _maxRateLimitRetries;
+
     public RetryCompletionService(
         ICompletionService inner,
         ILogger logger,
         int maxRetries = 3,
-        TimeSpan? baseDelay = null)
+        TimeSpan? baseDelay = null,
+        int maxRateLimitRetries = 5,
+        TimeSpan? rateLimitBaseDelay = null)
     {
         _inner = inner;
         _logger = logger;
         _maxRetries = maxRetries;
         _baseDelay = baseDelay ?? TimeSpan.FromSeconds(2);
+        _maxRateLimitRetries = maxRateLimitRetries;
+        _rateLimitBaseDelay = rateLimitBaseDelay ?? TimeSpan.FromSeconds(60);
     }
 
     public async Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
@@ -54,12 +61,17 @@ public sealed class RetryCompletionService : ICompletionService
             {
                 return await _inner.CompleteAsync(request, ct);
             }
-            catch (Exception ex) when (attempt < _maxRetries && !ct.IsCancellationRequested && IsTransient(ex))
+            catch (Exception ex) when (!ct.IsCancellationRequested && IsTransient(ex))
             {
-                var delay = GetDelay(attempt);
+                var isRateLimit = IsRateLimitError(ex);
+                var maxAttempts = isRateLimit ? _maxRateLimitRetries : _maxRetries;
+                if (attempt >= maxAttempts) throw;
+
+                var delay = isRateLimit ? GetRateLimitDelay(attempt) : GetDelay(attempt);
                 _logger.LogWarning(
-                    "Transient error on attempt {Attempt}/{Max}, retrying in {Delay}s: {Message}",
-                    attempt + 1, _maxRetries, delay.TotalSeconds, ex.Message);
+                    "{ErrorType} on attempt {Attempt}/{Max}, retrying in {Delay}s: {Message}",
+                    isRateLimit ? "Rate limit" : "Transient error",
+                    attempt + 1, maxAttempts, delay.TotalSeconds, ex.Message);
                 await Task.Delay(delay, ct);
             }
         }
@@ -83,13 +95,21 @@ public sealed class RetryCompletionService : ICompletionService
                 gotFirst = await enumerator.MoveNextAsync();
                 if (gotFirst) firstEvent = enumerator.Current;
             }
-            catch (Exception ex) when (attempt < _maxRetries && !ct.IsCancellationRequested && IsTransient(ex))
+            catch (Exception ex) when (!ct.IsCancellationRequested && IsTransient(ex))
             {
+                var isRateLimit = IsRateLimitError(ex);
+                var maxAttempts = isRateLimit ? _maxRateLimitRetries : _maxRetries;
+                if (attempt >= maxAttempts)
+                {
+                    if (enumerator is not null) await enumerator.DisposeAsync();
+                    throw;
+                }
                 if (enumerator is not null) await enumerator.DisposeAsync();
-                var delay = GetDelay(attempt);
+                var delay = isRateLimit ? GetRateLimitDelay(attempt) : GetDelay(attempt);
                 _logger.LogWarning(
-                    "Transient stream error on attempt {Attempt}/{Max}, retrying in {Delay}s: {Message}",
-                    attempt + 1, _maxRetries, delay.TotalSeconds, ex.Message);
+                    "{ErrorType} stream error on attempt {Attempt}/{Max}, retrying in {Delay}s: {Message}",
+                    isRateLimit ? "Rate limit" : "Transient",
+                    attempt + 1, maxAttempts, delay.TotalSeconds, ex.Message);
                 await Task.Delay(delay, ct);
                 continue;
             }
@@ -119,6 +139,29 @@ public sealed class RetryCompletionService : ICompletionService
         var backoff = _baseDelay * Math.Pow(2, attempt);
         var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(0, 1000));
         return backoff + jitter;
+    }
+
+    private TimeSpan GetRateLimitDelay(int attempt)
+    {
+        // Rate limits are per-minute, so use longer base delay (60s default)
+        // with gentle exponential backoff: 60s, 90s, 135s
+        var backoff = _rateLimitBaseDelay * Math.Pow(1.5, attempt);
+        var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(0, 5000));
+        return backoff + jitter;
+    }
+
+    internal static bool IsRateLimitError(Exception ex)
+    {
+        if (ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests })
+            return true;
+
+        var message = ex.Message;
+        if (ex.InnerException is not null)
+            message = $"{message} {ex.InnerException.Message}";
+
+        return message.Contains("rate_limit", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("too many requests", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool IsTransient(Exception ex)

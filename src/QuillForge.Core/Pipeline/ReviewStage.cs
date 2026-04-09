@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
+using QuillForge.Core.Services;
 
 namespace QuillForge.Core.Pipeline;
 
@@ -85,6 +86,8 @@ public sealed class ReviewStage : IPipelineStage
             }
 
             context.Log($"Calling ForgeReviewer for {chapterId}...", "review");
+            using var reviewScope = TokenTrackingScope.Begin(
+                context.AgentContext.SessionId, "forge-reviewer");
             var result = await context.Reviewer.ReviewAsync(
                 draft, brief, styleDoc, previousTail, ct: ct);
 

@@ -46,6 +46,7 @@ public sealed class ForgePlannerAgent
             MaxTokens = _budget.MaxTokens,
             SystemPrompt = systemPrompt,
             MaxToolRounds = _budget.MaxToolRounds,
+            AgentName = "forge-planner",
         };
 
         var messages = new List<CompletionMessage>
@@ -83,5 +84,10 @@ public sealed class ForgePlannerAgent
         IMPORTANT: Do NOT embed file paths or file references in any planning document. All documents
         should be self-contained prose. The writing pipeline retrieves lore and character details at
         runtime via query_lore — it does not follow file path references embedded in documents.
+
+        IMPORTANT: The "Available Lore" section in the user message already contains the FULL
+        content of all lore files. Do NOT use read_file or list_files to re-read lore —
+        everything you need is already in context. Start writing plan artifacts immediately.
+        Only use read_file to verify your own previously-written plan files if needed.
         """;
 }

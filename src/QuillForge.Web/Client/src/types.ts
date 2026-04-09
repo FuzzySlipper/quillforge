@@ -92,6 +92,20 @@ export interface ProfileSwitchResult {
   status?: string;
 }
 
+export interface AgentUsage {
+  agent: string;
+  input: number;
+  output: number;
+  requests: number;
+}
+
+export interface SessionUsage {
+  totalInput: number;
+  totalOutput: number;
+  totalRequests: number;
+  byAgent: AgentUsage[];
+}
+
 export interface ProjectEntry {
   name: string;
   files: string[];

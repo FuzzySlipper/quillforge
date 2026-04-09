@@ -115,6 +115,8 @@ public sealed class ConfigurationLoader
             _logger.LogWarning("timeouts.tool_execution_seconds ({Value}) seems too low, tools may time out prematurely", timeouts.ToolExecutionSeconds);
         if (timeouts.ProviderHttpSeconds < 1)
             _logger.LogWarning("timeouts.provider_http_seconds ({Value}) must be at least 1", timeouts.ProviderHttpSeconds);
+        if (timeouts.CompletionTimeoutSeconds < 30)
+            _logger.LogWarning("timeouts.completion_timeout_seconds ({Value}) seems too low for LLM completion calls", timeouts.CompletionTimeoutSeconds);
         if (timeouts.UpdateCheckHours < 1)
             _logger.LogWarning("timeouts.update_check_hours ({Value}) must be at least 1", timeouts.UpdateCheckHours);
     }

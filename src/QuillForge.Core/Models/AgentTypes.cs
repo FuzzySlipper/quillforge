@@ -17,6 +17,14 @@ public sealed record AgentConfig
     /// system prompts (e.g. the Librarian's lore corpus) to reduce input token costs.
     /// </summary>
     public bool CacheSystemPrompt { get; init; }
+
+    /// <summary>
+    /// Human-readable name of the agent using this config. Used by the token usage
+    /// tracker to attribute LLM calls to specific agents (e.g. "orchestrator",
+    /// "librarian", "forge-writer"). When set, ToolLoop automatically establishes
+    /// a TokenTrackingScope for the duration of its execution.
+    /// </summary>
+    public string? AgentName { get; init; }
 }
 
 /// <summary>

@@ -96,7 +96,13 @@ builder.Services.AddSingleton(sp =>
 // --- Provider registry and default completion service ---
 builder.Services.AddSingleton<ProviderFactory>();
 builder.Services.AddSingleton<ProviderRegistry>();
-builder.Services.AddSingleton<ICompletionService, QuillForge.Web.Services.DefaultCompletionService>();
+builder.Services.AddSingleton<ITokenUsageTracker, InMemoryTokenUsageTracker>();
+builder.Services.AddSingleton<DefaultCompletionService>();
+builder.Services.AddSingleton<ICompletionService>(sp =>
+    new UsageTrackingCompletionService(
+        sp.GetRequiredService<DefaultCompletionService>(),
+        sp.GetRequiredService<ITokenUsageTracker>(),
+        sp.GetRequiredService<ILogger<UsageTrackingCompletionService>>()));
 
 // --- Core agents ---
 builder.Services.AddSingleton<ContinuationStrategy>();

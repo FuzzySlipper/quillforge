@@ -51,6 +51,7 @@ public sealed class ForgeWriterAgent
             MaxTokens = _budget.MaxTokens,
             SystemPrompt = systemPrompt,
             MaxToolRounds = _budget.MaxToolRounds,
+            AgentName = "forge-writer",
         };
 
         var sections = new List<string>();

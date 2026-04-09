@@ -24,6 +24,7 @@ public static class ChatEndpoints
             ISessionProfileReadService profileReadService,
             ISessionStore sessionStore,
             IEnumerable<IToolHandler> toolHandlers,
+            ITokenUsageTracker usageTracker,
             AppConfig appConfig,
             ILogger<Program> logger,
             CancellationToken ct) =>
@@ -144,7 +145,7 @@ public static class ChatEndpoints
                 {
                     TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new ChatTextDeltaDto { Text = text.Text }, s_jsonOptions)}\n\n",
                     ToolCallValidatedEvent tool => $"data: {JsonSerializer.Serialize(new ChatToolDto { Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
-                    DoneEvent done => $"data: {JsonSerializer.Serialize(new ChatDoneDto { SessionId = sessionId, ParentId = appendParentId, Content = assistantText.ToString(), StopReason = done.StopReason.ToWireString(), ResponseType = done.ResponseType.ToString(), Usage = new ChatUsageDto { Input = done.Usage.InputTokens, Output = done.Usage.OutputTokens }, Portrait = prepared.AssistantPortraitUrl, UserPortrait = prepared.UserPortraitUrl }, s_jsonOptions)}\n\n",
+                    DoneEvent done => FormatDoneEvent(done, sessionId, appendParentId, assistantText.ToString(), prepared, usageTracker),
                     ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new ChatReasoningDeltaDto { Text = reasoning.Text }, s_jsonOptions)}\n\n",
                     DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new ChatDiagnosticDto { Category = diag.Category.ToString().ToLowerInvariant(), Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
                     _ => null,
@@ -322,4 +323,43 @@ public static class ChatEndpoints
         });
     }
 
+    private static string FormatDoneEvent(
+        DoneEvent done,
+        Guid sessionId,
+        Guid parentId,
+        string content,
+        PreparedInteractiveRequest prepared,
+        ITokenUsageTracker usageTracker)
+    {
+        var sessionUsage = usageTracker.GetSessionUsage(sessionId);
+        var dto = new ChatDoneDto
+        {
+            SessionId = sessionId,
+            ParentId = parentId,
+            Content = content,
+            StopReason = done.StopReason.ToWireString(),
+            ResponseType = done.ResponseType.ToString(),
+            Usage = new ChatUsageDto
+            {
+                Input = done.Usage.InputTokens,
+                Output = done.Usage.OutputTokens,
+            },
+            SessionUsage = new SessionUsageDto
+            {
+                TotalInput = sessionUsage.TotalInputTokens,
+                TotalOutput = sessionUsage.TotalOutputTokens,
+                TotalRequests = sessionUsage.TotalRequests,
+                ByAgent = sessionUsage.ByAgent.Select(a => new AgentUsageDto
+                {
+                    Agent = a.AgentName,
+                    Input = a.InputTokens,
+                    Output = a.OutputTokens,
+                    Requests = a.RequestCount,
+                }).ToList(),
+            },
+            Portrait = prepared.AssistantPortraitUrl,
+            UserPortrait = prepared.UserPortraitUrl,
+        };
+        return $"data: {JsonSerializer.Serialize(dto, s_jsonOptions)}\n\n";
+    }
 }

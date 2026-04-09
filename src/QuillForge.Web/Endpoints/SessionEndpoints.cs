@@ -241,6 +241,30 @@ public static class SessionEndpoints
                 });
             }
         });
+
+        // GET /api/sessions/{id}/usage — per-session token usage summary
+        group.MapGet("/{id}/usage", (
+            string id,
+            ITokenUsageTracker usageTracker) =>
+        {
+            if (!Guid.TryParse(id, out var sessionId))
+                return Results.BadRequest("Invalid session ID");
+
+            var summary = usageTracker.GetSessionUsage(sessionId);
+            return Results.Ok(new SessionUsageDto
+            {
+                TotalInput = summary.TotalInputTokens,
+                TotalOutput = summary.TotalOutputTokens,
+                TotalRequests = summary.TotalRequests,
+                ByAgent = summary.ByAgent.Select(a => new AgentUsageDto
+                {
+                    Agent = a.AgentName,
+                    Input = a.InputTokens,
+                    Output = a.OutputTokens,
+                    Requests = a.RequestCount,
+                }).ToList(),
+            });
+        });
     }
 
     private static async Task<string?> ReadOptionalProfileIdAsync(HttpContext httpContext, CancellationToken ct)

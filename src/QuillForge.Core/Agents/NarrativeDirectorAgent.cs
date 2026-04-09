@@ -69,6 +69,7 @@ public sealed class NarrativeDirectorAgent
             MaxTokens = _budget.MaxTokens,
             MaxToolRounds = _budget.MaxToolRounds,
             SystemPrompt = systemPrompt,
+            AgentName = "narrative-director",
         };
 
         var response = await _toolLoop.RunAsync(
@@ -116,6 +117,7 @@ public sealed class NarrativeDirectorAgent
                 MaxTokens = _budget.MaxTokens,
                 MaxToolRounds = _budget.MaxToolRounds,
                 SystemPrompt = systemPrompt,
+                AgentName = "narrative-director",
             },
             [_queryLoreHandler],
             [new CompletionMessage("user", new MessageContent(prompt))],

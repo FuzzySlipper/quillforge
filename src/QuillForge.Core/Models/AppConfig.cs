@@ -80,6 +80,7 @@ public sealed record ForgeConfig
     public int MaxRevisions { get; set; } = 3;
     public bool PauseAfterChapter1 { get; set; } = true;
     public int StageTimeoutMinutes { get; set; } = 120;
+    public int MaxLoreContextChars { get; set; } = 20000;
 }
 
 public sealed record WebSearchConfig
@@ -189,6 +190,7 @@ public sealed record TimeoutsConfig
 {
     public int ToolExecutionSeconds { get; set; } = 120;
     public int ProviderHttpSeconds { get; set; } = 10;
+    public int CompletionTimeoutSeconds { get; set; } = 300;
     public int UpdateCheckHours { get; set; } = 6;
     public int UpdateStartupDelaySeconds { get; set; } = 60;
 }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using QuillForge.Core.Models;
 using QuillForge.Providers.Registry;
 
 namespace QuillForge.Providers.Tests;
@@ -10,7 +11,7 @@ public class ProviderRegistryTests
     {
         var loggerFactory = NullLoggerFactory.Instance;
         var factory = new ProviderFactory(loggerFactory.CreateLogger<ProviderFactory>());
-        return new ProviderRegistry(factory,
+        return new ProviderRegistry(factory, new AppConfig(),
             loggerFactory.CreateLogger<ProviderRegistry>(),
             loggerFactory);
     }

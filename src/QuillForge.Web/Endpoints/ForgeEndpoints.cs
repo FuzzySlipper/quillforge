@@ -283,7 +283,10 @@ public static class ForgeEndpoints
             logger.LogWarning(ex, "Could not load writing style '{Style}' for forge run", config.WritingStyle.Active);
         }
 
-        // Load lore context summary for the planner
+        // Load lore context for the planner, capped to MaxLoreContextChars.
+        // When the full lore exceeds the budget, include a table-of-contents with
+        // truncated summaries so the planner knows what's available and can use
+        // query_lore for full details.
         var loreContext = "";
         var activeLoreSet = config.Lore.Active;
         if (!string.IsNullOrEmpty(activeLoreSet))
@@ -291,8 +294,36 @@ public static class ForgeEndpoints
             try
             {
                 var loreFiles = await loreStore.LoadLoreSetAsync(activeLoreSet, ct);
-                loreContext = string.Join("\n\n---\n\n",
+                var maxChars = config.Forge.MaxLoreContextChars;
+                var fullContext = string.Join("\n\n---\n\n",
                     loreFiles.Select(kvp => $"### {kvp.Key}\n\n{kvp.Value}"));
+
+                if (fullContext.Length <= maxChars)
+                {
+                    loreContext = fullContext;
+                }
+                else
+                {
+                    logger.LogInformation(
+                        "Lore context ({FullLen} chars) exceeds budget ({Budget} chars), building summary",
+                        fullContext.Length, maxChars);
+
+                    // Build a compact summary: file name + first ~200 chars of each file
+                    var sb = new System.Text.StringBuilder();
+                    sb.AppendLine("*Lore is summarized below. Use query_lore to retrieve full details for any topic.*\n");
+                    foreach (var (name, content) in loreFiles)
+                    {
+                        var snippet = content.Length > 200
+                            ? content[..200].TrimEnd() + "..."
+                            : content;
+                        sb.AppendLine($"### {name}\n");
+                        sb.AppendLine(snippet);
+                        sb.AppendLine();
+
+                        if (sb.Length >= maxChars) break;
+                    }
+                    loreContext = sb.ToString();
+                }
             }
             catch (Exception ex)
             {

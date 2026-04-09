@@ -63,6 +63,7 @@ public sealed class ProseWriterAgent
             MaxTokens = _budget.MaxTokens,
             SystemPrompt = systemPrompt,
             MaxToolRounds = hasLore ? _budget.MaxToolRounds : 0,
+            AgentName = "prose-writer",
         };
 
         var messages = new List<CompletionMessage>

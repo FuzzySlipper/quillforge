@@ -32,6 +32,7 @@ public sealed record ChatDoneDto
     public required string StopReason { get; init; }
     public required string ResponseType { get; init; }
     public required ChatUsageDto Usage { get; init; }
+    public SessionUsageDto? SessionUsage { get; init; }
     public string? Portrait { get; init; }
     public string? UserPortrait { get; init; }
 }
@@ -40,6 +41,22 @@ public sealed record ChatUsageDto
 {
     public required int Input { get; init; }
     public required int Output { get; init; }
+}
+
+public sealed record SessionUsageDto
+{
+    public int TotalInput { get; init; }
+    public int TotalOutput { get; init; }
+    public int TotalRequests { get; init; }
+    public IReadOnlyList<AgentUsageDto> ByAgent { get; init; } = [];
+}
+
+public sealed record AgentUsageDto
+{
+    public required string Agent { get; init; }
+    public int Input { get; init; }
+    public int Output { get; init; }
+    public int Requests { get; init; }
 }
 
 public sealed record ChatReasoningDeltaDto
