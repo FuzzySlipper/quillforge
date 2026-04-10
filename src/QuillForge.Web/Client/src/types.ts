@@ -66,10 +66,12 @@ export interface Profiles {
   loreSets: string[];
   narrativeRules: string[];
   writingStyles: string[];
+  librarianPrompts: string[];
   activeConductor: string;
   activeLore: string;
   activeNarrativeRules: string;
   activeWritingStyle: string;
+  activeLibrarianPrompt: string;
 }
 
 export interface ModeInfo {
@@ -88,6 +90,7 @@ export interface ProfileSwitchResult {
   activeLore: string;
   activeNarrativeRules: string;
   activeWritingStyle: string;
+  activeLibrarianPrompt: string;
   loreFiles: number;
   status?: string;
 }

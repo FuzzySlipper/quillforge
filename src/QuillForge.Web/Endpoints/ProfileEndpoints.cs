@@ -41,7 +41,8 @@ public static class ProfileEndpoints
                     request.Conductor,
                     request.Lore,
                     request.NarrativeRules,
-                    request.WritingStyle),
+                    request.WritingStyle,
+                    request.LibrarianPrompt),
                 ct);
 
             if (result.Status == SessionMutationStatus.Busy)
@@ -82,6 +83,7 @@ public static class ProfileEndpoints
                 ActiveLore = SessionProfileHydration.RequireActiveLoreSet(state.Profile),
                 ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(state.Profile),
                 ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(state.Profile),
+                ActiveLibrarianPrompt = SessionProfileHydration.RequireActiveLibrarianPrompt(state.Profile),
                 LoreFiles = 0,
             });
         });
@@ -209,6 +211,7 @@ public static class ProfileEndpoints
                     ActiveLore = selection.Config.LoreSet,
                     ActiveNarrativeRules = selection.Config.NarrativeRules,
                     ActiveWritingStyle = selection.Config.WritingStyle,
+                    ActiveLibrarianPrompt = selection.Config.LibrarianPrompt,
                     LoreFiles = 0,
                 });
             }
@@ -466,6 +469,7 @@ public static class ProfileEndpoints
             LoreSet = resolved.Config.LoreSet,
             NarrativeRules = resolved.Config.NarrativeRules,
             WritingStyle = resolved.Config.WritingStyle,
+            LibrarianPrompt = resolved.Config.LibrarianPrompt,
             AiCharacter = resolved.Config.Roleplay.AiCharacter,
             UserCharacter = resolved.Config.Roleplay.UserCharacter,
         };

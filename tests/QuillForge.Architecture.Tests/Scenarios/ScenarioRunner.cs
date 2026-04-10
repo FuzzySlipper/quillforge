@@ -56,7 +56,7 @@ public sealed class ScenarioRunner
         {
             await _runtimeService.SetProfileAsync(
                 sessionId,
-                new SetSessionProfileCommand(scenario.Profile, null, null, null, null),
+                new SetSessionProfileCommand(scenario.Profile, null, null, null, null, null),
                 ct);
         }
 
@@ -91,7 +91,7 @@ public sealed class ScenarioRunner
                     stepResult.Action = $"set_profile: {profileId}";
                     await _runtimeService.SetProfileAsync(
                         sessionId,
-                        new SetSessionProfileCommand(profileId, null, null, null, null),
+                        new SetSessionProfileCommand(profileId, null, null, null, null, null),
                         ct);
                 }
                 else if (step.ReloadSession)

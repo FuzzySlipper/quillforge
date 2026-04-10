@@ -2,6 +2,7 @@ conductor: grim-narrator
 lore_set: shadow-realm
 narrative_rules: dark-rules
 writing_style: gothic-prose
+librarian_prompt: default
 roleplay:
   ai_character: ancient-dragon
   user_character: wandering-knight

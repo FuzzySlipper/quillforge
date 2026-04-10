@@ -203,6 +203,7 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
                     ActiveLoreSet = "default-lore",
                     ActiveNarrativeRules = "default-rules",
                     ActiveWritingStyle = "default-style",
+                    ActiveLibrarianPrompt = "default",
                 },
             });
 
@@ -219,6 +220,7 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
                     ActiveLoreSet = command.LoreSet ?? "default-lore",
                     ActiveNarrativeRules = command.NarrativeRules ?? "default-rules",
                     ActiveWritingStyle = command.WritingStyle ?? "default-style",
+                    ActiveLibrarianPrompt = "default",
                 },
             }));
         }

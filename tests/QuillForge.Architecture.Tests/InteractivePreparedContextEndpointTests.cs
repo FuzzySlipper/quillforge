@@ -252,6 +252,7 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
                     ActiveLoreSet = "prepared-lore",
                     ActiveNarrativeRules = "prepared-rules",
                     ActiveWritingStyle = "prepared-style",
+                    ActiveLibrarianPrompt = "default",
                 },
                 SessionContext = sessionContext,
                 AgentContext = new AgentContext

@@ -68,6 +68,12 @@ public sealed record AgentContext
     public string ActiveNarrativeRules { get; init; } = "default";
 
     /// <summary>
+    /// Active librarian prompt for this request. Resolved from session profile state,
+    /// falling back to global AppConfig.
+    /// </summary>
+    public string LibrarianPrompt { get; init; } = "default";
+
+    /// <summary>
     /// Path to the run-specific lore file for forge runs.
     /// Null/empty outside of forge pipeline execution.
     /// </summary>

@@ -16,6 +16,7 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
   const [loreSet, setLoreSet] = useState("");
   const [narrativeRules, setNarrativeRules] = useState("");
   const [style, setStyle] = useState("");
+  const [librarianPrompt, setLibrarianPrompt] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -26,6 +27,7 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
       setLoreSet(p.activeLore);
       setNarrativeRules(p.activeNarrativeRules);
       setStyle(p.activeWritingStyle);
+      setLibrarianPrompt(p.activeLibrarianPrompt);
     });
   }, [open, sessionId]);
 
@@ -38,6 +40,7 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
         lore: loreSet,
         narrativeRules,
         writingStyle: style,
+        librarianPrompt,
       });
       onSwitched(result.sessionId ?? sessionId);
       onClose();
@@ -98,6 +101,19 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
             >
               {profiles.writingStyles.map((s) => (
                 <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-text-muted">Librarian Prompt</span>
+            <select
+              value={librarianPrompt}
+              onChange={(e) => setLibrarianPrompt(e.target.value)}
+              className="bg-input-bg text-text border border-border rounded-lg px-3 py-2"
+            >
+              {profiles.librarianPrompts.map((lp) => (
+                <option key={lp} value={lp}>{lp}</option>
               ))}
             </select>
           </label>

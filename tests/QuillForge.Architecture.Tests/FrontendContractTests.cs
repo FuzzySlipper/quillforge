@@ -81,10 +81,12 @@ public sealed class FrontendContractTests
             LoreSets = ["world"],
             NarrativeRules = ["rules"],
             WritingStyles = ["style"],
+            LibrarianPrompts = ["default"],
             ActiveConductor = "grim",
             ActiveLore = "world",
             ActiveNarrativeRules = "rules",
             ActiveWritingStyle = "style",
+            ActiveLibrarianPrompt = "default",
         });
 
         Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
@@ -105,6 +107,7 @@ public sealed class FrontendContractTests
             ActiveLore = "grim-lore",
             ActiveNarrativeRules = "grim-rules",
             ActiveWritingStyle = "grim-style",
+            ActiveLibrarianPrompt = "default",
             LoreFiles = 42,
         });
 

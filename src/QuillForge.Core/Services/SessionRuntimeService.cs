@@ -78,12 +78,18 @@ public sealed class SessionRuntimeService : ISessionStateService
                 currentView.Profile.ActiveWritingStyle,
                 targetProfile.Config.WritingStyle,
                 profileChanged);
+            var effectiveLibrarianPrompt = ResolveEffectiveChoice(
+                command.LibrarianPrompt,
+                currentView.Profile.ActiveLibrarianPrompt,
+                targetProfile.Config.LibrarianPrompt,
+                profileChanged);
 
             state.Profile.ProfileId = targetProfile.ProfileId;
             state.Profile.ActiveConductor = ToSparseOverride(effectiveConductor, targetProfile.Config.Conductor);
             state.Profile.ActiveLoreSet = ToSparseOverride(effectiveLoreSet, targetProfile.Config.LoreSet);
             state.Profile.ActiveNarrativeRules = ToSparseOverride(effectiveNarrativeRules, targetProfile.Config.NarrativeRules);
             state.Profile.ActiveWritingStyle = ToSparseOverride(effectiveWritingStyle, targetProfile.Config.WritingStyle);
+            state.Profile.ActiveLibrarianPrompt = ToSparseOverride(effectiveLibrarianPrompt, targetProfile.Config.LibrarianPrompt);
             state.Roleplay.ActiveAiCharacter = ResolveRoleplaySelectionForProfileChange(
                 state.Roleplay.ActiveAiCharacter,
                 state.Roleplay.HasExplicitAiCharacterSelection,
@@ -508,6 +514,7 @@ public sealed class SessionRuntimeService : ISessionStateService
                 ActiveLoreSet = null,
                 ActiveNarrativeRules = null,
                 ActiveWritingStyle = null,
+                ActiveLibrarianPrompt = null,
             }
             : new ProfileState
             {
@@ -516,6 +523,7 @@ public sealed class SessionRuntimeService : ISessionStateService
                 ActiveLoreSet = NormalizeStoredOverride(state.Profile.ActiveLoreSet, resolved.Config.LoreSet),
                 ActiveNarrativeRules = NormalizeStoredOverride(state.Profile.ActiveNarrativeRules, resolved.Config.NarrativeRules),
                 ActiveWritingStyle = NormalizeStoredOverride(state.Profile.ActiveWritingStyle, resolved.Config.WritingStyle),
+                ActiveLibrarianPrompt = NormalizeStoredOverride(state.Profile.ActiveLibrarianPrompt, resolved.Config.LibrarianPrompt),
             };
         var normalizedRoleplay = new RoleplayRuntimeState
         {
@@ -580,6 +588,7 @@ public sealed class SessionRuntimeService : ISessionStateService
                 ActiveLoreSet = NormalizeChoice(state.Profile.ActiveLoreSet) ?? resolved.Config.LoreSet,
                 ActiveNarrativeRules = NormalizeChoice(state.Profile.ActiveNarrativeRules) ?? resolved.Config.NarrativeRules,
                 ActiveWritingStyle = NormalizeChoice(state.Profile.ActiveWritingStyle) ?? resolved.Config.WritingStyle,
+                ActiveLibrarianPrompt = NormalizeChoice(state.Profile.ActiveLibrarianPrompt) ?? resolved.Config.LibrarianPrompt,
             },
             Roleplay = new RoleplayRuntimeState
             {
@@ -700,7 +709,8 @@ public sealed class SessionRuntimeService : ISessionStateService
             && string.Equals(left.ActiveConductor, right.ActiveConductor, StringComparison.Ordinal)
             && string.Equals(left.ActiveLoreSet, right.ActiveLoreSet, StringComparison.Ordinal)
             && string.Equals(left.ActiveNarrativeRules, right.ActiveNarrativeRules, StringComparison.Ordinal)
-            && string.Equals(left.ActiveWritingStyle, right.ActiveWritingStyle, StringComparison.Ordinal);
+            && string.Equals(left.ActiveWritingStyle, right.ActiveWritingStyle, StringComparison.Ordinal)
+            && string.Equals(left.ActiveLibrarianPrompt, right.ActiveLibrarianPrompt, StringComparison.Ordinal);
     }
 
     private static bool RoleplayStatesEqual(RoleplayRuntimeState left, RoleplayRuntimeState right)

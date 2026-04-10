@@ -8,6 +8,7 @@ public sealed record ProfileSwitchRequest
     public string? Lore { get; init; }
     public string? NarrativeRules { get; init; }
     public string? WritingStyle { get; init; }
+    public string? LibrarianPrompt { get; init; }
 }
 
 public sealed record ProfilesResponse
@@ -19,10 +20,12 @@ public sealed record ProfilesResponse
     public required IReadOnlyList<string> LoreSets { get; init; }
     public required IReadOnlyList<string> NarrativeRules { get; init; }
     public required IReadOnlyList<string> WritingStyles { get; init; }
+    public required IReadOnlyList<string> LibrarianPrompts { get; init; }
     public required string ActiveConductor { get; init; }
     public required string ActiveLore { get; init; }
     public required string ActiveNarrativeRules { get; init; }
     public required string ActiveWritingStyle { get; init; }
+    public required string ActiveLibrarianPrompt { get; init; }
 }
 
 public sealed record ProfileSwitchResponse
@@ -34,6 +37,7 @@ public sealed record ProfileSwitchResponse
     public required string ActiveLore { get; init; }
     public required string ActiveNarrativeRules { get; init; }
     public required string ActiveWritingStyle { get; init; }
+    public required string ActiveLibrarianPrompt { get; init; }
     public required int LoreFiles { get; init; }
 }
 
@@ -50,6 +54,7 @@ public sealed record ProfileConfigResponse
     public required string LoreSet { get; init; }
     public required string NarrativeRules { get; init; }
     public required string WritingStyle { get; init; }
+    public required string LibrarianPrompt { get; init; }
     public string? AiCharacter { get; init; }
     public string? UserCharacter { get; init; }
 }

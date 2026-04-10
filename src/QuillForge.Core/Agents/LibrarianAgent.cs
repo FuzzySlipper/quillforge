@@ -14,14 +14,16 @@ public sealed class LibrarianAgent
 {
     private readonly ToolLoop _toolLoop;
     private readonly ILoreStore _loreStore;
+    private readonly ILibrarianPromptStore _promptStore;
     private readonly ILogger<LibrarianAgent> _logger;
     private readonly string _model;
     private readonly LibrarianBudget _budget;
 
-    public LibrarianAgent(ToolLoop toolLoop, ILoreStore loreStore, AppConfig appConfig, ILogger<LibrarianAgent> logger)
+    public LibrarianAgent(ToolLoop toolLoop, ILoreStore loreStore, ILibrarianPromptStore promptStore, AppConfig appConfig, ILogger<LibrarianAgent> logger)
     {
         _toolLoop = toolLoop;
         _loreStore = loreStore;
+        _promptStore = promptStore;
         _logger = logger;
         _model = appConfig.Models.Librarian;
         _budget = appConfig.Agents.Librarian;
@@ -42,7 +44,9 @@ public sealed class LibrarianAgent
         _logger.LogInformation("Librarian query: \"{Query}\" against lore set \"{LoreSet}\"", query, loreSetName);
 
         var loreContent = await _loreStore.LoadLoreSetAsync(loreSetName, ct);
-        var systemPrompt = BuildSystemPrompt(loreContent, loreSetName, supplementalLore);
+        var userInstructions = await _promptStore.LoadAsync(context.LibrarianPrompt, ct);
+        _logger.LogDebug("Librarian using prompt \"{PromptName}\" ({Length} chars)", context.LibrarianPrompt, userInstructions.Length);
+        var systemPrompt = BuildSystemPrompt(loreContent, loreSetName, userInstructions, supplementalLore);
 
         _logger.LogInformation("Librarian using model {Model}", _model);
 
@@ -78,6 +82,7 @@ public sealed class LibrarianAgent
     internal static string BuildSystemPrompt(
         IReadOnlyDictionary<string, string> loreContent,
         string loreSetName,
+        string? userInstructions = null,
         string? supplementalLore = null)
     {
         var sections = loreContent
@@ -103,6 +108,15 @@ public sealed class LibrarianAgent
             {supplementalLore}
             """;
 
+        var userInstructionsSection = string.IsNullOrWhiteSpace(userInstructions)
+            ? ""
+            : $"""
+
+            ## Additional Instructions
+
+            {userInstructions}
+            """;
+
         return $"""
             You are the Librarian, a precise lore retrieval specialist working with the "{loreSetName}" lore set.
             Your ONLY job is to find and return relevant information from this lore corpus. Follow these rules strictly:
@@ -113,6 +127,7 @@ public sealed class LibrarianAgent
             3. Rate your confidence: "high" if the lore directly answers the query, "medium" if partially
                relevant, "low" if only tangentially related.
             4. If the lore contains no relevant information, return empty passages with "low" confidence.
+            {userInstructionsSection}
 
             Respond ONLY with a JSON object in this exact format:
             {jsonExample}

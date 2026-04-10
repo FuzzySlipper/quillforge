@@ -10,5 +10,6 @@ public sealed record ProfileConfig
     public string LoreSet { get; set; } = "default";
     public string NarrativeRules { get; set; } = "default";
     public string WritingStyle { get; set; } = "default";
+    public string LibrarianPrompt { get; set; } = "default";
     public RoleplayConfig Roleplay { get; set; } = new();
 }

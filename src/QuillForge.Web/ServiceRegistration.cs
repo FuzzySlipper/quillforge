@@ -42,6 +42,10 @@ public static class ServiceRegistration
             new FileSystemNarrativeRulesStore(Path.Combine(contentRoot, ContentPaths.NarrativeRules),
                 sp.GetRequiredService<ILogger<FileSystemNarrativeRulesStore>>()));
 
+        services.AddSingleton<ILibrarianPromptStore>(sp =>
+            new FileSystemLibrarianPromptStore(Path.Combine(contentRoot, ContentPaths.LibrarianPrompts),
+                sp.GetRequiredService<ILogger<FileSystemLibrarianPromptStore>>()));
+
         services.AddSingleton<IPlotStore>(sp =>
             new FileSystemPlotStore(Path.Combine(contentRoot, ContentPaths.Plots),
                 sp.GetRequiredService<AtomicFileWriter>(),

@@ -309,7 +309,7 @@ public sealed class SessionRuntimeServiceTests
 
         var result = await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand("grim", null, null, null, null));
+            new SetSessionProfileCommand("grim", null, null, null, null, null));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
@@ -336,11 +336,11 @@ public sealed class SessionRuntimeServiceTests
 
         await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand("grim", null, null, null, null));
+            new SetSessionProfileCommand("grim", null, null, null, null, null));
 
         var result = await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand(null, null, "custom-lore", null, null));
+            new SetSessionProfileCommand(null, null, "custom-lore", null, null, null));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
@@ -368,10 +368,10 @@ public sealed class SessionRuntimeServiceTests
 
         await service.SetProfileAsync(
             sessionA,
-            new SetSessionProfileCommand("grim", null, null, null, null));
+            new SetSessionProfileCommand("grim", null, null, null, null, null));
         await service.SetProfileAsync(
             sessionB,
-            new SetSessionProfileCommand(null, "session-b-conductor", null, null, null));
+            new SetSessionProfileCommand(null, "session-b-conductor", null, null, null, null));
 
         var viewA = await service.LoadViewAsync(sessionA);
         var viewB = await service.LoadViewAsync(sessionB);
@@ -394,14 +394,14 @@ public sealed class SessionRuntimeServiceTests
 
         await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand("grim", null, null, null, null));
+            new SetSessionProfileCommand("grim", null, null, null, null, null));
         await service.SetRoleplayAsync(
             sessionId,
             new SetSessionRoleplayCommand(false, null, true, "session-author"));
 
         var result = await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand("storm", null, null, null, null));
+            new SetSessionProfileCommand("storm", null, null, null, null, null));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
@@ -471,10 +471,10 @@ public sealed class SessionRuntimeServiceTests
 
         await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand("grim", null, null, null, null));
+            new SetSessionProfileCommand("grim", null, null, null, null, null));
         await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand(null, null, "custom-lore", null, null));
+            new SetSessionProfileCommand(null, null, "custom-lore", null, null, null));
 
         profiles.SetProfile("grim", new ProfileConfig
         {

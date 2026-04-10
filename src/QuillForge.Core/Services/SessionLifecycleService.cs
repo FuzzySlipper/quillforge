@@ -82,6 +82,7 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
                 ActiveLoreSet = source.Profile.ActiveLoreSet,
                 ActiveNarrativeRules = source.Profile.ActiveNarrativeRules,
                 ActiveWritingStyle = source.Profile.ActiveWritingStyle,
+                ActiveLibrarianPrompt = source.Profile.ActiveLibrarianPrompt,
             },
             Roleplay = new RoleplayRuntimeState
             {

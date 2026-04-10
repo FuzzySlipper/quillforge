@@ -30,6 +30,9 @@ internal static class SessionProfileHydration
 
     public static string RequireActiveWritingStyle(ProfileState profile)
         => profile.ActiveWritingStyle ?? throw new InvalidOperationException("Hydrated session writing style was unexpectedly null.");
+
+    public static string RequireActiveLibrarianPrompt(ProfileState profile)
+        => profile.ActiveLibrarianPrompt ?? throw new InvalidOperationException("Hydrated session librarian prompt was unexpectedly null.");
 }
 
 public sealed record SessionProfileReadView
@@ -41,6 +44,7 @@ public sealed record SessionProfileReadView
     public required string ActiveLoreSet { get; init; }
     public required string ActiveNarrativeRules { get; init; }
     public required string ActiveWritingStyle { get; init; }
+    public required string ActiveLibrarianPrompt { get; init; }
     public string? ActiveAiCharacter { get; init; }
     public string? ActiveUserCharacter { get; init; }
 }
@@ -72,6 +76,7 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
     private readonly ILoreStore _loreStore;
     private readonly INarrativeRulesStore _narrativeRulesStore;
     private readonly IWritingStyleStore _writingStyleStore;
+    private readonly ILibrarianPromptStore _librarianPromptStore;
     private readonly ILogger<SessionProfileReadService> _logger;
 
     public SessionProfileReadService(
@@ -83,6 +88,7 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         ILoreStore loreStore,
         INarrativeRulesStore narrativeRulesStore,
         IWritingStyleStore writingStyleStore,
+        ILibrarianPromptStore librarianPromptStore,
         ILogger<SessionProfileReadService> logger)
     {
         _runtimeService = runtimeService;
@@ -93,6 +99,7 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         _loreStore = loreStore;
         _narrativeRulesStore = narrativeRulesStore;
         _writingStyleStore = writingStyleStore;
+        _librarianPromptStore = librarianPromptStore;
         _logger = logger;
     }
 
@@ -110,6 +117,7 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
             ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(sessionState.Profile),
             ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(sessionState.Profile),
             ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(sessionState.Profile),
+            ActiveLibrarianPrompt = SessionProfileHydration.RequireActiveLibrarianPrompt(sessionState.Profile),
             ActiveAiCharacter = sessionState.Roleplay.ActiveAiCharacter,
             ActiveUserCharacter = sessionState.Roleplay.ActiveUserCharacter,
         };
@@ -153,6 +161,7 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
             ActiveLoreSet = view.ActiveLoreSet,
             ActiveNarrativeRules = view.ActiveNarrativeRules,
             ActiveWritingStyle = view.ActiveWritingStyle,
+            LibrarianPrompt = view.ActiveLibrarianPrompt,
             SessionContext = sessionContext,
             LastAssistantResponse = NormalizeChoice(options.LastAssistantResponse),
         };
@@ -185,6 +194,7 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         var loreSets = await _loreStore.ListLoreSetsAsync(ct);
         var narrativeRules = await _narrativeRulesStore.ListAsync(ct);
         var styles = await _writingStyleStore.ListAsync(ct);
+        var librarianPrompts = await _librarianPromptStore.ListAsync(ct);
 
         var response = new ProfilesResponse
         {
@@ -195,10 +205,12 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
             LoreSets = loreSets,
             NarrativeRules = narrativeRules,
             WritingStyles = styles,
+            LibrarianPrompts = librarianPrompts,
             ActiveConductor = view.ActiveConductor,
             ActiveLore = view.ActiveLoreSet,
             ActiveNarrativeRules = view.ActiveNarrativeRules,
             ActiveWritingStyle = view.ActiveWritingStyle,
+            ActiveLibrarianPrompt = view.ActiveLibrarianPrompt,
         };
 
         _logger.LogInformation(

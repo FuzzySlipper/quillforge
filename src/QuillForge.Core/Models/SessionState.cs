@@ -126,6 +126,9 @@ public sealed class ProfileState
 
     /// <summary>Active writing style name override. Null means "use the session profile default".</summary>
     public string? ActiveWritingStyle { get; set; }
+
+    /// <summary>Active librarian prompt name override. Null means "use the session profile default".</summary>
+    public string? ActiveLibrarianPrompt { get; set; }
 }
 
 /// <summary>

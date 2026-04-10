@@ -11,7 +11,8 @@ public sealed record SetSessionProfileCommand(
     string? Conductor,
     string? LoreSet,
     string? NarrativeRules,
-    string? WritingStyle);
+    string? WritingStyle,
+    string? LibrarianPrompt);
 
 public sealed record SetSessionRoleplayCommand(
     bool HasAiCharacterSelection,

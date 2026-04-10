@@ -291,6 +291,7 @@ public sealed class ScenarioTests : IDisposable
                     ActiveLoreSet = "default",
                     ActiveNarrativeRules = "default",
                     ActiveWritingStyle = "default",
+                    ActiveLibrarianPrompt = "default",
                 },
                 SessionContext = sessionContext,
                 AgentContext = new AgentContext

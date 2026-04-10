@@ -146,6 +146,7 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         builder.Services.AddSingleton<ILoreStore>(new TestLoreStore());
         builder.Services.AddSingleton<INarrativeRulesStore>(new TestNarrativeRulesStore());
         builder.Services.AddSingleton<IWritingStyleStore>(new TestWritingStyleStore());
+        builder.Services.AddSingleton<ILibrarianPromptStore>(new TestLibrarianPromptStore());
         builder.Services.AddSingleton<IProfileConfigService>(new TestProfileConfigService());
         builder.Services.AddSingleton<ISessionStateService>(new TestSessionRuntimeService());
         builder.Services.AddSingleton<IInteractiveSessionContextService>(new TestInteractiveSessionContextService());
@@ -241,6 +242,7 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
                         ActiveLoreSet = "session-lore",
                         ActiveNarrativeRules = "session-rules",
                         ActiveWritingStyle = "session-style",
+                        ActiveLibrarianPrompt = "default",
                     },
                     Roleplay = new RoleplayRuntimeState
                     {
@@ -258,6 +260,7 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
                         ActiveLoreSet = "default-lore",
                         ActiveNarrativeRules = "default-rules",
                         ActiveWritingStyle = "default-style",
+                        ActiveLibrarianPrompt = "default",
                     },
                     Roleplay = new RoleplayRuntimeState
                     {
@@ -392,6 +395,15 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
 
         public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<string>>(["default-style", "session-style"]);
+    }
+
+    private sealed class TestLibrarianPromptStore : ILibrarianPromptStore
+    {
+        public Task<string> LoadAsync(string promptName, CancellationToken ct = default)
+            => Task.FromResult("");
+
+        public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>(["default"]);
     }
 
     private sealed class TestCharacterCardStore : ICharacterCardStore

@@ -248,6 +248,7 @@ export async function switchProfile(profile: {
   lore?: string;
   narrativeRules?: string;
   writingStyle?: string;
+  librarianPrompt?: string;
 }): Promise<ProfileSwitchResult> {
   return request("/api/profiles/switch", {
     method: "POST",
