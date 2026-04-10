@@ -9,7 +9,7 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace QuillForge.Storage.FileSystem;
 
 /// <summary>
-/// Persists one YAML file per reusable profile under build/profiles.
+/// Persists one YAML file per reusable profile under user/profiles.
 /// </summary>
 public sealed class FileSystemProfileConfigStore : IProfileConfigStore
 {

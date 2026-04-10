@@ -161,7 +161,7 @@ export default function CharacterCards({ open, onClose, onChanged, sessionId, po
                 type="text"
                 value={form.portrait}
                 onChange={(e) => setForm({ ...form, portrait: e.target.value })}
-                placeholder="filename.png (in build/portraits/)"
+                placeholder="filename.png (in user/portraits/)"
                 className={inputClass}
               />
             )}

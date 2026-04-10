@@ -14,7 +14,7 @@ if exist "%APP_DIR%\QuillForge.Web.exe" (
 )
 
 echo Starting QuillForge...
-if not defined CONTENT_ROOT set "CONTENT_ROOT=%APP_DIR%\build"
+if not defined CONTENT_ROOT set "CONTENT_ROOT=%APP_DIR%\user"
 echo Content directory: %CONTENT_ROOT%
 
 "%EXEC%" --ContentRoot "%CONTENT_ROOT%" %*

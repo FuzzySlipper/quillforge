@@ -164,7 +164,7 @@ export default function LayoutPicker({ open, onClose }: LayoutPickerProps) {
 
           {backgrounds.length === 0 ? (
             <p className="text-sm text-text-muted">
-              No images found. Add images to the <code className="text-accent/70">build/backgrounds/</code> directory.
+              No images found. Add images to the <code className="text-accent/70">user/backgrounds/</code> directory.
             </p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

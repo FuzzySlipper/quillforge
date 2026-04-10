@@ -26,12 +26,16 @@ var solutionRoot = FindSolutionRoot(AppContext.BaseDirectory)
     ?? FindSolutionRoot(Directory.GetCurrentDirectory());
 var contentRoot = builder.Configuration.GetValue<string>("QuillForge:ContentRoot")
     ?? (solutionRoot is not null
-        ? Path.Combine(solutionRoot, "build")
-        : Path.Combine(AppContext.BaseDirectory, "build"));
+        ? Path.Combine(solutionRoot, "user")
+        : Path.Combine(AppContext.BaseDirectory, "user"));
 
 var defaultsPath = solutionRoot is not null
     ? Path.Combine(solutionRoot, "dev", "defaults")
     : Path.Combine(AppContext.BaseDirectory, "dev", "defaults");
+
+var docsRoot = solutionRoot is not null
+    ? Path.Combine(solutionRoot, "dev", "app-docs")
+    : Path.Combine(AppContext.BaseDirectory, "app-docs");
 
 static string? FindSolutionRoot(string startDir)
 {
@@ -75,6 +79,7 @@ builder.Services.AddSingleton<ILlmDebugLogger>(new LlmDebugLogger(Path.Combine(c
 
 // --- Storage services (explicit registration, no scanning) ---
 builder.Services.AddStorageServices(contentRoot);
+builder.Services.AddDocsService(docsRoot);
 
 // --- Provider persistence (encrypted API key storage) ---
 builder.Services.AddSingleton<EncryptedKeyStore>(sp =>
@@ -365,6 +370,7 @@ app.MapArtifactEndpoints();
 app.MapTtsEndpoints();
 app.MapResearchEndpoints(contentRoot);
 app.MapProbeEndpoints(contentRoot);
+app.MapDocsEndpoints();
 
 // --- Debug bridge (Development only) ---
 if (app.Environment.IsDevelopment())

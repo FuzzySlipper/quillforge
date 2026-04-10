@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace QuillForge.Core.Diagnostics;
 
 /// <summary>
-/// Rotating-file LLM debug logger. Writes formatted JSON entries to build/data/llm-debug.log.
+/// Rotating-file LLM debug logger. Writes formatted JSON entries to user/data/llm-debug.log.
 /// Thread-safe. Rotates at 10MB with 2 backups.
 /// </summary>
 public sealed class LlmDebugLogger : ILlmDebugLogger, IDisposable

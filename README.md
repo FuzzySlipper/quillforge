@@ -43,7 +43,7 @@ chmod +x QuillForge.Web
 QuillForge.Web.exe
 ```
 
-On first run, QuillForge creates a `build/` directory with example content — lore, personas, writing styles, and layouts to get you started.
+On first run, QuillForge creates a `user/` directory with example content — lore, personas, writing styles, and layouts to get you started.
 
 Open `http://localhost:5000` in your browser.
 
@@ -78,7 +78,7 @@ curl -X POST http://localhost:5000/api/providers \
 
 ## Configuration
 
-Edit `build/config.yaml` to customize models, active profiles, and features:
+Edit `user/config.yaml` to customize models, active profiles, and features:
 
 ```yaml
 models:
@@ -103,10 +103,10 @@ forge:
 
 ## Content Directory
 
-QuillForge stores all user content in the `build/` directory:
+QuillForge stores all user content in the `user/` directory:
 
 ```
-build/
+user/
 ├── config.yaml              App configuration
 ├── lore/                    World-building markdown (organized by lore set)
 ├── persona/                 Character/persona definitions
@@ -124,7 +124,7 @@ build/
 │   └── llm-debug/           Debug logs for LLM calls
 ```
 
-All content is plain files (markdown, YAML, JSON). Back up the `build/` directory to preserve your work. Updates never touch this directory.
+All content is plain files (markdown, YAML, JSON). Back up the `user/` directory to preserve your work. Updates never touch this directory.
 
 ## Development
 

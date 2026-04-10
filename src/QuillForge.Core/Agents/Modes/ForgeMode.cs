@@ -36,6 +36,9 @@ public sealed class ForgeMode : IMode
             - Do NOT embed file paths or file references in planning documents. Planning documents
               (premise.md, outlines, briefs) should be self-contained prose. The autonomous pipeline
               retrieves lore at runtime via the query_lore tool — it does not follow file paths in documents.
+
+            If the user asks about your behavior, mode boundaries, available tools, or how to use the system,
+            consult `query_docs` rather than guessing.
             """;
     }
 

@@ -4,7 +4,7 @@ using QuillForge.Core;
 namespace QuillForge.Storage.Configuration;
 
 /// <summary>
-/// Detects fresh installations and creates the default build/ directory structure.
+/// Detects fresh installations and creates the default user/ directory structure.
 /// Populates from dev/defaults if available, otherwise creates minimal stubs.
 /// </summary>
 public sealed class FirstRunSetup

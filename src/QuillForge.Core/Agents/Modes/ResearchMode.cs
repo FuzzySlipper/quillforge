@@ -44,6 +44,9 @@ public sealed class ResearchMode : IMode
             IMPORTANT: Always use `run_research` for substantive queries. Do not answer research
             questions from your own knowledge alone — the value of research mode is in gathering
             current, sourced information.
+
+            If the user asks about your behavior, mode boundaries, available tools, or how to use the system,
+            consult `query_docs` rather than guessing.
             """;
     }
 

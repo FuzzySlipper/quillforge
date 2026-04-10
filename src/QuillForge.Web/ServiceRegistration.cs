@@ -6,6 +6,7 @@ using QuillForge.Core.Services;
 using QuillForge.Providers.ImageGen;
 using QuillForge.Providers.Tts;
 using QuillForge.Storage.Configuration;
+using QuillForge.Storage.Docs;
 using QuillForge.Storage.FileSystem;
 using QuillForge.Storage.Utilities;
 
@@ -94,6 +95,13 @@ public static class ServiceRegistration
                 sp.GetRequiredService<ILogger<FileSystemStoryStateService>>()));
     }
 
+    public static void AddDocsService(this IServiceCollection services, string docsRoot)
+    {
+        services.AddSingleton<IDocsService>(sp =>
+            new FileSystemDocsService(docsRoot,
+                sp.GetRequiredService<ILogger<FileSystemDocsService>>()));
+    }
+
     public static void AddToolHandlers(this IServiceCollection services, AppConfig appConfig)
     {
         services.AddSingleton<QueryLoreHandler>(sp => new QueryLoreHandler(
@@ -143,6 +151,9 @@ public static class ServiceRegistration
                     sp.GetRequiredService<ILogger<QuillForge.Providers.Email.ResendEmailService>>()));
             services.AddSingleton<IToolHandler, EmailDeveloperHandler>();
         }
+        services.AddSingleton<IToolHandler>(sp => new QueryDocsHandler(
+            sp.GetRequiredService<IDocsService>(),
+            sp.GetRequiredService<ILogger<QueryDocsHandler>>()));
     }
 
     public static void AddMediaProviders(this IServiceCollection services, string contentRoot, AppConfig appConfig)

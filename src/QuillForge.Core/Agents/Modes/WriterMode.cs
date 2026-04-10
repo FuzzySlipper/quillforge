@@ -30,6 +30,9 @@ public sealed class WriterMode : IMode
             5. Only after acceptance, use write_file to save the content
 
             {context.FileContext ?? ""}{pendingNote}
+
+            If the user asks about your behavior, mode boundaries, available tools, or how to use the system,
+            consult `query_docs` rather than guessing.
             """;
     }
 

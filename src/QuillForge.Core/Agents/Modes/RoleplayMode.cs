@@ -41,6 +41,9 @@ public sealed class RoleplayMode : IMode
             When answering in-scene, let the prose and character voices carry the response.
 
             {context.FileContext ?? ""}
+
+            If the user asks about your behavior, mode boundaries, available tools, or how to use the system,
+            consult `query_docs` rather than guessing.
             """;
     }
 

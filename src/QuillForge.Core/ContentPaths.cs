@@ -2,7 +2,7 @@ namespace QuillForge.Core;
 
 /// <summary>
 /// Single source of truth for all content directory names and file paths
-/// relative to the content root (build/). Every store, endpoint, and setup
+/// relative to the content root (user/). Every store, endpoint, and setup
 /// class should reference these constants instead of bare strings.
 /// </summary>
 public static class ContentPaths

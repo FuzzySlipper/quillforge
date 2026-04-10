@@ -12,9 +12,9 @@ dotnet publish src/QuillForge.Web/QuillForge.Web.csproj \
   -o "$PUBLISH_DIR/"
 
 echo "Deploying to $RELEASE_DIR..."
-# Sync the binary and web assets, but never touch build/ (user data)
+# Sync the binary and web assets, but never touch user/ (user data)
 rsync -a --delete \
-  --exclude 'build/' \
+  --exclude 'user/' \
   --exclude 'appsettings.json' \
   --exclude 'appsettings.Development.json' \
   "$PUBLISH_DIR/" "$RELEASE_DIR/"

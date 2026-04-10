@@ -576,6 +576,70 @@ const commands: Record<string, CommandDef> = {
       return { output: "Unknown subcommand. Usage: `/forge new|design|start|status|pause|approve|list`" };
     },
   },
+
+  docs: {
+    description: "Browse system documentation",
+    usage: "[topic] | ?<query>",
+    handler: async (args) => {
+      const trimmed = args.trim();
+
+      // Search: /docs ?query
+      if (trimmed.startsWith("?")) {
+        const query = trimmed.slice(1).trim();
+        if (!query) return { output: "Usage: `/docs ?<search query>`" };
+        try {
+          const res = await fetch(`/api/docs/search?q=${encodeURIComponent(query)}`);
+          const data = await res.json();
+          if (!data.results || data.results.length === 0) {
+            return { output: `No documentation found matching "${query}".` };
+          }
+          const lines: string[] = [];
+          for (const result of data.results) {
+            lines.push(`### ${result.name} (\`${result.slug}\`)`);
+            for (const snippet of result.snippets) {
+              lines.push(snippet);
+              lines.push("");
+            }
+          }
+          return { output: lines.join("\n") };
+        } catch {
+          return { output: "Error searching documentation." };
+        }
+      }
+
+      // Single topic: /docs <topic>
+      if (trimmed) {
+        try {
+          const res = await fetch(`/api/docs/${encodeURIComponent(trimmed)}`);
+          if (!res.ok) {
+            const err = await res.json();
+            return { output: err.error || `Topic "${trimmed}" not found.` };
+          }
+          const data = await res.json();
+          return { output: `# ${data.name}\n\n${data.content}` };
+        } catch {
+          return { output: "Error loading documentation." };
+        }
+      }
+
+      // List all topics: /docs
+      try {
+        const res = await fetch("/api/docs");
+        const data = await res.json();
+        if (!data.topics || data.topics.length === 0) {
+          return { output: "No documentation topics available." };
+        }
+        const lines = ["**Available Documentation Topics:**", ""];
+        for (const topic of data.topics) {
+          lines.push(`- \`/docs ${topic.slug}\` — ${topic.name}: ${topic.summary}`);
+        }
+        lines.push("", "Search with `/docs ?<query>`");
+        return { output: lines.join("\n") };
+      } catch {
+        return { output: "Error loading documentation." };
+      }
+    },
+  },
 };
 
 /**

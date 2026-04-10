@@ -15,6 +15,6 @@ else
 fi
 
 echo "Starting QuillForge..."
-echo "Content directory: ${CONTENT_ROOT:-$APP_DIR/build}"
+echo "Content directory: ${CONTENT_ROOT:-$APP_DIR/user}"
 
-exec "$EXEC" --ContentRoot "${CONTENT_ROOT:-$APP_DIR/build}" "$@"
+exec "$EXEC" --ContentRoot "${CONTENT_ROOT:-$APP_DIR/user}" "$@"

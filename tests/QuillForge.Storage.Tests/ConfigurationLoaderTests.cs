@@ -412,7 +412,7 @@ public class ConfigurationLoaderTests : IDisposable
     [Fact]
     public void FirstRunSetup_CreatesDirectoryStructure()
     {
-        var contentRoot = Path.Combine(_tempDir, "build");
+        var contentRoot = Path.Combine(_tempDir, "user");
         var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
 
         var isFirstRun = setup.EnsureContentDirectory(contentRoot);
@@ -430,7 +430,7 @@ public class ConfigurationLoaderTests : IDisposable
     [Fact]
     public void FirstRunSetup_SecondRun_ReturnsFalse()
     {
-        var contentRoot = Path.Combine(_tempDir, "build");
+        var contentRoot = Path.Combine(_tempDir, "user");
         var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
 
         setup.EnsureContentDirectory(contentRoot);

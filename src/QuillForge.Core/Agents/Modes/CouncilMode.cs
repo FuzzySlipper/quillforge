@@ -29,6 +29,9 @@ public sealed class CouncilMode : IMode
 
             Present the synthesized view clearly, noting which advisor contributed which insight
             when relevant. The goal is richer, more nuanced answers through multi-perspective analysis.
+
+            If the user asks about your behavior, mode boundaries, available tools, or how to use the system,
+            consult `query_docs` rather than guessing.
             """;
     }
 
