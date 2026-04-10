@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Services;
+using QuillForge.Storage.Utilities;
 
 namespace QuillForge.Storage.Docs;
 
@@ -42,8 +43,8 @@ public sealed class FileSystemDocsService : IDocsService
 
     public Task<DocEntry?> GetTopicAsync(string slug, CancellationToken ct = default)
     {
-        var path = Path.Combine(_docsRoot, slug + ".md");
-        if (!File.Exists(path))
+        var path = ResolveTopicPath(slug);
+        if (path is null || !File.Exists(path))
         {
             _logger.LogDebug("Doc topic not found: {Slug}", slug);
             return Task.FromResult<DocEntry?>(null);
@@ -132,6 +133,21 @@ public sealed class FileSystemDocsService : IDocsService
         }
 
         return (name, summary);
+    }
+
+    /// <summary>
+    /// Resolves a topic slug to a full path within the docs root, rejecting path traversal.
+    /// Returns null if the resolved path escapes the docs root.
+    /// </summary>
+    private string? ResolveTopicPath(string slug)
+    {
+        if (!PathBoundaryGuard.TryResolvePath(_docsRoot, slug + ".md", out var resolved))
+        {
+            _logger.LogWarning("Path traversal blocked for doc slug: {Slug}", slug);
+            return null;
+        }
+
+        return resolved;
     }
 
     private static string StripFrontmatter(string content)

@@ -124,14 +124,6 @@ public sealed class FileSystemStoryStateService : IStoryStateService
 
     private string ResolvePath(string stateFilePath)
     {
-        var resolved = Path.GetFullPath(Path.Combine(_basePath, stateFilePath));
-        var root = _basePath.EndsWith(Path.DirectorySeparatorChar)
-            ? _basePath
-            : _basePath + Path.DirectorySeparatorChar;
-        if (!resolved.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException($"Path traversal detected: {stateFilePath}");
-        }
-        return resolved;
+        return PathBoundaryGuard.ResolvePathOrThrow(_basePath, stateFilePath);
     }
 }

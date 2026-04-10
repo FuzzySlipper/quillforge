@@ -7,6 +7,10 @@
     <SourceRevisionId>unknown</SourceRevisionId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="QuillForge.Architecture.Tests" />
+  </ItemGroup>
+
   <!-- Grab git hash at build time if available -->
   <Target Name="SetGitHash" BeforeTargets="GetAssemblyVersion" Condition="'$(SourceRevisionId)' == 'unknown'">
     <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true">
@@ -30,6 +34,12 @@
     <Exec Command="npm run build" WorkingDirectory="Client" />
     <Touch Files="wwwroot/assets/.build-marker" AlwaysCreate="true" />
   </Target>
+
+  <!-- Include app-docs in publish output so docs endpoints and query_docs work in release builds -->
+  <ItemGroup>
+    <Content Include="..\..\dev\app-docs\**\*.md" Link="app-docs\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Den.Persistence\Den.Persistence.csproj" />

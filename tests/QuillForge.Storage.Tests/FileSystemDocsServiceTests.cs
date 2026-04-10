@@ -179,4 +179,56 @@ public sealed class FileSystemDocsServiceTests : IDisposable
         var results = await _service.SearchAsync("");
         Assert.Empty(results);
     }
+
+    [Fact]
+    public async Task GetTopic_PathTraversal_ReturnsNull()
+    {
+        // Create a file outside the docs root that would be reachable via traversal
+        var parentDir = Path.GetDirectoryName(_tempDir)!;
+        var secretFile = Path.Combine(parentDir, "secret.md");
+        File.WriteAllText(secretFile, "---\nname: Secret\nsummary: Private\n---\nSecret content.");
+        try
+        {
+            var entry = await _service.GetTopicAsync("../secret");
+            Assert.Null(entry);
+        }
+        finally
+        {
+            File.Delete(secretFile);
+        }
+    }
+
+    [Fact]
+    public async Task GetTopic_SiblingPrefixTraversal_ReturnsNull()
+    {
+        // A slug that tries to escape via a sibling directory with a matching prefix
+        var entry = await _service.GetTopicAsync("../../etc/passwd");
+        Assert.Null(entry);
+    }
+
+    [Fact]
+    public async Task GetTopic_CaseOnlySiblingTraversal_ReturnsNull()
+    {
+        var parentDir = Path.GetDirectoryName(_tempDir)!;
+        var siblingName = Path.GetFileName(_tempDir).ToUpperInvariant();
+        if (string.Equals(siblingName, Path.GetFileName(_tempDir), StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var siblingDir = Path.Combine(parentDir, siblingName);
+        Directory.CreateDirectory(siblingDir);
+        var secretFile = Path.Combine(siblingDir, "secret.md");
+        File.WriteAllText(secretFile, "---\nname: Secret\nsummary: Private\n---\nSecret content.");
+
+        try
+        {
+            var entry = await _service.GetTopicAsync("../" + siblingName + "/secret");
+            Assert.Null(entry);
+        }
+        finally
+        {
+            Directory.Delete(siblingDir, recursive: true);
+        }
+    }
 }

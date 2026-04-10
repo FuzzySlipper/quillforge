@@ -71,6 +71,7 @@ node_modules/
 .taskmaster/
 user/
 local/
+build/
 *.suo
 *.ntvs*
 *.njsproj

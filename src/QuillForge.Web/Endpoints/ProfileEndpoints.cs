@@ -147,6 +147,9 @@ public static class ProfileEndpoints
                 WritingStyle = root.TryGetProperty("writingStyle", out var styleEl)
                     ? styleEl.GetString() ?? "default"
                     : "default",
+                LibrarianPrompt = root.TryGetProperty("librarianPrompt", out var librarianEl)
+                    ? librarianEl.GetString() ?? "default"
+                    : "default",
                 Roleplay = new RoleplayConfig
                 {
                     AiCharacter = root.TryGetProperty("aiCharacter", out var aiCharacterEl)

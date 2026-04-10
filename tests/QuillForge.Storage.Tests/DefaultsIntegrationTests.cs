@@ -194,6 +194,28 @@ public class DefaultsIntegrationTests : IDisposable
     }
 
     [Fact]
+    public void FirstRunSetup_ExistingInstall_SeedsMissingLibrarianPromptDefault()
+    {
+        if (_defaultsPath is null) return;
+
+        Directory.CreateDirectory(_tempDir);
+        Directory.CreateDirectory(Path.Combine(_tempDir, "conductor"));
+        File.WriteAllText(Path.Combine(_tempDir, "conductor", "custom.md"), "Existing content");
+
+        var promptPath = Path.Combine(_tempDir, "librarian-prompts", "default.md");
+        Assert.False(File.Exists(promptPath));
+
+        var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
+        var isFirstRun = setup.EnsureContentDirectory(_tempDir, _defaultsPath);
+
+        Assert.False(isFirstRun);
+        Assert.True(File.Exists(promptPath));
+        Assert.Contains(
+            "Search the entire lore corpus thoroughly before responding.",
+            File.ReadAllText(promptPath));
+    }
+
+    [Fact]
     public void ConfigLoader_WorksWithDefaults()
     {
         if (_defaultsPath is null) return;

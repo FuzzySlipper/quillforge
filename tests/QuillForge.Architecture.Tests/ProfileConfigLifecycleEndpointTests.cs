@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Web;
 using QuillForge.Web.Contracts;
 using QuillForge.Web.Endpoints;
 using QuillForge.Web.Services;
@@ -63,6 +65,81 @@ public sealed class ProfileConfigLifecycleEndpointTests
         var response = await InvokeJsonAsync(app, "DELETE", "/api/profile-configs/grim");
 
         Assert.Equal(409, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PutEndpoint_RoundTripsLibrarianPrompt()
+    {
+        var profileService = new TrackingProfileConfigService();
+        await using var app = BuildApp(profileService);
+
+        var response = await InvokeJsonAsync(
+            app,
+            "PUT",
+            "/api/profile-configs/grim",
+            """
+            {
+              "conductor": "editor",
+              "loreSet": "grim-dark",
+              "narrativeRules": "strict",
+              "writingStyle": "literary",
+              "librarianPrompt": "spoiler-safe",
+              "aiCharacter": "oracle",
+              "userCharacter": "scribe"
+            }
+            """);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal("grim", profileService.LastSavedProfileId);
+        Assert.NotNull(profileService.LastSavedConfig);
+        Assert.Equal("spoiler-safe", profileService.LastSavedConfig!.LibrarianPrompt);
+
+        using var document = JsonDocument.Parse(response.Body);
+        Assert.Equal("spoiler-safe", document.RootElement.GetProperty("librarianPrompt").GetString());
+    }
+
+    [Fact]
+    public void StartupPathResolver_WithoutSolutionRoot_UsesPublishedDocsLocation()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"quillforge-startup-paths-{Guid.NewGuid():N}");
+        var baseDir = Path.Combine(tempRoot, "published");
+        var currentDir = Path.Combine(tempRoot, "working");
+        Directory.CreateDirectory(baseDir);
+        Directory.CreateDirectory(currentDir);
+
+        try
+        {
+            var configuration = new ConfigurationBuilder().Build();
+
+            var paths = StartupPathResolver.Resolve(configuration, baseDir, currentDir);
+
+            Assert.Null(paths.SolutionRoot);
+            Assert.Equal(Path.Combine(baseDir, "app-docs"), paths.DocsRoot);
+            Assert.Equal(Path.Combine(baseDir, "user"), paths.ContentRoot);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void WebProject_IncludesAppDocsInPublishOutput()
+    {
+        var solutionRoot = StartupPathResolver.FindSolutionRoot(Directory.GetCurrentDirectory());
+        Assert.NotNull(solutionRoot);
+
+        var projectFile = Path.Combine(
+            solutionRoot!,
+            "src",
+            "QuillForge.Web",
+            "QuillForge.Web.csproj");
+
+        var xml = File.ReadAllText(projectFile);
+
+        Assert.Contains(@"Include=""..\..\dev\app-docs\**\*.md""", xml);
+        Assert.Contains(@"Link=""app-docs\%(RecursiveDir)%(Filename)%(Extension)""", xml);
+        Assert.Contains(@"CopyToPublishDirectory=""PreserveNewest""", xml);
     }
 
     private static WebApplication BuildApp(TrackingProfileConfigService profileService)
@@ -194,6 +271,8 @@ public sealed class ProfileConfigLifecycleEndpointTests
     private sealed class TrackingProfileConfigService : IProfileConfigService
     {
         public string? LastCloneTargetProfileId { get; private set; }
+        public string? LastSavedProfileId { get; private set; }
+        public ProfileConfig? LastSavedConfig { get; private set; }
         public Exception? DeleteException { get; init; }
 
         public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
@@ -206,7 +285,29 @@ public sealed class ProfileConfigLifecycleEndpointTests
             => throw new NotSupportedException();
 
         public Task<ResolvedProfileConfig> SaveAsync(string profileId, ProfileConfig config, CancellationToken ct = default)
-            => throw new NotSupportedException();
+        {
+            LastSavedProfileId = profileId;
+            LastSavedConfig = config;
+
+            return Task.FromResult(new ResolvedProfileConfig
+            {
+                ProfileId = profileId,
+                Config = new ProfileConfig
+                {
+                    Conductor = config.Conductor,
+                    LoreSet = config.LoreSet,
+                    NarrativeRules = config.NarrativeRules,
+                    WritingStyle = config.WritingStyle,
+                    LibrarianPrompt = config.LibrarianPrompt,
+                    Roleplay = new RoleplayConfig
+                    {
+                        AiCharacter = config.Roleplay.AiCharacter,
+                        UserCharacter = config.Roleplay.UserCharacter,
+                    },
+                },
+                Persisted = true,
+            });
+        }
 
         public Task<ResolvedProfileConfig> CloneAsync(string sourceProfileId, string targetProfileId, CancellationToken ct = default)
         {
@@ -220,6 +321,7 @@ public sealed class ProfileConfigLifecycleEndpointTests
                     LoreSet = "cloned-lore",
                     NarrativeRules = "cloned-rules",
                     WritingStyle = "cloned-style",
+                    LibrarianPrompt = "default",
                 },
                 Persisted = true,
             });

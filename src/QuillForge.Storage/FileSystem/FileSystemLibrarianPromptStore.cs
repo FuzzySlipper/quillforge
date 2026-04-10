@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Services;
+using QuillForge.Storage.Configuration;
+using QuillForge.Storage.Utilities;
 
 namespace QuillForge.Storage.FileSystem;
 
@@ -22,11 +24,21 @@ public sealed class FileSystemLibrarianPromptStore : ILibrarianPromptStore
 
     public async Task<string> LoadAsync(string promptName, CancellationToken ct = default)
     {
-        var filePath = Path.Combine(_promptsPath, promptName + ".md");
+        var filePath = ResolvePromptPath(promptName);
+        if (filePath is null)
+        {
+            _logger.LogWarning(
+                "Path traversal blocked for librarian prompt: {Name}; using baked-in default instructions",
+                promptName);
+            return LibrarianPromptDefaults.DefaultMarkdown.Trim();
+        }
+
         if (!File.Exists(filePath))
         {
-            _logger.LogWarning("Librarian prompt file not found: {Path}, using empty instructions", filePath);
-            return "";
+            _logger.LogWarning(
+                "Librarian prompt file not found: {Path}; using baked-in default instructions",
+                filePath);
+            return LibrarianPromptDefaults.DefaultMarkdown.Trim();
         }
 
         var content = await File.ReadAllTextAsync(filePath, ct);
@@ -51,5 +63,19 @@ public sealed class FileSystemLibrarianPromptStore : ILibrarianPromptStore
 
         _logger.LogDebug("Listed {Count} librarian prompts from {Path}", names.Count, _promptsPath);
         return Task.FromResult<IReadOnlyList<string>>(names);
+    }
+
+    /// <summary>
+    /// Resolves a prompt name to a full path within the prompts directory, rejecting path traversal.
+    /// Returns null if the resolved path escapes the prompts root.
+    /// </summary>
+    private string? ResolvePromptPath(string promptName)
+    {
+        if (!PathBoundaryGuard.TryResolvePath(_promptsPath, promptName + ".md", out var resolved))
+        {
+            return null;
+        }
+
+        return resolved;
     }
 }

@@ -20,34 +20,14 @@ using QuillForge.Web.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Content paths and first-run setup ---
-// Walk up from executable location or working directory to find the solution root.
-// This handles both `dotnet run --project` (cwd = project dir) and published binaries.
-var solutionRoot = FindSolutionRoot(AppContext.BaseDirectory)
-    ?? FindSolutionRoot(Directory.GetCurrentDirectory());
-var contentRoot = builder.Configuration.GetValue<string>("QuillForge:ContentRoot")
-    ?? (solutionRoot is not null
-        ? Path.Combine(solutionRoot, "user")
-        : Path.Combine(AppContext.BaseDirectory, "user"));
-
-var defaultsPath = solutionRoot is not null
-    ? Path.Combine(solutionRoot, "dev", "defaults")
-    : Path.Combine(AppContext.BaseDirectory, "dev", "defaults");
-
-var docsRoot = solutionRoot is not null
-    ? Path.Combine(solutionRoot, "dev", "app-docs")
-    : Path.Combine(AppContext.BaseDirectory, "app-docs");
-
-static string? FindSolutionRoot(string startDir)
-{
-    var dir = startDir;
-    while (dir is not null)
-    {
-        if (File.Exists(Path.Combine(dir, "QuillForge.slnx")))
-            return dir;
-        dir = Path.GetDirectoryName(dir);
-    }
-    return null;
-}
+// Resolve paths from either the solution layout (`dotnet run`) or a published binary layout.
+var startupPaths = StartupPathResolver.Resolve(
+    builder.Configuration,
+    AppContext.BaseDirectory,
+    Directory.GetCurrentDirectory());
+var contentRoot = startupPaths.ContentRoot;
+var defaultsPath = startupPaths.DefaultsPath;
+var docsRoot = startupPaths.DocsRoot;
 
 var firstRunSetup = new FirstRunSetup(
     LoggerFactory.Create(b => b.AddConsole()).CreateLogger<FirstRunSetup>());
