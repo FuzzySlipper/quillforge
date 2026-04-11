@@ -91,6 +91,8 @@ public sealed class ReviewStage : IPipelineStage
             var result = await context.Reviewer.ReviewAsync(
                 draft, brief, styleDoc, previousTail, ct: ct);
 
+            context.StatsTracker.RecordCompletion("forge-reviewer", result.Usage);
+
             context.Log(
                 $"Review result for {chapterId}: continuity={result.Continuity:F1}, " +
                 $"brief={result.BriefAdherence:F1}, voice={result.VoiceConsistency:F1}, " +

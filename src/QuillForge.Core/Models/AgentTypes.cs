@@ -90,4 +90,15 @@ public sealed record AgentContext
     /// Used by the Narrative Director to maintain turn-to-turn scene memory.
     /// </summary>
     public string? LastAssistantResponse { get; init; }
+
+    /// <summary>
+    /// Optional callback for recording token usage from nested LLM calls that occur
+    /// inside tool handlers (e.g. LibrarianAgent called via QueryLoreHandler).
+    /// The ToolLoop only aggregates its own completion rounds; nested calls must
+    /// report separately through this callback.
+    ///
+    /// Set by the forge pipeline to route nested usage into ForgeStatsTracker.
+    /// Null outside of forge runs — non-forge flows are unaffected.
+    /// </summary>
+    public Action<string, TokenUsage>? OnNestedCompletion { get; init; }
 }

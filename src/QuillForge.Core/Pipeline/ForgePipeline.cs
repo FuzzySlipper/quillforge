@@ -61,6 +61,18 @@ public sealed class ForgePipeline : IDiagnosticSource
         _activeContext = context;
         _pauseRequested = false;
 
+        // Create the stats tracker, seeded from existing manifest stats so resumed
+        // runs continue accumulating rather than resetting to zero.
+        var tracker = new ForgeStatsTracker(context.Manifest.Stats);
+        context.StatsTracker = tracker;
+
+        // Wire the nested-completion callback so that tool handlers making their own
+        // LLM calls (e.g. QueryLoreHandler → LibrarianAgent) report usage into forge stats.
+        context.AgentContext = context.AgentContext with
+        {
+            OnNestedCompletion = tracker.RecordCompletion,
+        };
+
         // Auto-repair: normalize the manifest before running
         context.Manifest = ForgeManifestRepair.Normalize(context.Manifest, _logger);
 
@@ -92,8 +104,9 @@ public sealed class ForgePipeline : IDiagnosticSource
             if (_pauseRequested || (pauseAfterStage.HasValue && stage.StageEnum > pauseAfterStage.Value))
             {
                 _logger.LogInformation("Pipeline paused before stage {Stage}", stage.StageName);
-                context.Manifest = context.Manifest with { Paused = true };
+                context.Manifest = tracker.ApplyTo(context.Manifest) with { Paused = true };
                 await PersistManifestAsync(context, ct);
+                _activeContext = null;
                 yield break;
             }
 
@@ -128,8 +141,8 @@ public sealed class ForgePipeline : IDiagnosticSource
                     }
                 }
 
-                // Update stage and persist
-                context.Manifest = context.Manifest with
+                // Update stage and persist (with accumulated stats)
+                context.Manifest = tracker.ApplyTo(context.Manifest) with
                 {
                     Stage = ForgeStage.Assembly,
                     UpdatedAt = DateTimeOffset.UtcNow,
@@ -139,14 +152,37 @@ public sealed class ForgePipeline : IDiagnosticSource
             }
 
             // Normal stage execution
+            var stageFailed = false;
             await foreach (var evt in ExecuteStageWithTimeout(stage, context, ct))
             {
+                if (evt is ForgeErrorEvent)
+                {
+                    stageFailed = true;
+                }
+
                 yield return evt;
             }
 
-            // Advance stage and persist
+            if (stageFailed)
+            {
+                _logger.LogWarning(
+                    "Forge pipeline stopping after stage {Stage} failed for project {Project}",
+                    stage.StageName,
+                    context.Manifest.ProjectName);
+
+                context.Manifest = tracker.ApplyTo(context.Manifest) with
+                {
+                    Paused = true,
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                };
+                await PersistManifestAsync(context, CancellationToken.None);
+                _activeContext = null;
+                yield break;
+            }
+
+            // Advance stage and persist (with accumulated stats)
             var nextStage = stage.StageEnum + 1;
-            context.Manifest = context.Manifest with
+            context.Manifest = tracker.ApplyTo(context.Manifest) with
             {
                 Stage = (ForgeStage)Math.Min((int)nextStage, (int)ForgeStage.Done),
                 UpdatedAt = DateTimeOffset.UtcNow,
@@ -162,15 +198,16 @@ public sealed class ForgePipeline : IDiagnosticSource
                 if (firstChapter is not null && context.Manifest.Chapters[firstChapter].State != ChapterState.Pending)
                 {
                     _logger.LogInformation("Pausing after first chapter for user review");
-                    context.Manifest = context.Manifest with { Paused = true };
+                    context.Manifest = tracker.ApplyTo(context.Manifest) with { Paused = true };
                     await PersistManifestAsync(context, ct);
+                    _activeContext = null;
                     yield break;
                 }
             }
         }
 
-        // Pipeline complete
-        context.Manifest = context.Manifest with
+        // Pipeline complete — apply final stats snapshot
+        context.Manifest = tracker.ApplyTo(context.Manifest) with
         {
             Stage = ForgeStage.Done,
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -214,6 +251,9 @@ public sealed class ForgePipeline : IDiagnosticSource
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(_stageTimeout);
 
+        // Record stage timing — the pipeline is the single authority for timing boundaries.
+        context.StatsTracker.StageStarted(stage.StageName, DateTimeOffset.UtcNow);
+
         // Create a unified channel that collects both stage events and progress events.
         // The stage runs in a background task; ToolLoop callbacks push progress into the
         // same channel. The pipeline reads a single merged stream.
@@ -256,6 +296,8 @@ public sealed class ForgePipeline : IDiagnosticSource
             if (evt is ForgeErrorEvent)
             {
                 hadError = true;
+                context.StatsTracker.StageFailed(stage.StageName, DateTimeOffset.UtcNow);
+                context.Manifest = context.StatsTracker.ApplyTo(context.Manifest);
                 await PersistManifestAsync(context, CancellationToken.None);
             }
             yield return evt;
@@ -271,6 +313,8 @@ public sealed class ForgePipeline : IDiagnosticSource
         {
             if (!hadError)
             {
+                context.StatsTracker.StageFailed(stage.StageName, DateTimeOffset.UtcNow);
+                context.Manifest = context.StatsTracker.ApplyTo(context.Manifest);
                 await PersistManifestAsync(context, CancellationToken.None);
                 lateError = new ForgeErrorEvent($"Stage {stage.StageName} timed out", stage.StageName);
             }
@@ -278,6 +322,12 @@ public sealed class ForgePipeline : IDiagnosticSource
 
         if (lateError is not null)
             yield return lateError;
+
+        // Record successful completion if no errors occurred
+        if (!hadError && lateError is null)
+        {
+            context.StatsTracker.StageCompleted(stage.StageName, DateTimeOffset.UtcNow);
+        }
 
         context.ProgressChannel = null;
     }

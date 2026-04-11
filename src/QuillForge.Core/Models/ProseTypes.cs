@@ -18,4 +18,9 @@ public sealed record ProseResult
     public required string GeneratedText { get; init; }
     public required IReadOnlyList<string> LoreQueriesMade { get; init; }
     public required int WordCount { get; init; }
+    /// <summary>
+    /// Aggregate token usage across all LLM calls (including tool rounds) for this generation.
+    /// Used by the forge stats tracker to record writer token consumption.
+    /// </summary>
+    public TokenUsage Usage { get; init; } = new(0, 0);
 }

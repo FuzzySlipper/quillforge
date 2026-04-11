@@ -84,8 +84,18 @@ public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
             }
         }
 
-        var bundle = await _librarian.QueryAsync(query, context.ActiveLoreSet, context, runLore, ct);
-        return ToolResult.Ok(JsonSerializer.Serialize(bundle));
+        var result = await _librarian.QueryAsync(query, context.ActiveLoreSet, context, runLore, ct);
+
+        // Report librarian token usage to the forge stats tracker (if this is a forge run).
+        // The ToolLoop only aggregates its own completion rounds; the librarian's nested
+        // LLM call is invisible to it, so we report it through the callback.
+        // Usage stays on LibrarianResult — only the Bundle is serialized to the tool result.
+        if (result.Usage.TotalTokens > 0)
+        {
+            context.OnNestedCompletion?.Invoke("librarian", result.Usage);
+        }
+
+        return ToolResult.Ok(JsonSerializer.Serialize(result.Bundle));
     }
 }
 

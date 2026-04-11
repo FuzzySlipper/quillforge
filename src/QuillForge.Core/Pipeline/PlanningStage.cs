@@ -30,16 +30,18 @@ public sealed class PlanningStage : IPipelineStage
         context.Log($"Premise loaded ({premise.Length} chars)", "planning");
 
         var loreLen = context.LoreContext.Length;
-        context.Log($"Lore context: {loreLen} chars, {context.WriterTools.Count} tools available", "planning");
+        context.Log($"Lore context: {loreLen} chars, {context.PlannerTools.Count} tools available", "planning");
         context.Log("Calling ForgePlanner agent (this may take several minutes)...", "planning");
 
         var response = await context.Planner.PlanAsync(
             premise,
             context.LoreContext,
-            context.WriterTools,
+            context.PlannerTools,
             context.AgentContext,
             ct: ct,
             progress: msg => context.Log(msg, "planner"));
+
+        context.StatsTracker.RecordCompletion("forge-planner", response.Usage);
 
         context.Log(
             $"Planning complete — {response.ToolRoundsUsed} rounds, " +

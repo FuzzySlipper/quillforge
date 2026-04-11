@@ -16,9 +16,10 @@ public sealed class ForgeContext
     public required ForgePlannerAgent Planner { get; init; }
     public required ForgeWriterAgent Writer { get; init; }
     public required ForgeReviewerAgent Reviewer { get; init; }
+    public required IReadOnlyList<IToolHandler> PlannerTools { get; init; }
     public required IReadOnlyList<IToolHandler> WriterTools { get; init; }
     public required IContentFileService FileService { get; init; }
-    public required AgentContext AgentContext { get; init; }
+    public required AgentContext AgentContext { get; set; }
 
     /// <summary>
     /// Loaded writing style for the project.
@@ -46,6 +47,17 @@ public sealed class ForgeContext
     /// Maximum revision attempts per chapter before flagging.
     /// </summary>
     public int MaxRevisions { get; init; } = 3;
+
+    /// <summary>
+    /// Centralized stats tracker for this forge run. Created by the pipeline at the
+    /// start of RunAsync and seeded from existing manifest stats on resume.
+    /// Stages and agents record usage here; the pipeline applies stats to the
+    /// manifest before each persist.
+    ///
+    /// If you are adding a new forge stage or agent that consumes tokens,
+    /// you MUST record usage through this tracker via RecordCompletion.
+    /// </summary>
+    public ForgeStatsTracker StatsTracker { get; set; } = new();
 
     /// <summary>
     /// Channel for verbose progress events. Set by the pipeline before each stage.

@@ -14,6 +14,11 @@ public sealed record ReviewResult
     public required bool Passed { get; init; }
 
     /// <summary>
+    /// Token usage for this review call. Used by the forge stats tracker.
+    /// </summary>
+    public TokenUsage Usage { get; init; } = new(0, 0);
+
+    /// <summary>
     /// Small details extracted from the chapter for run-specific lore:
     /// character descriptions, new names, objects, relationship changes, timeline specifics, etc.
     /// Empty if none were extracted or the chapter didn't pass.

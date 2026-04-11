@@ -92,6 +92,14 @@ public sealed class WritingStage : IPipelineStage
                 context.WriterTools, context.AgentContext, ct: ct,
                 progress: msg => context.Log(msg, $"writer/{chapterId}"));
 
+            context.StatsTracker.RecordCompletion("forge-writer", result.Usage);
+
+            // Track revisions (chapters re-entering writing after review)
+            if (chapter.State == ChapterState.Revision)
+            {
+                context.StatsTracker.RecordChapterRevision(chapterId);
+            }
+
             // Save draft
             var outputPath = $"forge/{context.Manifest.ProjectName}/drafts/{chapterId}.md";
             await context.FileService.WriteAsync(outputPath, result.GeneratedText, ct);

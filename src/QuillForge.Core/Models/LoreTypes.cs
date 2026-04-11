@@ -10,6 +10,18 @@ public sealed record LoreBundle
     public LoreConfidence Confidence { get; init; } = LoreConfidence.High;
 }
 
+/// <summary>
+/// Internal result from LibrarianAgent.QueryAsync that carries both the serializable
+/// lore payload and the token usage metadata. QueryLoreHandler uses the bundle for the
+/// tool result and the usage for forge stats — keeping accounting data out of the
+/// serialized tool payload sent back to the model.
+/// </summary>
+public sealed record LibrarianResult
+{
+    public required LoreBundle Bundle { get; init; }
+    public required TokenUsage Usage { get; init; }
+}
+
 public enum LoreConfidence
 {
     High,

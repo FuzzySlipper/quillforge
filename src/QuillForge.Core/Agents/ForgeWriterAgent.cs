@@ -88,6 +88,7 @@ public sealed class ForgeWriterAgent
             GeneratedText = text,
             LoreQueriesMade = loreQueries,
             WordCount = wordCount,
+            Usage = response.Usage,
         };
     }
 

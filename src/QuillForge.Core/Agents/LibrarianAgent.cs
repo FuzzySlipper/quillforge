@@ -34,7 +34,7 @@ public sealed class LibrarianAgent
     /// When supplementalLore is provided (e.g. run-specific lore from forge),
     /// it is included alongside the main lore corpus.
     /// </summary>
-    public async Task<LoreBundle> QueryAsync(
+    public async Task<LibrarianResult> QueryAsync(
         string query,
         string loreSetName,
         AgentContext context,
@@ -73,10 +73,10 @@ public sealed class LibrarianAgent
         var bundle = ParseLoreBundle(responseText);
 
         _logger.LogInformation(
-            "Librarian returned {PassageCount} passages, confidence={Confidence}",
-            bundle.RelevantPassages.Count, bundle.Confidence);
+            "Librarian returned {PassageCount} passages, confidence={Confidence}, tokens={Tokens}",
+            bundle.RelevantPassages.Count, bundle.Confidence, response.Usage.TotalTokens);
 
-        return bundle;
+        return new LibrarianResult { Bundle = bundle, Usage = response.Usage };
     }
 
     internal static string BuildSystemPrompt(

@@ -69,18 +69,25 @@ public sealed class DesignStage : IPipelineStage
         }
         context.Log($"Pre-loaded {loadedCount} plan files for design review", "design");
 
-        var designPrompt = $"""
-            You are refining the story design. The outline and all existing chapter briefs are
-            provided below — do NOT use read_file or list_files to re-read them. Everything you
-            need to review is already in context. Start revising immediately using write_file.
+        const string designSystemPrompt = """
+            You are refining an existing story design, not creating a new one from scratch.
 
-            Review for:
+            The outline and plan files will be provided in the user message. Do NOT use
+            read_file or list_files to re-read those files unless you are verifying a file
+            you already rewrote during this run.
+
+            Focus on:
             1. Character arc consistency across chapters
-            2. Plot thread tracking (setup → payoff)
+            2. Plot thread tracking (setup -> payoff)
             3. Pacing and tension curves
             4. Continuity between adjacent chapters
 
-            Revise any briefs that need improvement using the write tools.
+            Revise only the files that actually need changes, using write_file.
+            Do not regenerate the whole project unless the existing files are missing.
+            """;
+
+        var designUserPrompt = $"""
+            Review and refine this existing story design.
 
             ## Current Outline
 
@@ -93,15 +100,17 @@ public sealed class DesignStage : IPipelineStage
 
         context.Log("Calling ForgePlanner for design refinement (this may take several minutes)...", "design");
 
-        // Design stage reviews structure, not lore content — pass empty lore context
-        // to stay well within rate limits. The planner can use query_lore if needed.
         var response = await context.Planner.PlanAsync(
-            designPrompt,
+            premise: "",
             loreContext: "",
-            context.WriterTools,
+            context.PlannerTools,
             context.AgentContext,
+            customPrompt: designSystemPrompt,
+            userPrompt: designUserPrompt,
             ct: ct,
             progress: msg => context.Log(msg, "design"));
+
+        context.StatsTracker.RecordCompletion("forge-planner", response.Usage);
 
         context.Log(
             $"Design refinement complete — {response.ToolRoundsUsed} rounds, " +

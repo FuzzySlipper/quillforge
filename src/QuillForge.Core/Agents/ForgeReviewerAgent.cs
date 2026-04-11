@@ -75,7 +75,7 @@ public sealed class ForgeReviewerAgent
 
         _logger.LogDebug("ForgeReviewer raw response: {Length} chars", responseText.Length);
 
-        var result = ParseReviewResult(responseText);
+        var result = ParseReviewResult(responseText, response.Usage);
 
         _logger.LogInformation(
             "ForgeReviewer result: overall={Overall:F1}, passed={Passed}, feedback length={FeedbackLength}",
@@ -87,17 +87,18 @@ public sealed class ForgeReviewerAgent
     /// <summary>
     /// Parses the review response. Uses the same multi-stage JSON extraction as Librarian.
     /// </summary>
-    internal ReviewResult ParseReviewResult(string responseText)
+    internal ReviewResult ParseReviewResult(string responseText, TokenUsage? usage = null)
     {
         var text = responseText.Trim();
+        var tokenUsage = usage ?? new TokenUsage(0, 0);
 
-        if (TryParseScores(text, out var result)) return result;
+        if (TryParseScores(text, tokenUsage, out var result)) return result;
 
         var stripped = LibrarianAgent.StripMarkdownFences(text);
-        if (stripped != text && TryParseScores(stripped, out result)) return result;
+        if (stripped != text && TryParseScores(stripped, tokenUsage, out result)) return result;
 
         var extracted = LibrarianAgent.ExtractJsonObject(text);
-        if (extracted is not null && TryParseScores(extracted, out result)) return result;
+        if (extracted is not null && TryParseScores(extracted, tokenUsage, out result)) return result;
 
         _logger.LogWarning("ForgeReviewer: could not parse scores from response, returning failing result");
         return new ReviewResult
@@ -109,10 +110,11 @@ public sealed class ForgeReviewerAgent
             Overall = 0,
             Feedback = text,
             Passed = false,
+            Usage = tokenUsage,
         };
     }
 
-    private bool TryParseScores(string json, out ReviewResult result)
+    private bool TryParseScores(string json, TokenUsage usage, out ReviewResult result)
     {
         result = default!;
         if (!StructuredJsonParser.TryParse<ReviewResultDto>(json, out var dto))
@@ -140,6 +142,7 @@ public sealed class ForgeReviewerAgent
             Overall = overall,
             Feedback = parsed.Feedback ?? "",
             Passed = overall >= PassThreshold,
+            Usage = usage,
             ExtractedDetails = extractedDetails,
         };
         return true;

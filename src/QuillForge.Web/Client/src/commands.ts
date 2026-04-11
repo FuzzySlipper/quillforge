@@ -533,18 +533,22 @@ const commands: Record<string, CommandDef> = {
           const res = await fetch(`/api/forge/${encodeURIComponent(name)}/status`);
           const data = await res.json();
           if (data.error) return { output: `Error: ${data.error}` };
-          const m = data.manifest;
-          const done = Object.values(m.chapters as Record<string, { status: string }>).filter(
-            (c) => c.status === "done",
-          ).length;
-          const flagged = Object.values(m.chapters as Record<string, { status: string }>).filter(
-            (c) => c.status === "flagged",
-          ).length;
+          const m = data;
+          const chapters = m.chapters as Record<string, { state: string }> | undefined;
+          const done = chapters
+            ? Object.values(chapters).filter((c) => c.state === "Done").length
+            : 0;
+          const flagged = chapters
+            ? Object.values(chapters).filter((c) => c.state === "Flagged").length
+            : 0;
+          const totalTokens = m.stats
+            ? (m.stats.totalInputTokens + m.stats.totalOutputTokens).toLocaleString()
+            : "0";
           return {
             output:
               `**${m.projectName}** — stage: ${m.stage}${m.paused ? " (paused)" : ""}\n` +
               `Chapters: ${done} done, ${flagged} flagged, ${m.chapterCount} total\n` +
-              `Tokens: ${(m.stats.totalInputTokens + m.stats.totalOutputTokens).toLocaleString()}`,
+              `Tokens: ${totalTokens}`,
           };
         } catch {
           return { output: "Error fetching forge status." };

@@ -4,6 +4,7 @@ using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Pipeline;
 using QuillForge.Core.Services;
+using QuillForge.Web.Contracts;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -103,10 +104,14 @@ public static class ForgeEndpoints
             var context = await BuildForgeContextAsync(name, pipeline, planner, writer, reviewer,
                 fileService, toolHandlers, writingStyleStore, loreStore, config, logger, ct);
 
-            // Design runs Planning + Design stages, then pauses before Writing
+            // New projects run Planning + Design. Existing plan files skip back to Design only.
+            var startStage = await IsDesignCompleteAsync(fileService, name, ct)
+                ? ForgeStage.Design
+                : ForgeStage.Planning;
+
             context.Manifest = context.Manifest with
             {
-                Stage = ForgeStage.Planning,
+                Stage = startStage,
                 Paused = false,
             };
 
@@ -138,21 +143,21 @@ public static class ForgeEndpoints
                 if (manifest is null)
                     return Results.NotFound(new { Error = "Manifest not found" });
 
-                return Results.Ok(new
+                return Results.Ok(new ForgeStatusResponse
                 {
-                    manifest.ProjectName,
+                    ProjectName = manifest.ProjectName,
                     Stage = manifest.Stage.ToString(),
-                    manifest.ChapterCount,
-                    manifest.Paused,
+                    ChapterCount = manifest.ChapterCount,
+                    Paused = manifest.Paused,
                     Chapters = manifest.Chapters.ToDictionary(
                         kvp => kvp.Key,
-                        kvp => new
+                        kvp => new ForgeChapterStatusDto
                         {
                             State = kvp.Value.State.ToString(),
-                            kvp.Value.RevisionCount,
-                            kvp.Value.WordCount,
+                            RevisionCount = kvp.Value.RevisionCount,
+                            WordCount = kvp.Value.WordCount,
                         }),
-                    manifest.Stats,
+                    Stats = manifest.Stats,
                 });
             }
             catch (FileNotFoundException)
@@ -229,8 +234,11 @@ public static class ForgeEndpoints
     /// Tool names the forge pipeline agents need.
     /// Planner uses write_file/read_file/list_files; writer uses query_lore.
     /// </summary>
-    private static readonly HashSet<string> ForgeToolNames =
-        ["write_file", "read_file", "list_files", "query_lore"];
+    private static readonly HashSet<string> ForgePlannerToolNames =
+        ["write_file", "read_file", "list_files"];
+
+    private static readonly HashSet<string> ForgeWriterToolNames =
+        ["query_lore"];
 
     /// <summary>
     /// Build a ForgeContext from an existing manifest or create a fresh one.
@@ -268,8 +276,12 @@ public static class ForgeEndpoints
         }
 
         // Wire up forge-relevant tools from the DI-registered handlers
-        var forgeTools = toolHandlers
-            .Where(t => ForgeToolNames.Contains(t.Name))
+        var plannerTools = toolHandlers
+            .Where(t => ForgePlannerToolNames.Contains(t.Name))
+            .ToList();
+
+        var writerTools = toolHandlers
+            .Where(t => ForgeWriterToolNames.Contains(t.Name))
             .ToList();
 
         // Load writing style content
@@ -338,7 +350,8 @@ public static class ForgeEndpoints
             Planner = planner,
             Writer = writer,
             Reviewer = reviewer,
-            WriterTools = forgeTools,
+            PlannerTools = plannerTools,
+            WriterTools = writerTools,
             FileService = fileService,
             AgentContext = new AgentContext
             {
@@ -366,6 +379,22 @@ public static class ForgeEndpoints
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
+    }
+
+    private static async Task<bool> IsDesignCompleteAsync(
+        IContentFileService fileService,
+        string projectName,
+        CancellationToken ct)
+    {
+        var outlineExists = await fileService.ExistsAsync($"forge/{projectName}/plan/outline.md", ct);
+        var styleExists = await fileService.ExistsAsync($"forge/{projectName}/plan/style.md", ct);
+        if (!outlineExists || !styleExists)
+        {
+            return false;
+        }
+
+        var briefFiles = await fileService.ListAsync($"forge/{projectName}/plan", "ch-*-brief.md", ct);
+        return briefFiles.Count > 0;
     }
 
     /// <summary>

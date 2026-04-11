@@ -87,6 +87,13 @@ function App() {
     getMode(effectiveSessionId)
       .then((m) => setHasPending(!!m.pendingContent))
       .catch(() => {});
+    if (effectiveSessionId) {
+      getSessionUsage(effectiveSessionId)
+        .then(setSessionUsage)
+        .catch(() => setSessionUsage(null));
+    } else {
+      setSessionUsage(null);
+    }
   }, [currentSessionId]);
 
   const handleSessionScopedRefresh = useCallback((sessionId?: string | null) => {
@@ -832,7 +839,6 @@ function App() {
           setCurrentSessionId(sessionId);
           setHasPending(false);
           refreshStatus(sessionId);
-          getSessionUsage(sessionId).then(setSessionUsage).catch(() => setSessionUsage(null));
         }}
       />
     </div>

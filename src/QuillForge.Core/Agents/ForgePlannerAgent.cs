@@ -32,6 +32,7 @@ public sealed class ForgePlannerAgent
         IReadOnlyList<IToolHandler> tools,
         AgentContext context,
         string? customPrompt = null,
+        string? userPrompt = null,
         CancellationToken ct = default,
         Action<string>? progress = null)
     {
@@ -52,7 +53,7 @@ public sealed class ForgePlannerAgent
         var messages = new List<CompletionMessage>
         {
             new("user", new MessageContent(
-                $"## Premise\n\n{premise}\n\n## Available Lore\n\n{loreContext}")),
+                userPrompt ?? $"## Premise\n\n{premise}\n\n## Available Lore\n\n{loreContext}")),
         };
 
         var response = await _toolLoop.RunAsync(config, tools, messages, context, ct, progress);
