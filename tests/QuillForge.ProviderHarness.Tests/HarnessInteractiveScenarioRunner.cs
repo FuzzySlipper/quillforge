@@ -38,6 +38,7 @@ public sealed class HarnessInteractiveScenarioRunner : IAsyncDisposable
     private readonly string _docsRoot;
     private readonly WebApplication _app;
     private readonly AppConfig _appConfig;
+    private readonly HarnessDebugBridgeDriver _bridge;
 
     public HarnessInteractiveScenarioRunner(HarnessProviderHost providerHost)
     {
@@ -47,7 +48,10 @@ public sealed class HarnessInteractiveScenarioRunner : IAsyncDisposable
         _appConfig = CreateAppConfig();
         SeedContentRoot(_contentRoot, _docsRoot);
         _app = BuildApp();
+        _bridge = new HarnessDebugBridgeDriver(_app);
     }
+
+    public HarnessDebugBridgeDriver Bridge => _bridge;
 
     public async Task<HarnessInteractiveScenarioReport> RunTurnAsync(
         Mode mode,
@@ -99,15 +103,21 @@ public sealed class HarnessInteractiveScenarioRunner : IAsyncDisposable
         var providerTraces = _providerHost.TraceStore.Snapshot()
             .Skip(providerTraceStartIndex)
             .ToList();
+        var providerTraceIds = providerTraces.Select(trace => trace.TraceId).ToList();
         var savedTree = await sessionStore.LoadAsync(tree.SessionId, ct);
         var sessionSnapshot = ToCollectedSessionSnapshot(savedTree);
         var appTrace = HarnessAppTraceBuilder.FromCollectedStream(
             ToCollectedAppStream(streamResponse, tree.SessionId, mode.ToWireString()),
-            sessionSnapshot);
+            sessionSnapshot) with
+        {
+            RunId = _providerHost.ArtifactStore.RunId,
+            RelatedProviderTraceIds = providerTraceIds,
+        };
         var usageSummary = tracker.GetSessionUsage(tree.SessionId);
 
         var run = new DualSidedHarnessRun
         {
+            RunId = _providerHost.ArtifactStore.RunId,
             ScenarioName = $"interactive/{mode.ToWireString()}",
             StartedAt = startedAt,
             CompletedAt = completedAt,
@@ -115,12 +125,20 @@ public sealed class HarnessInteractiveScenarioRunner : IAsyncDisposable
             AppTrace = appTrace,
         };
 
-        return new HarnessInteractiveScenarioReport
+        var report = new HarnessInteractiveScenarioReport
         {
             SessionId = tree.SessionId,
             Mode = mode.ToWireString(),
             Run = run,
             UsageSummary = usageSummary,
+        };
+        var persistedReport = HarnessRunReportWriter.WriteInteractiveReport(
+            _providerHost.ArtifactStore,
+            report);
+
+        return report with
+        {
+            PersistedReport = persistedReport,
         };
     }
 
@@ -633,4 +651,5 @@ public sealed record HarnessInteractiveScenarioReport
     public required string Mode { get; init; }
     public required DualSidedHarnessRun Run { get; init; }
     public required SessionUsageSummary UsageSummary { get; init; }
+    public HarnessPersistedRunReport? PersistedReport { get; init; }
 }

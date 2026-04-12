@@ -67,6 +67,8 @@ public sealed record HarnessCollectedSessionMessageVariant
 
 public sealed record HarnessAppTrace
 {
+    public string? RunId { get; init; }
+    public IReadOnlyList<string> RelatedProviderTraceIds { get; init; } = [];
     public required Guid SessionId { get; init; }
     public required string Mode { get; init; }
     public required string FinalContent { get; init; }
@@ -121,6 +123,8 @@ public sealed record HarnessPersistedMessageVariantTrace(
 
 public sealed record HarnessArtifactTrace
 {
+    public string? RunId { get; init; }
+    public IReadOnlyList<string> RelatedProviderTraceIds { get; init; } = [];
     public required string RootPath { get; init; }
     public required IReadOnlyList<HarnessArtifactSnapshot> Snapshots { get; init; }
 }
@@ -159,6 +163,8 @@ public sealed record HarnessCollectedForgeEvent
 
 public sealed record HarnessForgeAppTrace
 {
+    public string? RunId { get; init; }
+    public IReadOnlyList<string> RelatedProviderTraceIds { get; init; } = [];
     public required string ProjectName { get; init; }
     public required string Operation { get; init; }
     public required IReadOnlyList<HarnessForgeTraceEvent> Events { get; init; }

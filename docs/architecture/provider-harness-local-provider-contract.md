@@ -105,8 +105,27 @@ The trace captures:
 - total duration
 
 Provider-side traces are intentionally separate from app-side debug-bridge or
-session traces. Later evaluator work will compare them instead of collapsing
-them into one blended log.
+session traces. Later evaluator work compares them instead of collapsing them
+into one blended log.
+
+## Artifact Directory
+
+Each harness host now creates a dedicated testing-side run directory under the
+system temp root:
+
+- `.../quillforge-harness-runs/<timestamp>-<scenario>-<runId>/`
+
+The current layout reserves stable slots for later dual-sided work:
+
+- `run-manifest.json`
+- `provider/traces/*.json`
+- `app/`
+- `artifacts/`
+- `reports/`
+
+`run-manifest.json` records the schema version, run id, scenario name, and the
+provider trace files written for that run. Provider trace JSON files are stored
+separately from normal QuillForge session/config storage.
 
 ## Current Guarantees
 
@@ -116,13 +135,13 @@ The current foundation proves:
 - normal non-streaming completions work through `ProviderRegistry`
 - reasoning/tool-call streaming works through the reasoning adapter path
 - provider-side traces capture raw payloads and emitted frames
+- provider-side traces persist as stable JSON artifacts in a dedicated harness-run directory
 - scripted disconnects are observable as provider-side faults
 
 ## Deferred Work
 
 The following items belong to later harness tasks:
 
-- persistent trace artifact storage under `user/data/harness-runs/`
 - dual-sided evaluator documents and structural assertions
 - scenario-file loading beyond in-code scripted fixtures
 - richer live-model agent-backed provider workers behind `IHarnessResponseSource`

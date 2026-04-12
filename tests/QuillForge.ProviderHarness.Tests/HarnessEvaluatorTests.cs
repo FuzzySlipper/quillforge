@@ -1,3 +1,6 @@
+using System.Text.Json;
+using QuillForge.Core.Models;
+
 namespace QuillForge.ProviderHarness.Tests;
 
 public sealed class HarnessEvaluatorTests : IDisposable
@@ -303,5 +306,102 @@ public sealed class HarnessEvaluatorTests : IDisposable
 
         Assert.Equal(HarnessEvaluationStatus.Passed, result.Status);
         Assert.Empty(result.Findings);
+    }
+
+    [Fact]
+    public async Task RunReportWriter_PersistsInteractiveJsonAndMarkdownWithStableSchemaFields()
+    {
+        var artifactStore = new HarnessRunArtifactStore("report-workflow", _tempDir);
+        var providerTrace = new HarnessProviderTrace
+        {
+            TraceId = "provider-1",
+            ScenarioName = "interactive/guide",
+            StartedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Method = "POST",
+            Path = "/v1/chat/completions",
+            RawRequestBody = "{\"messages\":[{\"role\":\"user\",\"content\":\"Where should I start?\"}]}",
+            Model = "orchestrator-model",
+            Stream = true,
+            MessageCount = 1,
+            ToolCount = 0,
+            Messages = [new HarnessMessageSummary("user", "Where should I start?")],
+            HasAuthorizationHeader = true,
+            ContentType = "application/json",
+            UserAgent = "test",
+            ResponseMode = HarnessResponseMode.ScriptedStream,
+            StatusCode = 200,
+            EmittedFrames = [],
+            TextDeltas = ["Start with Guide mode."],
+            Usage = new HarnessUsage(12, 5),
+            FinalContent = "Start with Guide mode.",
+            FinishReason = "stop",
+            Fault = null,
+            Error = null,
+            DurationMs = 5,
+        };
+        artifactStore.PersistProviderTrace(providerTrace);
+
+        var scenarioReport = new HarnessInteractiveScenarioReport
+        {
+            SessionId = Guid.CreateVersion7(),
+            Mode = "guide",
+            Run = new DualSidedHarnessRun
+            {
+                ScenarioName = "interactive/guide",
+                ProviderTraces = [providerTrace],
+                AppTrace = new HarnessAppTrace
+                {
+                    SessionId = Guid.CreateVersion7(),
+                    Mode = "guide",
+                    FinalContent = "Start with Guide mode.",
+                    StopReason = "end_turn",
+                    MessageCount = 2,
+                    ToolRounds = 0,
+                    Usage = new HarnessUsage(12, 5),
+                },
+            },
+            UsageSummary = new SessionUsageSummary
+            {
+                TotalInputTokens = 12,
+                TotalOutputTokens = 5,
+                TotalRequests = 1,
+                ByAgent =
+                [
+                    new AgentUsageEntry
+                    {
+                        AgentName = "orchestrator",
+                        InputTokens = 12,
+                        OutputTokens = 5,
+                        RequestCount = 1,
+                    },
+                ],
+            },
+        };
+
+        var persisted = HarnessRunReportWriter.WriteInteractiveReport(artifactStore, scenarioReport);
+        var jsonPath = Path.Combine(
+            artifactStore.RunDirectory,
+            persisted.JsonReportPath!.Replace('/', Path.DirectorySeparatorChar));
+        var markdownPath = Path.Combine(
+            artifactStore.RunDirectory,
+            persisted.MarkdownReportPath!.Replace('/', Path.DirectorySeparatorChar));
+
+        Assert.True(File.Exists(jsonPath));
+        Assert.True(File.Exists(markdownPath));
+
+        using var reportDocument = JsonDocument.Parse(await File.ReadAllTextAsync(jsonPath));
+        Assert.Equal(HarnessRunReportWriter.SchemaVersion, reportDocument.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal("interactive", reportDocument.RootElement.GetProperty("kind").GetString());
+        Assert.Equal("captured", reportDocument.RootElement.GetProperty("status").GetString());
+        Assert.Single(reportDocument.RootElement.GetProperty("providerTraceFiles").EnumerateArray());
+        Assert.Equal("app/interactive-guide-trace.json", reportDocument.RootElement.GetProperty("appTraceFile").GetString());
+        Assert.Equal(1, reportDocument.RootElement.GetProperty("usageSummary").GetProperty("totalRequests").GetInt32());
+
+        var markdown = await File.ReadAllTextAsync(markdownPath);
+        Assert.Contains("# Harness Report: interactive/guide", markdown);
+        Assert.Contains("Status: `captured`", markdown);
+        Assert.Contains("provider/traces/", markdown);
+        Assert.Contains("Session usage", markdown);
     }
 }

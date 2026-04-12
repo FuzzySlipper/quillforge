@@ -12,4 +12,5 @@ public sealed record HarnessForgePhaseReport
     public required string PhaseName { get; init; }
     public required DualSidedHarnessRun Run { get; init; }
     public required HarnessEvaluationResult Evaluation { get; init; }
+    public HarnessPersistedRunReport? PersistedReport { get; init; }
 }

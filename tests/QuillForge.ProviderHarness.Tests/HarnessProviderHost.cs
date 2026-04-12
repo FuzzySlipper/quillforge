@@ -33,6 +33,7 @@ public sealed class HarnessProviderHost : IAsyncDisposable
 
     public IHarnessResponseSource ResponseSource { get; }
     public HarnessTraceStore TraceStore { get; }
+    public HarnessRunArtifactStore ArtifactStore => TraceStore.ArtifactStore;
     public required Uri BaseUri { get; init; }
 
     public Uri OpenAiBaseUri => new(BaseUri, "v1/");
@@ -62,7 +63,8 @@ public sealed class HarnessProviderHost : IAsyncDisposable
             ["Kestrel:Endpoints:Http:Url"] = $"http://127.0.0.1:{port}",
         });
 
-        var traceStore = new HarnessTraceStore();
+        var artifactStore = new HarnessRunArtifactStore(responseSource.ScenarioName);
+        var traceStore = new HarnessTraceStore(artifactStore);
 
         builder.Services.AddSingleton<IHarnessResponseSource>(responseSource);
         builder.Services.AddSingleton(traceStore);

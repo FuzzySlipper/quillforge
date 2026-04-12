@@ -19,6 +19,71 @@ Implemented foundation for tasks `579` through `581`.
 - `docs/architecture/profile-session-conversation-ownership.md`
 - Den document `testing-strategy-analysis-2026-04`
 
+## Current Forge Fixture Shape
+
+Synthetic Forge scenarios are now expressed as typed
+`HarnessForgeScenarioFixture` objects in the harness test project.
+
+The fixture currently owns:
+
+- project name
+- premise
+- provider script selection via `HarnessProviderScenario`
+- ordered phase list
+- per-phase artifact targets
+- per-phase structural expectations
+
+`HarnessForgePhaseFixture` keeps phase intent explicit:
+
+- operation (`design`, `start`, `approve`)
+- artifact paths to capture
+- expected request sections
+- expected manifest stage / paused state
+- expected chapter ids
+- expected artifact files
+- optional pause-surfaced requirement
+
+The canonical first scenario is `HarnessForgeScenarioFixtures.CreateCanonicalPauseResume(...)`.
+Tests round-trip it through JSON before execution so the fixture shape is not
+only an in-memory convenience.
+
+When extending the fixture format:
+
+- add additive fields first
+- keep expectations structural rather than semantic free-form judgments
+- translate new expectation fields into `IHarnessAssertion` instances in one place
+- avoid bypassing the typed fixture by embedding ad hoc phase logic directly in tests
+
+## Current Regression Lane
+
+The current repeatable entrypoint is the harness test project itself:
+
+```bash
+dotnet test tests/QuillForge.ProviderHarness.Tests/QuillForge.ProviderHarness.Tests.csproj
+```
+
+That suite currently includes:
+
+- local harness-provider transport coverage
+- interactive layered-call cost profiles
+- canonical Forge pause/resume regression coverage
+- exploratory worker-backed harness coverage
+- persisted report and mismatch-report checks
+
+When a harness run fails, inspect the dedicated run directory under the system
+temp root:
+
+- `quillforge-harness-runs/<timestamp>-<scenario>-<runId>/run-manifest.json`
+- `.../provider/traces/*.json`
+- `.../app/*.json`
+- `.../artifacts/*.json`
+- `.../reports/*.json`
+
+Start with the markdown summary in `reports/`, then move to the linked JSON
+artifacts for the smallest useful evidence slice. The regression lane is meant
+to fail with those persisted artifacts available, rather than only a bare test
+assertion and stack trace.
+
 ## Purpose
 
 This document defines a durable implementation plan for a testing harness that

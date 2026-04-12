@@ -90,6 +90,30 @@ public sealed class HarnessProviderHostTests
         Assert.Equal("system", trace.Messages[0].Role);
         Assert.Equal("user", trace.Messages[1].Role);
         Assert.Contains("Say hello from the local harness.", trace.RawRequestBody, StringComparison.Ordinal);
+
+        Assert.True(Directory.Exists(host.ArtifactStore.RunDirectory));
+        var manifestPath = Path.Combine(host.ArtifactStore.RunDirectory, "run-manifest.json");
+        Assert.True(File.Exists(manifestPath));
+
+        using var manifestDocument = JsonDocument.Parse(await File.ReadAllTextAsync(manifestPath));
+        Assert.Equal(host.ArtifactStore.RunId, manifestDocument.RootElement.GetProperty("runId").GetString());
+        Assert.Equal("custom-provider-complete", manifestDocument.RootElement.GetProperty("scenarioName").GetString());
+
+        var providerTraceFiles = manifestDocument.RootElement.GetProperty("providerTraceFiles").EnumerateArray().ToList();
+        Assert.Single(providerTraceFiles);
+
+        var traceRelativePath = providerTraceFiles[0].GetProperty("relativePath").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(traceRelativePath));
+
+        var persistedTracePath = Path.Combine(
+            host.ArtifactStore.RunDirectory,
+            traceRelativePath!.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(File.Exists(persistedTracePath));
+
+        using var persistedTraceDocument = JsonDocument.Parse(await File.ReadAllTextAsync(persistedTracePath));
+        Assert.Equal("custom-provider-complete", persistedTraceDocument.RootElement.GetProperty("scenarioName").GetString());
+        Assert.Equal("harness-basic", persistedTraceDocument.RootElement.GetProperty("model").GetString());
+        Assert.Equal("Hello from the harness provider.", persistedTraceDocument.RootElement.GetProperty("finalContent").GetString());
     }
 
     [Fact]

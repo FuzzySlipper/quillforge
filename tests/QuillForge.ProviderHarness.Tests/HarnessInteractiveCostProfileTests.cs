@@ -32,9 +32,17 @@ public sealed class HarnessInteractiveCostProfileTests
         Assert.Equal("writer", report.Mode);
         Assert.Equal(ExpectedModelSequence, report.Run.ProviderTraces.Select(trace => trace.Model).ToArray());
         Assert.Equal(8, report.Run.ProviderTraces.Count);
+        Assert.Equal(providerHost.ArtifactStore.RunId, report.Run.RunId);
+        Assert.Equal(
+            report.Run.ProviderTraces.Select(trace => trace.TraceId).ToArray(),
+            report.Run.AppTrace!.RelatedProviderTraceIds.ToArray());
         Assert.Equal(8, report.UsageSummary.TotalRequests);
         Assert.Equal(1, report.Run.AppTrace?.ToolRounds);
         Assert.Equal("pendingreview", report.Run.AppTrace?.WriterState);
+        Assert.NotNull(report.PersistedReport);
+        Assert.Equal(8, report.PersistedReport!.ProviderTraceFiles.Count);
+        Assert.Equal("captured", report.PersistedReport.Status);
+        Assert.False(string.IsNullOrWhiteSpace(report.PersistedReport.MarkdownReportPath));
         Assert.Equal(
             new[]
             {
@@ -61,9 +69,16 @@ public sealed class HarnessInteractiveCostProfileTests
         Assert.Equal("roleplay", report.Mode);
         Assert.Equal(ExpectedModelSequence, report.Run.ProviderTraces.Select(trace => trace.Model).ToArray());
         Assert.Equal(8, report.Run.ProviderTraces.Count);
+        Assert.Equal(providerHost.ArtifactStore.RunId, report.Run.RunId);
+        Assert.Equal(
+            report.Run.ProviderTraces.Select(trace => trace.TraceId).ToArray(),
+            report.Run.AppTrace!.RelatedProviderTraceIds.ToArray());
         Assert.Equal(8, report.UsageSummary.TotalRequests);
         Assert.Equal(1, report.Run.AppTrace?.ToolRounds);
         Assert.Equal("idle", report.Run.AppTrace?.WriterState);
+        Assert.NotNull(report.PersistedReport);
+        Assert.Equal(8, report.PersistedReport!.ProviderTraceFiles.Count);
+        Assert.Equal("captured", report.PersistedReport.Status);
         Assert.Equal(
             new[]
             {

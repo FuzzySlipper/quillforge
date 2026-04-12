@@ -303,12 +303,21 @@ public sealed class HarnessTraceStore
 {
     private readonly List<HarnessProviderTrace> _traces = [];
     private readonly Lock _lock = new();
+    private readonly HarnessRunArtifactStore _artifactStore;
+
+    public HarnessTraceStore(HarnessRunArtifactStore artifactStore)
+    {
+        _artifactStore = artifactStore;
+    }
+
+    public HarnessRunArtifactStore ArtifactStore => _artifactStore;
 
     public void Append(HarnessProviderTrace trace)
     {
         lock (_lock)
         {
             _traces.Add(trace);
+            _artifactStore.PersistProviderTrace(trace);
         }
     }
 

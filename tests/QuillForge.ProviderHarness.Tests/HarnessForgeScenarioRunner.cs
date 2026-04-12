@@ -1,10 +1,5 @@
-using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core;
@@ -33,6 +28,7 @@ public sealed class HarnessForgeScenarioRunner : IAsyncDisposable
     private readonly HarnessProviderHost _providerHost;
     private readonly string _contentRoot;
     private readonly WebApplication _app;
+    private readonly HarnessDebugBridgeDriver _bridge;
 
     public HarnessForgeScenarioRunner(HarnessProviderHost providerHost)
     {
@@ -40,6 +36,7 @@ public sealed class HarnessForgeScenarioRunner : IAsyncDisposable
         _contentRoot = Path.Combine(Path.GetTempPath(), $"quillforge-harness-forge-{Guid.NewGuid():N}");
         SeedContentRoot(_contentRoot);
         _app = BuildApp();
+        _bridge = new HarnessDebugBridgeDriver(_app);
     }
 
     public async Task<HarnessForgeScenarioReport> RunCanonicalPauseResumeScenarioAsync(
@@ -47,95 +44,33 @@ public sealed class HarnessForgeScenarioRunner : IAsyncDisposable
         string premise,
         CancellationToken ct = default)
     {
-        await InvokeJsonAsync<DebugBridgeForgeCreateResponse>(
-            "POST",
-            "/api/debug/bridge/forge/create",
-            JsonSerializer.Serialize(new
-            {
-                name = projectName,
-                premise,
-            }),
-            ct);
+        var fixture = HarnessForgeScenarioFixtures.CreateCanonicalPauseResume(projectName, premise);
+        return await RunScenarioAsync(fixture, ct);
+    }
+
+    public async Task<HarnessForgeScenarioReport> RunScenarioAsync(
+        HarnessForgeScenarioFixture fixture,
+        CancellationToken ct = default)
+    {
+        await _bridge.CreateForgeProjectAsync(fixture.ProjectName, fixture.Premise, ct);
 
         var phases = new List<HarnessForgePhaseReport>();
-
-        var designPhase = await RunPhaseAsync(
-            phaseName: "design",
-            projectName: projectName,
-            route: $"/api/debug/bridge/forge/{projectName}/design",
-            artifactPaths:
-            [
-                $"{ContentPaths.Forge}/{projectName}/manifest.json",
-                $"{ContentPaths.Forge}/{projectName}/plan/premise.md",
-                $"{ContentPaths.Forge}/{projectName}/plan/outline.md",
-                $"{ContentPaths.Forge}/{projectName}/plan/style.md",
-                $"{ContentPaths.Forge}/{projectName}/plan/bible.md",
-                $"{ContentPaths.Forge}/{projectName}/plan/ch-01-brief.md",
-            ],
-            assertions:
-            [
-                new ExpectedProviderRequestSectionAssertion("A jewel thief is forced into an arranged marriage during the winter gala."),
-                new ExpectedForgeManifestStageAssertion("Writing", expectedPaused: true),
-                new ExpectedForgeChapterDiscoveredAssertion("ch-01"),
-                new ExpectedForgeStatusMatchesManifestAssertion(),
-                new ExpectedArtifactPresenceAssertion($"{ContentPaths.Forge}/{projectName}/plan/outline.md"),
-                new ExpectedArtifactPresenceAssertion($"{ContentPaths.Forge}/{projectName}/plan/style.md"),
-                new ExpectedArtifactPresenceAssertion($"{ContentPaths.Forge}/{projectName}/plan/bible.md"),
-                new ExpectedArtifactPresenceAssertion($"{ContentPaths.Forge}/{projectName}/plan/ch-01-brief.md"),
-            ],
-            ct);
-        phases.Add(designPhase);
-
-        var startPhase = await RunPhaseAsync(
-            phaseName: "start",
-            projectName: projectName,
-            route: $"/api/debug/bridge/forge/{projectName}/start",
-            artifactPaths:
-            [
-                $"{ContentPaths.Forge}/{projectName}/manifest.json",
-                $"{ContentPaths.Forge}/{projectName}/drafts/ch-01.md",
-                $"{ContentPaths.Forge}/{projectName}/run-lore.md",
-            ],
-            assertions:
-            [
-                new ExpectedProviderRequestSectionAssertion("## Chapter Brief"),
-                new ExpectedForgeManifestStageAssertion("Review", expectedPaused: true),
-                new ExpectedForgeChapterDiscoveredAssertion("ch-01"),
-                new ExpectedForgePauseSurfacedAssertion(),
-                new ExpectedForgeStatusMatchesManifestAssertion(),
-                new ExpectedArtifactPresenceAssertion($"{ContentPaths.Forge}/{projectName}/drafts/ch-01.md"),
-            ],
-            ct);
-        phases.Add(startPhase);
-
-        if (startPhase.Run.ForgeManifest?.Paused == true)
+        foreach (var phase in fixture.Phases)
         {
-            var approvePhase = await RunPhaseAsync(
-                phaseName: "approve",
-                projectName: projectName,
-                route: $"/api/debug/bridge/forge/{projectName}/approve",
-                artifactPaths:
-                [
-                    $"{ContentPaths.Forge}/{projectName}/manifest.json",
-                    $"{ContentPaths.Forge}/{projectName}/output/story.md",
-                    $"{ContentPaths.Forge}/{projectName}/run-lore.md",
-                ],
-                assertions:
-                [
-                    new ExpectedProviderRequestSectionAssertion("## Chapter Draft"),
-                    new ExpectedForgeManifestStageAssertion("Done", expectedPaused: false),
-                    new ExpectedForgeStatusMatchesManifestAssertion(),
-                    new ExpectedArtifactPresenceAssertion($"{ContentPaths.Forge}/{projectName}/output/story.md"),
-                    new ExpectedArtifactPresenceAssertion($"{ContentPaths.Forge}/{projectName}/run-lore.md"),
-                ],
+            var phaseReport = await RunPhaseAsync(
+                phaseName: phase.Name,
+                projectName: fixture.ProjectName,
+                operation: phase.Operation,
+                artifactPaths: phase.ArtifactPaths,
+                assertions: BuildAssertions(phase.Expectations),
                 ct);
-            phases.Add(approvePhase);
+            phases.Add(phaseReport);
         }
 
         return new HarnessForgeScenarioReport
         {
-            ScenarioName = "forge-pause-resume",
-            ProjectName = projectName,
+            ScenarioName = fixture.Name,
+            ProjectName = fixture.ProjectName,
             Phases = phases,
         };
     }
@@ -152,7 +87,7 @@ public sealed class HarnessForgeScenarioRunner : IAsyncDisposable
     private async Task<HarnessForgePhaseReport> RunPhaseAsync(
         string phaseName,
         string projectName,
-        string route,
+        string operation,
         IReadOnlyList<string> artifactPaths,
         IReadOnlyList<IHarnessAssertion> assertions,
         CancellationToken ct)
@@ -160,23 +95,35 @@ public sealed class HarnessForgeScenarioRunner : IAsyncDisposable
         var providerTraceStartIndex = _providerHost.TraceStore.Snapshot().Count;
         var startedAt = DateTimeOffset.UtcNow;
 
-        var debugResponse = await InvokeJsonAsync<DebugBridgeForgeRunResponse>(
-            "POST",
-            route,
-            null,
-            ct);
+        DebugBridgeForgeRunResponse debugResponse = operation switch
+        {
+            "design" => await _bridge.RunForgeDesignAsync(projectName, ct),
+            "start" => await _bridge.RunForgeStartAsync(projectName, ct),
+            "approve" => await _bridge.RunForgeApproveAsync(projectName, ct),
+            _ => throw new InvalidOperationException($"Unsupported Forge operation '{operation}'."),
+        };
         var completedAt = DateTimeOffset.UtcNow;
 
         var providerTraces = _providerHost.TraceStore.Snapshot()
             .Skip(providerTraceStartIndex)
             .ToList();
+        var providerTraceIds = providerTraces.Select(trace => trace.TraceId).ToList();
         var collectedForgeRun = ToCollectedForgeRun(debugResponse);
-        var forgeTrace = HarnessAppTraceBuilder.FromCollectedForgeRun(collectedForgeRun);
+        var forgeTrace = HarnessAppTraceBuilder.FromCollectedForgeRun(collectedForgeRun) with
+        {
+            RunId = _providerHost.ArtifactStore.RunId,
+            RelatedProviderTraceIds = providerTraceIds,
+        };
         var manifest = await LoadManifestSnapshotAsync(projectName, ct);
-        var artifactTrace = await HarnessArtifactCollector.CaptureAsync(_contentRoot, artifactPaths, ct);
+        var artifactTrace = (await HarnessArtifactCollector.CaptureAsync(_contentRoot, artifactPaths, ct)) with
+        {
+            RunId = _providerHost.ArtifactStore.RunId,
+            RelatedProviderTraceIds = providerTraceIds,
+        };
 
         var run = new DualSidedHarnessRun
         {
+            RunId = _providerHost.ArtifactStore.RunId,
             ScenarioName = $"forge-pause-resume/{phaseName}",
             StartedAt = startedAt,
             CompletedAt = completedAt,
@@ -187,12 +134,57 @@ public sealed class HarnessForgeScenarioRunner : IAsyncDisposable
         };
 
         var evaluation = new HarnessEvaluator().Evaluate(run, assertions);
+        var persistedReport = HarnessRunReportWriter.WriteForgePhaseReport(
+            _providerHost.ArtifactStore,
+            phaseName,
+            run,
+            evaluation);
         return new HarnessForgePhaseReport
         {
             PhaseName = phaseName,
             Run = run,
             Evaluation = evaluation,
+            PersistedReport = persistedReport,
         };
+    }
+
+    private static IReadOnlyList<IHarnessAssertion> BuildAssertions(HarnessForgePhaseExpectations expectations)
+    {
+        var assertions = new List<IHarnessAssertion>();
+
+        foreach (var section in expectations.ProviderRequestSections)
+        {
+            assertions.Add(new ExpectedProviderRequestSectionAssertion(section));
+        }
+
+        if (!string.IsNullOrWhiteSpace(expectations.ExpectedManifestStage))
+        {
+            assertions.Add(new ExpectedForgeManifestStageAssertion(
+                expectations.ExpectedManifestStage,
+                expectations.ExpectedPaused));
+        }
+
+        foreach (var chapterId in expectations.ExpectedChapterIds)
+        {
+            assertions.Add(new ExpectedForgeChapterDiscoveredAssertion(chapterId));
+        }
+
+        if (expectations.RequirePauseSurfaced)
+        {
+            assertions.Add(new ExpectedForgePauseSurfacedAssertion());
+        }
+
+        if (expectations.RequireStatusMatchesManifest)
+        {
+            assertions.Add(new ExpectedForgeStatusMatchesManifestAssertion());
+        }
+
+        foreach (var artifactPath in expectations.ExpectedArtifactPaths)
+        {
+            assertions.Add(new ExpectedArtifactPresenceAssertion(artifactPath));
+        }
+
+        return assertions;
     }
 
     private async Task<HarnessForgeManifestSnapshot> LoadManifestSnapshotAsync(
@@ -436,120 +428,4 @@ public sealed class HarnessForgeScenarioRunner : IAsyncDisposable
             """);
     }
 
-    private async Task<T> InvokeJsonAsync<T>(
-        string method,
-        string route,
-        string? jsonBody,
-        CancellationToken ct)
-    {
-        var (statusCode, body) = await InvokeAsync(method, route, jsonBody, ct);
-        if (statusCode is < 200 or >= 300)
-        {
-            throw new InvalidOperationException(
-                $"Request {method} {route} failed with status {statusCode}: {body}");
-        }
-
-        return JsonSerializer.Deserialize<T>(body, JsonOptions)
-            ?? throw new InvalidOperationException($"Could not deserialize response for {method} {route}.");
-    }
-
-    private async Task<(int StatusCode, string Body)> InvokeAsync(
-        string method,
-        string route,
-        string? jsonBody,
-        CancellationToken ct)
-    {
-        var endpoint = ((IEndpointRouteBuilder)_app).DataSources
-            .SelectMany(source => source.Endpoints)
-            .OfType<RouteEndpoint>()
-            .First(candidate =>
-                RouteMatches(candidate.RoutePattern, route)
-                && EndpointSupportsMethod(candidate, method));
-
-        var context = new DefaultHttpContext
-        {
-            RequestServices = _app.Services,
-        };
-        context.Request.Method = method;
-        context.Request.Scheme = "http";
-        context.Request.Host = new HostString("localhost");
-        context.Request.Path = route;
-        ApplyRouteValues(context, endpoint.RoutePattern, route);
-        context.Response.Body = new MemoryStream();
-        context.RequestAborted = ct;
-
-        if (jsonBody is not null)
-        {
-            var bodyBytes = Encoding.UTF8.GetBytes(jsonBody);
-            context.Request.ContentType = "application/json";
-            context.Request.ContentLength = bodyBytes.Length;
-            context.Request.Body = new MemoryStream(bodyBytes);
-            context.Features.Set<IHttpRequestBodyDetectionFeature>(new TestRequestBodyDetectionFeature());
-        }
-
-        var requestDelegate = endpoint.RequestDelegate
-            ?? throw new InvalidOperationException($"No request delegate found for {method} {route}.");
-        await requestDelegate(context);
-
-        context.Response.Body.Position = 0;
-        using var reader = new StreamReader(context.Response.Body, Encoding.UTF8, leaveOpen: true);
-        return (context.Response.StatusCode, await reader.ReadToEndAsync(ct));
-    }
-
-    private static bool RouteMatches(RoutePattern pattern, string route)
-    {
-        var rawText = pattern.RawText;
-        if (!string.IsNullOrWhiteSpace(rawText)
-            && string.Equals(rawText.TrimStart('/'), route.TrimStart('/'), StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        var patternSegments = pattern.PathSegments;
-        var routeSegments = route.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (patternSegments.Count != routeSegments.Length)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < patternSegments.Count; i++)
-        {
-            var literalParts = patternSegments[i].Parts.OfType<RoutePatternLiteralPart>().ToList();
-            if (literalParts.Count == 0)
-            {
-                continue;
-            }
-
-            var literal = string.Concat(literalParts.Select(part => part.Content));
-            if (!string.Equals(literal, routeSegments[i], StringComparison.Ordinal))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool EndpointSupportsMethod(RouteEndpoint endpoint, string method)
-    {
-        var metadata = endpoint.Metadata.GetMetadata<HttpMethodMetadata>();
-        return metadata is null || metadata.HttpMethods.Contains(method, StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static void ApplyRouteValues(HttpContext context, RoutePattern pattern, string route)
-    {
-        var routeSegments = route.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        for (var i = 0; i < pattern.PathSegments.Count && i < routeSegments.Length; i++)
-        {
-            foreach (var parameter in pattern.PathSegments[i].Parts.OfType<RoutePatternParameterPart>())
-            {
-                context.Request.RouteValues[parameter.Name] = routeSegments[i];
-            }
-        }
-    }
-
-    private sealed class TestRequestBodyDetectionFeature : IHttpRequestBodyDetectionFeature
-    {
-        public bool CanHaveBody => true;
-    }
 }
