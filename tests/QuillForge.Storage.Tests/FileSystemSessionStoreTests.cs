@@ -34,7 +34,19 @@ public class FileSystemSessionStoreTests : IDisposable
         var tree = new ConversationTree(Guid.CreateVersion7(), "Test Session",
             _loggerFactory.CreateLogger<ConversationTree>());
         tree.Append(tree.RootId, "user", new MessageContent("Hello!"));
-        tree.Append(tree.ActiveLeafId, "assistant", new MessageContent("Hi there!"));
+        tree.Append(
+            tree.ActiveLeafId,
+            "assistant",
+            new MessageContent("Hi there!"),
+            new MessageMetadata
+            {
+                StopReason = StopReason.EndTurn,
+                Reasoning = "Keep the greeting brief.",
+                ProviderReplay = new ReasoningReplayEnvelope(
+                    "Hi there!",
+                    "Keep the greeting brief.",
+                    []),
+            });
 
         await _store.SaveAsync(tree);
         var loaded = await _store.LoadAsync(tree.SessionId);
@@ -47,6 +59,10 @@ public class FileSystemSessionStoreTests : IDisposable
         Assert.Equal(2, thread.Count);
         Assert.Equal("Hello!", thread[0].Content.GetText());
         Assert.Equal("Hi there!", thread[1].Content.GetText());
+        Assert.Equal("Keep the greeting brief.", thread[1].Metadata?.Reasoning);
+        var replay = Assert.IsType<ReasoningReplayEnvelope>(thread[1].Metadata?.ProviderReplay);
+        Assert.Equal("Hi there!", replay.Content);
+        Assert.Equal("Keep the greeting brief.", replay.ReasoningContent);
     }
 
     [Fact]

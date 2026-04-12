@@ -583,6 +583,7 @@ function App() {
           content: variant.content,
           responseType: variant.responseType,
           portrait: variant.portrait,
+          reasoning: variant.reasoning,
           activeVariant: next,
         };
       }),
@@ -827,11 +828,13 @@ function App() {
             role: m.role as "user" | "assistant",
             content: m.content,
             timestamp: new Date(m.createdAt).getTime() || Date.now(),
+            reasoning: m.reasoning ?? null,
             parentId: m.parentId ?? undefined,
             variants: m.variants?.map((v) => ({
               content: v.content,
               responseType: undefined,
               timestamp: new Date(v.createdAt).getTime(),
+              reasoning: v.reasoning ?? null,
             })),
             activeVariant: m.variants ? 0 : undefined,
           }));

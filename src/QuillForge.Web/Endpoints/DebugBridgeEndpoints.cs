@@ -56,7 +56,7 @@ public static class DebugBridgeEndpoints
 
             var thread = tree.ToFlatThread();
             var messages = thread
-                .Select(n => new CompletionMessage(n.Role, n.Content))
+                .Select(n => n.ToCompletionMessage())
                 .ToList();
             var lastAssistantResponse = thread
                 .LastOrDefault(n => string.Equals(n.Role, "assistant", StringComparison.OrdinalIgnoreCase))
@@ -85,6 +85,8 @@ public static class DebugBridgeEndpoints
                 InputTokens = response.Usage.InputTokens,
                 OutputTokens = response.Usage.OutputTokens,
                 StopReason = response.StopReason,
+                Reasoning = response.Reasoning,
+                ProviderReplay = response.ProviderReplay,
             });
 
             await sessionStore.SaveAsync(tree, ct);
@@ -112,6 +114,7 @@ public static class DebugBridgeEndpoints
                 },
                 Mode = sessionState.Mode.ActiveMode.ToWireString(),
                 MessageCount = tree.ToFlatThread().Count,
+                Reasoning = response.Reasoning,
             });
         });
 
@@ -149,7 +152,7 @@ public static class DebugBridgeEndpoints
             var appendParentId = tree.ActiveLeafId;
 
             var thread = tree.ToFlatThread();
-            var messages = thread.Select(n => new CompletionMessage(n.Role, n.Content)).ToList();
+            var messages = thread.Select(n => n.ToCompletionMessage()).ToList();
             var lastAssistantResponse = thread
                 .LastOrDefault(n => string.Equals(n.Role, "assistant", StringComparison.OrdinalIgnoreCase))
                 ?.Content.GetText();
@@ -167,10 +170,12 @@ public static class DebugBridgeEndpoints
             var conductor = prepared.Conductor;
 
             var assistantText = new System.Text.StringBuilder();
+            var assistantReasoning = new System.Text.StringBuilder();
             StopReason? stopReason = null;
             int inputTokens = 0, outputTokens = 0;
             int toolRounds = 0;
             var collectedEvents = new List<DebugBridgeStreamEventDto>();
+            ProviderReplayEnvelope? providerReplay = null;
 
             var tools = toolHandlers.ToList();
             await foreach (var evt in orchestrator.HandleStreamAsync(
@@ -187,6 +192,8 @@ public static class DebugBridgeEndpoints
                         });
                         break;
                     case ToolCallValidatedEvent tool:
+                        assistantText.Clear();
+                        assistantReasoning.Clear();
                         toolRounds++;
                         collectedEvents.Add(new DebugBridgeStreamEventDto
                         {
@@ -199,6 +206,7 @@ public static class DebugBridgeEndpoints
                         stopReason = done.StopReason;
                         inputTokens = done.Usage.InputTokens;
                         outputTokens = done.Usage.OutputTokens;
+                        providerReplay = done.ProviderReplay;
                         collectedEvents.Add(new DebugBridgeStreamEventDto
                         {
                             Type = "done",
@@ -211,6 +219,7 @@ public static class DebugBridgeEndpoints
                         });
                         break;
                     case ReasoningDeltaEvent reasoning:
+                        assistantReasoning.Append(reasoning.Text);
                         collectedEvents.Add(new DebugBridgeStreamEventDto
                         {
                             Type = "reasoning_delta",
@@ -231,6 +240,7 @@ public static class DebugBridgeEndpoints
 
             // Persist the assistant reply
             Guid? assistantNodeId = null;
+            var finalReasoning = GetReasoningForDisplay(assistantReasoning, providerReplay);
             if (assistantText.Length > 0)
             {
                 var assistantNode = tree.Append(appendParentId, "assistant",
@@ -241,6 +251,8 @@ public static class DebugBridgeEndpoints
                         InputTokens = inputTokens,
                         OutputTokens = outputTokens,
                         StopReason = stopReason,
+                        Reasoning = finalReasoning,
+                        ProviderReplay = providerReplay,
                     });
                 assistantNodeId = assistantNode.Id;
             }
@@ -267,6 +279,7 @@ public static class DebugBridgeEndpoints
                 SessionId = sessionId,
                 Events = collectedEvents,
                 FinalContent = assistantText.ToString(),
+                FinalReasoning = finalReasoning,
                 NodeIds = new DebugBridgeNodeIds
                 {
                     User = userNodeId,
@@ -377,6 +390,7 @@ public static class DebugBridgeEndpoints
                         Role = n.Role,
                         Content = n.Content.GetText(),
                         CreatedAt = n.CreatedAt,
+                        Reasoning = n.Metadata?.Reasoning,
                     }),
                 });
             }
@@ -414,5 +428,19 @@ public static class DebugBridgeEndpoints
                 File = state.Mode.CurrentFile,
             });
         });
+    }
+
+    private static string? GetReasoningForDisplay(
+        System.Text.StringBuilder streamedReasoning,
+        ProviderReplayEnvelope? providerReplay)
+    {
+        if (streamedReasoning.Length > 0)
+        {
+            return streamedReasoning.ToString();
+        }
+
+        return providerReplay is ReasoningReplayEnvelope reasoningReplay
+            ? reasoningReplay.ReasoningContent
+            : null;
     }
 }

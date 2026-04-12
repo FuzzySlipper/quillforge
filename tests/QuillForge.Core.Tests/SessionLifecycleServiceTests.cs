@@ -18,7 +18,19 @@ public sealed class SessionLifecycleServiceTests
             "Original Session",
             NullLogger<ConversationTree>.Instance);
         sourceTree.Append(sourceTree.RootId, "user", new MessageContent("Prompt"));
-        sourceTree.Append(sourceTree.ActiveLeafId, "assistant", new MessageContent("Reply"));
+        sourceTree.Append(
+            sourceTree.ActiveLeafId,
+            "assistant",
+            new MessageContent("Reply"),
+            new MessageMetadata
+            {
+                StopReason = StopReason.EndTurn,
+                Reasoning = "Preserve the explanation.",
+                ProviderReplay = new ReasoningReplayEnvelope(
+                    "Reply",
+                    "Preserve the explanation.",
+                    []),
+            });
         await sessionStore.SaveAsync(sourceTree);
 
         await runtimeStore.SaveAsync(new SessionState
@@ -66,6 +78,9 @@ public sealed class SessionLifecycleServiceTests
         Assert.NotEqual(sourceTree.SessionId, forkedTree.SessionId);
         Assert.Equal("Fork of Original Session", forkedTree.Name);
         Assert.Equal(2, forkedTree.ToFlatThread().Count);
+        Assert.Equal("Preserve the explanation.", forkedTree.ToFlatThread()[1].Metadata?.Reasoning);
+        var replay = Assert.IsType<ReasoningReplayEnvelope>(forkedTree.ToFlatThread()[1].Metadata?.ProviderReplay);
+        Assert.Equal("Preserve the explanation.", replay.ReasoningContent);
         Assert.Equal(Mode.Writer, forkedRuntime.Mode.ActiveMode);
         Assert.Equal("novel", forkedRuntime.Mode.ProjectName);
         Assert.Equal("grim", forkedRuntime.Profile.ProfileId);

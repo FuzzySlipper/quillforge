@@ -82,6 +82,7 @@ public sealed class SessionRoundTripStressTests : IDisposable
         var expectedUserIds = new List<Guid>();
         var expectedAssistantIds = new List<Guid>();
         var expectedAssistantStopReasons = new List<StopReason>();
+        var expectedReasoning = new List<string?>();
 
         for (var turn = 0; turn < turnCount; turn++)
         {
@@ -92,6 +93,7 @@ public sealed class SessionRoundTripStressTests : IDisposable
             expectedUserIds.Add(userNode.Id);
 
             var stopReason = turn % 5 == 4 ? StopReason.MaxTokens : StopReason.EndTurn;
+            var reasoning = $"Reasoning turn {turn}";
             var assistantNode = tree.Append(
                 tree.ActiveLeafId,
                 "assistant",
@@ -102,9 +104,15 @@ public sealed class SessionRoundTripStressTests : IDisposable
                     InputTokens = turn + 10,
                     OutputTokens = turn + 20,
                     StopReason = stopReason,
+                    Reasoning = reasoning,
+                    ProviderReplay = new ReasoningReplayEnvelope(
+                        $"Assistant turn {turn}",
+                        reasoning,
+                        []),
                 });
             expectedAssistantIds.Add(assistantNode.Id);
             expectedAssistantStopReasons.Add(stopReason);
+            expectedReasoning.Add(reasoning);
 
             runtime.Writer.PendingContent = $"Pending draft turn {turn}";
             runtime.Writer.State = turn % 2 == 0 ? WriterState.PendingReview : WriterState.Idle;
@@ -132,6 +140,10 @@ public sealed class SessionRoundTripStressTests : IDisposable
             Assert.Equal($"User turn {turn}", thread[^2].Content.GetText());
             Assert.Equal($"Assistant turn {turn}", thread[^1].Content.GetText());
             Assert.Equal(stopReason, thread[^1].Metadata?.StopReason);
+            Assert.Equal(reasoning, thread[^1].Metadata?.Reasoning);
+            var replay = Assert.IsType<ReasoningReplayEnvelope>(thread[^1].Metadata?.ProviderReplay);
+            Assert.Equal($"Assistant turn {turn}", replay.Content);
+            Assert.Equal(reasoning, replay.ReasoningContent);
             Assert.Equal(expectedAssistantIds[turn], tree.ActiveLeafId);
 
             Assert.Equal(sessionId, runtime.SessionId);
@@ -171,10 +183,15 @@ public sealed class SessionRoundTripStressTests : IDisposable
             .Where(node => string.Equals(node.Role, "assistant", StringComparison.Ordinal))
             .Select(node => node.Metadata?.StopReason ?? StopReason.EndTurn)
             .ToList();
+        var assistantReasoningFromStore = finalThread
+            .Where(node => string.Equals(node.Role, "assistant", StringComparison.Ordinal))
+            .Select(node => node.Metadata?.Reasoning)
+            .ToList();
 
         Assert.Equal(expectedUserIds, userIdsFromStore);
         Assert.Equal(expectedAssistantIds, assistantIdsFromStore);
         Assert.Equal(expectedAssistantStopReasons, assistantStopReasonsFromStore);
+        Assert.Equal(expectedReasoning, assistantReasoningFromStore);
 
         Assert.Equal("Pending draft turn 23", finalRuntime.Writer.PendingContent);
         Assert.Equal(WriterState.Idle, finalRuntime.Writer.State);

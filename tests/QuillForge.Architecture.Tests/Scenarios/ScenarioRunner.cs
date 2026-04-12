@@ -130,7 +130,7 @@ public sealed class ScenarioRunner
         tree.Append(tree.ActiveLeafId, "user", new MessageContent(message));
 
         var thread = tree.ToFlatThread();
-        var messages = thread.Select(n => new CompletionMessage(n.Role, n.Content)).ToList();
+        var messages = thread.Select(n => n.ToCompletionMessage()).ToList();
         var lastAssistant = thread
             .LastOrDefault(n => string.Equals(n.Role, "assistant", StringComparison.OrdinalIgnoreCase))
             ?.Content.GetText();
@@ -147,8 +147,10 @@ public sealed class ScenarioRunner
         var conductor = prepared.Conductor;
 
         var assistantText = new System.Text.StringBuilder();
+        var assistantReasoning = new System.Text.StringBuilder();
         StopReason? stopReason = null;
         var toolsCalled = new List<string>();
+        ProviderReplayEnvelope? providerReplay = null;
 
         await foreach (var evt in _orchestrator.HandleStreamAsync(
             sessionState, conductor, "default", 4096, _tools, messages, context, ct: ct))
@@ -158,20 +160,32 @@ public sealed class ScenarioRunner
                 case TextDeltaEvent text:
                     assistantText.Append(text.Text);
                     break;
+                case ReasoningDeltaEvent reasoning:
+                    assistantReasoning.Append(reasoning.Text);
+                    break;
                 case ToolCallValidatedEvent tool:
+                    assistantText.Clear();
+                    assistantReasoning.Clear();
                     toolsCalled.Add(tool.ToolName);
                     break;
                 case DoneEvent done:
                     stopReason = done.StopReason;
+                    providerReplay = done.ProviderReplay;
                     break;
             }
         }
 
+        var finalReasoning = GetReasoningForDisplay(assistantReasoning, providerReplay);
         if (assistantText.Length > 0)
         {
             tree.Append(tree.ActiveLeafId, "assistant",
                 new MessageContent(assistantText.ToString()),
-                new MessageMetadata { StopReason = stopReason });
+                new MessageMetadata
+                {
+                    StopReason = stopReason,
+                    Reasoning = finalReasoning,
+                    ProviderReplay = providerReplay,
+                });
         }
 
         await _sessionStore.SaveAsync(tree, ct);
@@ -190,6 +204,20 @@ public sealed class ScenarioRunner
             StopReason = (stopReason ?? StopReason.EndTurn).ToWireString(),
             Tree = tree,
         };
+    }
+
+    private static string? GetReasoningForDisplay(
+        System.Text.StringBuilder streamedReasoning,
+        ProviderReplayEnvelope? providerReplay)
+    {
+        if (streamedReasoning.Length > 0)
+        {
+            return streamedReasoning.ToString();
+        }
+
+        return providerReplay is ReasoningReplayEnvelope reasoningReplay
+            ? reasoningReplay.ReasoningContent
+            : null;
     }
 
     private async Task EvaluateExpectationsAsync(

@@ -35,9 +35,16 @@ public sealed class ChatStreamingEndpointTests
                 ParseJson("""{"query":"moon archive"}""")),
             new DoneEvent(StopReason.ToolUse, new TokenUsage(3, 4)));
         completionService.EnqueueStream(
+            new ReasoningDeltaEvent("Answering from the recovered lore."),
             new TextDeltaEvent("Lore "),
             new TextDeltaEvent("answer"),
-            new DoneEvent(StopReason.EndTurn, new TokenUsage(5, 7)));
+            new DoneEvent(StopReason.EndTurn, new TokenUsage(5, 7))
+            {
+                ProviderReplay = new ReasoningReplayEnvelope(
+                    "Lore answer",
+                    "Answering from the recovered lore.",
+                    []),
+            });
 
         await using var app = BuildApp(
             preparedService,
@@ -99,6 +106,7 @@ public sealed class ChatStreamingEndpointTests
         var doneEvent = events.First(evt => evt.Type == "done");
         Assert.Equal(sessionId.ToString(), doneEvent.Payload.GetProperty("sessionId").GetGuid().ToString());
         Assert.Equal("Lore answer", doneEvent.Payload.GetProperty("content").GetString());
+        Assert.Equal("Answering from the recovered lore.", doneEvent.Payload.GetProperty("reasoning").GetString());
         Assert.Equal("end_turn", doneEvent.Payload.GetProperty("stopReason").GetString());
         Assert.Equal("Discussion", doneEvent.Payload.GetProperty("responseType").GetString());
         Assert.Equal(5, doneEvent.Payload.GetProperty("usage").GetProperty("input").GetInt32());
@@ -119,6 +127,9 @@ public sealed class ChatStreamingEndpointTests
         Assert.Equal(assistantNodeId, thread[1].Id);
         Assert.Equal("Lore answer", thread[1].Content.GetText());
         Assert.Equal(StopReason.EndTurn, thread[1].Metadata?.StopReason);
+        Assert.Equal("Answering from the recovered lore.", thread[1].Metadata?.Reasoning);
+        var replay = Assert.IsType<ReasoningReplayEnvelope>(thread[1].Metadata?.ProviderReplay);
+        Assert.Equal("Answering from the recovered lore.", replay.ReasoningContent);
 
         Assert.Single(runtimeService.CaptureCalls);
         Assert.Equal(sessionId, runtimeService.CaptureCalls[0].SessionId);
@@ -188,6 +199,60 @@ public sealed class ChatStreamingEndpointTests
         Assert.Equal("user", thread[0].Role);
         Assert.Empty(runtimeService.CaptureCalls);
         Assert.Equal(1, completionService.StreamRequestCount);
+    }
+
+    [Fact]
+    public async Task ChatStream_WithReloadedReasoningMessage_ReplaysProviderEnvelopeFromPersistedSession()
+    {
+        var preparedService = new PreparedContextService();
+        var runtimeService = new RecordingRuntimeService();
+        var sessionStore = new InMemorySessionStore();
+        var completionService = new ScriptedStreamingCompletionService();
+
+        completionService.EnqueueStream(
+            new TextDeltaEvent("Continued answer"),
+            new DoneEvent(StopReason.EndTurn, new TokenUsage(8, 13)));
+
+        var sessionId = Guid.CreateVersion7();
+        var tree = new ConversationTree(sessionId, "Replay Session", NullLogger<ConversationTree>.Instance);
+        tree.Append(tree.RootId, "user", new MessageContent("What is the archive?"));
+        tree.Append(
+            tree.ActiveLeafId,
+            "assistant",
+            new MessageContent("The archive keeps the old maps."),
+            new MessageMetadata
+            {
+                StopReason = StopReason.EndTurn,
+                Reasoning = "I should mention the maps first.",
+                ProviderReplay = new ReasoningReplayEnvelope(
+                    "The archive keeps the old maps.",
+                    "I should mention the maps first.",
+                    []),
+            });
+        await sessionStore.SaveAsync(tree);
+
+        await using var app = BuildApp(
+            preparedService,
+            runtimeService,
+            sessionStore,
+            completionService,
+            []);
+
+        var response = await InvokePostJsonAsync(
+            app,
+            "/api/chat/stream",
+            $$"""{"sessionId":"{{sessionId}}","message":"And why does that matter?"}""");
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.Equal(1, completionService.StreamRequestCount);
+
+        Assert.Single(completionService.StreamRequestMessages);
+        var replayedAssistantMessage = Assert.Single(
+            completionService.StreamRequestMessages[0],
+            m => m.Role == "assistant");
+        var replay = Assert.IsType<ReasoningReplayEnvelope>(replayedAssistantMessage.ProviderReplay);
+        Assert.Equal("The archive keeps the old maps.", replay.Content);
+        Assert.Equal("I should mention the maps first.", replay.ReasoningContent);
     }
 
     private static WebApplication BuildApp(
@@ -530,6 +595,7 @@ public sealed class ChatStreamingEndpointTests
         private readonly Queue<IReadOnlyList<StreamEvent>> _streamScripts = [];
 
         public int StreamRequestCount { get; private set; }
+        public List<IReadOnlyList<CompletionMessage>> StreamRequestMessages { get; } = [];
 
         public void EnqueueStream(params StreamEvent[] events)
         {
@@ -544,6 +610,12 @@ public sealed class ChatStreamingEndpointTests
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
         {
             StreamRequestCount++;
+            StreamRequestMessages.Add(request.Messages
+                .Select(message => new CompletionMessage(message.Role, message.Content)
+                {
+                    ProviderReplay = message.ProviderReplay,
+                })
+                .ToList());
 
             if (_streamScripts.Count == 0)
             {

@@ -132,7 +132,10 @@ public sealed class ToolLoop
                 _logger.LogInformation("ToolLoop round {Round}: max_tokens hit, auto-continuing", round);
                 progress?.Invoke($"Round {round}: max_tokens hit, auto-continuing...");
 
-                messages.Add(new CompletionMessage("assistant", response.Content));
+                messages.Add(new CompletionMessage("assistant", response.Content)
+                {
+                    ProviderReplay = response.ProviderReplay,
+                });
                 var contMsg = _continuationStrategy.BuildContinuationMessage(response);
                 messages.Add(contMsg);
 
@@ -141,7 +144,13 @@ public sealed class ToolLoop
                 {
                     _logger.LogWarning("ToolLoop hit max rounds ({MaxRounds}) during continuation", config.MaxToolRounds);
                     progress?.Invoke($"Hit max rounds ({config.MaxToolRounds}) during continuation");
-                    return BuildResponse(response.Content, StopReason.MaxRounds, totalUsage, round);
+                    return BuildResponse(
+                        response.Content,
+                        StopReason.MaxRounds,
+                        totalUsage,
+                        round,
+                        response.Reasoning,
+                        response.ProviderReplay);
                 }
                 continue;
             }
@@ -156,7 +165,13 @@ public sealed class ToolLoop
                 progress?.Invoke(
                     $"ToolLoop complete after {round} rounds — " +
                     $"total {totalUsage.InputTokens}in/{totalUsage.OutputTokens}out tokens");
-                return BuildResponse(response.Content, response.StopReason, totalUsage, round);
+                return BuildResponse(
+                    response.Content,
+                    response.StopReason,
+                    totalUsage,
+                    round,
+                    response.Reasoning,
+                    response.ProviderReplay);
             }
 
             // Dispatch tool calls
@@ -167,7 +182,13 @@ public sealed class ToolLoop
                     "ToolLoop hit max rounds ({MaxRounds}), returning last response",
                     config.MaxToolRounds);
                 progress?.Invoke($"Hit max rounds ({config.MaxToolRounds}), returning last response");
-                return BuildResponse(response.Content, StopReason.MaxRounds, totalUsage, round);
+                return BuildResponse(
+                    response.Content,
+                    StopReason.MaxRounds,
+                    totalUsage,
+                    round,
+                    response.Reasoning,
+                    response.ProviderReplay);
             }
 
             // Append assistant message with tool_use blocks.
@@ -331,7 +352,10 @@ public sealed class ToolLoop
                             DiagnosticLevel.Error);
                     }
 
-                    yield return new DoneEvent(StopReason.Error, usage ?? new TokenUsage(0, 0));
+                    yield return new DoneEvent(StopReason.Error, usage ?? new TokenUsage(0, 0))
+                    {
+                        ProviderReplay = providerReplay,
+                    };
                     yield break;
                 }
 
@@ -380,7 +404,10 @@ public sealed class ToolLoop
                         $"Stream complete: stop={effectiveStop.ToWireString()}, tokens={usage?.InputTokens ?? 0}in/{usage?.OutputTokens ?? 0}out");
                 }
 
-                yield return new DoneEvent(effectiveStop, usage ?? new TokenUsage(0, 0));
+                yield return new DoneEvent(effectiveStop, usage ?? new TokenUsage(0, 0))
+                {
+                    ProviderReplay = providerReplay,
+                };
                 yield break;
             }
 
@@ -392,7 +419,10 @@ public sealed class ToolLoop
                 if (_diagnosticsEnabled)
                     yield return new DiagnosticEvent(DiagnosticCategory.Warning,
                         $"Hit max tool rounds ({config.MaxToolRounds})", DiagnosticLevel.Warning);
-                yield return new DoneEvent(StopReason.MaxRounds, usage ?? new TokenUsage(0, 0));
+                yield return new DoneEvent(StopReason.MaxRounds, usage ?? new TokenUsage(0, 0))
+                {
+                    ProviderReplay = providerReplay,
+                };
                 yield break;
             }
 
@@ -588,7 +618,12 @@ public sealed class ToolLoop
     }
 
     private static AgentResponse BuildResponse(
-        MessageContent content, StopReason stopReason, TokenUsage usage, int rounds)
+        MessageContent content,
+        StopReason stopReason,
+        TokenUsage usage,
+        int rounds,
+        string? reasoning = null,
+        ProviderReplayEnvelope? providerReplay = null)
     {
         return new AgentResponse
         {
@@ -596,6 +631,8 @@ public sealed class ToolLoop
             StopReason = stopReason,
             Usage = usage,
             ToolRoundsUsed = rounds,
+            Reasoning = reasoning,
+            ProviderReplay = providerReplay,
         };
     }
 }

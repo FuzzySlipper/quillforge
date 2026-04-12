@@ -307,8 +307,9 @@ export async function loadSession(
     role: string;
     content: string;
     createdAt: string;
+    reasoning?: string | null;
     parentId?: string | null;
-    variants?: Array<{ content: string; createdAt: string }> | null;
+    variants?: Array<{ content: string; createdAt: string; reasoning?: string | null }> | null;
   }>;
 }> {
   return request(`/api/sessions/${encodeURIComponent(id)}/load`, { method: "POST" });

@@ -164,10 +164,11 @@ public sealed class FrontendContractTests
             },
             Mode = "general",
             MessageCount = 2,
+            Reasoning = "Check the lore thread before answering.",
         });
 
         Assert.Equal(
-            ["messageCount", "mode", "responseText", "sessionId", "stopReason", "toolRoundsUsed", "usage"],
+            ["messageCount", "mode", "reasoning", "responseText", "sessionId", "stopReason", "toolRoundsUsed", "usage"],
             jsonKeys.OrderBy(key => key));
     }
 

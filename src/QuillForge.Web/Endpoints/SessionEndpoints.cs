@@ -69,8 +69,18 @@ public static class SessionEndpoints
                             if (siblings.Count > 0)
                             {
                                 variants = [
-                                    new MessageVariantDto { Content = n.Content.GetText(), CreatedAt = n.CreatedAt },
-                                    .. siblings.Select(s => new MessageVariantDto { Content = s.Content.GetText(), CreatedAt = s.CreatedAt })
+                                    new MessageVariantDto
+                                    {
+                                        Content = n.Content.GetText(),
+                                        CreatedAt = n.CreatedAt,
+                                        Reasoning = n.Metadata?.Reasoning,
+                                    },
+                                    .. siblings.Select(s => new MessageVariantDto
+                                    {
+                                        Content = s.Content.GetText(),
+                                        CreatedAt = s.CreatedAt,
+                                        Reasoning = s.Metadata?.Reasoning,
+                                    })
                                 ];
                             }
                         }
@@ -82,6 +92,7 @@ public static class SessionEndpoints
                             Content = n.Content.GetText(),
                             CreatedAt = n.CreatedAt,
                             ParentId = n.ParentId,
+                            Reasoning = n.Metadata?.Reasoning,
                             Variants = variants,
                         };
                     }),
@@ -226,6 +237,7 @@ public static class SessionEndpoints
                         length = n.Content.GetText().Length,
                         createdAt = n.CreatedAt,
                         parentId = n.ParentId,
+                        reasoning = n.Metadata?.Reasoning,
                     }),
                     Count = thread.Count,
                     SessionId = sessionId,

@@ -36,6 +36,8 @@ public sealed record AgentResponse
     public required StopReason StopReason { get; init; }
     public required TokenUsage Usage { get; init; }
     public required int ToolRoundsUsed { get; init; }
+    public string? Reasoning { get; init; }
+    public ProviderReplayEnvelope? ProviderReplay { get; init; }
     public ResponseType ResponseType { get; init; } = ResponseType.Discussion;
     public IReadOnlyList<string>? SuggestedNext { get; init; }
 }

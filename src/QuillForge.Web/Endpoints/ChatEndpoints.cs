@@ -96,7 +96,7 @@ public static class ChatEndpoints
             // Build conversation messages from the thread up to the current position
             var thread = tree.ToFlatThread();
             var messages = thread
-                .Select(n => new CompletionMessage(n.Role, n.Content))
+                .Select(n => n.ToCompletionMessage())
                 .ToList();
             var lastAssistantResponse = thread
                 .LastOrDefault(n => string.Equals(n.Role, "assistant", StringComparison.OrdinalIgnoreCase))
@@ -122,8 +122,10 @@ public static class ChatEndpoints
             httpContext.Response.Headers.CacheControl = "no-cache";
 
             var assistantText = new System.Text.StringBuilder();
+            var assistantReasoning = new System.Text.StringBuilder();
             StopReason? stopReason = null;
             int inputTokens = 0, outputTokens = 0;
+            ProviderReplayEnvelope? providerReplay = null;
 
             var tools = toolHandlers.ToList();
             await foreach (var evt in orchestrator.HandleStreamAsync(
@@ -134,18 +136,27 @@ public static class ChatEndpoints
                     case TextDeltaEvent text:
                         assistantText.Append(text.Text);
                         break;
+                    case ToolCallValidatedEvent:
+                        assistantText.Clear();
+                        assistantReasoning.Clear();
+                        break;
+                    case ReasoningDeltaEvent reasoning:
+                        assistantReasoning.Append(reasoning.Text);
+                        break;
                     case DoneEvent done:
                         stopReason = done.StopReason;
                         inputTokens = done.Usage.InputTokens;
                         outputTokens = done.Usage.OutputTokens;
+                        providerReplay = done.ProviderReplay;
                         break;
                 }
 
+                var eventReasoning = GetReasoningForDisplay(assistantReasoning, providerReplay);
                 var eventData = evt switch
                 {
                     TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new ChatTextDeltaDto { Text = text.Text }, s_jsonOptions)}\n\n",
                     ToolCallValidatedEvent tool => $"data: {JsonSerializer.Serialize(new ChatToolDto { Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
-                    DoneEvent done => FormatDoneEvent(done, sessionId, appendParentId, assistantText.ToString(), prepared, usageTracker),
+                    DoneEvent done => FormatDoneEvent(done, sessionId, appendParentId, assistantText.ToString(), eventReasoning, prepared, usageTracker),
                     ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new ChatReasoningDeltaDto { Text = reasoning.Text }, s_jsonOptions)}\n\n",
                     DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new ChatDiagnosticDto { Category = diag.Category.ToString().ToLowerInvariant(), Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
                     _ => null,
@@ -173,6 +184,7 @@ public static class ChatEndpoints
 
             // Persist the assistant reply into the conversation tree
             Guid? assistantNodeId = null;
+            var finalReasoning = GetReasoningForDisplay(assistantReasoning, providerReplay);
             if (assistantText.Length > 0)
             {
                 var assistantNode = tree.Append(appendParentId, "assistant",
@@ -183,6 +195,8 @@ public static class ChatEndpoints
                         InputTokens = inputTokens,
                         OutputTokens = outputTokens,
                         StopReason = stopReason,
+                        Reasoning = finalReasoning,
+                        ProviderReplay = providerReplay,
                     });
                 assistantNodeId = assistantNode.Id;
             }
@@ -328,6 +342,7 @@ public static class ChatEndpoints
         Guid sessionId,
         Guid parentId,
         string content,
+        string? reasoning,
         PreparedInteractiveRequest prepared,
         ITokenUsageTracker usageTracker)
     {
@@ -359,7 +374,22 @@ public static class ChatEndpoints
             },
             Portrait = prepared.AssistantPortraitUrl,
             UserPortrait = prepared.UserPortraitUrl,
+            Reasoning = reasoning,
         };
         return $"data: {JsonSerializer.Serialize(dto, s_jsonOptions)}\n\n";
+    }
+
+    private static string? GetReasoningForDisplay(
+        System.Text.StringBuilder streamedReasoning,
+        ProviderReplayEnvelope? providerReplay)
+    {
+        if (streamedReasoning.Length > 0)
+        {
+            return streamedReasoning.ToString();
+        }
+
+        return providerReplay is ReasoningReplayEnvelope reasoningReplay
+            ? reasoningReplay.ReasoningContent
+            : null;
     }
 }

@@ -9,6 +9,7 @@ public sealed record DebugBridgeChatResponse
     public required DebugBridgeUsageDto Usage { get; init; }
     public required string Mode { get; init; }
     public required int MessageCount { get; init; }
+    public string? Reasoning { get; init; }
 }
 
 public sealed record DebugBridgeUsageDto
@@ -39,6 +40,7 @@ public sealed record DebugBridgeMessageDto
     public required string Role { get; init; }
     public required string Content { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
+    public string? Reasoning { get; init; }
 }
 
 public sealed record DebugBridgeStateResponse
@@ -58,6 +60,7 @@ public sealed record DebugBridgeStreamResponse
     public required Guid SessionId { get; init; }
     public required IReadOnlyList<DebugBridgeStreamEventDto> Events { get; init; }
     public required string FinalContent { get; init; }
+    public string? FinalReasoning { get; init; }
     public required DebugBridgeNodeIds NodeIds { get; init; }
     public required string Mode { get; init; }
     public required int MessageCount { get; init; }

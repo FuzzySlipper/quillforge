@@ -20,6 +20,7 @@ public sealed record SessionMessageDto
     public required string Content { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
     public Guid? ParentId { get; init; }
+    public string? Reasoning { get; init; }
     public List<MessageVariantDto>? Variants { get; init; }
 }
 
@@ -27,6 +28,7 @@ public sealed record MessageVariantDto
 {
     public required string Content { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
+    public string? Reasoning { get; init; }
 }
 
 public sealed record SessionDeletedResponse

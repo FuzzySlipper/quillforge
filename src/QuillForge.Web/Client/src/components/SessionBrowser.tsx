@@ -10,8 +10,9 @@ interface SessionBrowserProps {
     role: string;
     content: string;
     createdAt: string;
+    reasoning?: string | null;
     parentId?: string | null;
-    variants?: Array<{ content: string; createdAt: string }> | null;
+    variants?: Array<{ content: string; createdAt: string; reasoning?: string | null }> | null;
   }>) => void;
 }
 

@@ -24,6 +24,7 @@ interface HistoryBlock {
 interface HistoryMessage {
   role: string;
   content?: string;
+  reasoning?: string | null;
   length?: number;
   blocks?: HistoryBlock[];
 }
@@ -134,6 +135,16 @@ export default function ContextOverlay({ open, onClose, status, sessionId }: Con
                       <pre className="whitespace-pre-wrap text-text/80 text-[11px] leading-relaxed">
                         {msg.content}
                       </pre>
+                    )}
+                    {msg.reasoning && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-[10px] text-text-muted/70 hover:text-text-muted">
+                          reasoning
+                        </summary>
+                        <pre className="mt-1 whitespace-pre-wrap text-text/70 text-[10px] leading-relaxed">
+                          {msg.reasoning}
+                        </pre>
+                      </details>
                     )}
                     {msg.blocks && msg.blocks.map((block, j) => (
                       <div key={j} className="mt-1 pl-2 border-l border-border/50">

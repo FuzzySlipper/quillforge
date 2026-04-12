@@ -29,5 +29,6 @@
     ]
   },
   "portrait": "/portraits/ai-guide.png",
-  "userPortrait": "/portraits/user-avatar.png"
+  "userPortrait": "/portraits/user-avatar.png",
+  "reasoning": "I should surface the old prophecy first."
 }

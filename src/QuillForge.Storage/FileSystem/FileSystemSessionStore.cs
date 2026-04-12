@@ -150,7 +150,11 @@ public sealed class FileSystemSessionStore : ISessionStore
                     Model = nodeDto.Metadata.Model,
                     InputTokens = nodeDto.Metadata.InputTokens,
                     OutputTokens = nodeDto.Metadata.OutputTokens,
-                    StopReason = StopReasonExtensions.ParseStopReason(nodeDto.Metadata.StopReason),
+                    StopReason = nodeDto.Metadata.StopReason is not null
+                        ? StopReasonExtensions.ParseStopReason(nodeDto.Metadata.StopReason)
+                        : null,
+                    Reasoning = nodeDto.Metadata.Reasoning,
+                    ProviderReplay = DeserializeProviderReplay(nodeDto.Metadata.ProviderReplay),
                 } : null,
             };
         }
@@ -184,6 +188,8 @@ public sealed class FileSystemSessionStore : ISessionStore
                 InputTokens = n.Metadata.InputTokens,
                 OutputTokens = n.Metadata.OutputTokens,
                 StopReason = n.Metadata.StopReason?.ToWireString(),
+                Reasoning = n.Metadata.Reasoning,
+                ProviderReplay = SerializeProviderReplay(n.Metadata.ProviderReplay),
             } : null,
         }).ToList();
 
@@ -226,6 +232,54 @@ public sealed class FileSystemSessionStore : ISessionStore
 
         return tree;
     }
+
+    private ProviderReplayEnvelope? DeserializeProviderReplay(ProviderReplayDto? dto)
+    {
+        if (dto is null || string.IsNullOrWhiteSpace(dto.Kind))
+        {
+            return null;
+        }
+
+        if (string.Equals(dto.Kind, "reasoning", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ReasoningReplayEnvelope(
+                dto.Content,
+                dto.ReasoningContent,
+                dto.ToolCalls?.Select(tc => new ReasoningReplayToolCall(
+                    tc.Id ?? string.Empty,
+                    tc.Name ?? string.Empty,
+                    tc.ArgumentsJson ?? "{}")).ToList() ?? []);
+        }
+
+        _logger.LogWarning("Skipping unknown persisted provider replay kind '{Kind}'", dto.Kind);
+        return null;
+    }
+
+    private static ProviderReplayDto? SerializeProviderReplay(ProviderReplayEnvelope? providerReplay)
+    {
+        if (providerReplay is null)
+        {
+            return null;
+        }
+
+        if (providerReplay is ReasoningReplayEnvelope reasoningReplay)
+        {
+            return new ProviderReplayDto
+            {
+                Kind = "reasoning",
+                Content = reasoningReplay.Content,
+                ReasoningContent = reasoningReplay.ReasoningContent,
+                ToolCalls = reasoningReplay.ToolCalls.Select(tc => new ReasoningReplayToolCallDto
+                {
+                    Id = tc.Id,
+                    Name = tc.Name,
+                    ArgumentsJson = tc.ArgumentsJson,
+                }).ToList(),
+            };
+        }
+
+        return null;
+    }
 }
 
 // ---- DTOs for JSON serialization ----
@@ -261,6 +315,23 @@ internal sealed class MetadataDto
     public int? InputTokens { get; set; }
     public int? OutputTokens { get; set; }
     public string? StopReason { get; set; }
+    public string? Reasoning { get; set; }
+    public ProviderReplayDto? ProviderReplay { get; set; }
+}
+
+internal sealed class ProviderReplayDto
+{
+    public string? Kind { get; set; }
+    public string? Content { get; set; }
+    public string? ReasoningContent { get; set; }
+    public List<ReasoningReplayToolCallDto>? ToolCalls { get; set; }
+}
+
+internal sealed class ReasoningReplayToolCallDto
+{
+    public string? Id { get; set; }
+    public string? Name { get; set; }
+    public string? ArgumentsJson { get; set; }
 }
 
 internal sealed class LegacyMessageDto

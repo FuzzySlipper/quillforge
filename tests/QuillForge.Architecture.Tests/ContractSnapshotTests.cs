@@ -111,6 +111,7 @@ public sealed class ContractSnapshotTests
             },
             Portrait = "/portraits/ai-guide.png",
             UserPortrait = "/portraits/user-avatar.png",
+            Reasoning = "I should surface the old prophecy first.",
         };
         AssertJsonSnapshot("ChatDoneDto", dto, SseJsonOptions);
     }
@@ -164,6 +165,7 @@ public sealed class ContractSnapshotTests
             Usage = new DebugBridgeUsageDto { InputTokens = 2400, OutputTokens = 180 },
             Mode = "writer",
             MessageCount = 6,
+            Reasoning = "The omen matters more than the wall carvings.",
         };
         AssertJsonSnapshot("DebugBridgeChatResponse", dto, DebugBridgeJsonOptions);
     }
@@ -215,6 +217,7 @@ public sealed class ContractSnapshotTests
                 },
             ],
             FinalContent = "The castle loomed over the forgotten valley.",
+            FinalReasoning = "Lead with the silhouette, then the valley.",
             NodeIds = new DebugBridgeNodeIds
             {
                 User = Guid.Parse("11111111-2222-3333-4444-555555555555"),
