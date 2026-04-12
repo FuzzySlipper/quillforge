@@ -33,32 +33,33 @@ public sealed class UsageTrackingCompletionService : ICompletionService
     public async Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
     {
         var response = await _inner.CompleteAsync(request, ct);
-        RecordUsage(response.Usage);
+        RecordUsage(response.Usage, TokenTrackingScope.Current);
         return response;
     }
 
     public IAsyncEnumerable<StreamEvent> StreamAsync(CompletionRequest request, CancellationToken ct = default)
     {
-        return StreamWithTrackingAsync(request, ct);
+        var scope = TokenTrackingScope.Current;
+        return StreamWithTrackingAsync(request, scope, ct);
     }
 
     private async IAsyncEnumerable<StreamEvent> StreamWithTrackingAsync(
         CompletionRequest request,
+        TokenTrackingScope.ScopeData? scope,
         [EnumeratorCancellation] CancellationToken ct)
     {
         await foreach (var evt in _inner.StreamAsync(request, ct))
         {
             if (evt is DoneEvent done)
             {
-                RecordUsage(done.Usage);
+                RecordUsage(done.Usage, scope);
             }
             yield return evt;
         }
     }
 
-    private void RecordUsage(TokenUsage usage)
+    private void RecordUsage(TokenUsage usage, TokenTrackingScope.ScopeData? scope)
     {
-        var scope = TokenTrackingScope.Current;
         if (scope is null)
         {
             _logger.LogWarning(

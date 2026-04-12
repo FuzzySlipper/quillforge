@@ -174,6 +174,7 @@ Practical rule:
 - Edit the content folders when you want to change lore, prompts, profiles, layouts, or writing assets.
 - Avoid hand-editing `user/data/sessions/` and `user/data/session-state/` unless you are doing recovery or debugging work.
 - `user/conductor/` is retained as legacy migration/reference material if present; current live routing behavior is app-owned by mode.
+- If you are migrating from SillyTavern or another "one big prompt" setup, see `dev/app-docs/sillytavern-migration.md` for the recommended split across lore, character cards, narrative rules, writing style, librarian prompts, and Assistant tone.
 
 ## Development
 

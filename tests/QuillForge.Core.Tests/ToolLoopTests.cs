@@ -408,6 +408,61 @@ public class ToolLoopTests
     }
 
     [Fact]
+    public async Task RunAsync_WithAgentName_UsesAgentNameForDebugLogs()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueText("Logged response.");
+        var debugLogger = new RecordingDebugLogger();
+        var loop = CreateLoop(fake, NullLogger<ToolLoop>.Instance, debugLogger);
+
+        var config = DefaultConfig with
+        {
+            AgentName = "narrative-director",
+        };
+
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("Continue the scene.")),
+        };
+
+        await loop.RunAsync(config, [], messages, DefaultContext);
+
+        Assert.Equal("narrative-director", Assert.Single(debugLogger.RequestAgents));
+        Assert.Equal("narrative-director", Assert.Single(debugLogger.ResponseAgents));
+    }
+
+    [Fact]
+    public async Task RunStreamAsync_WithAgentName_UsesAgentNameForDebugLogs()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueResponse(new CompletionResponse
+        {
+            Content = new MessageContent("Logged stream."),
+            StopReason = StopReason.EndTurn,
+            Usage = new TokenUsage(5, 7),
+        });
+        var debugLogger = new RecordingDebugLogger();
+        var loop = CreateLoop(fake, NullLogger<ToolLoop>.Instance, debugLogger);
+
+        var config = DefaultConfig with
+        {
+            AgentName = "orchestrator",
+        };
+
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("Hello.")),
+        };
+
+        await foreach (var _ in loop.RunStreamAsync(config, [], messages, DefaultContext))
+        {
+        }
+
+        Assert.Equal("orchestrator", Assert.Single(debugLogger.RequestAgents));
+        Assert.Equal("orchestrator", Assert.Single(debugLogger.ResponseAgents));
+    }
+
+    [Fact]
     public async Task CompletionFailure_LogsThroughPrimaryLogger_WhenDebugLoggerIsAbsent()
     {
         var logger = new CollectingLogger<ToolLoop>();
@@ -496,6 +551,28 @@ public class ToolLoopTests
         {
             await Task.Yield();
             yield break;
+        }
+    }
+
+    private sealed class RecordingDebugLogger : QuillForge.Core.Diagnostics.ILlmDebugLogger
+    {
+        public List<string> RequestAgents { get; } = [];
+        public List<string> ResponseAgents { get; } = [];
+        public List<string> ErrorAgents { get; } = [];
+
+        public void LogRequest(string agent, string model, int maxTokens, string systemPreview, int messagesCount, int toolsCount)
+        {
+            RequestAgents.Add(agent);
+        }
+
+        public void LogResponse(string agent, string model, string? stopReason, string contentPreview, int inputTokens = 0, int outputTokens = 0, string? error = null)
+        {
+            ResponseAgents.Add(agent);
+        }
+
+        public void LogError(string agent, string model, string error)
+        {
+            ErrorAgents.Add(agent);
         }
     }
 }

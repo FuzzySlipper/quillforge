@@ -58,6 +58,7 @@ public sealed class ToolLoop
         var toolDefs = tools.Select(t => t.Definition).ToList();
         var totalUsage = new TokenUsage(0, 0);
         var round = 0;
+        var debugAgentName = ResolveDebugAgentName(config, streaming: false);
 
         _logger.LogInformation(
             "ToolLoop starting for session {SessionId}, model {Model}, {ToolCount} tools, max {MaxRounds} rounds",
@@ -84,7 +85,7 @@ public sealed class ToolLoop
             progress?.Invoke($"Round {round}: calling {config.Model} ({messages.Count} messages)...");
 
             _debugLogger?.LogRequest(
-                agent: "ToolLoop",
+                agent: debugAgentName,
                 model: config.Model,
                 maxTokens: config.MaxTokens,
                 systemPreview: config.SystemPrompt ?? "",
@@ -103,7 +104,7 @@ public sealed class ToolLoop
                     "ToolLoop round {Round}: completion service call failed for model {Model}",
                     round,
                     config.Model);
-                _debugLogger?.LogError("ToolLoop", config.Model, ex.Message);
+                _debugLogger?.LogError(debugAgentName, config.Model, ex.Message);
                 progress?.Invoke($"Round {round}: LLM call FAILED — {ex.Message}");
                 throw;
             }
@@ -111,7 +112,7 @@ public sealed class ToolLoop
             totalUsage = _continuationStrategy.AggregateUsage(totalUsage, response.Usage);
 
             _debugLogger?.LogResponse(
-                agent: "ToolLoop",
+                agent: debugAgentName,
                 model: config.Model,
                 stopReason: response.StopReason.ToWireString(),
                 contentPreview: response.Content.GetText(),
@@ -244,6 +245,7 @@ public sealed class ToolLoop
         var toolMap = BuildToolMap(tools);
         var toolDefs = tools.Select(t => t.Definition).ToList();
         var round = 0;
+        var debugAgentName = ResolveDebugAgentName(config, streaming: true);
 
         _logger.LogInformation(
             "ToolLoop (streaming) starting for session {SessionId}, model {Model}",
@@ -273,7 +275,7 @@ public sealed class ToolLoop
                     $"Round {round}: calling {config.Model} ({messages.Count} messages, {toolDefs.Count} tools)");
 
             _debugLogger?.LogRequest(
-                agent: "ToolLoop.Stream",
+                agent: debugAgentName,
                 model: config.Model,
                 maxTokens: config.MaxTokens,
                 systemPreview: config.SystemPrompt ?? "",
@@ -318,7 +320,7 @@ public sealed class ToolLoop
             }
 
             _debugLogger?.LogResponse(
-                agent: "ToolLoop.Stream",
+                agent: debugAgentName,
                 model: config.Model,
                 stopReason: stopReason?.ToWireString(),
                 contentPreview: string.Join("", collectedText),
@@ -658,6 +660,16 @@ public sealed class ToolLoop
         }
 
         await context.OnReasoningArtifact(artifact, ct);
+    }
+
+    private static string ResolveDebugAgentName(AgentConfig config, bool streaming)
+    {
+        if (!string.IsNullOrWhiteSpace(config.AgentName))
+        {
+            return config.AgentName!;
+        }
+
+        return streaming ? "ToolLoop.Stream" : "ToolLoop";
     }
 
     private static AgentResponse BuildResponse(

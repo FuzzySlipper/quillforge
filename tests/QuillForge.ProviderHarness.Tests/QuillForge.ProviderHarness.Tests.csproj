@@ -9,6 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Den.Persistence\Den.Persistence.csproj" />
     <ProjectReference Include="..\..\src\QuillForge.Core\QuillForge.Core.csproj" />
     <ProjectReference Include="..\..\src\QuillForge.Providers\QuillForge.Providers.csproj" />
     <ProjectReference Include="..\..\src\QuillForge.Storage\QuillForge.Storage.csproj" />

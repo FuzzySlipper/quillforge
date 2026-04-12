@@ -184,6 +184,68 @@ public sealed class HarnessProviderHostTests
     }
 
     [Fact]
+    public async Task ProviderRegistry_ReasoningPath_ConsumesSingleChunkStreamedToolCalls()
+    {
+        var scenario = new HarnessProviderScenario
+        {
+            Name = "reasoning-single-chunk-stream",
+            Models = ["qwq-harness"],
+            Responses =
+            [
+                new HarnessResponsePlan
+                {
+                    Mode = HarnessResponseMode.ScriptedStream,
+                    ExpectedModel = "qwq-harness",
+                    StreamEvents =
+                    [
+                        new HarnessStreamEventPlan
+                        {
+                            ToolCalls =
+                            [
+                                new HarnessToolCallDeltaPlan(
+                                    0,
+                                    "call_1",
+                                    "query_lore",
+                                    "{\"query\":\"sun vault\"}")
+                            ],
+                            FinishReason = "tool_calls",
+                            Usage = new HarnessUsage(9, 5),
+                        },
+                    ],
+                },
+            ],
+        };
+
+        await using var host = await HarnessProviderHost.StartAsync(scenario);
+        var registry = CreateRegistry(host, "qwq-harness", requiresReasoning: true);
+        var service = registry.GetCompletionService("harness");
+
+        var events = new List<StreamEvent>();
+        await foreach (var streamEvent in service.StreamAsync(new CompletionRequest
+        {
+            Model = "qwq-harness",
+            MaxTokens = 64,
+            Messages =
+            [
+                new CompletionMessage("user", new MessageContent("Find the sun vault.")),
+            ],
+        }))
+        {
+            events.Add(streamEvent);
+        }
+
+        var toolCall = Assert.Single(events.OfType<ToolCallDeltaReceivedEvent>());
+        Assert.Equal("query_lore", toolCall.ToolName);
+        Assert.Equal("call_1", toolCall.ToolId);
+        Assert.Equal("sun vault", toolCall.Input.GetProperty("query").GetString());
+
+        var done = Assert.IsType<DoneEvent>(events[^1]);
+        Assert.Equal(StopReason.ToolUse, done.StopReason);
+        Assert.Equal(9, done.Usage.InputTokens);
+        Assert.Equal(5, done.Usage.OutputTokens);
+    }
+
+    [Fact]
     public async Task FaultInjectedStream_RecordsAbruptDisconnectTrace()
     {
         var scenario = new HarnessProviderScenario
