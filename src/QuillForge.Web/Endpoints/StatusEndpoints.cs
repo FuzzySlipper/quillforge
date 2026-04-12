@@ -1,6 +1,7 @@
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Providers.Registry;
 using QuillForge.Web.Contracts;
 using QuillForge.Web.Services;
 
@@ -17,11 +18,31 @@ public static class StatusEndpoints
             AppConfig config,
             ILoreStore loreStore,
             IConductorStore conductorStore,
+            ISessionStore sessionStore,
+            ProviderRegistry providerRegistry,
             CancellationToken ct) =>
         {
             var sessionId = httpContext.TryGetSessionId();
             var readView = await profileReadService.LoadAsync(sessionId, ct);
             var chatState = readView.SessionState;
+            var conversationTurns = 0;
+            var historyTokens = 0;
+
+            if (sessionId.HasValue)
+            {
+                try
+                {
+                    var tree = await sessionStore.LoadAsync(sessionId.Value, ct);
+                    var thread = tree.ToFlatThread();
+                    conversationTurns = thread.Count;
+                    historyTokens = thread.Sum(node => node.Content.GetText().Length) / 4;
+                }
+                catch (FileNotFoundException)
+                {
+                    // No persisted conversation yet for this session.
+                }
+            }
+
             // Calculate real token/file counts
             var loreFiles = 0;
             var loreTokens = 0;
@@ -41,6 +62,8 @@ public static class StatusEndpoints
             }
             catch { /* conductor may not exist */ }
 
+            var contextLimit = ResolveContextLimit(providerRegistry, config.Models.Orchestrator);
+
             return Results.Ok(new StatusResponse
             {
                 Version = BuildInfo.Version,
@@ -55,12 +78,12 @@ public static class StatusEndpoints
                 Layout = config.Layout.Active,
                 AiCharacter = readView.ActiveAiCharacter ?? "",
                 UserCharacter = readView.ActiveUserCharacter ?? "",
-                ConversationTurns = 0, // requires active session tracking
+                ConversationTurns = conversationTurns,
                 LoreFiles = loreFiles,
-                ContextLimit = 0, // provider-specific, needs registry lookup
+                ContextLimit = contextLimit,
                 LoreTokens = loreTokens,
                 ConductorTokens = conductorTokens,
-                HistoryTokens = 0, // requires active session tracking
+                HistoryTokens = historyTokens,
                 DiagnosticsLivePanel = config.Diagnostics.LivePanel,
                 Update = updateService.UpdateAvailable ? new UpdateInfoDto
                 {
@@ -94,6 +117,18 @@ public static class StatusEndpoints
 
             return Results.Ok(result);
         });
+    }
+
+    private static int ResolveContextLimit(ProviderRegistry providerRegistry, string configuredModel)
+    {
+        var directConfig = providerRegistry.GetConfig(configuredModel);
+        if (directConfig?.ContextLimit is int directLimit)
+        {
+            return directLimit;
+        }
+
+        var defaultConfig = providerRegistry.GetAllConfigs().FirstOrDefault();
+        return defaultConfig?.ContextLimit ?? 0;
     }
 
     private static string FormatDuration(TimeSpan ts)

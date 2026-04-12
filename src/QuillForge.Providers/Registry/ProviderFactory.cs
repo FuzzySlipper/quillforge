@@ -13,10 +13,17 @@ namespace QuillForge.Providers.Registry;
 public sealed class ProviderFactory
 {
     private readonly ILogger<ProviderFactory> _logger;
+    private readonly TimeSpan _networkTimeout;
 
     public ProviderFactory(ILogger<ProviderFactory> logger)
+        : this(logger, new QuillForge.Core.Models.AppConfig())
+    {
+    }
+
+    public ProviderFactory(ILogger<ProviderFactory> logger, QuillForge.Core.Models.AppConfig appConfig)
     {
         _logger = logger;
+        _networkTimeout = TimeSpan.FromSeconds(appConfig.Timeouts.CompletionTimeoutSeconds);
     }
 
     public IChatClient CreateClient(ProviderConfig config)
@@ -46,12 +53,19 @@ public sealed class ProviderFactory
         OpenAIClient client;
         if (config.BaseUrl is not null)
         {
-            var options = new OpenAIClientOptions { Endpoint = new Uri(config.BaseUrl) };
+            var options = new OpenAIClientOptions
+            {
+                Endpoint = new Uri(config.BaseUrl),
+                NetworkTimeout = _networkTimeout,
+            };
             client = new OpenAIClient(new ApiKeyCredential(config.ApiKey), options);
         }
         else
         {
-            client = new OpenAIClient(new ApiKeyCredential(config.ApiKey));
+            client = new OpenAIClient(new ApiKeyCredential(config.ApiKey), new OpenAIClientOptions
+            {
+                NetworkTimeout = _networkTimeout,
+            });
         }
 
         var model = config.DefaultModel ?? "gpt-4o";
@@ -84,7 +98,11 @@ public sealed class ProviderFactory
     private IChatClient CreateOllamaClient(ProviderConfig config)
     {
         var baseUrl = config.BaseUrl ?? "http://localhost:11434";
-        var options = new OpenAIClientOptions { Endpoint = new Uri($"{baseUrl}/v1") };
+        var options = new OpenAIClientOptions
+        {
+            Endpoint = new Uri($"{baseUrl}/v1"),
+            NetworkTimeout = _networkTimeout,
+        };
         var client = new OpenAIClient(new ApiKeyCredential(config.ApiKey ?? "ollama"), options);
         var model = config.DefaultModel ?? "llama3";
 
@@ -94,7 +112,11 @@ public sealed class ProviderFactory
 
     private IChatClient CreateOpenRouterClient(ProviderConfig config)
     {
-        var options = new OpenAIClientOptions { Endpoint = new Uri("https://openrouter.ai/api/v1") };
+        var options = new OpenAIClientOptions
+        {
+            Endpoint = new Uri("https://openrouter.ai/api/v1"),
+            NetworkTimeout = _networkTimeout,
+        };
         var client = new OpenAIClient(new ApiKeyCredential(config.ApiKey), options);
         var model = config.DefaultModel ?? "anthropic/claude-sonnet-4-20250514";
 
@@ -105,7 +127,11 @@ public sealed class ProviderFactory
     private IChatClient CreateAzureOpenAIClient(ProviderConfig config)
     {
         var endpoint = config.BaseUrl ?? throw new ArgumentException("Azure OpenAI requires a base URL (endpoint).");
-        var options = new OpenAIClientOptions { Endpoint = new Uri(endpoint) };
+        var options = new OpenAIClientOptions
+        {
+            Endpoint = new Uri(endpoint),
+            NetworkTimeout = _networkTimeout,
+        };
         var client = new OpenAIClient(new ApiKeyCredential(config.ApiKey), options);
         var model = config.DefaultModel ?? "gpt-4o";
 
@@ -116,7 +142,11 @@ public sealed class ProviderFactory
     private IChatClient CreateCustomOpenAIClient(ProviderConfig config)
     {
         var baseUrl = config.BaseUrl ?? throw new ArgumentException("Custom provider requires a base URL.");
-        var options = new OpenAIClientOptions { Endpoint = new Uri(baseUrl) };
+        var options = new OpenAIClientOptions
+        {
+            Endpoint = new Uri(baseUrl),
+            NetworkTimeout = _networkTimeout,
+        };
         var client = new OpenAIClient(new ApiKeyCredential(config.ApiKey), options);
         var model = config.DefaultModel ?? "default";
 

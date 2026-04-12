@@ -25,6 +25,14 @@ export async function sendForgeStream(
   return _streamForgeEndpoint(`/api/forge/${encodeURIComponent(project)}/start${params}`, onEvent, signal);
 }
 
+export async function sendForgeApproveStream(
+  project: string,
+  onEvent: (event: StreamEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  return _streamForgeEndpoint(`/api/forge/${encodeURIComponent(project)}/approve`, onEvent, signal);
+}
+
 async function _streamForgeEndpoint(
   url: string,
   onEvent: (event: StreamEvent) => void,

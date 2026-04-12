@@ -75,6 +75,11 @@ public sealed class ForgePipeline : IDiagnosticSource
 
         // Auto-repair: normalize the manifest before running
         context.Manifest = ForgeManifestRepair.Normalize(context.Manifest, _logger);
+        context.Manifest = await ForgeManifestRepair.SyncChaptersFromFilesAsync(
+            context.Manifest,
+            _fileService,
+            _logger,
+            ct);
 
         _logger.LogInformation(
             "Forge pipeline starting for project {Project}, current stage={Stage}",
@@ -107,6 +112,7 @@ public sealed class ForgePipeline : IDiagnosticSource
                 context.Manifest = tracker.ApplyTo(context.Manifest) with { Paused = true };
                 await PersistManifestAsync(context, ct);
                 _activeContext = null;
+                yield return new ForgePausedEvent($"Pipeline paused before {stage.StageName}.");
                 yield break;
             }
 
@@ -187,6 +193,11 @@ public sealed class ForgePipeline : IDiagnosticSource
                 Stage = (ForgeStage)Math.Min((int)nextStage, (int)ForgeStage.Done),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
+            context.Manifest = await ForgeManifestRepair.SyncChaptersFromFilesAsync(
+                context.Manifest,
+                _fileService,
+                _logger,
+                ct);
             await PersistManifestAsync(context, ct);
 
             _logger.LogInformation("Stage {Stage} completed, manifest persisted", stage.StageName);
@@ -201,6 +212,7 @@ public sealed class ForgePipeline : IDiagnosticSource
                     context.Manifest = tracker.ApplyTo(context.Manifest) with { Paused = true };
                     await PersistManifestAsync(context, ct);
                     _activeContext = null;
+                    yield return new ForgePausedEvent($"Paused after {firstChapter} for review.");
                     yield break;
                 }
             }

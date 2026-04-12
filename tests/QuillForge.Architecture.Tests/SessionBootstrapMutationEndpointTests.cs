@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Web;
 using QuillForge.Web.Endpoints;
 using QuillForge.Web.Services;
 
@@ -106,6 +107,7 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
         builder.Services.AddSingleton<IContentFileService>(new NoOpContentFileService());
         builder.Services.AddSingleton<INarrativeRulesStore>(new NoOpNarrativeRulesStore());
         builder.Services.AddSingleton<IWritingStyleStore>(new NoOpWritingStyleStore());
+        builder.Services.AddSingleton(new StartupPaths(null, _contentRoot, "", ""));
 
         var app = builder.Build();
         app.MapModeEndpoints();

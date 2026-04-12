@@ -98,6 +98,11 @@ public sealed class ForgeCompletedEvent(ForgeStats stats) : ForgeEvent
     public ForgeStats Stats { get; } = stats;
 }
 
+public sealed class ForgePausedEvent(string message) : ForgeEvent
+{
+    public string Message { get; } = message;
+}
+
 /// <summary>
 /// Verbose progress log event streamed to the client during forge pipeline execution.
 /// Intended for console-style status updates: round counts, tool dispatches, file I/O, timing.

@@ -179,6 +179,65 @@ public static class ForgeManifestRepair
     }
 
     /// <summary>
+    /// Merges chapter briefs and drafts discovered on disk into the manifest.
+    /// Preserves existing chapter state while ensuring new brief files become
+    /// writable chapters for the pipeline.
+    /// </summary>
+    public static async Task<ForgeManifest> SyncChaptersFromFilesAsync(
+        ForgeManifest manifest,
+        IContentFileService fileService,
+        ILogger? logger = null,
+        CancellationToken ct = default)
+    {
+        var basePath = $"forge/{manifest.ProjectName}";
+        var planFiles = await fileService.ListAsync($"{basePath}/plan", "ch-*-brief.md", ct);
+        var draftFiles = await fileService.ListAsync($"{basePath}/drafts", "*.md", ct);
+
+        var discoveredChapterIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in planFiles.Concat(draftFiles))
+        {
+            var fileName = file.Split('/').Last();
+            var chapterId = ExtractChapterId(fileName);
+            if (chapterId is not null)
+            {
+                discoveredChapterIds.Add(chapterId);
+            }
+        }
+
+        if (discoveredChapterIds.Count == 0)
+        {
+            return manifest;
+        }
+
+        var mergedChapters = new Dictionary<string, ChapterStatus>(manifest.Chapters, StringComparer.OrdinalIgnoreCase);
+        foreach (var chapterId in discoveredChapterIds.OrderBy(id => id, StringComparer.OrdinalIgnoreCase))
+        {
+            if (mergedChapters.ContainsKey(chapterId))
+            {
+                continue;
+            }
+
+            var draftPath = $"{basePath}/drafts/{chapterId}.md";
+            var hasDraft = await fileService.ExistsAsync(draftPath, ct);
+            mergedChapters[chapterId] = new ChapterStatus
+            {
+                State = hasDraft ? ChapterState.Review : ChapterState.Pending,
+            };
+        }
+
+        logger?.LogInformation(
+            "Synchronized forge manifest chapters for {Project}: {ChapterCount} chapters discovered",
+            manifest.ProjectName,
+            mergedChapters.Count);
+
+        return manifest with
+        {
+            Chapters = mergedChapters,
+            ChapterCount = mergedChapters.Count,
+        };
+    }
+
+    /// <summary>
     /// Normalizes a chapter key to the ch-NN format.
     /// Handles variations like "ch01", "chapter-1", "ch_01", "1", etc.
     /// Returns null if the key cannot be normalized.

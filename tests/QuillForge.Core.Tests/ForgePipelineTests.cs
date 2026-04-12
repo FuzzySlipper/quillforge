@@ -200,6 +200,39 @@ public class ForgePipelineTests
     }
 
     [Fact]
+    public async Task ForgePipeline_DiscoversBriefChaptersBeforeWriting()
+    {
+        var fileService = new FakeContentFileService();
+        var completion = new FakeCompletionService();
+        completion.EnqueueText("Drafted first chapter.");
+
+        var manifest = new ForgeManifest
+        {
+            ProjectName = "test-project",
+            Stage = ForgeStage.Planning,
+            Chapters = [],
+        };
+
+        var context = CreateContext(fileService, completion, manifest);
+        fileService.SeedFile("forge/test-project/plan/premise.md", "A hero enters the archive.");
+
+        IPipelineStage[] stages =
+        [
+            new BriefGeneratingStage(),
+            new WritingStage(LogFactory.CreateLogger<WritingStage>()),
+        ];
+
+        var pipeline = new ForgePipeline(stages, fileService,
+            LogFactory.CreateLogger<ForgePipeline>());
+
+        await foreach (var _ in pipeline.RunAsync(context, CancellationToken.None)) { }
+
+        Assert.Equal(1, context.Manifest.ChapterCount);
+        Assert.True(context.Manifest.Chapters.ContainsKey("ch-01"));
+        Assert.True(fileService.Files.ContainsKey("forge/test-project/drafts/ch-01.md"));
+    }
+
+    [Fact]
     public async Task ForgePipeline_ResumeSkipsCompletedStages()
     {
         var fileService = new FakeContentFileService();
@@ -780,6 +813,24 @@ public class ForgePipelineTests
             yield return new StageStartedEvent(StageName);
             await Task.Yield();
             throw new InvalidOperationException("boom");
+        }
+    }
+
+    private sealed class BriefGeneratingStage : IPipelineStage
+    {
+        public string StageName => "Planning";
+        public ForgeStage StageEnum => ForgeStage.Planning;
+
+        public async IAsyncEnumerable<ForgeEvent> ExecuteAsync(
+            ForgeContext context,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            yield return new StageStartedEvent(StageName);
+            await context.FileService.WriteAsync(
+                "forge/test-project/plan/ch-01-brief.md",
+                "Write the opening archive scene.",
+                ct);
+            yield return new StageCompletedEvent(StageName);
         }
     }
 

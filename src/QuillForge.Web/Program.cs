@@ -50,6 +50,9 @@ var appConfigStore = new QuillForge.Storage.Configuration.AppConfigStore(content
 var appConfig = await appConfigStore.LoadAsync();
 builder.Services.AddSingleton(appConfig);
 
+// --- Startup paths (available for DI injection in endpoints) ---
+builder.Services.AddSingleton(startupPaths);
+
 // --- Utilities ---
 builder.Services.AddSingleton<AtomicFileWriter>();
 builder.Services.AddSingleton<Den.Persistence.AtomicFileWriter>();

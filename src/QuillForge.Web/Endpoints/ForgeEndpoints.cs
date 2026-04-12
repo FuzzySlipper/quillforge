@@ -23,7 +23,7 @@ public static class ForgeEndpoints
         group.MapGet("/projects", async (IContentFileService fileService, CancellationToken ct) =>
         {
             var files = await fileService.ListAsync(ContentPaths.Forge, "manifest.json", ct);
-            var projects = new List<object>();
+            var projects = new List<ForgeProjectListItem>();
 
             foreach (var file in files)
             {
@@ -34,9 +34,9 @@ public static class ForgeEndpoints
                         new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
                     if (manifest is not null)
                     {
-                        projects.Add(new
+                        projects.Add(new ForgeProjectListItem
                         {
-                            ProjectName = manifest.ProjectName,
+                            Name = manifest.ProjectName,
                             Stage = manifest.Stage.ToString(),
                             ChapterCount = manifest.ChapterCount,
                             Paused = manifest.Paused,
@@ -209,7 +209,7 @@ public static class ForgeEndpoints
         group.MapPost("/{name}/pause", (string name, ForgePipeline pipeline) =>
         {
             pipeline.RequestPause();
-            return Results.Ok(new { Paused = name });
+            return Results.Ok(new { Status = "ok", Paused = name });
         });
 
         group.MapPost("/{name}/rebuild-manifest", async (
@@ -419,6 +419,9 @@ public static class ForgeEndpoints
             ForgeErrorEvent err => JsonSerializer.Serialize(
                 new { Type = "error", Message = err.Message, Stage = err.StageName }, s_jsonOptions),
 
+            ForgePausedEvent pause => JsonSerializer.Serialize(
+                new { Type = "pause", Message = pause.Message }, s_jsonOptions),
+
             ForgeCompletedEvent done => JsonSerializer.Serialize(
                 new
                 {
@@ -469,9 +472,28 @@ public static class ForgeEndpoints
             return Results.Ok(new { Status = "ok", Name = name, Created = true });
         });
 
-        app.MapGet("/api/projects", async (IStoryStore store, CancellationToken ct) =>
+        app.MapGet("/api/projects", (HttpContext httpContext, StartupPaths paths, CancellationToken ct) =>
         {
-            var projects = await store.ListProjectsAsync(ct);
+            var mode = httpContext.Request.Query["mode"].FirstOrDefault() ?? "writer";
+
+            var contentDir = mode switch
+            {
+                "forge" => ContentPaths.Forge,
+                _ => ContentPaths.Story,
+            };
+
+            var dirPath = Path.Combine(paths.ContentRoot, contentDir);
+            if (!Directory.Exists(dirPath))
+            {
+                return Results.Ok(new { Projects = Array.Empty<string>() });
+            }
+
+            var projects = Directory.GetDirectories(dirPath)
+                .Select(Path.GetFileName)
+                .Where(name => !string.IsNullOrEmpty(name))
+                .OrderBy(name => name)
+                .ToList();
+
             return Results.Ok(new { Projects = projects });
         });
     }

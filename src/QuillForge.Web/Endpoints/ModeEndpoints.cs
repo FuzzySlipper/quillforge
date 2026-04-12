@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuillForge.Core;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -34,6 +35,7 @@ public static class ModeEndpoints
             ISessionStateService runtimeService,
             ISessionBootstrapService bootstrapService,
             ISessionLifecycleService lifecycleService,
+            StartupPaths paths,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -44,6 +46,24 @@ public static class ModeEndpoints
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
             var character = root.TryGetProperty("character", out var c) ? c.GetString() : null;
             var sessionId = root.GetOptionalGuid("sessionId");
+
+            // Ensure project directory exists for modes that need one
+            if (!string.IsNullOrEmpty(project))
+            {
+                var contentDir = mode switch
+                {
+                    "forge" => ContentPaths.Forge,
+                    "writer" => ContentPaths.Story,
+                    _ => (string?)null,
+                };
+
+                if (contentDir is not null)
+                {
+                    var projectDir = Path.Combine(paths.ContentRoot, contentDir, project);
+                    Directory.CreateDirectory(projectDir);
+                }
+            }
+
             Guid? createdSessionId = null;
 
             if (!sessionId.HasValue)

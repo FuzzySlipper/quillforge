@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Providers.Registry;
 using QuillForge.Web.Endpoints;
 using QuillForge.Web.Services;
 
@@ -97,6 +98,9 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         Assert.Equal("session-style", root.GetProperty("writingStyle").GetString());
         Assert.Equal("SessionGuide", root.GetProperty("aiCharacter").GetString());
         Assert.Equal("SessionAuthor", root.GetProperty("userCharacter").GetString());
+        Assert.Equal(2, root.GetProperty("conversationTurns").GetInt32());
+        Assert.True(root.GetProperty("historyTokens").GetInt32() > 0);
+        Assert.Equal(64000, root.GetProperty("contextLimit").GetInt32());
     }
 
     [Fact]
@@ -154,6 +158,29 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         builder.Services.AddSingleton<ISessionLifecycleService>(new NoOpSessionLifecycleService());
         builder.Services.AddSingleton<ISessionProfileReadService, SessionProfileReadService>();
         builder.Services.AddSingleton<ICharacterCardStore>(new TestCharacterCardStore());
+        builder.Services.AddSingleton<ISessionStore>(new TestSessionStore());
+        builder.Services.AddSingleton<ProviderFactory>(sp =>
+            new ProviderFactory(
+                NullLogger<ProviderFactory>.Instance,
+                sp.GetRequiredService<AppConfig>()));
+        builder.Services.AddSingleton<ProviderRegistry>(sp =>
+        {
+            var registry = new ProviderRegistry(
+                sp.GetRequiredService<ProviderFactory>(),
+                sp.GetRequiredService<AppConfig>(),
+                NullLogger<ProviderRegistry>.Instance,
+                NullLoggerFactory.Instance);
+            registry.Register(new ProviderConfig
+            {
+                Alias = "default",
+                Type = ProviderType.Custom,
+                ApiKey = "test-key",
+                BaseUrl = "http://example.test/v1",
+                DefaultModel = "test-model",
+                ContextLimit = 64000,
+            });
+            return registry;
+        });
 
         var app = builder.Build();
         app.MapModeEndpoints();
@@ -450,5 +477,23 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
 
         public Task DeleteAsync(Guid sessionId, CancellationToken ct = default)
             => Task.CompletedTask;
+    }
+
+    private sealed class TestSessionStore : ISessionStore
+    {
+        public Task<ConversationTree> LoadAsync(Guid sessionId, CancellationToken ct = default)
+        {
+            var tree = new ConversationTree(sessionId, "Session", NullLogger<ConversationTree>.Instance);
+            tree.Append(tree.ActiveLeafId, "user", new MessageContent("Tell me about the archive."));
+            tree.Append(tree.ActiveLeafId, "assistant", new MessageContent("The archive hums with old magic."));
+            return Task.FromResult(tree);
+        }
+
+        public Task SaveAsync(ConversationTree session, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<SessionSummary>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<SessionSummary>>([]);
+
+        public Task DeleteAsync(Guid sessionId, CancellationToken ct = default) => Task.CompletedTask;
     }
 }

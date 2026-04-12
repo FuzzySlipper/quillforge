@@ -17,6 +17,14 @@ public sealed record ForgeStatusResponse
     public required ForgeStats Stats { get; init; }
 }
 
+public sealed record ForgeProjectListItem
+{
+    public required string Name { get; init; }
+    public required string Stage { get; init; }
+    public required int ChapterCount { get; init; }
+    public required bool Paused { get; init; }
+}
+
 public sealed record ForgeChapterStatusDto
 {
     public required string State { get; init; }

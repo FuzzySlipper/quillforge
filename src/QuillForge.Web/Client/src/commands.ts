@@ -568,13 +568,9 @@ const commands: Record<string, CommandDef> = {
 
       if (sub === "approve") {
         if (!name) return { output: "Usage: `/forge approve <project-name>`" };
-        try {
-          const res = await fetch(`/api/forge/${encodeURIComponent(name)}/approve`, { method: "POST" });
-          const data = await res.json();
-          return { output: data.status === "ok" ? `Chapter 1 approved. Run \`/forge start ${name}\` to continue writing.` : data.error || "Failed." };
-        } catch {
-          return { output: "Error approving chapter." };
-        }
+        const { sendForgeApproveStream } = await import("./forge");
+        await ctx.streamRequest((onEvent, signal) => sendForgeApproveStream(name, onEvent, signal));
+        return { output: null, streaming: true };
       }
 
       return { output: "Unknown subcommand. Usage: `/forge new|design|start|status|pause|approve|list`" };
