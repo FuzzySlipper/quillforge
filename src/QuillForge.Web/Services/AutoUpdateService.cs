@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using QuillForge.Core.Models;
 
@@ -68,10 +67,13 @@ public sealed class AutoUpdateService : BackgroundService
         var tagName = root.TryGetProperty("tag_name", out var tagEl) ? tagEl.GetString() : null;
         if (string.IsNullOrEmpty(tagName)) return;
 
-        var currentVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
+        var currentVersion = BuildInfo.Version;
         LatestVersion = tagName.TrimStart('v');
 
-        if (string.Compare(LatestVersion, currentVersion, StringComparison.Ordinal) > 0)
+        if (TryParseVersion(LatestVersion, out var latestVersion) &&
+            TryParseVersion(currentVersion, out var parsedCurrentVersion)
+            ? latestVersion > parsedCurrentVersion
+            : !string.Equals(LatestVersion, currentVersion, StringComparison.OrdinalIgnoreCase))
         {
             UpdateAvailable = true;
             DownloadUrl = root.TryGetProperty("html_url", out var urlEl) ? urlEl.GetString() : null;
@@ -82,5 +84,18 @@ public sealed class AutoUpdateService : BackgroundService
             UpdateAvailable = false;
             _logger.LogDebug("Up to date: {Version}", currentVersion);
         }
+    }
+
+    private static bool TryParseVersion(string value, out Version version)
+    {
+        if (Version.TryParse(value.Trim().TrimStart('v'), out var parsedVersion) &&
+            parsedVersion is not null)
+        {
+            version = parsedVersion;
+            return true;
+        }
+
+        version = new Version(0, 0);
+        return false;
     }
 }

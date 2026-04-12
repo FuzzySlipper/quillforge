@@ -9,18 +9,17 @@ namespace QuillForge.Web;
 public static class BuildInfo
 {
     /// <summary>
-    /// Semantic version. Bump manually in QuillForge.Web.csproj.
-    /// </summary>
-    public static string Version { get; } =
-        typeof(BuildInfo).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
-
-    /// <summary>
     /// Informational version includes git hash if available.
     /// </summary>
     public static string InformationalVersion { get; } =
         typeof(BuildInfo).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion ?? Version;
+            ?.InformationalVersion ?? (typeof(BuildInfo).Assembly.GetName().Version?.ToString(3) ?? "0.1.0");
+
+    /// <summary>
+    /// Semantic version from the project file, without the appended git hash.
+    /// </summary>
+    public static string Version { get; } = GetDisplayVersion(InformationalVersion);
 
     /// <summary>
     /// UTC timestamp when this binary was built.
@@ -56,5 +55,21 @@ public static class BuildInfo
         }
 
         return DateTimeOffset.MinValue;
+    }
+
+    private static string GetDisplayVersion(string informationalVersion)
+    {
+        if (string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return "0.1.0";
+        }
+
+        var plusIndex = informationalVersion.IndexOf('+');
+        if (plusIndex >= 0)
+        {
+            return informationalVersion[..plusIndex];
+        }
+
+        return informationalVersion;
     }
 }
