@@ -107,6 +107,12 @@ public sealed class ChatStreamingEndpointTests
         Assert.Equal(sessionId.ToString(), doneEvent.Payload.GetProperty("sessionId").GetGuid().ToString());
         Assert.Equal("Docs answer", doneEvent.Payload.GetProperty("content").GetString());
         Assert.Equal("Answering from the documentation.", doneEvent.Payload.GetProperty("reasoning").GetString());
+        var doneArtifacts = doneEvent.Payload.GetProperty("reasoningArtifacts");
+        Assert.Equal(JsonValueKind.Array, doneArtifacts.ValueKind);
+        var doneArtifact = Assert.Single(doneArtifacts.EnumerateArray());
+        Assert.Equal("orchestrator", doneArtifact.GetProperty("agentId").GetString());
+        Assert.Equal("Orchestrator", doneArtifact.GetProperty("agentLabel").GetString());
+        Assert.Equal("Answering from the documentation.", doneArtifact.GetProperty("content").GetString());
         Assert.Equal("end_turn", doneEvent.Payload.GetProperty("stopReason").GetString());
         Assert.Equal("Discussion", doneEvent.Payload.GetProperty("responseType").GetString());
         Assert.Equal(5, doneEvent.Payload.GetProperty("usage").GetProperty("input").GetInt32());

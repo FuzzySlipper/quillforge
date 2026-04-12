@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getMode, getStatus, getSessionUsage, newSession, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork } from "./api";
-import type { Message, MessageVariant, Mode, Status, DiagnosticEntry, SessionUsage } from "./types";
+import type { Message, MessageVariant, Mode, Status, DiagnosticEntry, SessionUsage, ReasoningArtifact } from "./types";
 import { parseCommand, executeCommand } from "./commands";
 import type { CommandContext } from "./commands";
 import * as tts from "./tts";
@@ -137,21 +137,35 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamStatus]);
 
-  function addResponseMessage(content: string, responseType: string, portrait?: string | null, reasoning?: string | null, parentId?: string | null) {
+  function addResponseMessage(
+    content: string,
+    responseType: string,
+    portrait?: string | null,
+    reasoning?: string | null,
+    reasoningArtifacts?: ReasoningArtifact[] | null,
+    parentId?: string | null,
+  ) {
     if (addAsVariantRef.current) {
       // Add as a variant to the last assistant message
       addAsVariantRef.current = false;
       setMessages((prev) => {
         const lastIdx = [...prev].reverse().findIndex((m) => m.role === "assistant");
         if (lastIdx === -1) {
-          return [...prev, makeAssistantMsg(content, responseType, portrait, reasoning, parentId)];
+          return [...prev, makeAssistantMsg(content, responseType, portrait, reasoning, reasoningArtifacts, parentId)];
         }
         const idx = prev.length - 1 - lastIdx;
         const msg = prev[idx];
         const variants: MessageVariant[] = msg.variants ?? [
-          { content: msg.content, responseType: msg.responseType, timestamp: msg.timestamp, portrait: msg.portrait, reasoning: msg.reasoning },
+          {
+            content: msg.content,
+            responseType: msg.responseType,
+            timestamp: msg.timestamp,
+            portrait: msg.portrait,
+            reasoning: msg.reasoning,
+            reasoningArtifacts: msg.reasoningArtifacts,
+          },
         ];
-        const newVariant: MessageVariant = { content, responseType, timestamp: Date.now(), portrait, reasoning };
+        const newVariant: MessageVariant = { content, responseType, timestamp: Date.now(), portrait, reasoning, reasoningArtifacts: reasoningArtifacts ?? undefined };
         const newVariants = [...variants, newVariant];
         const newIdx = newVariants.length - 1;
 
@@ -163,6 +177,7 @@ function App() {
             responseType,
             portrait,
             reasoning,
+            reasoningArtifacts: reasoningArtifacts ?? undefined,
             variants: newVariants,
             activeVariant: newIdx,
           },
@@ -170,13 +185,20 @@ function App() {
         ];
       });
     } else {
-      setMessages((prev) => [...prev, makeAssistantMsg(content, responseType, portrait, reasoning, parentId)]);
+      setMessages((prev) => [...prev, makeAssistantMsg(content, responseType, portrait, reasoning, reasoningArtifacts, parentId)]);
     }
     // Auto TTS for new assistant messages
     tts.onAssistantMessage(content);
   }
 
-  function makeAssistantMsg(content: string, responseType: string, portrait?: string | null, reasoning?: string | null, parentId?: string | null): Message {
+  function makeAssistantMsg(
+    content: string,
+    responseType: string,
+    portrait?: string | null,
+    reasoning?: string | null,
+    reasoningArtifacts?: ReasoningArtifact[] | null,
+    parentId?: string | null,
+  ): Message {
     return {
       id: uuid(),
       role: "assistant",
@@ -184,6 +206,7 @@ function App() {
       responseType,
       portrait,
       reasoning,
+      reasoningArtifacts: reasoningArtifacts ?? undefined,
       parentId,
       timestamp: Date.now(),
     };
@@ -283,14 +306,14 @@ function App() {
               setMessages((prev) => prev.filter((m) => m.id !== streamMsgId));
             }
             const reasoning = (event.data.reasoning as string) || null;
+            const reasoningArtifacts = (event.data.reasoningArtifacts as ReasoningArtifact[] | undefined) ?? undefined;
             const msg = makeAssistantMsg(
               event.data.content as string,
               event.data.responseType as string,
               event.data.portrait as string | null | undefined,
+              reasoning,
+              reasoningArtifacts,
             );
-            if (reasoning) {
-              msg.reasoning = reasoning;
-            }
             // Apply user portrait to the preceding user message
             const userPortrait = event.data.userPortrait as string | null | undefined;
             if (userPortrait) {
@@ -307,6 +330,7 @@ function App() {
               msg.responseType || "discussion",
               msg.portrait,
               msg.reasoning,
+              msg.reasoningArtifacts,
               event.data.parentId as string | null | undefined,
             );
             setStreamStatus(null);
@@ -464,6 +488,8 @@ function App() {
                     event.data.content as string,
                     event.data.responseType as string,
                     event.data.portrait as string | null | undefined,
+                    (event.data.reasoning as string | null | undefined) ?? null,
+                    (event.data.reasoningArtifacts as ReasoningArtifact[] | undefined) ?? undefined,
                   );
                   setStreamStatus(null);
                   refreshStatus();
@@ -584,6 +610,7 @@ function App() {
           responseType: variant.responseType,
           portrait: variant.portrait,
           reasoning: variant.reasoning,
+          reasoningArtifacts: variant.reasoningArtifacts,
           activeVariant: next,
         };
       }),
@@ -829,12 +856,14 @@ function App() {
             content: m.content,
             timestamp: new Date(m.createdAt).getTime() || Date.now(),
             reasoning: m.reasoning ?? null,
+            reasoningArtifacts: m.reasoningArtifacts ?? undefined,
             parentId: m.parentId ?? undefined,
             variants: m.variants?.map((v) => ({
               content: v.content,
               responseType: undefined,
               timestamp: new Date(v.createdAt).getTime(),
               reasoning: v.reasoning ?? null,
+              reasoningArtifacts: v.reasoningArtifacts ?? undefined,
             })),
             activeVariant: m.variants ? 0 : undefined,
           }));

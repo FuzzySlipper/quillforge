@@ -67,7 +67,7 @@ public sealed class FileSystemProfileConfigStore : IProfileConfigStore
         var config = YamlDeserializer.Deserialize<ProfileConfig>(yaml) ?? new ProfileConfig();
 
         _logger.LogInformation(
-            "Loaded profile config {ProfileId} from {Path}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
+            "Loaded profile config {ProfileId} from {Path}: legacyConductor={LegacyConductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
             profileId,
             path,
             config.Conductor ?? "(none)",
@@ -85,7 +85,7 @@ public sealed class FileSystemProfileConfigStore : IProfileConfigStore
         await _writer.WriteAsync(path, yaml, ct);
 
         _logger.LogInformation(
-            "Saved profile config {ProfileId} to {Path}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
+            "Saved profile config {ProfileId} to {Path}: legacyConductor={LegacyConductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
             profileId,
             path,
             config.Conductor ?? "(none)",

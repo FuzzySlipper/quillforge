@@ -111,7 +111,7 @@ test.describe('API Smoke Tests', () => {
     expect(d.assignments.orchestrator).toBeTruthy();
   });
 
-  test('mode switch round-trip', async ({ request }) => {
+  test('mode switch round-trip and legacy general alias', async ({ request }) => {
     for (const mode of ['guide', 'writer', 'roleplay', 'forge', 'council']) {
       const d = await (await request.post(`${BASE}/api/mode`, { data: { mode } })).json();
       expect(d.mode).toBe(mode);
@@ -152,9 +152,9 @@ test.describe('API Smoke Tests', () => {
     expect(resp.ok()).toBe(true);
   });
 
-  test('conductors returns data', async ({ request }) => {
+  test('legacy conductors endpoint returns data shape', async ({ request }) => {
     const d = await (await request.get(`${BASE}/api/conductors`)).json();
-    expect(d.files).toBeTruthy();
+    expect(Array.isArray(d.files)).toBe(true);
   });
 
   test('writing-styles returns data', async ({ request }) => {

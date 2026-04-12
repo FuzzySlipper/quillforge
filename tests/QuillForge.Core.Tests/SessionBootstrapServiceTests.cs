@@ -102,7 +102,6 @@ public sealed class SessionBootstrapServiceTests
             var config = resolvedProfileId == "grim"
                 ? new ProfileConfig
                 {
-                    Conductor = "grim-conductor",
                     LoreSet = "grim-lore",
                     NarrativeRules = "grim-rules",
                     WritingStyle = "grim-style",
@@ -114,7 +113,6 @@ public sealed class SessionBootstrapServiceTests
                 }
                 : new ProfileConfig
                 {
-                    Conductor = "default-conductor",
                     LoreSet = "default-lore",
                     NarrativeRules = "default-rules",
                     WritingStyle = "default-style",

@@ -5,7 +5,7 @@ using QuillForge.Core.Utilities;
 namespace QuillForge.Storage.FileSystem;
 
 /// <summary>
-/// Loads conductor prompt profiles from the file system.
+/// Loads legacy conductor prompt profiles from the file system.
 /// A profile can be either a single .md file or a directory containing
 /// multiple .md files (concatenated in alphabetical order).
 /// </summary>
@@ -25,7 +25,7 @@ public sealed class FileSystemConductorStore : IConductorStore
     public async Task<string> LoadAsync(string conductorName, int? maxTokens = null, CancellationToken ct = default)
     {
         _logger.LogDebug(
-            "Loading conductor profile: {Name}, budget: {Budget} tokens",
+            "Loading legacy conductor profile: {Name}, budget: {Budget} tokens",
             conductorName,
             maxTokens ?? -1);
         var dirPath = Path.Combine(_conductorPath, conductorName);
@@ -49,7 +49,7 @@ public sealed class FileSystemConductorStore : IConductorStore
                 }
 
                 _logger.LogDebug(
-                    "Loaded conductor profile {Name} from {Count} files",
+                    "Loaded legacy conductor profile {Name} from {Count} files",
                     conductorName,
                     files.Count);
                 return string.Join("\n\n", parts);
@@ -59,11 +59,11 @@ public sealed class FileSystemConductorStore : IConductorStore
         var filePath = Path.Combine(_conductorPath, conductorName + ".md");
         if (File.Exists(filePath))
         {
-            _logger.LogDebug("Loaded conductor profile {Name} from file", conductorName);
+            _logger.LogDebug("Loaded legacy conductor profile {Name} from file", conductorName);
             return await File.ReadAllTextAsync(filePath, ct);
         }
 
-        _logger.LogWarning("Conductor profile not found: {Name}, returning empty", conductorName);
+        _logger.LogWarning("Legacy conductor profile not found: {Name}, returning empty", conductorName);
         return "";
     }
 
@@ -85,14 +85,14 @@ public sealed class FileSystemConductorStore : IConductorStore
             if (totalTokens + tokens > budget)
             {
                 _logger.LogDebug(
-                    "Conductor tier {Tier} skipped: would exceed budget ({Current} + {FileTokens} > {Budget})",
+                    "Legacy conductor tier {Tier} skipped: would exceed budget ({Current} + {FileTokens} > {Budget})",
                     tierFile, totalTokens, tokens, budget);
                 break;
             }
 
             parts.Add(content);
             totalTokens += tokens;
-            _logger.LogDebug("Loaded conductor tier {Tier}: {Tokens} tokens (total: {Total}/{Budget})",
+            _logger.LogDebug("Loaded legacy conductor tier {Tier}: {Tokens} tokens (total: {Total}/{Budget})",
                 tierFile, tokens, totalTokens, budget);
         }
 
@@ -110,7 +110,7 @@ public sealed class FileSystemConductorStore : IConductorStore
 
             if (totalTokens + tokens > budget)
             {
-                _logger.LogDebug("Conductor file {File} skipped: would exceed budget", fileName);
+                _logger.LogDebug("Legacy conductor file {File} skipped: would exceed budget", fileName);
                 continue;
             }
 
@@ -118,7 +118,7 @@ public sealed class FileSystemConductorStore : IConductorStore
             totalTokens += tokens;
         }
 
-        _logger.LogDebug("Loaded conductor profile with {Parts} parts, {Tokens}/{Budget} tokens", parts.Count, totalTokens, budget);
+        _logger.LogDebug("Loaded legacy conductor profile with {Parts} parts, {Tokens}/{Budget} tokens", parts.Count, totalTokens, budget);
         return string.Join("\n\n", parts);
     }
 

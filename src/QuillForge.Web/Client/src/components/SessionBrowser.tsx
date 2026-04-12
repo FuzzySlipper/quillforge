@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Overlay from "./Overlay";
 import { listSessions, loadSession, deleteSession, type SessionInfo } from "../api";
+import type { ReasoningArtifact } from "../types";
 
 interface SessionBrowserProps {
   open: boolean;
@@ -11,8 +12,9 @@ interface SessionBrowserProps {
     content: string;
     createdAt: string;
     reasoning?: string | null;
+    reasoningArtifacts?: ReasoningArtifact[] | null;
     parentId?: string | null;
-    variants?: Array<{ content: string; createdAt: string; reasoning?: string | null }> | null;
+    variants?: Array<{ content: string; createdAt: string; reasoning?: string | null; reasoningArtifacts?: ReasoningArtifact[] | null }> | null;
   }>) => void;
 }
 

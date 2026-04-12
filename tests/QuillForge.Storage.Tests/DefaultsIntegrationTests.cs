@@ -47,8 +47,9 @@ public class DefaultsIntegrationTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_tempDir, "lore", "default", "world-overview.md")));
         Assert.True(File.Exists(Path.Combine(_tempDir, "lore", "default", "characters", "elena-vasquez.md")));
 
-        // Should have conductor files
-        Assert.True(Directory.Exists(Path.Combine(_tempDir, "conductor", "narrator")));
+        // Conductor directory remains for compatibility, but fresh installs no longer seed files
+        Assert.True(Directory.Exists(Path.Combine(_tempDir, "conductor")));
+        Assert.False(Directory.Exists(Path.Combine(_tempDir, "conductor", "narrator")));
 
         // Should have assistant prompts
         Assert.True(File.Exists(Path.Combine(_tempDir, "assistant", "default.md")));
@@ -170,7 +171,7 @@ public class DefaultsIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task ConductorStore_LoadsNarratorConductor()
+    public async Task ConductorStore_IsEmptyOnFreshDefaultsBecauseLegacyConductorsAreNotSeeded()
     {
         if (_defaultsPath is null) return;
 
@@ -182,7 +183,7 @@ public class DefaultsIntegrationTests : IDisposable
             NullLoggerFactory.Instance.CreateLogger<FileSystemConductorStore>());
 
         var conductors = await store.ListAsync();
-        Assert.True(conductors.Count > 0);
+        Assert.Empty(conductors);
     }
 
     [Fact]
@@ -205,14 +206,13 @@ public class DefaultsIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void FirstRunSetup_CreatesMinimalConductorDefault_WhenDefaultsAreMissing()
+    public void FirstRunSetup_DoesNotCreateMinimalConductorDefault_WhenDefaultsAreMissing()
     {
         var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
         setup.EnsureContentDirectory(_tempDir, defaultsPath: null);
 
         var conductorDefaultPath = Path.Combine(_tempDir, "conductor", "default.md");
-        Assert.True(File.Exists(conductorDefaultPath));
-        Assert.Contains("coordination layer", File.ReadAllText(conductorDefaultPath), StringComparison.OrdinalIgnoreCase);
+        Assert.False(File.Exists(conductorDefaultPath));
     }
 
     [Fact]

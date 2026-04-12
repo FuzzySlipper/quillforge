@@ -60,6 +60,7 @@ public sealed class ContractSnapshotTests
     // -----------------------------------------------------------------------
     private static readonly ISerializer YamlSerializer = new SerializerBuilder()
         .WithNamingConvention(UnderscoredNamingConvention.Instance)
+        .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
         .Build();
 
     private static readonly string SnapshotsDir = Path.GetFullPath(
@@ -68,6 +69,19 @@ public sealed class ContractSnapshotTests
     // =======================================================================
     // SSE Event Shapes
     // =======================================================================
+
+    [Fact]
+    public void ReasoningArtifactDto_MatchesApprovedSnapshot()
+    {
+        var dto = new ReasoningArtifactDto
+        {
+            AgentId = "prose-writer",
+            AgentLabel = "Prose Writer",
+            Content = "Keep the voice intimate and grounded.",
+            Sequence = 2,
+        };
+        AssertJsonSnapshot("ReasoningArtifactDto", dto, SseJsonOptions);
+    }
 
     [Fact]
     public void ChatTextDeltaDto_MatchesApprovedSnapshot()
@@ -112,6 +126,23 @@ public sealed class ContractSnapshotTests
             Portrait = "/portraits/ai-guide.png",
             UserPortrait = "/portraits/user-avatar.png",
             Reasoning = "I should surface the old prophecy first.",
+            ReasoningArtifacts =
+            [
+                new ReasoningArtifactDto
+                {
+                    AgentId = "orchestrator",
+                    AgentLabel = "Orchestrator",
+                    Content = "I should surface the old prophecy first.",
+                    Sequence = 0,
+                },
+                new ReasoningArtifactDto
+                {
+                    AgentId = "prose-writer",
+                    AgentLabel = "Prose Writer",
+                    Content = "Lead with the valley fire.",
+                    Sequence = 1,
+                },
+            ],
         };
         AssertJsonSnapshot("ChatDoneDto", dto, SseJsonOptions);
     }
@@ -166,8 +197,51 @@ public sealed class ContractSnapshotTests
             Mode = "writer",
             MessageCount = 6,
             Reasoning = "The omen matters more than the wall carvings.",
+            ReasoningArtifacts =
+            [
+                new ReasoningArtifactDto
+                {
+                    AgentId = "narrative-director",
+                    AgentLabel = "Narrative Director",
+                    Content = "The omen matters more than the wall carvings.",
+                    Sequence = 0,
+                },
+            ],
         };
         AssertJsonSnapshot("DebugBridgeChatResponse", dto, DebugBridgeJsonOptions);
+    }
+
+    [Fact]
+    public void DebugBridgeSessionResponse_MatchesApprovedSnapshot()
+    {
+        var dto = new DebugBridgeSessionResponse
+        {
+            SessionId = Guid.Parse("01234567-89ab-cdef-0123-456789abcdef"),
+            Name = "Guided Session",
+            MessageCount = 2,
+            Messages =
+            [
+                new DebugBridgeMessageDto
+                {
+                    Id = Guid.Parse("11111111-2222-3333-4444-555555555555"),
+                    Role = "assistant",
+                    Content = "The archive opens at dawn.",
+                    CreatedAt = DateTimeOffset.Parse("2026-03-15T14:31:00+00:00"),
+                    Reasoning = "Lead with the concrete answer.",
+                    ReasoningArtifacts =
+                    [
+                        new ReasoningArtifactDto
+                        {
+                            AgentId = "assistant",
+                            AgentLabel = "Assistant",
+                            Content = "Lead with the concrete answer.",
+                            Sequence = 0,
+                        },
+                    ],
+                },
+            ],
+        };
+        AssertJsonSnapshot("DebugBridgeSessionResponse", dto, DebugBridgeJsonOptions);
     }
 
     [Fact]
@@ -218,6 +292,16 @@ public sealed class ContractSnapshotTests
             ],
             FinalContent = "The castle loomed over the forgotten valley.",
             FinalReasoning = "Lead with the silhouette, then the valley.",
+            FinalReasoningArtifacts =
+            [
+                new ReasoningArtifactDto
+                {
+                    AgentId = "prose-writer",
+                    AgentLabel = "Prose Writer",
+                    Content = "Lead with the silhouette, then the valley.",
+                    Sequence = 1,
+                },
+            ],
             NodeIds = new DebugBridgeNodeIds
             {
                 User = Guid.Parse("11111111-2222-3333-4444-555555555555"),
@@ -236,6 +320,58 @@ public sealed class ContractSnapshotTests
     // =======================================================================
     // Session State Shape
     // =======================================================================
+
+    [Fact]
+    public void SessionLoadResponse_MatchesApprovedSnapshot()
+    {
+        var dto = new SessionLoadResponse
+        {
+            SessionId = Guid.Parse("01234567-89ab-cdef-0123-456789abcdef"),
+            Name = "Archive Session",
+            Messages =
+            [
+                new SessionMessageDto
+                {
+                    Id = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+                    Role = "assistant",
+                    Content = "The archive keeps the old maps.",
+                    CreatedAt = DateTimeOffset.Parse("2026-03-15T14:32:00+00:00"),
+                    ParentId = Guid.Parse("11111111-2222-3333-4444-555555555555"),
+                    Reasoning = "Mention the maps first.",
+                    ReasoningArtifacts =
+                    [
+                        new ReasoningArtifactDto
+                        {
+                            AgentId = "orchestrator",
+                            AgentLabel = "Orchestrator",
+                            Content = "Mention the maps first.",
+                            Sequence = 0,
+                        },
+                    ],
+                    Variants =
+                    [
+                        new MessageVariantDto
+                        {
+                            Content = "The archive keeps the old maps.",
+                            CreatedAt = DateTimeOffset.Parse("2026-03-15T14:32:00+00:00"),
+                            Reasoning = "Mention the maps first.",
+                            ReasoningArtifacts =
+                            [
+                                new ReasoningArtifactDto
+                                {
+                                    AgentId = "orchestrator",
+                                    AgentLabel = "Orchestrator",
+                                    Content = "Mention the maps first.",
+                                    Sequence = 0,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+        AssertJsonSnapshot("SessionLoadResponse", dto, DebugBridgeJsonOptions);
+    }
 
     [Fact]
     public void SessionState_MatchesApprovedSnapshot()
@@ -294,7 +430,6 @@ public sealed class ContractSnapshotTests
     {
         var config = new ProfileConfig
         {
-            Conductor = "grim-narrator",
             LoreSet = "shadow-realm",
             NarrativeRules = "dark-rules",
             WritingStyle = "gothic-prose",

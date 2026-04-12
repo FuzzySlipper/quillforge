@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Message, Mode } from "../types";
+import ReasoningDetails from "./ReasoningDetails";
 
 /** Wrap "quoted dialogue" in spans so the CSS text theme can color them. */
 function renderDialogue(text: string): React.ReactNode[] {
@@ -150,15 +151,16 @@ export default function MessageBubble({ message, index, mode, onEdit, onRetry, o
     >
       {topBar}
 
-      {!isUser && message.reasoning && (
-        <details className="mb-2">
-          <summary className="text-[11px] text-text-muted cursor-pointer hover:text-text select-none">
-            reasoning
-          </summary>
-          <div className="mt-1 px-3 py-2 rounded-lg bg-surface-alt/50 border border-border/30 text-[13px] text-text-muted leading-relaxed max-h-60 overflow-y-auto">
-            <pre className="whitespace-pre-wrap font-sans">{message.reasoning}</pre>
-          </div>
-        </details>
+      {!isUser && (
+        <ReasoningDetails
+          reasoning={message.reasoning}
+          artifacts={message.reasoningArtifacts}
+          className="mb-2"
+          summaryClassName="text-[11px] text-text-muted cursor-pointer hover:text-text select-none"
+          panelClassName="mt-1 px-3 py-2 rounded-lg bg-surface-alt/50 border border-border/30 text-[13px] text-text-muted leading-relaxed max-h-60 overflow-y-auto"
+          preClassName="whitespace-pre-wrap font-sans"
+          selectClassName="text-[11px] bg-surface border border-border/50 rounded px-2 py-1 text-text focus:outline-none focus:border-accent"
+        />
       )}
 
       {editing ? (

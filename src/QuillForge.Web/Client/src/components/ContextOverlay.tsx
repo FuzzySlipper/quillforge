@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import Overlay from "./Overlay";
 import ContextMeter from "./ContextMeter";
-import type { Status } from "../types";
+import type { Status, ReasoningArtifact } from "../types";
+import ReasoningDetails from "./ReasoningDetails";
 
 interface ContextOverlayProps {
   open: boolean;
@@ -25,6 +26,7 @@ interface HistoryMessage {
   role: string;
   content?: string;
   reasoning?: string | null;
+  reasoningArtifacts?: ReasoningArtifact[] | null;
   length?: number;
   blocks?: HistoryBlock[];
 }
@@ -140,16 +142,15 @@ export default function ContextOverlay({ open, onClose, status, sessionId }: Con
                         {msg.content}
                       </pre>
                     )}
-                    {msg.reasoning && (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-[10px] text-text-muted/70 hover:text-text-muted">
-                          reasoning
-                        </summary>
-                        <pre className="mt-1 whitespace-pre-wrap text-text/70 text-[10px] leading-relaxed">
-                          {msg.reasoning}
-                        </pre>
-                      </details>
-                    )}
+                    <ReasoningDetails
+                      reasoning={msg.reasoning}
+                      artifacts={msg.reasoningArtifacts}
+                      className="mt-2"
+                      summaryClassName="cursor-pointer text-[10px] text-text-muted/70 hover:text-text-muted"
+                      panelClassName="mt-1 rounded border border-border/40 bg-surface-alt/40 px-2 py-2"
+                      preClassName="whitespace-pre-wrap text-text/70 text-[10px] leading-relaxed"
+                      selectClassName="text-[10px] bg-surface border border-border/50 rounded px-1.5 py-1 text-text focus:outline-none focus:border-accent"
+                    />
                     {msg.blocks && msg.blocks.map((block, j) => (
                       <div key={j} className="mt-1 pl-2 border-l border-border/50">
                         {block.type === "text" && (

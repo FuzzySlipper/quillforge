@@ -56,12 +56,6 @@ public static class ServiceRegistration
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemArtifactService>>()));
 
-        services.AddSingleton<FileSystemConductorStore>(sp =>
-            new FileSystemConductorStore(
-                Path.Combine(contentRoot, ContentPaths.Conductor),
-                sp.GetRequiredService<ILogger<FileSystemConductorStore>>()));
-        services.AddSingleton<IConductorStore>(sp => sp.GetRequiredService<FileSystemConductorStore>());
-
         services.AddSingleton<IAssistantPromptStore>(sp =>
             new FileSystemAssistantPromptStore(
                 Path.Combine(contentRoot, ContentPaths.Assistant),

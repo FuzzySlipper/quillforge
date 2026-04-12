@@ -1,11 +1,19 @@
 export type Mode = "guide" | "writer" | "roleplay" | "forge" | "council" | "research";
 
+export interface ReasoningArtifact {
+  agentId: string;
+  agentLabel: string;
+  content: string;
+  sequence: number;
+}
+
 export interface MessageVariant {
   content: string;
   responseType?: string;
   timestamp: number;
   portrait?: string | null;
   reasoning?: string | null;
+  reasoningArtifacts?: ReasoningArtifact[];
 }
 
 export interface Message {
@@ -20,6 +28,7 @@ export interface Message {
   userPortrait?: string | null;
   /** Reasoning/thinking content from the model (e.g. DeepSeek reasoning). */
   reasoning?: string | null;
+  reasoningArtifacts?: ReasoningArtifact[];
   /** Alternative responses (for swipe). Index 0 is the original. */
   variants?: MessageVariant[];
   /** Currently displayed variant index (0-based). */

@@ -1,4 +1,4 @@
-import type { Status, Profiles, ModeInfo, Mode, ProfileSwitchResult, SessionUsage } from "./types";
+import type { Status, Profiles, ModeInfo, Mode, ProfileSwitchResult, SessionUsage, ReasoningArtifact } from "./types";
 
 const BASE = "";
 
@@ -307,8 +307,9 @@ export async function loadSession(
     content: string;
     createdAt: string;
     reasoning?: string | null;
+    reasoningArtifacts?: ReasoningArtifact[] | null;
     parentId?: string | null;
-    variants?: Array<{ content: string; createdAt: string; reasoning?: string | null }> | null;
+    variants?: Array<{ content: string; createdAt: string; reasoning?: string | null; reasoningArtifacts?: ReasoningArtifact[] | null }> | null;
   }>;
 }> {
   return request(`/api/sessions/${encodeURIComponent(id)}/load`, { method: "POST" });

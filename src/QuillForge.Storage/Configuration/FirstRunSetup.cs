@@ -76,6 +76,12 @@ public sealed class FirstRunSetup
         foreach (var sourceFile in Directory.GetFiles(defaultsPath, "*", SearchOption.AllDirectories))
         {
             var relativePath = Path.GetRelativePath(defaultsPath, sourceFile);
+            var normalizedRelativePath = relativePath.Replace('\\', '/');
+            if (normalizedRelativePath.StartsWith($"{ContentPaths.Conductor}/", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var targetPath = Path.Combine(contentRoot, relativePath);
 
             if (File.Exists(targetPath))
@@ -99,19 +105,6 @@ public sealed class FirstRunSetup
     /// </summary>
     private void CreateMinimalDefaults(string contentRoot)
     {
-        WriteIfMissing(Path.Combine(contentRoot, ContentPaths.Conductor, "default.md"), """
-            # Default Conductor
-
-            You are the coordination layer for QuillForge.
-
-            Operational rules:
-            - Do not adopt a separate assistant persona unless the user explicitly asks for one.
-            - Route to the right capability before answering from general intuition.
-            - In roleplay, stay transparent: the scene, characters, and prose carry the voice, not you.
-            - Keep direct non-fiction responses clear, concise, and task-focused.
-            - If a tool or dependency fails, say so plainly instead of hiding the failure.
-            """);
-
         WriteIfMissing(Path.Combine(contentRoot, ContentPaths.Assistant, "default.md"), """
             # Default Assistant Style
 
@@ -169,7 +162,6 @@ public sealed class FirstRunSetup
             """);
 
         WriteIfMissing(Path.Combine(contentRoot, ContentPaths.Profiles, "default.yaml"), """
-            conductor: default
             lore_set: default
             narrative_rules: default
             writing_style: default

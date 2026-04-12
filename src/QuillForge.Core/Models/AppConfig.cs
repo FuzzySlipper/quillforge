@@ -44,6 +44,8 @@ public sealed record ModelsConfig
 
 public sealed record PersonaConfig
 {
+    // Legacy migration-only field from the conductor-era config shape. Live
+    // routing and profile selection are no longer driven by persona.active.
     public string Active { get; set; } = "default";
     public int MaxTokens { get; set; } = 6000;
 }

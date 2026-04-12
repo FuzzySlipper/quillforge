@@ -173,7 +173,7 @@ Practical rule:
 
 - Edit the content folders when you want to change lore, prompts, profiles, layouts, or writing assets.
 - Avoid hand-editing `user/data/sessions/` and `user/data/session-state/` unless you are doing recovery or debugging work.
-- `user/conductor/` is retained as legacy migration/reference material; current live routing behavior is app-owned.
+- `user/conductor/` is retained as legacy migration/reference material if present; current live routing behavior is app-owned by mode.
 
 ## Development
 
@@ -476,7 +476,7 @@ That means:
 
 - lore is plain markdown
 - assistant prompts are plain markdown
-- conductors are plain markdown legacy migration material
+- conductors are plain markdown legacy migration material when present
 - writing styles are plain markdown
 - profiles are plain yaml
 - sessions are json
@@ -492,7 +492,7 @@ Usually safe:
 
 - `user/lore/`
 - `user/assistant/`
-- `user/conductor/`
+- `user/conductor/` if you are inspecting or migrating older installs
 - `user/librarian-prompts/`
 - `user/narrative-rules/`
 - `user/profiles/`

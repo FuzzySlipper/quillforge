@@ -30,5 +30,19 @@
   },
   "portrait": "/portraits/ai-guide.png",
   "userPortrait": "/portraits/user-avatar.png",
-  "reasoning": "I should surface the old prophecy first."
+  "reasoning": "I should surface the old prophecy first.",
+  "reasoningArtifacts": [
+    {
+      "agentId": "orchestrator",
+      "agentLabel": "Orchestrator",
+      "content": "I should surface the old prophecy first.",
+      "sequence": 0
+    },
+    {
+      "agentId": "prose-writer",
+      "agentLabel": "Prose Writer",
+      "content": "Lead with the valley fire.",
+      "sequence": 1
+    }
+  ]
 }

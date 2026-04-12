@@ -153,11 +153,12 @@ public static class ChatEndpoints
                 }
 
                 var eventReasoning = GetReasoningForDisplay(reasoningCollector, assistantReasoning, providerReplay);
+                var eventReasoningArtifacts = reasoningCollector.Snapshot();
                 var eventData = evt switch
                 {
                     TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new ChatTextDeltaDto { Text = text.Text }, s_jsonOptions)}\n\n",
                     ToolCallValidatedEvent tool => $"data: {JsonSerializer.Serialize(new ChatToolDto { Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
-                    DoneEvent done => FormatDoneEvent(done, sessionId, appendParentId, assistantText.ToString(), eventReasoning, prepared, usageTracker),
+                    DoneEvent done => FormatDoneEvent(done, sessionId, appendParentId, assistantText.ToString(), eventReasoning, eventReasoningArtifacts, prepared, usageTracker),
                     ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new ChatReasoningDeltaDto { Text = reasoning.Text }, s_jsonOptions)}\n\n",
                     DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new ChatDiagnosticDto { Category = diag.Category.ToString().ToLowerInvariant(), Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
                     _ => null,
@@ -346,6 +347,7 @@ public static class ChatEndpoints
         Guid parentId,
         string content,
         string? reasoning,
+        IReadOnlyList<ReasoningArtifact> reasoningArtifacts,
         PreparedInteractiveRequest prepared,
         ITokenUsageTracker usageTracker)
     {
@@ -378,6 +380,7 @@ public static class ChatEndpoints
             Portrait = prepared.AssistantPortraitUrl,
             UserPortrait = prepared.UserPortraitUrl,
             Reasoning = reasoning,
+            ReasoningArtifacts = ReasoningContractMapper.ToDtos(reasoningArtifacts),
         };
         return $"data: {JsonSerializer.Serialize(dto, s_jsonOptions)}\n\n";
     }

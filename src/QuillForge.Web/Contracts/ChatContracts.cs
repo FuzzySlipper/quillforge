@@ -35,6 +35,7 @@ public sealed record ChatDoneDto
     public string? Portrait { get; init; }
     public string? UserPortrait { get; init; }
     public string? Reasoning { get; init; }
+    public IReadOnlyList<ReasoningArtifactDto> ReasoningArtifacts { get; init; } = [];
 }
 
 public sealed record ChatUsageDto

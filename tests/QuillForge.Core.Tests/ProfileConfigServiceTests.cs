@@ -7,7 +7,7 @@ namespace QuillForge.Core.Tests;
 public sealed class ProfileConfigServiceTests
 {
     [Fact]
-    public async Task ListAsync_MaterializesCompatibilityDefaultProfile_WhenNoProfilesExist()
+    public async Task ListAsync_MaterializesCompatibilityDefaultProfile_WithoutUsingLegacyPersonaActive()
     {
         var appConfigStore = new InMemoryAppConfigStore(new AppConfig
         {
@@ -30,7 +30,7 @@ public sealed class ProfileConfigServiceTests
 
         Assert.Equal(["default"], profiles);
         Assert.Equal("default", resolved.ProfileId);
-        Assert.Equal("narrator", resolved.Config.Conductor);
+        Assert.Null(resolved.Config.Conductor);
         Assert.Equal("fantasy", resolved.Config.LoreSet);
         Assert.Equal("strict", resolved.Config.NarrativeRules);
         Assert.Equal("literary", resolved.Config.WritingStyle);
@@ -39,9 +39,12 @@ public sealed class ProfileConfigServiceTests
     }
 
     [Fact]
-    public async Task SelectAsync_UpdatesAppConfigDefaultAndCompatibilityLegacyActiveFields()
+    public async Task SelectAsync_UpdatesAppConfigDefaultWithoutRewritingLegacyPersonaActive()
     {
-        var appConfigStore = new InMemoryAppConfigStore(new AppConfig());
+        var appConfigStore = new InMemoryAppConfigStore(new AppConfig
+        {
+            Persona = new PersonaConfig { Active = "legacy-persona" },
+        });
         var profileStore = new InMemoryProfileConfigStore();
         var runtimeStore = new InMemoryProfileUsageRuntimeStore();
         await profileStore.SaveAsync("research", new ProfileConfig
@@ -62,7 +65,7 @@ public sealed class ProfileConfigServiceTests
 
         Assert.Equal("research", selection.ProfileId);
         Assert.Equal("research", selection.UpdatedAppConfig.Profiles.Default);
-        Assert.Equal("analyst", selection.UpdatedAppConfig.Persona.Active);
+        Assert.Equal("legacy-persona", selection.UpdatedAppConfig.Persona.Active);
         Assert.Equal("science", selection.UpdatedAppConfig.Lore.Active);
         Assert.Equal("clean", selection.UpdatedAppConfig.NarrativeRules.Active);
         Assert.Equal("concise", selection.UpdatedAppConfig.WritingStyle.Active);

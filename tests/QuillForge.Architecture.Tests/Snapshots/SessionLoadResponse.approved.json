@@ -1,0 +1,37 @@
+{
+  "sessionId": "01234567-89ab-cdef-0123-456789abcdef",
+  "name": "Archive Session",
+  "messages": [
+    {
+      "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "role": "assistant",
+      "content": "The archive keeps the old maps.",
+      "createdAt": "2026-03-15T14:32:00+00:00",
+      "parentId": "11111111-2222-3333-4444-555555555555",
+      "reasoning": "Mention the maps first.",
+      "reasoningArtifacts": [
+        {
+          "agentId": "orchestrator",
+          "agentLabel": "Orchestrator",
+          "content": "Mention the maps first.",
+          "sequence": 0
+        }
+      ],
+      "variants": [
+        {
+          "content": "The archive keeps the old maps.",
+          "createdAt": "2026-03-15T14:32:00+00:00",
+          "reasoning": "Mention the maps first.",
+          "reasoningArtifacts": [
+            {
+              "agentId": "orchestrator",
+              "agentLabel": "Orchestrator",
+              "content": "Mention the maps first.",
+              "sequence": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -62,10 +62,11 @@ share.
 
 A profile is the right home for reusable author intent such as:
 
-- conductor selection
 - lore set
 - narrative rules
 - writing style
+- librarian prompt selection
+- roleplay character defaults
 - any other user-facing bundle choice that should be reused across sessions
 
 A profile is not:
@@ -253,7 +254,7 @@ Examples of acceptable overrides:
 
 - temporarily switching the lore set for one session
 - trying a different writing style for one branch/run
-- changing conductor behavior for a single experimental session
+- changing the librarian prompt or roleplay character selection for a single experimental session
 
 Restrictions:
 
@@ -347,8 +348,8 @@ owned by an explicit service rule rather than by the storage layer guessing.
 
 Use these replacements:
 
-- `conductor` for the prompt/voice/instruction file currently exposed through
-  legacy persona routes
+- `assistant` for user-facing style/personality prompt files used by the
+  constrained Assistant path
 - `profile` for the reusable named configuration bundle
 - `session` for the live interactive run
 - `conversation tree` for the branching message artifact
@@ -356,13 +357,12 @@ Use these replacements:
 Guidance:
 
 - do not use `persona` as the umbrella word for profile, session, and
-  conductor-like concepts
-- expose conductor prompt editing through conductor-named routes and stores
-  instead of compatibility `/api/persona` endpoints
-- prefer conductor-first API and client contracts (`conductor`,
-  `activeConductor`, `conductors`) for live runtime behavior
-- preserve legacy persisted session overrides by treating `activePersona` as a
-  read-only compatibility alias for the renamed `activeConductor` field
+  legacy conductor-like concepts
+- do not add new live routing, profile-selection, or prompt-composition logic
+  around `conductor` or `persona`
+- keep legacy conductor files readable only as migration/reference material
+- preserve `activePersona` and `activeConductor` only as read-only persisted
+  compatibility aliases during migration
 
 ## Service Ownership Rules
 
@@ -417,8 +417,9 @@ Use these quick checks in future code review:
   `SessionState`.
 - If the data is the message graph, keep the `ConversationTree` name.
 - If behavior coordinates mutation or lifecycle, it belongs in a `*Service`.
-- If code uses `persona` to mean profile/session/conductor interchangeably, the
-  naming is still wrong.
+- If code uses `persona` or live `conductor` language to mean
+  profile/session/app-owned mode routing interchangeably, the naming is still
+  wrong.
 
 ## Immediate Implications For Follow-On Tasks
 
@@ -429,5 +430,7 @@ Use these quick checks in future code review:
   fields as the only durable truth.
 - Task 388 should make fork/delete operate on the owned pair:
   `ConversationTree + SessionState`.
-- Task 389 should continue replacing structural `persona` language with
-  `conductor` and `profile`, while keeping compatibility shims where needed.
+- Task 389 should continue replacing structural `persona` and
+  conductor-as-live-routing language with `assistant`, `profile`, and
+  app-owned mode routing terminology, while keeping compatibility shims where
+  needed.

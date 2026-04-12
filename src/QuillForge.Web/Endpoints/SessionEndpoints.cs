@@ -74,12 +74,14 @@ public static class SessionEndpoints
                                         Content = n.Content.GetText(),
                                         CreatedAt = n.CreatedAt,
                                         Reasoning = n.Metadata?.Reasoning,
+                                        ReasoningArtifacts = ReasoningContractMapper.ToDtos(n.Metadata?.ReasoningArtifacts),
                                     },
                                     .. siblings.Select(s => new MessageVariantDto
                                     {
                                         Content = s.Content.GetText(),
                                         CreatedAt = s.CreatedAt,
                                         Reasoning = s.Metadata?.Reasoning,
+                                        ReasoningArtifacts = ReasoningContractMapper.ToDtos(s.Metadata?.ReasoningArtifacts),
                                     })
                                 ];
                             }
@@ -93,6 +95,7 @@ public static class SessionEndpoints
                             CreatedAt = n.CreatedAt,
                             ParentId = n.ParentId,
                             Reasoning = n.Metadata?.Reasoning,
+                            ReasoningArtifacts = ReasoningContractMapper.ToDtos(n.Metadata?.ReasoningArtifacts),
                             Variants = variants,
                         };
                     }),
@@ -238,6 +241,7 @@ public static class SessionEndpoints
                         createdAt = n.CreatedAt,
                         parentId = n.ParentId,
                         reasoning = n.Metadata?.Reasoning,
+                        reasoningArtifacts = ReasoningContractMapper.ToDtos(n.Metadata?.ReasoningArtifacts),
                     }),
                     Count = thread.Count,
                     SessionId = sessionId,

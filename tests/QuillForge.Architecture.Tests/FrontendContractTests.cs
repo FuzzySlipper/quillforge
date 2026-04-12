@@ -8,6 +8,25 @@ public sealed class FrontendContractTests
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void ReasoningArtifactDto_StaysInSyncWith_ReasoningArtifactInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("ReasoningArtifact");
+        var jsonKeys = SerializeTopLevelKeys(new ReasoningArtifactDto
+        {
+            AgentId = "prose-writer",
+            AgentLabel = "Prose Writer",
+            Content = "Keep the image concrete.",
+            Sequence = 1,
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("string", shape["agentId"]);
+        Assert.Equal("string", shape["agentLabel"]);
+        Assert.Equal("string", shape["content"]);
+        Assert.Equal("number", shape["sequence"]);
+    }
+
+    [Fact]
     public void StatusResponse_StaysInSyncWith_StatusInterface()
     {
         var shape = GetTypeScriptInterfaceShape("Status");
@@ -162,10 +181,20 @@ public sealed class FrontendContractTests
             Mode = "guide",
             MessageCount = 2,
             Reasoning = "Check the lore thread before answering.",
+            ReasoningArtifacts =
+            [
+                new ReasoningArtifactDto
+                {
+                    AgentId = "assistant",
+                    AgentLabel = "Assistant",
+                    Content = "Check the lore thread before answering.",
+                    Sequence = 0,
+                },
+            ],
         });
 
         Assert.Equal(
-            ["messageCount", "mode", "reasoning", "responseText", "sessionId", "stopReason", "toolRoundsUsed", "usage"],
+            ["messageCount", "mode", "reasoning", "reasoningArtifacts", "responseText", "sessionId", "stopReason", "toolRoundsUsed", "usage"],
             jsonKeys.OrderBy(key => key));
     }
 

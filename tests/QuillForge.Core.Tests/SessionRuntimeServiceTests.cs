@@ -431,7 +431,6 @@ public sealed class SessionRuntimeServiceTests
 
         profiles.SetProfile("grim", new ProfileConfig
         {
-            Conductor = "grim-conductor-v2",
             LoreSet = "grim-lore-v2",
             NarrativeRules = "grim-rules-v2",
             WritingStyle = "grim-style-v2",
@@ -468,7 +467,6 @@ public sealed class SessionRuntimeServiceTests
 
         profiles.SetProfile("grim", new ProfileConfig
         {
-            Conductor = "grim-conductor-v2",
             LoreSet = "grim-lore-v2",
             NarrativeRules = "grim-rules-v2",
             WritingStyle = "grim-style-v2",
@@ -511,7 +509,6 @@ public sealed class SessionRuntimeServiceTests
 
         profiles.SetProfile("grim", new ProfileConfig
         {
-            Conductor = "grim-conductor-v2",
             LoreSet = "grim-lore-v2",
             NarrativeRules = "grim-rules-v2",
             WritingStyle = "grim-style-v2",

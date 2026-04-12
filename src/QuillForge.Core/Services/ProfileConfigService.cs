@@ -6,7 +6,6 @@ namespace QuillForge.Core.Services;
 public sealed class ProfileConfigService : IProfileConfigService
 {
     private const string CompatibilityDefaultProfileId = "default";
-    private const string CompatibilityDefaultConductorId = "default";
 
     private readonly IProfileConfigStore _store;
     private readonly IAppConfigStore _appConfigStore;
@@ -65,7 +64,7 @@ public sealed class ProfileConfigService : IProfileConfigService
         var config = await _store.LoadAsync(resolvedProfileId, ct);
 
         _logger.LogInformation(
-            "Loaded resolved profile config {ProfileId}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
+            "Loaded resolved profile config {ProfileId}: legacyConductor={LegacyConductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
             resolvedProfileId,
             config.Conductor ?? "(none)",
             config.LoreSet,
@@ -90,7 +89,7 @@ public sealed class ProfileConfigService : IProfileConfigService
         await _store.SaveAsync(resolvedProfileId, normalizedConfig, ct);
 
         _logger.LogInformation(
-            "Saved durable profile config {ProfileId}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
+            "Saved durable profile config {ProfileId}: legacyConductor={LegacyConductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
             resolvedProfileId,
             normalizedConfig.Conductor ?? "(none)",
             normalizedConfig.LoreSet,
@@ -177,7 +176,7 @@ public sealed class ProfileConfigService : IProfileConfigService
             ApplySelectedProfileToCompatibilityAppConfigState(current, resolvedProfileId, config), ct);
 
         _logger.LogInformation(
-            "Selected default profile {ProfileId}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
+            "Selected default profile {ProfileId}: legacyConductor={LegacyConductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
             resolvedProfileId,
             config.Conductor ?? "(none)",
             config.LoreSet,
@@ -228,7 +227,7 @@ public sealed class ProfileConfigService : IProfileConfigService
         await _store.SaveAsync(CompatibilityDefaultProfileId, compatibilityProfile, ct);
 
         _logger.LogInformation(
-            "Created compatibility default profile from AppConfig: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
+            "Created compatibility default profile from AppConfig: legacyConductor={LegacyConductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
             compatibilityProfile.Conductor ?? "(none)",
             compatibilityProfile.LoreSet,
             compatibilityProfile.NarrativeRules,
@@ -287,7 +286,6 @@ public sealed class ProfileConfigService : IProfileConfigService
     {
         return NormalizeProfile(new ProfileConfig
         {
-            Conductor = NormalizeOptionalChoice(appConfig.Persona.Active),
             LoreSet = appConfig.Lore.Active,
             NarrativeRules = appConfig.NarrativeRules.Active,
             WritingStyle = appConfig.WritingStyle.Active,
@@ -307,12 +305,6 @@ public sealed class ProfileConfigService : IProfileConfigService
             Profiles = current.Profiles with
             {
                 Default = profileId,
-            },
-            Persona = current.Persona with
-            {
-                // Preserve the legacy compatibility value when the durable
-                // profile no longer carries a conductor field.
-                Active = NormalizeOptionalChoice(config.Conductor) ?? current.Persona.Active ?? CompatibilityDefaultConductorId,
             },
             Lore = current.Lore with
             {

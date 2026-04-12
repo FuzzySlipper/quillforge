@@ -65,7 +65,7 @@ export default function HeaderBar({ status, layoutName, mode, onOpenProfile, onO
             <LabeledBtn label="lore" onClick={onOpenLore} title="Browse lore files">{status.loreSet !== "(default)" ? status.loreSet : ""} ({status.loreFiles})</LabeledBtn>
             <LabeledBtn label="plot" onClick={onOpenPlots} title="Browse plot arcs">plots</LabeledBtn>
             <LabeledBtn label="context" onClick={onOpenContext} title="Context usage">ctx</LabeledBtn>
-            <LabeledBtn label="prompts" onClick={onOpenPrompts} title="Browse legacy conductor, assistant, narrative, and style prompts">prompts</LabeledBtn>
+            <LabeledBtn label="prompts" onClick={onOpenPrompts} title="Browse assistant, narrative, writing-style, and legacy migration prompts">prompts</LabeledBtn>
             <LabeledBtn label="characters" onClick={onOpenCharacters} title="Character cards">chars</LabeledBtn>
             <LabeledBtn label="text" onClick={onOpenTextTheme} title="Text color theme">{textThemeName.toLowerCase()}</LabeledBtn>
             <LabeledBtn label="layout" onClick={onOpenLayout} title="Switch layout">{layoutName}</LabeledBtn>

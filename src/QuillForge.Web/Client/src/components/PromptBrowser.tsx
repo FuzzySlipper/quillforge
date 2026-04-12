@@ -15,13 +15,13 @@ interface PromptBrowserProps {
 type Tab = "conductor" | "assistant" | "narrative" | "writing";
 
 export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowserProps) {
-  const [tab, setTab] = useState<Tab>("conductor");
+  const [tab, setTab] = useState<Tab>("assistant");
   const [conductorFiles, setConductorFiles] = useState<ConductorFileInfo[]>([]);
   const [assistantFiles, setAssistantFiles] = useState<AssistantPromptInfo[]>([]);
   const [narrativeRulesFiles, setNarrativeRulesFiles] = useState<NarrativeRulesInfo[]>([]);
   const [styleFiles, setStyleFiles] = useState<WritingStyleInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState<Tab>("conductor");
+  const [selectedType, setSelectedType] = useState<Tab>("assistant");
   const [content, setContent] = useState("");
   const [originalContent, setOriginalContent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -200,9 +200,6 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
       <div className="flex flex-col gap-3">
         {/* Tab switcher */}
         <div className="flex gap-2">
-          <button onClick={() => setTab("conductor")} className={tabClass("conductor")}>
-            Legacy Conductors
-          </button>
           <button onClick={() => setTab("assistant")} className={tabClass("assistant")}>
             Assistant
           </button>
@@ -212,40 +209,49 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
           <button onClick={() => setTab("writing")} className={tabClass("writing")}>
             Writing Styles
           </button>
+          <button onClick={() => setTab("conductor")} className={tabClass("conductor")}>
+            Legacy Conductors
+          </button>
         </div>
 
         {tab === "conductor" && (
           <>
             <div className="rounded-lg border border-border/60 bg-input-bg px-3 py-2 text-xs text-text-muted">
-              Legacy reference only. Live routing is now app-owned by mode rather than driven by conductor prompt text.
+              Migration-only reference content. Live routing is app-owned by mode rather than driven by conductor prompt text.
             </div>
             <div className="text-xs text-text-muted">
               {conductorFiles.length} files · ~{Math.round(totalConductorTokens / 1000)}k tokens total
             </div>
-            {Object.entries(grouped).map(([dir, dirFiles]) => (
-              <div key={dir}>
-                <div className="text-xs font-medium text-text-muted uppercase tracking-wider mb-1">
-                  {dir}
-                </div>
-                <div className="flex flex-col">
-                  {dirFiles.map((f) => {
-                    const name = f.path.includes("/")
-                      ? f.path.split("/").slice(1).join("/")
-                      : f.path;
-                    return (
-                      <button
-                        key={f.path}
-                        onClick={() => handleSelectConductor(f.path)}
-                        className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-input-bg text-left transition-colors"
-                      >
-                        <span className="text-sm text-text">{name}</span>
-                        <span className="text-xs text-text-muted">~{f.tokens} tok</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+            {conductorFiles.length === 0 ? (
+              <p className="text-sm text-text-muted">No legacy conductor files are seeded on fresh installs.</p>
+            ) : (
+              <>
+                {Object.entries(grouped).map(([dir, dirFiles]) => (
+                  <div key={dir}>
+                    <div className="text-xs font-medium text-text-muted uppercase tracking-wider mb-1">
+                      {dir}
+                    </div>
+                    <div className="flex flex-col">
+                      {dirFiles.map((f) => {
+                        const name = f.path.includes("/")
+                          ? f.path.split("/").slice(1).join("/")
+                          : f.path;
+                        return (
+                          <button
+                            key={f.path}
+                            onClick={() => handleSelectConductor(f.path)}
+                            className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-input-bg text-left transition-colors"
+                          >
+                            <span className="text-sm text-text">{name}</span>
+                            <span className="text-xs text-text-muted">~{f.tokens} tok</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </>
         )}
 

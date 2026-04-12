@@ -119,6 +119,7 @@ public static class DebugBridgeEndpoints
                 Mode = sessionState.Mode.ActiveMode.ToWireString(),
                 MessageCount = tree.ToFlatThread().Count,
                 Reasoning = finalReasoning,
+                ReasoningArtifacts = ReasoningContractMapper.ToDtos(reasoningArtifacts),
             });
         });
 
@@ -287,6 +288,7 @@ public static class DebugBridgeEndpoints
                 Events = collectedEvents,
                 FinalContent = assistantText.ToString(),
                 FinalReasoning = finalReasoning,
+                FinalReasoningArtifacts = ReasoningContractMapper.ToDtos(reasoningArtifacts),
                 NodeIds = new DebugBridgeNodeIds
                 {
                     User = userNodeId,
@@ -398,6 +400,7 @@ public static class DebugBridgeEndpoints
                         Content = n.Content.GetText(),
                         CreatedAt = n.CreatedAt,
                         Reasoning = n.Metadata?.Reasoning,
+                        ReasoningArtifacts = ReasoningContractMapper.ToDtos(n.Metadata?.ReasoningArtifacts),
                     }),
                 });
             }
