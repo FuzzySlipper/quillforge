@@ -1,36 +1,48 @@
 # QuillForge
 
-An AI-powered creative writing system. QuillForge provides a conversational interface backed by specialized agents that help authors build, explore, and write within richly detailed fictional worlds.
+QuillForge is an AI-powered creative writing system for building stories, lore, characters, and long-form fiction in one place.
+
+It is a ground-up C#/.NET rewrite of an older Python/FastAPI app. The rewrite keeps the file-based, user-owned workflow of the original project, but adds stronger architecture boundaries, better session handling, more test coverage, and cleaner provider integration.
+
+QuillForge is under active development. Releases are built from Git tags and are the recommended way for non-technical users to run the app. Your `user/` folder is treated as your data and is meant to survive updates.
 
 ## Features
 
-- **Librarian** — Query your lore corpus with source attribution and confidence scoring
-- **Prose Writer** — Generate scenes with automatic lore lookups for consistency
-- **Orchestrator** — Conversational partner with five interaction modes
-- **Forge Pipeline** — Autonomous long-form story generation (plan, design, write, review, assemble)
-- **Conversation Tree** — Branching conversations with forking, variants, and safe deletion
-- **Multi-Provider** — Anthropic, OpenAI, Ollama, OpenRouter, Azure OpenAI, and custom OpenAI-compatible endpoints
+- Conversational orchestrator with specialized agents behind the scenes
+- Six working modes: General, Writer, Roleplay, Forge, Council, and Research
+- Branching conversation history with retry, fork, delete, and variants
+- Lore-backed responses and writing assistance
+- Autonomous Forge pipeline for long-form story generation
+- Multi-provider support: Anthropic, OpenAI, Ollama, OpenRouter, Azure OpenAI, and OpenAI-compatible endpoints
+- Optional reasoning display when a provider/model exposes reasoning content
+- Artifact generation, research workflows, image generation, and TTS support
 
-### Modes
+## Modes
 
 | Mode | Purpose |
 |------|---------|
 | General | Free-form conversation with flexible tool routing |
-| Writer | Long-form project writing with accept/reject workflow |
-| Roleplay | Interactive narrative with auto-append and dice rolling |
-| Forge | Conversational story design before autonomous pipeline |
-| Council | Multi-perspective AI advisory synthesis |
+| Writer | Long-form project writing with pending-content accept/reject workflow |
+| Roleplay | Interactive narrative with character context and roleplay state |
+| Forge | Conversational story design before the autonomous pipeline runs |
+| Council | Multi-advisor synthesis for brainstorming and critique |
+| Research | Parallel research workflows and research project output |
 
 ## Getting Started
 
 ### Requirements
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (for building from source)
-- An LLM provider API key (Anthropic, OpenAI, etc.) or a local [Ollama](https://ollama.ai) server
+- .NET 10 SDK if you want to build from source
+- An LLM provider API key or a local Ollama server
+- Node.js 20 if you are building from source and need the frontend build path
 
 ### From Release (Recommended)
 
-Download the latest release for your platform from [Releases](../../releases). No runtime dependencies required.
+Download the latest release for your platform from:
+
+<https://github.com/FuzzySlipper/quillforge/releases>
+
+Run the binary:
 
 ```bash
 # Linux / macOS
@@ -38,59 +50,77 @@ chmod +x QuillForge.Web
 ./QuillForge.Web
 ```
 
-```
+```powershell
 # Windows
 QuillForge.Web.exe
 ```
 
-On first run, QuillForge creates a `user/` directory with example content — lore, personas, writing styles, and layouts to get you started.
+On first run, QuillForge creates a `user/` directory with starter content and data folders.
 
-Open `http://localhost:5000` in your browser.
+Open the URL shown in the terminal. In source-development runs this is usually `http://localhost:5204`. In packaged runs it may differ depending on how the app is launched.
+
+QuillForge can check GitHub releases and show update availability in the app, but it does not auto-install updates for you.
 
 ### From Source
 
 ```bash
-git clone https://github.com/your-org/quillforge.git
+git clone https://github.com/FuzzySlipper/quillforge.git
 cd quillforge
 dotnet run --project src/QuillForge.Web
 ```
 
+Then open the URL printed in the terminal.
+
 ### Configure a Provider
 
-After starting, add an LLM provider through the UI or via the API:
+You can add providers through the UI or through the API.
 
 ```bash
 # Anthropic
-curl -X POST http://localhost:5000/api/providers \
+curl -X POST http://localhost:5204/api/providers \
   -H "Content-Type: application/json" \
-  -d '{"alias": "claude", "type": "Anthropic", "apiKey": "sk-ant-...", "defaultModel": "claude-sonnet-4-20250514"}'
+  -d '{"alias":"claude","type":"Anthropic","apiKey":"sk-ant-...","defaultModel":"claude-sonnet-4-20250514"}'
 
 # OpenAI
-curl -X POST http://localhost:5000/api/providers \
+curl -X POST http://localhost:5204/api/providers \
   -H "Content-Type: application/json" \
-  -d '{"alias": "gpt", "type": "OpenAI", "apiKey": "sk-...", "defaultModel": "gpt-4o"}'
+  -d '{"alias":"gpt","type":"OpenAI","apiKey":"sk-...","defaultModel":"gpt-4o"}'
 
-# Local Ollama (no API key needed)
-curl -X POST http://localhost:5000/api/providers \
+# Local Ollama
+curl -X POST http://localhost:5204/api/providers \
   -H "Content-Type: application/json" \
-  -d '{"alias": "local", "type": "Ollama", "baseUrl": "http://localhost:11434", "defaultModel": "qwen2.5:14b"}'
+  -d '{"alias":"local","type":"Ollama","baseUrl":"http://localhost:11434","defaultModel":"qwen2.5:14b"}'
 ```
 
 ## Configuration
 
-Edit `user/config.yaml` to customize models, active profiles, and features:
+QuillForge stores app-level configuration in `user/config.yaml`.
+
+Example:
 
 ```yaml
 models:
-  orchestrator: claude        # provider alias or "default"
+  orchestrator: claude
   prose_writer: claude
   librarian: local
+  forge_writer: claude
+  forge_planner: claude
+  forge_reviewer: claude
+  artifact: default
+  research: local
+profiles:
+  default: default
 persona:
   active: narrator
+  max_tokens: 6000
+narrative_rules:
+  active: default
 lore:
   active: default
 writing_style:
   active: literary
+layout:
+  active: default
 web_search:
   enabled: true
   provider: searxng
@@ -98,72 +128,97 @@ web_search:
 forge:
   review_pass_threshold: 7.0
   max_revisions: 3
+  pause_after_chapter1: true
   stage_timeout_minutes: 120
 ```
 
+Naming note: `persona.active` currently selects the active conductor prompt. The codebase is still carrying some transitional naming from earlier versions.
+
 ## Content Directory
 
-QuillForge stores all user content in the `user/` directory:
+QuillForge keeps user-owned content in `user/`. This directory is intended to be portable and safe to back up.
 
-```
+```text
 user/
-├── config.yaml              App configuration
-├── lore/                    World-building markdown (organized by lore set)
-├── persona/                 Character/persona definitions
-├── writing-styles/          Prose style guides
-├── story/                   Append-only chapter files
-├── writing/                 Workspace drafts
-├── chats/                   Roleplay session logs
-├── forge/                   Forge project directories
-├── forge-prompts/           Customizable forge stage prompts
-├── council/                 Advisor persona prompts
-├── layouts/                 UI layout markdown files
-├── backgrounds/             UI background images
-├── data/
-│   ├── sessions/            Conversation history (JSON)
-│   └── llm-debug/           Debug logs for LLM calls
+├── config.yaml
+├── lore/
+├── conductor/
+├── librarian-prompts/
+├── narrative-rules/
+├── profiles/
+├── plots/
+├── writing-styles/
+├── story/
+├── writing/
+├── chats/
+├── forge/
+├── forge-prompts/
+├── council/
+├── layouts/
+├── character-cards/
+├── backgrounds/
+├── generated-images/
+├── generated-audio/
+├── artifacts/
+├── research/
+└── data/
+    ├── providers.json
+    ├── sessions/
+    ├── session-state/
+    └── llm-debug/
 ```
 
-All content is plain files (markdown, YAML, JSON). Back up the `user/` directory to preserve your work. Updates never touch this directory.
+Practical rule:
+
+- Edit the content folders when you want to change lore, prompts, profiles, layouts, or writing assets.
+- Avoid hand-editing `user/data/sessions/` and `user/data/session-state/` unless you are doing recovery or debugging work.
 
 ## Development
 
-### Build & Test
+### Build and Test
 
 ```bash
+dotnet restore QuillForge.slnx
 dotnet build QuillForge.slnx
-dotnet test QuillForge.slnx                                    # all tests (includes LLM integration)
-dotnet test QuillForge.slnx --filter "Category!=Integration"   # unit tests only (no LLM needed)
+dotnet test QuillForge.slnx
 ```
 
-### Architecture
+For a faster local suite that skips integration-style tests and live-provider tests:
 
+```bash
+dotnet test QuillForge.slnx --filter "Category!=Integration&Category!=LiveProvider"
 ```
+
+### Source Layout
+
+```text
 src/
-  QuillForge.Core/        Domain models, agents, tool handlers, pipeline stages.
-                          No LLM SDK dependencies.
-  QuillForge.Providers/   LLM SDK adapters (Anthropic, OpenAI via Microsoft.Extensions.AI).
-                          Provider-specific types stay here.
-  QuillForge.Storage/     File system implementations, session persistence,
-                          configuration loading.
-  QuillForge.Web/         ASP.NET Core host, API endpoints, DI composition root.
+  Den.Persistence/       Product-neutral persisted document infrastructure
+  QuillForge.Core/       Domain models, tool loop, modes, agents, pipeline
+  QuillForge.Providers/  LLM adapters and provider-specific integrations
+  QuillForge.Storage/    File-backed stores, config/session persistence, content I/O
+  QuillForge.Web/        ASP.NET Core host, endpoints, startup, React client
 
 tests/
-  QuillForge.Core.Tests/          Fast unit tests (no I/O, no LLM)
-  QuillForge.Providers.Tests/     Message format conversion + Ollama integration tests
-  QuillForge.Storage.Tests/       File I/O tests with temp directories
-  QuillForge.Architecture.Tests/  Dependency boundary enforcement
+  QuillForge.Core.Tests/
+  QuillForge.Providers.Tests/
+  QuillForge.Storage.Tests/
+  QuillForge.Architecture.Tests/
 ```
 
-Dependency direction: `Web -> Providers -> Core` and `Web -> Storage -> Core`. Core depends on nothing.
+High-level dependency direction:
+
+- `QuillForge.Web -> QuillForge.Providers -> QuillForge.Core`
+- `QuillForge.Web -> QuillForge.Storage -> Den.Persistence`
+- `QuillForge.Storage -> QuillForge.Core`
+- `QuillForge.Core` depends on nothing in the rest of QuillForge
 
 ### Publishing
 
 ```bash
-# Self-contained single-file binary (no .NET runtime required on target)
-dotnet publish src/QuillForge.Web -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
-dotnet publish src/QuillForge.Web -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
-dotnet publish src/QuillForge.Web -c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true
+dotnet publish src/QuillForge.Web/QuillForge.Web.csproj -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
+dotnet publish src/QuillForge.Web/QuillForge.Web.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+dotnet publish src/QuillForge.Web/QuillForge.Web.csproj -c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true
 ```
 
 ## License
@@ -172,4 +227,321 @@ See [LICENSE](LICENSE) for details.
 
 ## References
 
-Concepts based on paper [CreAgentive: An Agent Workflow Driven Multi-Category Creative Generation Engine](https://arxiv.org/html/2509.26461v1)
+Concepts based in part on [CreAgentive: An Agent Workflow Driven Multi-Category Creative Generation Engine](https://arxiv.org/html/2509.26461v1)
+
+## Architecture Guide
+
+This section is intentionally written for two audiences:
+
+- people trying to understand what QuillForge is doing
+- AI assistants such as Claude Desktop helping someone install, run, configure, or troubleshoot it
+
+If you only need the short version, read the next two sections. If you are helping someone more deeply, read the whole guide.
+
+### The Short Version
+
+QuillForge is not just "one big prompt plus chat history."
+
+It is a layered app with:
+
+- a web host and React UI
+- an orchestrator that decides how to respond
+- a shared tool loop that can call specialized tools and agents
+- provider adapters that hide vendor-specific SDK quirks
+- file-backed user content and session state
+
+The project is intentionally split so that story logic, provider logic, web endpoints, and persistent files do not collapse into one giant blob.
+
+### The Mental Model
+
+Think of QuillForge as a writing studio with a front desk and several specialist rooms.
+
+- You talk to the front desk through the web UI.
+- The front desk is the orchestrator.
+- The orchestrator can answer directly or call specialists.
+- Specialists can look up lore, write prose, run council responses, launch research work, or move work through the Forge pipeline.
+- Everything important is written down into durable files so a session can be resumed later.
+
+This is why the codebase looks more segmented than a simple chatbot app. The segmentation is deliberate.
+
+### What Happens When You Send a Message
+
+When a user sends a message, the rough flow is:
+
+1. The browser sends the message and current session ID to the web API.
+2. QuillForge loads the live session runtime and the conversation tree for that session.
+3. It resolves the active profile, conductor, lore set, writing style, mode, and other context.
+4. The orchestrator builds the mode-specific prompt section.
+5. The shared `ToolLoop` calls the selected model.
+6. If the model requests tools, the tool loop validates and dispatches those tool calls.
+7. Tool results come back into the loop and the model continues.
+8. Streaming text, diagnostics, and optional reasoning deltas are sent to the UI.
+9. The final assistant message is persisted into the conversation tree.
+10. Session runtime is updated if the mode needs it, such as writer pending content or roleplay state.
+
+Important detail: provider reasoning is not treated as ordinary chat transcript text by default. QuillForge stores user-visible reasoning separately and keeps provider replay data in a provider-owned envelope when that matters for continuation.
+
+### The Four Main Kinds of State
+
+One of the most important ideas in QuillForge is that different kinds of state have different owners.
+
+#### 1. AppConfig
+
+`AppConfig` is the app-wide durable config document.
+
+It owns things like:
+
+- provider settings
+- model routing defaults
+- diagnostics defaults
+- the default profile for new sessions
+- app-wide layout and feature settings
+
+It should not be treated as "whatever is active right now in one conversation."
+
+#### 2. ProfileConfig
+
+`ProfileConfig` is a reusable bundle of author choices.
+
+A profile is where QuillForge stores reusable selections such as:
+
+- conductor
+- lore set
+- narrative rules
+- writing style
+- roleplay defaults
+
+Profiles are meant to be reused across many sessions.
+
+#### 3. SessionState
+
+`SessionState` is the live runtime for one interactive run.
+
+It owns things like:
+
+- active mode
+- active project/file
+- session-local overrides
+- writer pending review state
+- roleplay runtime selections
+- narrative runtime such as plot progress or director notes
+
+This is "what this session is doing right now."
+
+#### 4. ConversationTree
+
+`ConversationTree` is the persisted branching message artifact.
+
+This is not just a flat list of messages. It supports:
+
+- branching
+- retry variants
+- message deletion
+- conversation forking
+- stable GUID message identity
+
+The tree is intentionally separate from session runtime. A conversation transcript and a live session state are related, but they are not the same thing.
+
+### Why QuillForge Keeps SessionState and ConversationTree Separate
+
+This separation is one of the parts that feels unusual at first.
+
+The short reason is that "what was said" and "what the session is currently set to" are different kinds of truth.
+
+Examples:
+
+- The conversation tree answers: what messages exist, what branch is active, and what variants were generated.
+- The session state answers: what mode is active, what project is open, whether writer mode has pending content, and what character is selected in roleplay.
+
+Keeping them separate makes branching, reloading, and debugging much less brittle.
+
+### Why the Project Is Split Into Multiple C# Projects
+
+The split is there to enforce boundaries, not to make the repo look enterprise-y.
+
+#### `src/QuillForge.Core`
+
+This is the domain center of the app.
+
+It contains:
+
+- domain models
+- conversation tree
+- session models
+- modes
+- agents
+- tool loop
+- pipeline types
+
+It should not know about Anthropic SDK types, OpenAI SDK types, ASP.NET, or filesystem implementation details.
+
+#### `src/QuillForge.Providers`
+
+This is where provider-specific logic lives.
+
+It contains:
+
+- Anthropic, OpenAI, Ollama, Azure, and OpenRouter integration
+- reasoning-capable adapters
+- TTS and image generation provider wiring
+- web search provider implementations
+
+If a provider has special request or streaming behavior, this is where that code belongs.
+
+#### `src/QuillForge.Storage`
+
+This contains file-backed stores and content loading logic.
+
+It is responsible for:
+
+- reading and writing config
+- reading and writing profiles
+- reading and writing sessions
+- loading lore, conductor prompts, writing styles, and other content files
+
+The app is intentionally file-first. User content should remain inspectable and portable.
+
+#### `src/Den.Persistence`
+
+This is product-neutral persistence infrastructure used by QuillForge.
+
+It exists so persisted document concerns such as atomic writes, normalization, validation, and migrations can live in one place instead of being reimplemented ad hoc.
+
+#### `src/QuillForge.Web`
+
+This is the application host.
+
+It contains:
+
+- ASP.NET Core startup and DI registration
+- HTTP endpoints
+- session/request coordination
+- the React frontend in `Client/`
+
+If something is specifically about request handling, startup wiring, or browser behavior, it probably belongs here.
+
+### Modes Are Prompt and Workflow Choices, Not Separate Apps
+
+QuillForge has multiple modes, but they are not six unrelated systems glued together.
+
+They are six behavior layers on top of shared runtime and tool infrastructure.
+
+- General mode is the most flexible default.
+- Writer mode leans into scene generation and pending review workflow.
+- Roleplay mode uses character context and session character state.
+- Forge mode prepares work for the autonomous story pipeline.
+- Council mode runs advisory-style multi-voice output.
+- Research mode coordinates structured research work and project output.
+
+Because the modes share the same session and chat foundations, bugs in shared paths usually affect more than one mode. That is why shared contracts and regression tests matter so much here.
+
+### Tool Loop: The Core Reusable Engine
+
+QuillForge does not want every agent to hand-roll its own "call model -> maybe call a tool -> call model again" logic.
+
+That pattern lives in one place: the `ToolLoop`.
+
+That gives the app one shared implementation for:
+
+- completion calls
+- tool validation
+- tool dispatch
+- retry/tool-round control
+- streaming events
+- continuation behavior
+
+This reduces drift between agents and makes bugs easier to fix once instead of six times.
+
+### Provider Reasoning, Streaming, and Persistence
+
+Some modern models emit reasoning or provider-specific replay state.
+
+QuillForge treats that carefully:
+
+- visible assistant content is the normal transcript
+- user-visible reasoning is stored separately so it can be restored in the UI
+- provider replay data is stored separately so adapters can reconstruct the correct vendor-specific context when needed
+
+This is why reasoning is not simply jammed into the visible assistant text.
+
+If you are an assistant helping debug the app, do not assume reasoning belongs in the plain transcript. In QuillForge it is intentionally modeled as a separate artifact.
+
+### Why the `user/` Folder Matters So Much
+
+QuillForge is designed around user-owned files.
+
+That means:
+
+- lore is plain markdown
+- conductors are plain markdown
+- writing styles are plain markdown
+- profiles are plain yaml
+- sessions are json
+- debug logs are files
+
+This makes the system easier to inspect, back up, and recover.
+
+For non-technical users, this also means a helper app can usually solve problems by editing files rather than reverse-engineering a database.
+
+### Which Files Are Usually Safe To Edit
+
+Usually safe:
+
+- `user/lore/`
+- `user/conductor/`
+- `user/librarian-prompts/`
+- `user/narrative-rules/`
+- `user/profiles/`
+- `user/plots/`
+- `user/writing-styles/`
+- `user/layouts/`
+- `user/character-cards/`
+- `user/config.yaml`
+
+Usually leave alone unless debugging or doing careful recovery:
+
+- `user/data/sessions/`
+- `user/data/session-state/`
+- `user/data/providers.json`
+- generated files under `user/generated-images/`, `user/generated-audio/`, and active forge artifacts unless the user explicitly wants cleanup
+
+### Expectations for AI Helpers
+
+If you are an AI assistant helping someone with a QuillForge checkout or installation:
+
+1. Prefer the latest GitHub release for normal users.
+2. Treat `user/` as the user's owned data and work area.
+3. Treat `src/` as the app code.
+4. Do not flatten provider-specific reasoning into normal transcript content when debugging or migrating sessions.
+5. Do not assume message order is identity. Message IDs are GUIDs.
+6. Do not assume session runtime and conversation history are interchangeable.
+7. Prefer editing user content files over rewriting generated session JSON when the goal is customization rather than repair.
+8. If operating inside the repository, read `AGENTS.md` and `docs/prd.md` before making code changes.
+
+### Why the Structure Can Feel Odd At First
+
+If QuillForge feels more structured than a typical local writing/chat app, that is because it is trying to protect a few things at once:
+
+- user-owned files
+- provider flexibility
+- multi-mode behavior
+- durable sessions
+- recoverable state
+- a codebase that can survive rapid iteration without collapsing into untestable glue
+
+The shape is intentional. It is meant to make future changes safer, not to be academically pure.
+
+### If You Are Trying To Understand The Repo Quickly
+
+Start here:
+
+1. `README.md`
+2. `AGENTS.md`
+3. `docs/prd.md`
+4. `src/QuillForge.Web/Program.cs`
+5. `src/QuillForge.Core/Agents/ToolLoop.cs`
+6. `src/QuillForge.Core/Models/ConversationTree.cs`
+7. `src/QuillForge.Core/Models/SessionState.cs`
+8. `src/QuillForge.Web/Endpoints/ChatEndpoints.cs`
+
+That path will give you the fastest understanding of how the app actually behaves.
