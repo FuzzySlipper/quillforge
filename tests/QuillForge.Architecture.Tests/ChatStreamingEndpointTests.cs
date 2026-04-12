@@ -117,6 +117,11 @@ public sealed class ChatStreamingEndpointTests
         Assert.Equal("Discussion", doneEvent.Payload.GetProperty("responseType").GetString());
         Assert.Equal(5, doneEvent.Payload.GetProperty("usage").GetProperty("input").GetInt32());
         Assert.Equal(7, doneEvent.Payload.GetProperty("usage").GetProperty("output").GetInt32());
+        Assert.Equal(2, doneEvent.Payload.GetProperty("sessionUsage").GetProperty("totalRequests").GetInt32());
+        var byAgent = doneEvent.Payload.GetProperty("sessionUsage").GetProperty("byAgent");
+        var orchestratorUsage = Assert.Single(byAgent.EnumerateArray());
+        Assert.Equal("orchestrator", orchestratorUsage.GetProperty("agent").GetString());
+        Assert.Equal(2, orchestratorUsage.GetProperty("requests").GetInt32());
 
         var persistedEvent = events.First(evt => evt.Type == "persisted");
         var assistantNodeId = persistedEvent.Payload.GetProperty("nodeId").GetGuid();
@@ -289,8 +294,13 @@ public sealed class ChatStreamingEndpointTests
         };
 
         builder.Services.AddSingleton(appConfig);
-        builder.Services.AddSingleton<ICompletionService>(completionService);
+        builder.Services.AddSingleton(completionService);
         builder.Services.AddSingleton<ITokenUsageTracker>(new InMemoryTokenUsageTracker(NullLogger<InMemoryTokenUsageTracker>.Instance));
+        builder.Services.AddSingleton<ICompletionService>(sp =>
+            new UsageTrackingCompletionService(
+                sp.GetRequiredService<ScriptedStreamingCompletionService>(),
+                sp.GetRequiredService<ITokenUsageTracker>(),
+                NullLogger<UsageTrackingCompletionService>.Instance));
         builder.Services.AddSingleton(preparedService);
         builder.Services.AddSingleton<ISessionProfileReadService>(sp => sp.GetRequiredService<PreparedContextService>());
         builder.Services.AddSingleton<IConductorStore>(new RecordingConductorStore());

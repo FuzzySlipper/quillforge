@@ -238,10 +238,6 @@ public sealed class ToolLoop
         AgentContext context,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        using var trackingScope = config.AgentName is not null
-            ? TokenTrackingScope.Begin(context.SessionId, config.AgentName)
-            : null;
-
         var toolMap = BuildToolMap(tools);
         var toolDefs = tools.Select(t => t.Definition).ToList();
         var round = 0;
@@ -289,7 +285,7 @@ public sealed class ToolLoop
             TokenUsage? usage = null;
             ProviderReplayEnvelope? providerReplay = null;
 
-            await foreach (var evt in _completionService.StreamAsync(request, ct))
+            await foreach (var evt in StreamWithAgentTrackingAsync(config, context, request, ct))
             {
                 switch (evt)
                 {
@@ -344,7 +340,7 @@ public sealed class ToolLoop
                 Exception? recoveryException = null;
                 try
                 {
-                    recoveryResponse = await _completionService.CompleteAsync(request, ct);
+                    recoveryResponse = await CompleteWithAgentTrackingAsync(config, context, request, ct);
                 }
                 catch (Exception ex)
                 {
@@ -542,6 +538,52 @@ public sealed class ToolLoop
             collectedText.Clear();
             collectedToolCalls.Clear();
         }
+    }
+
+    private IAsyncEnumerable<StreamEvent> StreamWithAgentTrackingAsync(
+        AgentConfig config,
+        AgentContext context,
+        CompletionRequest request,
+        CancellationToken ct)
+    {
+        if (config.AgentName is null)
+        {
+            return _completionService.StreamAsync(request, ct);
+        }
+
+        return StreamWithExplicitTrackingScopeAsync(
+            request,
+            context.SessionId,
+            config.AgentName,
+            ct);
+    }
+
+    private async IAsyncEnumerable<StreamEvent> StreamWithExplicitTrackingScopeAsync(
+        CompletionRequest request,
+        Guid sessionId,
+        string agentName,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        using var trackingScope = TokenTrackingScope.Begin(sessionId, agentName);
+        await foreach (var evt in _completionService.StreamAsync(request, ct))
+        {
+            yield return evt;
+        }
+    }
+
+    private async Task<CompletionResponse> CompleteWithAgentTrackingAsync(
+        AgentConfig config,
+        AgentContext context,
+        CompletionRequest request,
+        CancellationToken ct)
+    {
+        if (config.AgentName is null)
+        {
+            return await _completionService.CompleteAsync(request, ct);
+        }
+
+        using var trackingScope = TokenTrackingScope.Begin(context.SessionId, config.AgentName);
+        return await _completionService.CompleteAsync(request, ct);
     }
 
     private async Task<ToolResult> DispatchToolAsync(

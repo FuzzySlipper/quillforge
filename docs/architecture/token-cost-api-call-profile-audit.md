@@ -20,11 +20,12 @@ Two kinds of evidence were used:
    turns can exceed the harness baseline when agents recurse through extra lore
    checks or additional tool rounds.
 
-For this audit, the provider-side harness traces are the authoritative source
-for exact interactive request counts. The current session usage summary
-continues to undercount streamed top-level orchestrator rounds in these flows,
-so it is useful for rough directional totals but not for exact call-floor
-measurement yet.
+For this audit, the provider-side harness traces were used as the exact
+baseline source for interactive request counts. That audit also exposed a
+session usage tracking bug for streamed top-level orchestrator rounds, which
+was fixed in follow-up task `#643`. The current session usage summary now
+matches those grounded interactive call floors in the covered Writer,
+Roleplay, and streaming chat paths.
 
 ## Baseline Findings
 

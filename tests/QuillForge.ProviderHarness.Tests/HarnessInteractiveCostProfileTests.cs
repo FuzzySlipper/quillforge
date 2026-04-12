@@ -32,8 +32,18 @@ public sealed class HarnessInteractiveCostProfileTests
         Assert.Equal("writer", report.Mode);
         Assert.Equal(ExpectedModelSequence, report.Run.ProviderTraces.Select(trace => trace.Model).ToArray());
         Assert.Equal(8, report.Run.ProviderTraces.Count);
+        Assert.Equal(8, report.UsageSummary.TotalRequests);
         Assert.Equal(1, report.Run.AppTrace?.ToolRounds);
         Assert.Equal("pendingreview", report.Run.AppTrace?.WriterState);
+        Assert.Equal(
+            new[]
+            {
+                "librarian:2",
+                "narrative-director:2",
+                "orchestrator:2",
+                "prose-writer:2",
+            },
+            GetAgentCounts(report.UsageSummary));
     }
 
     [Fact]
@@ -51,8 +61,26 @@ public sealed class HarnessInteractiveCostProfileTests
         Assert.Equal("roleplay", report.Mode);
         Assert.Equal(ExpectedModelSequence, report.Run.ProviderTraces.Select(trace => trace.Model).ToArray());
         Assert.Equal(8, report.Run.ProviderTraces.Count);
+        Assert.Equal(8, report.UsageSummary.TotalRequests);
         Assert.Equal(1, report.Run.AppTrace?.ToolRounds);
         Assert.Equal("idle", report.Run.AppTrace?.WriterState);
+        Assert.Equal(
+            new[]
+            {
+                "librarian:2",
+                "narrative-director:2",
+                "orchestrator:2",
+                "prose-writer:2",
+            },
+            GetAgentCounts(report.UsageSummary));
+    }
+
+    private static string[] GetAgentCounts(SessionUsageSummary usageSummary)
+    {
+        return usageSummary.ByAgent
+            .OrderBy(entry => entry.AgentName, StringComparer.OrdinalIgnoreCase)
+            .Select(entry => $"{entry.AgentName}:{entry.RequestCount}")
+            .ToArray();
     }
 
     private sealed class InteractiveCostProfileResponseSource : IHarnessResponseSource
