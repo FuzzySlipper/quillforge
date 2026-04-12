@@ -5,7 +5,6 @@ public sealed record ChatStreamRequest
     public Guid? SessionId { get; init; }
     public string Message { get; init; } = "";
     public string? Model { get; init; }
-    public string? Conductor { get; init; }
     public int? MaxTokens { get; init; }
     public Guid? ParentId { get; init; }
 }

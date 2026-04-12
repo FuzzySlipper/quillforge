@@ -61,14 +61,14 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
         var bootstrapService = new TestSessionBootstrapService();
         await using var app = BuildApp(runtimeService, bootstrapService);
 
-        var json = await InvokePostJsonAsync(app, "/api/profiles/switch", """{"conductor":"grim-conductor","lore":"grim-lore"}""");
+        var json = await InvokePostJsonAsync(app, "/api/profiles/switch", """{"lore":"grim-lore"}""");
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
         Assert.Equal(bootstrapService.CreatedSessionId.ToString(), root.GetProperty("sessionId").GetString());
         Assert.Equal(bootstrapService.CreatedSessionId, runtimeService.LastProfileSessionId);
-        Assert.Equal("grim-conductor", root.GetProperty("activeConductor").GetString());
         Assert.Equal("grim-lore", root.GetProperty("activeLore").GetString());
+        Assert.False(root.TryGetProperty("activeConductor", out _));
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
         var lifecycleService = new TrackingSessionLifecycleService();
         await using var app = BuildApp(runtimeService, bootstrapService, lifecycleService);
 
-        await InvokePostJsonAsync(app, "/api/profiles/switch", """{"conductor":"grim-conductor","lore":"grim-lore"}""");
+        await InvokePostJsonAsync(app, "/api/profiles/switch", """{"lore":"grim-lore"}""");
 
         Assert.Equal(bootstrapService.CreatedSessionId, lifecycleService.LastDeletedSessionId);
     }
@@ -201,7 +201,6 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
                 Profile = new ProfileState
                 {
                     ProfileId = "default",
-                    ActiveConductor = "default-conductor",
                     ActiveLoreSet = "default-lore",
                     ActiveNarrativeRules = "default-rules",
                     ActiveWritingStyle = "default-style",
@@ -218,7 +217,6 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
                 Profile = new ProfileState
                 {
                     ProfileId = command.ProfileId ?? "default",
-                    ActiveConductor = command.Conductor ?? "default-conductor",
                     ActiveLoreSet = command.LoreSet ?? "default-lore",
                     ActiveNarrativeRules = command.NarrativeRules ?? "default-rules",
                     ActiveWritingStyle = command.WritingStyle ?? "default-style",
@@ -246,7 +244,6 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
                 Profile = new ProfileState
                 {
                     ProfileId = "default",
-                    ActiveConductor = "default-conductor",
                     ActiveLoreSet = "default-lore",
                     ActiveNarrativeRules = "default-rules",
                     ActiveWritingStyle = "default-style",

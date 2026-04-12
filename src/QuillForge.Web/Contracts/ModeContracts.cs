@@ -12,7 +12,7 @@ public sealed record ModeResponse
 
 public sealed record ModeSetRequest
 {
-    public string Mode { get; init; } = "general";
+    public string Mode { get; init; } = "guide";
     public string? Project { get; init; }
     public string? File { get; init; }
     public string? Character { get; init; }

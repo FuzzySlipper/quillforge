@@ -38,7 +38,6 @@ public static class ChatEndpoints
             // Resolve "default" to the configured orchestrator model
             if (string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
                 model = appConfig.Models.Orchestrator;
-            var requestedConductor = root.GetOptionalString("conductor");
             var maxTokens = root.TryGetProperty("maxTokens", out var mt) ? mt.GetInt32() : 4096;
             var parentId = root.GetOptionalGuid("parentId");
 
@@ -108,14 +107,16 @@ public static class ChatEndpoints
                 sessionId,
                 new PrepareInteractiveRequestOptions
                 {
-                    RequestedConductor = requestedConductor,
                     LastAssistantResponse = lastAssistantResponse,
                     ResolvePortraits = true,
                 },
                 ct);
             var sessionState = prepared.ProfileView.SessionState;
-            var context = prepared.AgentContext;
-            var conductor = prepared.Conductor;
+            var reasoningCollector = new ReasoningArtifactCollector();
+            var context = prepared.AgentContext with
+            {
+                OnReasoningArtifact = reasoningCollector.CaptureAsync,
+            };
 
             // Stream SSE response, collecting assistant text for persistence
             httpContext.Response.ContentType = "text/event-stream";
@@ -129,7 +130,7 @@ public static class ChatEndpoints
 
             var tools = toolHandlers.ToList();
             await foreach (var evt in orchestrator.HandleStreamAsync(
-                sessionState, conductor, model, maxTokens, tools, messages, context, ct: ct))
+                sessionState, model, maxTokens, tools, messages, context, ct: ct))
             {
                 switch (evt)
                 {
@@ -151,7 +152,7 @@ public static class ChatEndpoints
                         break;
                 }
 
-                var eventReasoning = GetReasoningForDisplay(assistantReasoning, providerReplay);
+                var eventReasoning = GetReasoningForDisplay(reasoningCollector, assistantReasoning, providerReplay);
                 var eventData = evt switch
                 {
                     TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new ChatTextDeltaDto { Text = text.Text }, s_jsonOptions)}\n\n",
@@ -184,7 +185,8 @@ public static class ChatEndpoints
 
             // Persist the assistant reply into the conversation tree
             Guid? assistantNodeId = null;
-            var finalReasoning = GetReasoningForDisplay(assistantReasoning, providerReplay);
+            var reasoningArtifacts = reasoningCollector.Snapshot();
+            var finalReasoning = GetReasoningForDisplay(reasoningCollector, assistantReasoning, providerReplay);
             if (assistantText.Length > 0)
             {
                 var assistantNode = tree.Append(appendParentId, "assistant",
@@ -196,6 +198,7 @@ public static class ChatEndpoints
                         OutputTokens = outputTokens,
                         StopReason = stopReason,
                         Reasoning = finalReasoning,
+                        ReasoningArtifacts = reasoningArtifacts,
                         ProviderReplay = providerReplay,
                     });
                 assistantNodeId = assistantNode.Id;
@@ -380,16 +383,21 @@ public static class ChatEndpoints
     }
 
     private static string? GetReasoningForDisplay(
+        ReasoningArtifactCollector collector,
         System.Text.StringBuilder streamedReasoning,
         ProviderReplayEnvelope? providerReplay)
     {
+        var artifactReasoning = collector.GetDefaultReasoning();
+        if (!string.IsNullOrWhiteSpace(artifactReasoning))
+        {
+            return artifactReasoning;
+        }
+
         if (streamedReasoning.Length > 0)
         {
             return streamedReasoning.ToString();
         }
 
-        return providerReplay is ReasoningReplayEnvelope reasoningReplay
-            ? reasoningReplay.ReasoningContent
-            : null;
+        return ReasoningArtifacts.GetContent(null, providerReplay);
     }
 }

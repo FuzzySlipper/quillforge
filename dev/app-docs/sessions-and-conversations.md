@@ -9,7 +9,7 @@ summary: Session continuity, conversation branching, fork/regenerate, and persis
 
 A session represents one continuous interaction with QuillForge. Each session has:
 - A unique ID
-- An active profile (conductor, lore set, writing style, narrative rules)
+- An active profile (lore set, writing style, narrative rules, librarian prompt)
 - An active mode
 - Runtime state (story state, pending content, etc.)
 - A conversation tree

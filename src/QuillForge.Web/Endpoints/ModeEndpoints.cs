@@ -41,7 +41,7 @@ public static class ModeEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var mode = root.GetProperty("mode").GetString() ?? "general";
+            var mode = root.GetProperty("mode").GetString() ?? "guide";
             var project = root.TryGetProperty("project", out var p) ? p.GetString() : null;
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
             var character = root.TryGetProperty("character", out var c) ? c.GetString() : null;

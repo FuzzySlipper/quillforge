@@ -16,11 +16,11 @@ public sealed class FrontendContractTests
             Status = "ready",
             Version = "1.2.3",
             Build = "1.2.3+abc",
-            Mode = "general",
+            Mode = "guide",
+            Profile = "default",
             Project = "novel",
             File = "chapter-01.md",
             LoreSet = "world",
-            Conductor = "default",
             WritingStyle = "literary",
             Model = "gpt-test",
             Layout = "standard",
@@ -30,7 +30,6 @@ public sealed class FrontendContractTests
             LoreFiles = 3,
             ContextLimit = 16000,
             LoreTokens = 1200,
-            ConductorTokens = 400,
             HistoryTokens = 800,
             DiagnosticsLivePanel = true,
             Update = new UpdateInfoDto
@@ -45,6 +44,7 @@ public sealed class FrontendContractTests
         Assert.Equal("string", shape["version"]);
         Assert.Equal("string", shape["build"]);
         Assert.Equal("Mode", shape["mode"]);
+        Assert.Equal("string", shape["profile"]);
         Assert.Equal("number", shape["loreFiles"]);
         Assert.Equal("boolean", shape["diagnosticsLivePanel"]);
     }
@@ -77,12 +77,10 @@ public sealed class FrontendContractTests
             ProfileIds = ["default"],
             DefaultProfileId = "default",
             ActiveProfileId = "grim",
-            Conductors = ["grim"],
             LoreSets = ["world"],
             NarrativeRules = ["rules"],
             WritingStyles = ["style"],
             LibrarianPrompts = ["default"],
-            ActiveConductor = "grim",
             ActiveLore = "world",
             ActiveNarrativeRules = "rules",
             ActiveWritingStyle = "style",
@@ -91,7 +89,7 @@ public sealed class FrontendContractTests
 
         Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
         Assert.Equal("string[]", shape["profileIds"]);
-        Assert.Equal("string[]", shape["conductors"]);
+        Assert.Equal("string[]", shape["loreSets"]);
     }
 
     [Fact]
@@ -103,7 +101,6 @@ public sealed class FrontendContractTests
             Status = "ok",
             SessionId = Guid.CreateVersion7(),
             ActiveProfileId = "grim",
-            ActiveConductor = "grim-conductor",
             ActiveLore = "grim-lore",
             ActiveNarrativeRules = "grim-rules",
             ActiveWritingStyle = "grim-style",
@@ -121,7 +118,7 @@ public sealed class FrontendContractTests
     {
         var modeValues = GetTypeScriptUnionValues("Mode");
 
-        var expectedModes = new[] { "general", "writer", "roleplay", "forge", "council", "research" }
+        var expectedModes = new[] { "guide", "writer", "roleplay", "forge", "council", "research" }
             .OrderBy(value => value)
             .ToList();
 
@@ -162,7 +159,7 @@ public sealed class FrontendContractTests
                 InputTokens = 10,
                 OutputTokens = 20,
             },
-            Mode = "general",
+            Mode = "guide",
             MessageCount = 2,
             Reasoning = "Check the lore thread before answering.",
         });

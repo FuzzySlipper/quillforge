@@ -17,12 +17,24 @@ public sealed class NarrativeDirectorAgentTests
 
         var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
         var toolLoop = new ToolLoop(fake, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore(new Dictionary<string, string>
+        {
+            ["gate.md"] = "The city gate closes at curfew.",
+        });
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
         var agent = new NarrativeDirectorAgent(
             toolLoop,
-            new QueryLoreHandler(null!, new EmptyLoreStore(), new FakeContentFileService(), NullLogger<QueryLoreHandler>.Instance),
+            new QueryLoreHandler(null!, loreStore, fileService, guard, NullLogger<QueryLoreHandler>.Instance),
             new UpdateStoryStateHandler(new TrackingStoryStateService(), new FakeInteractiveSessionContextService(), NullLogger<UpdateStoryStateHandler>.Instance),
             new UpdateNarrativeStateHandler(new FakeSessionRuntimeService(), NullLogger<UpdateNarrativeStateHandler>.Instance),
             new WriteProseHandler(null!, new FakeInteractiveSessionContextService(), new TrackingStoryStateService(), NullLogger<WriteProseHandler>.Instance),
+            guard,
             new FakeNarrativeRulesStore(),
             new AppConfig(),
             NullLogger<NarrativeDirectorAgent>.Instance);
@@ -77,12 +89,24 @@ public sealed class NarrativeDirectorAgentTests
 
         var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
         var toolLoop = new ToolLoop(fake, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore(new Dictionary<string, string>
+        {
+            ["court.md"] = "The court is hungry for scandal.",
+        });
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
         var agent = new NarrativeDirectorAgent(
             toolLoop,
-            new QueryLoreHandler(null!, new EmptyLoreStore(), new FakeContentFileService(), NullLogger<QueryLoreHandler>.Instance),
+            new QueryLoreHandler(null!, loreStore, fileService, guard, NullLogger<QueryLoreHandler>.Instance),
             new UpdateStoryStateHandler(new TrackingStoryStateService(), new FakeInteractiveSessionContextService(), NullLogger<UpdateStoryStateHandler>.Instance),
             new UpdateNarrativeStateHandler(new FakeSessionRuntimeService(), NullLogger<UpdateNarrativeStateHandler>.Instance),
             new WriteProseHandler(null!, new FakeInteractiveSessionContextService(), new TrackingStoryStateService(), NullLogger<WriteProseHandler>.Instance),
+            guard,
             new FakeNarrativeRulesStore(),
             new AppConfig(),
             NullLogger<NarrativeDirectorAgent>.Instance);
@@ -111,13 +135,226 @@ public sealed class NarrativeDirectorAgentTests
         Assert.Contains("court intrigue tragedy", request.Messages.Single().Content.GetText());
         Assert.Contains("query_lore", request.Tools!.Select(t => t.Name));
     }
+
+    [Fact]
+    public async Task DirectSceneAsync_WriterMode_UsesGroundedDraftingPrompt()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueText("She finally enters the archive at dawn.");
+
+        var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
+        var toolLoop = new ToolLoop(fake, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore(new Dictionary<string, string>
+        {
+            ["archive.md"] = "The archive opens at dawn.",
+        });
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
+        var agent = new NarrativeDirectorAgent(
+            toolLoop,
+            new QueryLoreHandler(null!, loreStore, fileService, guard, NullLogger<QueryLoreHandler>.Instance),
+            new UpdateStoryStateHandler(new TrackingStoryStateService(), new FakeInteractiveSessionContextService(), NullLogger<UpdateStoryStateHandler>.Instance),
+            new UpdateNarrativeStateHandler(new FakeSessionRuntimeService(), NullLogger<UpdateNarrativeStateHandler>.Instance),
+            new WriteProseHandler(null!, new FakeInteractiveSessionContextService(), new TrackingStoryStateService(), NullLogger<WriteProseHandler>.Instance),
+            guard,
+            new FakeNarrativeRulesStore(),
+            new AppConfig(),
+            NullLogger<NarrativeDirectorAgent>.Instance);
+
+        await agent.DirectSceneAsync(
+            new NarrativeDirectionRequest
+            {
+                UserMessage = "Draft the moment she finally enters the archive.",
+            },
+            new AgentContext
+            {
+                SessionId = Guid.CreateVersion7(),
+                ActiveMode = Mode.Writer,
+                ActiveLoreSet = "default",
+                ActiveNarrativeRules = "default",
+                LastAssistantResponse = "She stops outside the door, unsure whether to continue.",
+                SessionContext = new InteractiveSessionContext
+                {
+                    ActiveMode = Mode.Writer,
+                    ProjectName = "archive-novel",
+                    CurrentFile = "chapter-03.md",
+                    StoryStatePath = "archive-novel/.state.yaml",
+                },
+            });
+
+        var request = fake.ReceivedRequests.Single();
+        Assert.Contains("For writer turns, the final response must be only the grounded draft prose", request.SystemPrompt!);
+        Assert.Contains("grounded writing turn", request.Messages.Single().Content.GetText());
+        Assert.Contains("chapter-03.md", request.Messages.Single().Content.GetText());
+        Assert.Contains("shown to the user for review", request.Messages.Single().Content.GetText());
+    }
+
+    [Fact]
+    public async Task DirectSceneAsync_ThrowsWhenNarrativeRulesAreMissing()
+    {
+        var fake = new FakeCompletionService();
+        var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
+        var toolLoop = new ToolLoop(fake, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore(new Dictionary<string, string>
+        {
+            ["scene.md"] = "Canon exists.",
+        });
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(""),
+            new FakeWritingStyleStore(),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
+        var agent = new NarrativeDirectorAgent(
+            toolLoop,
+            new QueryLoreHandler(null!, loreStore, fileService, guard, NullLogger<QueryLoreHandler>.Instance),
+            new UpdateStoryStateHandler(new TrackingStoryStateService(), new FakeInteractiveSessionContextService(), NullLogger<UpdateStoryStateHandler>.Instance),
+            new UpdateNarrativeStateHandler(new FakeSessionRuntimeService(), NullLogger<UpdateNarrativeStateHandler>.Instance),
+            new WriteProseHandler(null!, new FakeInteractiveSessionContextService(), new TrackingStoryStateService(), NullLogger<WriteProseHandler>.Instance),
+            guard,
+            new FakeNarrativeRulesStore(""),
+            new AppConfig(),
+            NullLogger<NarrativeDirectorAgent>.Instance);
+
+        var ex = await Assert.ThrowsAsync<CanonPrerequisiteException>(() =>
+            agent.DirectSceneAsync(
+                new NarrativeDirectionRequest { UserMessage = "Continue the scene." },
+                new AgentContext
+                {
+                    SessionId = Guid.CreateVersion7(),
+                    ActiveMode = Mode.Writer,
+                    ActiveLoreSet = "default",
+                    ActiveNarrativeRules = "missing-rules",
+                    SessionContext = new InteractiveSessionContext
+                    {
+                        ActiveMode = Mode.Writer,
+                        ProjectName = "novel",
+                        StoryStatePath = "novel/.state.yaml",
+                    },
+                }));
+
+        Assert.Contains("narrative-rules", ex.Message);
+        Assert.Empty(fake.ReceivedRequests);
+    }
+
+    [Fact]
+    public async Task DirectSceneAsync_ThrowsWhenLoreIsMissing()
+    {
+        var fake = new FakeCompletionService();
+        var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
+        var toolLoop = new ToolLoop(fake, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore();
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
+        var agent = new NarrativeDirectorAgent(
+            toolLoop,
+            new QueryLoreHandler(null!, loreStore, fileService, guard, NullLogger<QueryLoreHandler>.Instance),
+            new UpdateStoryStateHandler(new TrackingStoryStateService(), new FakeInteractiveSessionContextService(), NullLogger<UpdateStoryStateHandler>.Instance),
+            new UpdateNarrativeStateHandler(new FakeSessionRuntimeService(), NullLogger<UpdateNarrativeStateHandler>.Instance),
+            new WriteProseHandler(null!, new FakeInteractiveSessionContextService(), new TrackingStoryStateService(), NullLogger<WriteProseHandler>.Instance),
+            guard,
+            new FakeNarrativeRulesStore(),
+            new AppConfig(),
+            NullLogger<NarrativeDirectorAgent>.Instance);
+
+        var ex = await Assert.ThrowsAsync<CanonPrerequisiteException>(() =>
+            agent.DirectSceneAsync(
+                new NarrativeDirectionRequest { UserMessage = "Continue the scene." },
+                new AgentContext
+                {
+                    SessionId = Guid.CreateVersion7(),
+                    ActiveMode = Mode.Writer,
+                    ActiveLoreSet = "missing-lore",
+                    ActiveNarrativeRules = "default",
+                    SessionContext = new InteractiveSessionContext
+                    {
+                        ActiveMode = Mode.Writer,
+                        ProjectName = "novel",
+                        StoryStatePath = "novel/.state.yaml",
+                    },
+                }));
+
+        Assert.Contains("active lore set", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("missing or empty", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(fake.ReceivedRequests);
+    }
+
+    [Fact]
+    public async Task DirectSceneHandler_ReturnsFailure_WhenRoleplayCharacterContextIsMissing()
+    {
+        var fake = new FakeCompletionService();
+        var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
+        var toolLoop = new ToolLoop(fake, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore(new Dictionary<string, string>
+        {
+            ["scene.md"] = "Canon exists.",
+        });
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
+        var agent = new NarrativeDirectorAgent(
+            toolLoop,
+            new QueryLoreHandler(null!, loreStore, fileService, guard, NullLogger<QueryLoreHandler>.Instance),
+            new UpdateStoryStateHandler(new TrackingStoryStateService(), new FakeInteractiveSessionContextService(), NullLogger<UpdateStoryStateHandler>.Instance),
+            new UpdateNarrativeStateHandler(new FakeSessionRuntimeService(), NullLogger<UpdateNarrativeStateHandler>.Instance),
+            new WriteProseHandler(null!, new FakeInteractiveSessionContextService(), new TrackingStoryStateService(), NullLogger<WriteProseHandler>.Instance),
+            guard,
+            new FakeNarrativeRulesStore(),
+            new AppConfig(),
+            NullLogger<NarrativeDirectorAgent>.Instance);
+        var handler = new DirectSceneHandler(agent, NullLogger<DirectSceneHandler>.Instance);
+
+        var result = await handler.HandleAsync(
+            new ToolInput(System.Text.Json.JsonDocument.Parse("""{"user_message":"Continue the scene."}""").RootElement),
+            new AgentContext
+            {
+                SessionId = Guid.CreateVersion7(),
+                ActiveMode = Mode.Roleplay,
+                ActiveLoreSet = "default",
+                ActiveNarrativeRules = "default",
+                SessionContext = new InteractiveSessionContext
+                {
+                    ActiveMode = Mode.Roleplay,
+                    ProjectName = "novel",
+                    StoryStatePath = "novel/.state.yaml",
+                    Character = "missing-hero",
+                    CharacterSection = null,
+                },
+            });
+
+        Assert.False(result.Success);
+        Assert.Contains("selected roleplay character", result.Error);
+        Assert.Empty(fake.ReceivedRequests);
+    }
 }
 
 internal sealed class FakeNarrativeRulesStore : INarrativeRulesStore
 {
+    private readonly string _content;
+
+    public FakeNarrativeRulesStore(string content = "Keep tension rising. Let user actions matter.")
+    {
+        _content = content;
+    }
+
     public Task<string> LoadAsync(string rulesName, CancellationToken ct = default)
     {
-        return Task.FromResult("Keep tension rising. Let user actions matter.");
+        return Task.FromResult(_content);
     }
 
     public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
@@ -126,11 +363,18 @@ internal sealed class FakeNarrativeRulesStore : INarrativeRulesStore
     }
 }
 
-internal sealed class EmptyLoreStore : ILoreStore
+internal sealed class ConfigurableLoreStore : ILoreStore
 {
+    private readonly IReadOnlyDictionary<string, string> _content;
+
+    public ConfigurableLoreStore(IReadOnlyDictionary<string, string>? content = null)
+    {
+        _content = content ?? new Dictionary<string, string>();
+    }
+
     public Task<IReadOnlyDictionary<string, string>> LoadLoreSetAsync(string loreSetName, CancellationToken ct = default)
     {
-        return Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
+        return Task.FromResult(_content);
     }
 
     public Task<IReadOnlyList<string>> ListLoreSetsAsync(CancellationToken ct = default)
@@ -141,6 +385,26 @@ internal sealed class EmptyLoreStore : ILoreStore
     public Task<IReadOnlyList<(string FilePath, string Snippet)>> SearchAsync(string loreSetName, string query, CancellationToken ct = default)
     {
         return Task.FromResult<IReadOnlyList<(string FilePath, string Snippet)>>([]);
+    }
+}
+
+internal sealed class FakeWritingStyleStore : IWritingStyleStore
+{
+    private readonly string _content;
+
+    public FakeWritingStyleStore(string content = "Write with clarity and grounded emotional detail.")
+    {
+        _content = content;
+    }
+
+    public Task<string> LoadAsync(string styleName, CancellationToken ct = default)
+    {
+        return Task.FromResult(_content);
+    }
+
+    public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
+    {
+        return Task.FromResult<IReadOnlyList<string>>(["default"]);
     }
 }
 

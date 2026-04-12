@@ -7,19 +7,30 @@ public static class ModeExtensions
     /// <summary>Lowercase wire string for serialization and logging.</summary>
     public static string ToWireString(this Mode mode) => mode switch
     {
-        Mode.General => "general",
+        Mode.Guide => "guide",
         Mode.Writer => "writer",
         Mode.Roleplay => "roleplay",
         Mode.Forge => "forge",
         Mode.Council => "council",
         Mode.Research => "research",
-        _ => "general",
+        _ => "guide",
     };
 
     /// <summary>Parse a string to Mode enum. Case-insensitive. Returns null on failure.</summary>
     public static Mode? TryParseMode(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
+
+        if (string.Equals(value, "general", StringComparison.OrdinalIgnoreCase))
+        {
+            return Mode.Guide;
+        }
+
+        if (string.Equals(value, "guide", StringComparison.OrdinalIgnoreCase))
+        {
+            return Mode.Guide;
+        }
+
         return Enum.TryParse<Mode>(value, ignoreCase: true, out var mode) ? mode : null;
     }
 }
@@ -46,7 +57,7 @@ public class SessionState
     /// <summary>Mode selection and project/file/character context.</summary>
     public ModeSelectionState Mode { get; set; } = new();
 
-    /// <summary>Active profile selections (conductor, narrative rules, lore, writing style).</summary>
+    /// <summary>Active profile selections (narrative rules, lore, writing style, librarian prompt).</summary>
     public ProfileState Profile { get; set; } = new();
 
     /// <summary>Roleplay character selections for this live session.</summary>
@@ -72,12 +83,13 @@ public class SessionState
 public sealed class ModeSelectionState
 {
     /// <summary>
-    /// The active mode for this session. Persisted as the lowercase mode name
-    /// under the JSON key "activeModeName" for backwards compatibility with
-    /// existing session state files.
+    /// The active mode for this session. Persisted as a lowercase wire string
+    /// under the JSON key "activeModeName". Legacy persisted "general" values
+    /// still deserialize as the guide mode for backwards compatibility.
     /// </summary>
     [JsonPropertyName("activeModeName")]
-    public Mode ActiveMode { get; set; } = Mode.General;
+    [JsonConverter(typeof(ModeJsonConverter))]
+    public Mode ActiveMode { get; set; } = Mode.Guide;
 
     public string? ProjectName { get; set; }
     public string? CurrentFile { get; set; }
@@ -85,8 +97,8 @@ public sealed class ModeSelectionState
 }
 
 /// <summary>
-/// Active profile selections. Determines which conductor prompt, narrative rules, lore set,
-/// and writing style are used when building prompts and invoking tools like
+/// Active profile selections. Determines which narrative rules, lore set,
+/// writing style, and librarian prompt are used when building prompts and invoking tools like
 /// query_lore, direct_scene, and write_prose.
 ///
 /// ProfileId identifies the durable base profile for the session. The Active*
@@ -97,25 +109,28 @@ public sealed class ProfileState
     /// <summary>Durable profile backing this session. Null means "use the default profile".</summary>
     public string? ProfileId { get; set; }
 
-    /// <summary>Active conductor file name override. Null means "use the session profile default".</summary>
-    public string? ActiveConductor { get; set; }
-
     /// <summary>
-    /// Legacy persisted JSON alias for older session files. Deserialization from
-    /// activePersona still hydrates the renamed ActiveConductor field, but new
-    /// writes only emit activeConductor.
+    /// Legacy persisted JSON alias from conductor-era session files. Old
+    /// session state may still contain `activeConductor`, but live runtime
+    /// state no longer materializes or persists a conductor override.
     /// </summary>
-    [JsonPropertyName("activePersona")]
-    public string? LegacyActivePersona
+    [JsonPropertyName("activeConductor")]
+    public string? IgnoredLegacyActiveConductor
     {
         get => null;
-        set
-        {
-            if (!string.IsNullOrWhiteSpace(value) && string.IsNullOrWhiteSpace(ActiveConductor))
-            {
-                ActiveConductor = value;
-            }
-        }
+        set { }
+    }
+
+    /// <summary>
+    /// Older session files may also contain `activePersona`; it is intentionally
+    /// ignored during deserialization so new runtime state does not keep
+    /// conductor-era routing concepts alive.
+    /// </summary>
+    [JsonPropertyName("activePersona")]
+    public string? IgnoredLegacyActivePersona
+    {
+        get => null;
+        set { }
     }
 
     /// <summary>Active lore set name override. Null means "use the session profile default".</summary>

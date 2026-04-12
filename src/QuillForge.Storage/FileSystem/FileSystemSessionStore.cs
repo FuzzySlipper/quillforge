@@ -154,6 +154,13 @@ public sealed class FileSystemSessionStore : ISessionStore
                         ? StopReasonExtensions.ParseStopReason(nodeDto.Metadata.StopReason)
                         : null,
                     Reasoning = nodeDto.Metadata.Reasoning,
+                    ReasoningArtifacts = nodeDto.Metadata.ReasoningArtifacts?.Select(artifact => new ReasoningArtifact
+                    {
+                        AgentId = artifact.AgentId ?? "assistant",
+                        AgentLabel = artifact.AgentLabel ?? ReasoningArtifacts.GetAgentLabel(artifact.AgentId ?? "assistant"),
+                        Content = artifact.Content ?? "",
+                        Sequence = artifact.Sequence,
+                    }).ToList() ?? [],
                     ProviderReplay = DeserializeProviderReplay(nodeDto.Metadata.ProviderReplay),
                 } : null,
             };
@@ -189,6 +196,13 @@ public sealed class FileSystemSessionStore : ISessionStore
                 OutputTokens = n.Metadata.OutputTokens,
                 StopReason = n.Metadata.StopReason?.ToWireString(),
                 Reasoning = n.Metadata.Reasoning,
+                ReasoningArtifacts = n.Metadata.ReasoningArtifacts.Select(artifact => new ReasoningArtifactDto
+                {
+                    AgentId = artifact.AgentId,
+                    AgentLabel = artifact.AgentLabel,
+                    Content = artifact.Content,
+                    Sequence = artifact.Sequence,
+                }).ToList(),
                 ProviderReplay = SerializeProviderReplay(n.Metadata.ProviderReplay),
             } : null,
         }).ToList();
@@ -316,7 +330,16 @@ internal sealed class MetadataDto
     public int? OutputTokens { get; set; }
     public string? StopReason { get; set; }
     public string? Reasoning { get; set; }
+    public List<ReasoningArtifactDto>? ReasoningArtifacts { get; set; }
     public ProviderReplayDto? ProviderReplay { get; set; }
+}
+
+internal sealed class ReasoningArtifactDto
+{
+    public string? AgentId { get; set; }
+    public string? AgentLabel { get; set; }
+    public string? Content { get; set; }
+    public int Sequence { get; set; }
 }
 
 internal sealed class ProviderReplayDto

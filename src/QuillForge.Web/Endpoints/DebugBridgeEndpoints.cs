@@ -33,7 +33,6 @@ public static class DebugBridgeEndpoints
             var sessionId = root.GetOptionalGuid("sessionId") ?? Guid.CreateVersion7();
             var message = root.GetProperty("message").GetString() ?? "";
             var model = root.GetStringOrDefault("model", "default");
-            var requestedConductor = root.GetOptionalString("conductor");
             var maxTokens = root.GetIntOrDefault("maxTokens", 4096);
 
             ConversationTree tree;
@@ -67,17 +66,21 @@ public static class DebugBridgeEndpoints
                 sessionId,
                 new PrepareInteractiveRequestOptions
                 {
-                    RequestedConductor = requestedConductor,
                     LastAssistantResponse = lastAssistantResponse,
                 },
                 ct);
             var sessionState = prepared.ProfileView.SessionState;
-            var context = prepared.AgentContext;
-            var conductor = prepared.Conductor;
+            var reasoningCollector = new ReasoningArtifactCollector();
+            var context = prepared.AgentContext with
+            {
+                OnReasoningArtifact = reasoningCollector.CaptureAsync,
+            };
 
             var tools = toolHandlers.ToList();
             var response = await orchestrator.HandleAsync(
-                sessionState, conductor, model, maxTokens, tools, messages, context, ct: ct);
+                sessionState, model, maxTokens, tools, messages, context, ct: ct);
+            var reasoningArtifacts = reasoningCollector.Snapshot();
+            var finalReasoning = reasoningCollector.GetDefaultReasoning(response.Reasoning);
 
             tree.Append(tree.ActiveLeafId, "assistant", response.Content, new MessageMetadata
             {
@@ -85,7 +88,8 @@ public static class DebugBridgeEndpoints
                 InputTokens = response.Usage.InputTokens,
                 OutputTokens = response.Usage.OutputTokens,
                 StopReason = response.StopReason,
-                Reasoning = response.Reasoning,
+                Reasoning = finalReasoning,
+                ReasoningArtifacts = reasoningArtifacts,
                 ProviderReplay = response.ProviderReplay,
             });
 
@@ -114,7 +118,7 @@ public static class DebugBridgeEndpoints
                 },
                 Mode = sessionState.Mode.ActiveMode.ToWireString(),
                 MessageCount = tree.ToFlatThread().Count,
-                Reasoning = response.Reasoning,
+                Reasoning = finalReasoning,
             });
         });
 
@@ -134,7 +138,6 @@ public static class DebugBridgeEndpoints
             var sessionId = root.GetOptionalGuid("sessionId") ?? Guid.CreateVersion7();
             var message = root.GetProperty("message").GetString() ?? "";
             var model = root.GetStringOrDefault("model", "default");
-            var requestedConductor = root.GetOptionalString("conductor");
             var maxTokens = root.GetIntOrDefault("maxTokens", 4096);
 
             ConversationTree tree;
@@ -161,13 +164,15 @@ public static class DebugBridgeEndpoints
                 sessionId,
                 new PrepareInteractiveRequestOptions
                 {
-                    RequestedConductor = requestedConductor,
                     LastAssistantResponse = lastAssistantResponse,
                 },
                 ct);
             var sessionState = prepared.ProfileView.SessionState;
-            var context = prepared.AgentContext;
-            var conductor = prepared.Conductor;
+            var reasoningCollector = new ReasoningArtifactCollector();
+            var context = prepared.AgentContext with
+            {
+                OnReasoningArtifact = reasoningCollector.CaptureAsync,
+            };
 
             var assistantText = new System.Text.StringBuilder();
             var assistantReasoning = new System.Text.StringBuilder();
@@ -179,7 +184,7 @@ public static class DebugBridgeEndpoints
 
             var tools = toolHandlers.ToList();
             await foreach (var evt in orchestrator.HandleStreamAsync(
-                sessionState, conductor, model, maxTokens, tools, messages, context, ct: ct))
+                sessionState, model, maxTokens, tools, messages, context, ct: ct))
             {
                 switch (evt)
                 {
@@ -240,7 +245,8 @@ public static class DebugBridgeEndpoints
 
             // Persist the assistant reply
             Guid? assistantNodeId = null;
-            var finalReasoning = GetReasoningForDisplay(assistantReasoning, providerReplay);
+            var reasoningArtifacts = reasoningCollector.Snapshot();
+            var finalReasoning = GetReasoningForDisplay(reasoningCollector, assistantReasoning, providerReplay);
             if (assistantText.Length > 0)
             {
                 var assistantNode = tree.Append(appendParentId, "assistant",
@@ -252,6 +258,7 @@ public static class DebugBridgeEndpoints
                         OutputTokens = outputTokens,
                         StopReason = stopReason,
                         Reasoning = finalReasoning,
+                        ReasoningArtifacts = reasoningArtifacts,
                         ProviderReplay = providerReplay,
                     });
                 assistantNodeId = assistantNode.Id;
@@ -308,7 +315,7 @@ public static class DebugBridgeEndpoints
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
 
-            var mode = root.TryGetProperty("mode", out var modeEl) ? modeEl.GetString() ?? "general" : "general";
+            var mode = root.TryGetProperty("mode", out var modeEl) ? modeEl.GetString() ?? "guide" : "guide";
             var project = root.TryGetProperty("project", out var proj) ? proj.GetString() : null;
             var file = root.TryGetProperty("file", out var f) ? f.GetString() : null;
             var sessionId = root.GetOptionalGuid("sessionId");
@@ -431,16 +438,21 @@ public static class DebugBridgeEndpoints
     }
 
     private static string? GetReasoningForDisplay(
+        ReasoningArtifactCollector collector,
         System.Text.StringBuilder streamedReasoning,
         ProviderReplayEnvelope? providerReplay)
     {
+        var artifactReasoning = collector.GetDefaultReasoning();
+        if (!string.IsNullOrWhiteSpace(artifactReasoning))
+        {
+            return artifactReasoning;
+        }
+
         if (streamedReasoning.Length > 0)
         {
             return streamedReasoning.ToString();
         }
 
-        return providerReplay is ReasoningReplayEnvelope reasoningReplay
-            ? reasoningReplay.ReasoningContent
-            : null;
+        return ReasoningArtifacts.GetContent(null, providerReplay);
     }
 }

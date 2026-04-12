@@ -36,7 +36,7 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
     }
 
     [Fact]
-    public async Task DebugBridgeChat_UsesPreparedInteractiveRequestConductor()
+    public async Task DebugBridgeChat_GuideMode_DoesNotLoadPreparedConductor()
     {
         var preparedService = new RecordingPreparedContextService();
         var conductorStore = new RecordingConductorStore();
@@ -52,14 +52,14 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
             $$"""{"sessionId":"{{sessionId}}","message":"hello"}""");
 
         Assert.Equal(200, response.StatusCode);
-        Assert.Equal("prepared-conductor", conductorStore.LastLoadedConductor);
+        Assert.Null(conductorStore.LastLoadedConductor);
         Assert.Equal(1, preparedService.PrepareCallCount);
         Assert.Equal(sessionId, preparedService.LastSessionId);
         Assert.Null(preparedService.LastAssistantResponse);
     }
 
     [Fact]
-    public async Task ProbeEndpoint_UsesPreparedInteractiveRequestConductor()
+    public async Task ProbeEndpoint_GuideMode_DoesNotLoadPreparedConductor()
     {
         var preparedService = new RecordingPreparedContextService();
         var conductorStore = new RecordingConductorStore();
@@ -71,7 +71,7 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
         var response = await InvokePostJsonAsync(app, "/api/probe", "{}");
 
         Assert.Equal(200, response.StatusCode);
-        Assert.Equal("prepared-conductor", conductorStore.LastLoadedConductor);
+        Assert.Null(conductorStore.LastLoadedConductor);
         Assert.Equal(1, preparedService.PrepareCallCount);
     }
 
@@ -99,6 +99,7 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
         builder.Services.AddSingleton(preparedService);
         builder.Services.AddSingleton<ISessionProfileReadService>(sp => sp.GetRequiredService<RecordingPreparedContextService>());
         builder.Services.AddSingleton<IConductorStore>(conductorStore);
+        builder.Services.AddSingleton<IAssistantPromptStore>(new TestAssistantPromptStore());
         builder.Services.AddSingleton<IInteractiveSessionContextService>(new NoOpInteractiveSessionContextService());
         builder.Services.AddSingleton<ISessionStateService>(new NoOpRuntimeService());
         builder.Services.AddSingleton<ISessionBootstrapService>(new TestSessionBootstrapService());
@@ -115,8 +116,8 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
         builder.Services.AddSingleton(sp =>
             new OrchestratorAgent(
                 sp.GetRequiredService<ToolLoop>(),
-                [new GeneralMode()],
-                sp.GetRequiredService<IConductorStore>(),
+                [new GuideMode()],
+                sp.GetRequiredService<IAssistantPromptStore>(),
                 sp.GetRequiredService<IInteractiveSessionContextService>(),
                 sp.GetRequiredService<AppConfig>(),
                 NullLogger<OrchestratorAgent>.Instance));
@@ -195,7 +196,6 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
     {
         public int PrepareCallCount { get; private set; }
         public Guid? LastSessionId { get; private set; }
-        public string? LastRequestedConductor { get; private set; }
         public string? LastAssistantResponse { get; private set; }
 
         public Task<SessionProfileReadView> LoadAsync(Guid? sessionId, CancellationToken ct = default)
@@ -211,13 +211,12 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
         {
             PrepareCallCount++;
             LastSessionId = sessionId;
-            LastRequestedConductor = options.RequestedConductor;
             LastAssistantResponse = options.LastAssistantResponse;
 
             var resolvedSessionId = sessionId ?? Guid.CreateVersion7();
             var sessionContext = new InteractiveSessionContext
             {
-                ActiveMode = Mode.General,
+                ActiveMode = Mode.Guide,
                 ProjectName = "prepared-project",
                 StoryStatePath = "prepared-project/.state.yaml",
                 CurrentFile = "scene.md",
@@ -227,14 +226,13 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
                 SessionId = resolvedSessionId,
                 Mode = new ModeSelectionState
                 {
-                    ActiveMode = Mode.General,
+                    ActiveMode = Mode.Guide,
                     ProjectName = "prepared-project",
                     CurrentFile = "scene.md",
                 },
                 Profile = new ProfileState
                 {
                     ProfileId = "prepared-profile",
-                    ActiveConductor = "prepared-conductor",
                     ActiveLoreSet = "prepared-lore",
                     ActiveNarrativeRules = "prepared-rules",
                     ActiveWritingStyle = "prepared-style",
@@ -248,7 +246,6 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
                     SessionState = sessionState,
                     DefaultProfileId = "default",
                     ActiveProfileId = "prepared-profile",
-                    ActiveConductor = "prepared-conductor",
                     ActiveLoreSet = "prepared-lore",
                     ActiveNarrativeRules = "prepared-rules",
                     ActiveWritingStyle = "prepared-style",
@@ -258,16 +255,24 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
                 AgentContext = new AgentContext
                 {
                     SessionId = resolvedSessionId,
-                    ActiveMode = Mode.General,
+                    ActiveMode = Mode.Guide,
                     ActiveLoreSet = "prepared-lore",
                     ActiveNarrativeRules = "prepared-rules",
                     ActiveWritingStyle = "prepared-style",
                     SessionContext = sessionContext,
                     LastAssistantResponse = options.LastAssistantResponse,
                 },
-                Conductor = "prepared-conductor",
             });
         }
+    }
+
+    private sealed class TestAssistantPromptStore : IAssistantPromptStore
+    {
+        public Task<string> LoadAsync(string promptName, CancellationToken ct = default)
+            => Task.FromResult(string.Empty);
+
+        public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>(["default"]);
     }
 
     private sealed class RecordingConductorStore : IConductorStore

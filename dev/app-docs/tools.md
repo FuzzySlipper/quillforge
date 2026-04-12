@@ -42,8 +42,8 @@ Tools are capabilities the orchestrator can invoke during a conversation. The or
 
 | Tool | Description | When It Fires |
 |------|-------------|---------------|
-| `run_council` | Convenes the advisory panel (Council mode) | In Council mode when you ask for multi-perspective analysis |
-| `run_research` | Executes a web-backed research query | In Research mode for factual information gathering |
+| `run_council` | Convenes the advisory panel (Council mode) | In Council mode when the Assistant needs multi-perspective analysis |
+| `run_research` | Executes a web-backed research query | In Research mode when the Assistant needs sourced investigation |
 | `delegate_technical` | Answers factual/technical questions | When the question is outside the fictional world |
 
 ## Utility
@@ -58,8 +58,8 @@ Tools are capabilities the orchestrator can invoke during a conversation. The or
 
 ## Tool Availability by Mode
 
-All tools are registered globally and available in every mode, but the mode's system prompt guides the orchestrator toward mode-appropriate tools. For example:
-- Writer mode prioritizes `write_prose` and the approval workflow
-- Council mode prioritizes `run_council`
-- Research mode prioritizes `run_research` and `web_search`
-- General mode routes naturally to any tool based on context
+Tools are registered centrally, but the top-level surface is mode-filtered rather than fully open in every mode. For example:
+- Writer mode exposes grounded drafting tools such as `direct_scene`, but not top-level `write_prose`
+- Council mode is narrowed to `run_council` and `query_docs`
+- Research mode is narrowed to `run_research` and `query_docs`
+- Guide mode prioritizes `query_docs` and lightweight inspection over substantive execution

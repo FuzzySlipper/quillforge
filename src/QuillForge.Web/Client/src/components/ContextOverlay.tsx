@@ -72,12 +72,16 @@ export default function ContextOverlay({ open, onClose, status, sessionId }: Con
               <ContextMeter status={status} />
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="bg-input-bg rounded-lg p-3">
-                  <div className="text-text-muted text-xs mb-1">Conductor</div>
-                  <div>{status.conductor}</div>
+                  <div className="text-text-muted text-xs mb-1">Profile</div>
+                  <div>{status.profile}</div>
                 </div>
                 <div className="bg-input-bg rounded-lg p-3">
                   <div className="text-text-muted text-xs mb-1">Lore Set</div>
                   <div>{status.loreSet}</div>
+                </div>
+                <div className="bg-input-bg rounded-lg p-3">
+                  <div className="text-text-muted text-xs mb-1">Routing</div>
+                  <div>App-owned by mode</div>
                 </div>
                 <div className="bg-input-bg rounded-lg p-3">
                   <div className="text-text-muted text-xs mb-1">Writing Style</div>

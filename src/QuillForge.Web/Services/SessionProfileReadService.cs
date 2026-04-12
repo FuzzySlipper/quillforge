@@ -19,9 +19,6 @@ internal static class SessionProfileHydration
     public static string RequireProfileId(ProfileState profile)
         => profile.ProfileId ?? throw new InvalidOperationException("Hydrated session profile id was unexpectedly null.");
 
-    public static string RequireActiveConductor(ProfileState profile)
-        => profile.ActiveConductor ?? throw new InvalidOperationException("Hydrated session conductor was unexpectedly null.");
-
     public static string RequireActiveLoreSet(ProfileState profile)
         => profile.ActiveLoreSet ?? throw new InvalidOperationException("Hydrated session lore set was unexpectedly null.");
 
@@ -40,7 +37,6 @@ public sealed record SessionProfileReadView
     public required SessionState SessionState { get; init; }
     public required string DefaultProfileId { get; init; }
     public required string ActiveProfileId { get; init; }
-    public required string ActiveConductor { get; init; }
     public required string ActiveLoreSet { get; init; }
     public required string ActiveNarrativeRules { get; init; }
     public required string ActiveWritingStyle { get; init; }
@@ -51,7 +47,6 @@ public sealed record SessionProfileReadView
 
 public sealed record PrepareInteractiveRequestOptions
 {
-    public string? RequestedConductor { get; init; }
     public string? LastAssistantResponse { get; init; }
     public bool ResolvePortraits { get; init; }
 }
@@ -61,7 +56,6 @@ public sealed record PreparedInteractiveRequest
     public required SessionProfileReadView ProfileView { get; init; }
     public required InteractiveSessionContext SessionContext { get; init; }
     public required AgentContext AgentContext { get; init; }
-    public required string Conductor { get; init; }
     public string? AssistantPortraitUrl { get; init; }
     public string? UserPortraitUrl { get; init; }
 }
@@ -72,7 +66,6 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
     private readonly IProfileConfigService _profileService;
     private readonly IInteractiveSessionContextService _sessionContextService;
     private readonly ICharacterCardStore _characterCardStore;
-    private readonly IConductorStore _conductorStore;
     private readonly ILoreStore _loreStore;
     private readonly INarrativeRulesStore _narrativeRulesStore;
     private readonly IWritingStyleStore _writingStyleStore;
@@ -84,7 +77,6 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         IProfileConfigService profileService,
         IInteractiveSessionContextService sessionContextService,
         ICharacterCardStore characterCardStore,
-        IConductorStore conductorStore,
         ILoreStore loreStore,
         INarrativeRulesStore narrativeRulesStore,
         IWritingStyleStore writingStyleStore,
@@ -95,7 +87,6 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         _profileService = profileService;
         _sessionContextService = sessionContextService;
         _characterCardStore = characterCardStore;
-        _conductorStore = conductorStore;
         _loreStore = loreStore;
         _narrativeRulesStore = narrativeRulesStore;
         _writingStyleStore = writingStyleStore;
@@ -113,7 +104,6 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
             SessionState = sessionState,
             DefaultProfileId = defaultProfileId,
             ActiveProfileId = SessionProfileHydration.RequireProfileId(sessionState.Profile),
-            ActiveConductor = SessionProfileHydration.RequireActiveConductor(sessionState.Profile),
             ActiveLoreSet = SessionProfileHydration.RequireActiveLoreSet(sessionState.Profile),
             ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(sessionState.Profile),
             ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(sessionState.Profile),
@@ -123,10 +113,9 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         };
 
         _logger.LogInformation(
-            "Loaded session profile read view: session={SessionId} profileId={ProfileId} conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
+            "Loaded session profile read view: session={SessionId} profileId={ProfileId} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
             sessionId,
             view.ActiveProfileId,
-            view.ActiveConductor,
             view.ActiveLoreSet,
             view.ActiveNarrativeRules,
             view.ActiveWritingStyle,
@@ -143,7 +132,6 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
     {
         var view = await LoadAsync(sessionId, ct);
         var sessionContext = await _sessionContextService.BuildAsync(view.SessionState, ct);
-        var conductor = NormalizeChoice(options.RequestedConductor) ?? view.ActiveConductor;
         var resolvedSessionId = view.SessionState.SessionId ?? Guid.CreateVersion7();
 
         string? assistantPortraitUrl = null;
@@ -167,10 +155,9 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         };
 
         _logger.LogInformation(
-            "Prepared interactive request context: session={SessionId} mode={Mode} conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
+            "Prepared interactive request context: session={SessionId} mode={Mode} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
             resolvedSessionId,
             view.SessionState.Mode.ActiveMode,
-            conductor,
             view.ActiveLoreSet,
             view.ActiveNarrativeRules,
             view.ActiveWritingStyle);
@@ -180,7 +167,6 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
             ProfileView = view,
             SessionContext = sessionContext,
             AgentContext = agentContext,
-            Conductor = conductor,
             AssistantPortraitUrl = assistantPortraitUrl,
             UserPortraitUrl = userPortraitUrl,
         };
@@ -190,7 +176,6 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
     {
         var view = await LoadAsync(sessionId, ct);
         var profileIds = await _profileService.ListAsync(ct);
-        var conductors = await _conductorStore.ListAsync(ct);
         var loreSets = await _loreStore.ListLoreSetsAsync(ct);
         var narrativeRules = await _narrativeRulesStore.ListAsync(ct);
         var styles = await _writingStyleStore.ListAsync(ct);
@@ -201,12 +186,10 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
             ProfileIds = profileIds,
             DefaultProfileId = view.DefaultProfileId,
             ActiveProfileId = view.ActiveProfileId,
-            Conductors = conductors,
             LoreSets = loreSets,
             NarrativeRules = narrativeRules,
             WritingStyles = styles,
             LibrarianPrompts = librarianPrompts,
-            ActiveConductor = view.ActiveConductor,
             ActiveLore = view.ActiveLoreSet,
             ActiveNarrativeRules = view.ActiveNarrativeRules,
             ActiveWritingStyle = view.ActiveWritingStyle,
@@ -214,10 +197,9 @@ public sealed class SessionProfileReadService : ISessionProfileReadService
         };
 
         _logger.LogInformation(
-            "Built profiles response for session {SessionId}: profileCount={ProfileCount} conductorCount={ConductorCount} loreSetCount={LoreCount}",
+            "Built profiles response for session {SessionId}: profileCount={ProfileCount} loreSetCount={LoreCount}",
             sessionId,
             response.ProfileIds.Count,
-            response.Conductors.Count,
             response.LoreSets.Count);
 
         return response;

@@ -45,7 +45,7 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
-  const [mode, setMode] = useState<Mode>("general");
+  const [mode, setMode] = useState<Mode>("guide");
   const [layout, setLayout] = useState<LayoutConfig>(layoutManager.getLayout());
   const [backgroundImage, setBackgroundImage] = useState<string | null>(layoutManager.getBackground());
   const [artifact, setArtifact] = useState<Artifact | null>(null);

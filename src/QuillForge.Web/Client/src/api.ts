@@ -244,7 +244,6 @@ export async function getProfiles(sessionId?: string | null): Promise<Profiles> 
 export async function switchProfile(profile: {
   sessionId?: string | null;
   profileId?: string;
-  conductor?: string;
   lore?: string;
   narrativeRules?: string;
   writingStyle?: string;
@@ -490,6 +489,28 @@ export async function readConductor(path: string): Promise<{ path: string; conte
 
 export async function writeConductor(path: string, content: string): Promise<unknown> {
   return request(`/api/conductors/${path.split("/").map(encodeURIComponent).join("/")}`, {
+    method: "PUT",
+    body: JSON.stringify({ content }),
+  });
+}
+
+export interface AssistantPromptInfo {
+  path: string;
+  name: string;
+  tokens: number;
+  size: number;
+}
+
+export async function listAssistantPrompts(): Promise<{ files: AssistantPromptInfo[]; active: string }> {
+  return request("/api/assistant-prompts");
+}
+
+export async function readAssistantPrompt(name: string): Promise<{ path: string; content: string; tokens: number }> {
+  return request(`/api/assistant-prompts/${encodeURIComponent(name)}`);
+}
+
+export async function writeAssistantPrompt(name: string, content: string): Promise<unknown> {
+  return request(`/api/assistant-prompts/${encodeURIComponent(name)}`, {
     method: "PUT",
     body: JSON.stringify({ content }),
   });

@@ -9,7 +9,7 @@ QuillForge is under active development. Releases are built from Git tags and are
 ## Features
 
 - Conversational orchestrator with specialized agents behind the scenes
-- Six working modes: General, Writer, Roleplay, Forge, Council, and Research
+- Six working modes: Guide, Writer, Roleplay, Forge, Council, and Research
 - Branching conversation history with retry, fork, delete, and variants
 - Lore-backed responses and writing assistance
 - Autonomous Forge pipeline for long-form story generation
@@ -21,10 +21,10 @@ QuillForge is under active development. Releases are built from Git tags and are
 
 | Mode | Purpose |
 |------|---------|
-| General | Free-form conversation with flexible tool routing |
+| Guide | Onboarding, troubleshooting, and mode selection |
 | Writer | Long-form project writing with pending-content accept/reject workflow |
 | Roleplay | Interactive narrative with character context and roleplay state |
-| Forge | Conversational story design before the autonomous pipeline runs |
+| Forge | Command-and-pipeline control for autonomous story production |
 | Council | Multi-advisor synthesis for brainstorming and critique |
 | Research | Parallel research workflows and research project output |
 
@@ -132,7 +132,7 @@ forge:
   stage_timeout_minutes: 120
 ```
 
-Naming note: `persona.active` currently selects the active conductor prompt. The codebase is still carrying some transitional naming from earlier versions.
+Naming note: `persona.active` is still a compatibility field from earlier versions. Live interactive routing is now app-owned by mode rather than driven by a user-editable conductor prompt.
 
 ## Content Directory
 
@@ -142,6 +142,7 @@ QuillForge keeps user-owned content in `user/`. This directory is intended to be
 user/
 ├── config.yaml
 ├── lore/
+├── assistant/
 ├── conductor/
 ├── librarian-prompts/
 ├── narrative-rules/
@@ -172,6 +173,7 @@ Practical rule:
 
 - Edit the content folders when you want to change lore, prompts, profiles, layouts, or writing assets.
 - Avoid hand-editing `user/data/sessions/` and `user/data/session-state/` unless you are doing recovery or debugging work.
+- `user/conductor/` is retained as legacy migration/reference material; current live routing behavior is app-owned.
 
 ## Development
 
@@ -270,7 +272,7 @@ When a user sends a message, the rough flow is:
 
 1. The browser sends the message and current session ID to the web API.
 2. QuillForge loads the live session runtime and the conversation tree for that session.
-3. It resolves the active profile, conductor, lore set, writing style, mode, and other context.
+3. It resolves the active profile, lore set, writing style, mode, and other context.
 4. The orchestrator builds the mode-specific prompt section.
 5. The shared `ToolLoop` calls the selected model.
 6. If the model requests tools, the tool loop validates and dispatches those tool calls.
@@ -305,10 +307,10 @@ It should not be treated as "whatever is active right now in one conversation."
 
 A profile is where QuillForge stores reusable selections such as:
 
-- conductor
 - lore set
 - narrative rules
 - writing style
+- librarian prompt
 - roleplay defaults
 
 Profiles are meant to be reused across many sessions.
@@ -397,7 +399,7 @@ It is responsible for:
 - reading and writing config
 - reading and writing profiles
 - reading and writing sessions
-- loading lore, conductor prompts, writing styles, and other content files
+- loading lore, assistant prompts, legacy conductor prompts, writing styles, and other content files
 
 The app is intentionally file-first. User content should remain inspectable and portable.
 
@@ -426,10 +428,10 @@ QuillForge has multiple modes, but they are not six unrelated systems glued toge
 
 They are six behavior layers on top of shared runtime and tool infrastructure.
 
-- General mode is the most flexible default.
+- Guide mode is the front desk and default starting point.
 - Writer mode leans into scene generation and pending review workflow.
 - Roleplay mode uses character context and session character state.
-- Forge mode prepares work for the autonomous story pipeline.
+- Forge mode is an operator surface for explicit forge commands and pipeline stages.
 - Council mode runs advisory-style multi-voice output.
 - Research mode coordinates structured research work and project output.
 
@@ -473,7 +475,8 @@ QuillForge is designed around user-owned files.
 That means:
 
 - lore is plain markdown
-- conductors are plain markdown
+- assistant prompts are plain markdown
+- conductors are plain markdown legacy migration material
 - writing styles are plain markdown
 - profiles are plain yaml
 - sessions are json
@@ -488,6 +491,7 @@ For non-technical users, this also means a helper app can usually solve problems
 Usually safe:
 
 - `user/lore/`
+- `user/assistant/`
 - `user/conductor/`
 - `user/librarian-prompts/`
 - `user/narrative-rules/`

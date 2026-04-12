@@ -9,7 +9,7 @@ public sealed class SessionRuntimeServiceTests
 {
     private static readonly IMode[] Modes =
     [
-        new GeneralMode(),
+        new GuideMode(),
         new WriterMode(),
         new RoleplayMode(),
         new ForgeMode(),
@@ -73,6 +73,7 @@ public sealed class SessionRuntimeServiceTests
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
+        Assert.Equal(Mode.Guide, result.Value.Mode.ActiveMode);
         Assert.Equal(WriterState.Idle, result.Value.Writer.State);
         Assert.Null(result.Value.Writer.PendingContent);
     }
@@ -110,7 +111,7 @@ public sealed class SessionRuntimeServiceTests
         await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveMode = Mode.General },
+            Mode = new ModeSelectionState { ActiveMode = Mode.Guide },
         });
 
         var service = CreateService(store);
@@ -237,7 +238,6 @@ public sealed class SessionRuntimeServiceTests
         var view = await service.LoadViewAsync(sessionId);
 
         Assert.Equal("default", view.Profile.ProfileId);
-        Assert.Equal("default-conductor", view.Profile.ActiveConductor);
         Assert.Equal("default-lore", view.Profile.ActiveLoreSet);
         Assert.Equal("default-rules", view.Profile.ActiveNarrativeRules);
         Assert.Equal("default-style", view.Profile.ActiveWritingStyle);
@@ -246,7 +246,6 @@ public sealed class SessionRuntimeServiceTests
 
         var raw = await store.LoadAsync(sessionId);
         Assert.Null(raw.Profile.ProfileId);
-        Assert.Null(raw.Profile.ActiveConductor);
         Assert.Null(raw.Profile.ActiveLoreSet);
         Assert.Null(raw.Profile.ActiveNarrativeRules);
         Assert.Null(raw.Profile.ActiveWritingStyle);
@@ -309,19 +308,17 @@ public sealed class SessionRuntimeServiceTests
 
         var result = await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand("grim", null, null, null, null, null));
+            new SetSessionProfileCommand("grim", null, null, null, null));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
         Assert.Equal("grim", result.Value.Profile.ProfileId);
-        Assert.Equal("grim-conductor", result.Value.Profile.ActiveConductor);
         Assert.Equal("grim-lore", result.Value.Profile.ActiveLoreSet);
         Assert.Equal("grim-rules", result.Value.Profile.ActiveNarrativeRules);
         Assert.Equal("grim-style", result.Value.Profile.ActiveWritingStyle);
 
         var raw = await store.LoadAsync(sessionId);
         Assert.Equal("grim", raw.Profile.ProfileId);
-        Assert.Null(raw.Profile.ActiveConductor);
         Assert.Null(raw.Profile.ActiveLoreSet);
         Assert.Null(raw.Profile.ActiveNarrativeRules);
         Assert.Null(raw.Profile.ActiveWritingStyle);
@@ -336,23 +333,21 @@ public sealed class SessionRuntimeServiceTests
 
         await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand("grim", null, null, null, null, null));
+            new SetSessionProfileCommand("grim", null, null, null, null));
 
         var result = await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand(null, null, "custom-lore", null, null, null));
+            new SetSessionProfileCommand(null, "custom-lore", null, null, null));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
         Assert.Equal("grim", result.Value.Profile.ProfileId);
-        Assert.Equal("grim-conductor", result.Value.Profile.ActiveConductor);
         Assert.Equal("custom-lore", result.Value.Profile.ActiveLoreSet);
         Assert.Equal("grim-rules", result.Value.Profile.ActiveNarrativeRules);
         Assert.Equal("grim-style", result.Value.Profile.ActiveWritingStyle);
 
         var raw = await store.LoadAsync(sessionId);
         Assert.Equal("grim", raw.Profile.ProfileId);
-        Assert.Null(raw.Profile.ActiveConductor);
         Assert.Equal("custom-lore", raw.Profile.ActiveLoreSet);
         Assert.Null(raw.Profile.ActiveNarrativeRules);
         Assert.Null(raw.Profile.ActiveWritingStyle);
@@ -368,19 +363,17 @@ public sealed class SessionRuntimeServiceTests
 
         await service.SetProfileAsync(
             sessionA,
-            new SetSessionProfileCommand("grim", null, null, null, null, null));
+            new SetSessionProfileCommand("grim", null, null, null, null));
         await service.SetProfileAsync(
             sessionB,
-            new SetSessionProfileCommand(null, "session-b-conductor", null, null, null, null));
+            new SetSessionProfileCommand(null, "session-b-lore", null, null, null));
 
         var viewA = await service.LoadViewAsync(sessionA);
         var viewB = await service.LoadViewAsync(sessionB);
 
         Assert.Equal("grim", viewA.Profile.ProfileId);
-        Assert.Equal("grim-conductor", viewA.Profile.ActiveConductor);
         Assert.Equal("default", viewB.Profile.ProfileId);
-        Assert.Equal("session-b-conductor", viewB.Profile.ActiveConductor);
-        Assert.Equal("default-lore", viewB.Profile.ActiveLoreSet);
+        Assert.Equal("session-b-lore", viewB.Profile.ActiveLoreSet);
         Assert.Equal("grim-guide", viewA.Roleplay.ActiveAiCharacter);
         Assert.Equal("default-guide", viewB.Roleplay.ActiveAiCharacter);
     }
@@ -394,14 +387,14 @@ public sealed class SessionRuntimeServiceTests
 
         await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand("grim", null, null, null, null, null));
+            new SetSessionProfileCommand("grim", null, null, null, null));
         await service.SetRoleplayAsync(
             sessionId,
             new SetSessionRoleplayCommand(false, null, true, "session-author"));
 
         var result = await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand("storm", null, null, null, null, null));
+            new SetSessionProfileCommand("storm", null, null, null, null));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
@@ -430,7 +423,6 @@ public sealed class SessionRuntimeServiceTests
             Profile = new ProfileState
             {
                 ProfileId = "grim",
-                ActiveConductor = "grim-conductor",
                 ActiveLoreSet = "grim-lore",
                 ActiveNarrativeRules = "grim-rules",
                 ActiveWritingStyle = "grim-style",
@@ -448,14 +440,12 @@ public sealed class SessionRuntimeServiceTests
         var view = await service.LoadViewAsync(sessionId);
 
         Assert.Equal("grim", view.Profile.ProfileId);
-        Assert.Equal("grim-conductor-v2", view.Profile.ActiveConductor);
         Assert.Equal("grim-lore-v2", view.Profile.ActiveLoreSet);
         Assert.Equal("grim-rules-v2", view.Profile.ActiveNarrativeRules);
         Assert.Equal("grim-style-v2", view.Profile.ActiveWritingStyle);
 
         var raw = await store.LoadAsync(sessionId);
         Assert.Equal("grim", raw.Profile.ProfileId);
-        Assert.Null(raw.Profile.ActiveConductor);
         Assert.Null(raw.Profile.ActiveLoreSet);
         Assert.Null(raw.Profile.ActiveNarrativeRules);
         Assert.Null(raw.Profile.ActiveWritingStyle);
@@ -471,10 +461,10 @@ public sealed class SessionRuntimeServiceTests
 
         await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand("grim", null, null, null, null, null));
+            new SetSessionProfileCommand("grim", null, null, null, null));
         await service.SetProfileAsync(
             sessionId,
-            new SetSessionProfileCommand(null, null, "custom-lore", null, null, null));
+            new SetSessionProfileCommand(null, "custom-lore", null, null, null));
 
         profiles.SetProfile("grim", new ProfileConfig
         {
@@ -487,14 +477,12 @@ public sealed class SessionRuntimeServiceTests
         var view = await service.LoadViewAsync(sessionId);
 
         Assert.Equal("grim", view.Profile.ProfileId);
-        Assert.Equal("grim-conductor-v2", view.Profile.ActiveConductor);
         Assert.Equal("custom-lore", view.Profile.ActiveLoreSet);
         Assert.Equal("grim-rules-v2", view.Profile.ActiveNarrativeRules);
         Assert.Equal("grim-style-v2", view.Profile.ActiveWritingStyle);
 
         var raw = await store.LoadAsync(sessionId);
         Assert.Equal("grim", raw.Profile.ProfileId);
-        Assert.Null(raw.Profile.ActiveConductor);
         Assert.Equal("custom-lore", raw.Profile.ActiveLoreSet);
         Assert.Null(raw.Profile.ActiveNarrativeRules);
         Assert.Null(raw.Profile.ActiveWritingStyle);
@@ -515,7 +503,6 @@ public sealed class SessionRuntimeServiceTests
             Profile = new ProfileState
             {
                 ProfileId = "grim",
-                ActiveConductor = "custom-conductor",
                 ActiveLoreSet = "custom-lore",
                 ActiveNarrativeRules = "custom-rules",
                 ActiveWritingStyle = "custom-style",
@@ -532,13 +519,11 @@ public sealed class SessionRuntimeServiceTests
 
         var view = await service.LoadViewAsync(sessionId);
 
-        Assert.Equal("custom-conductor", view.Profile.ActiveConductor);
         Assert.Equal("custom-lore", view.Profile.ActiveLoreSet);
         Assert.Equal("custom-rules", view.Profile.ActiveNarrativeRules);
         Assert.Equal("custom-style", view.Profile.ActiveWritingStyle);
 
         var raw = await store.LoadAsync(sessionId);
-        Assert.Equal("custom-conductor", raw.Profile.ActiveConductor);
         Assert.Equal("custom-lore", raw.Profile.ActiveLoreSet);
         Assert.Equal("custom-rules", raw.Profile.ActiveNarrativeRules);
         Assert.Equal("custom-style", raw.Profile.ActiveWritingStyle);
@@ -744,7 +729,6 @@ internal sealed class InMemorySessionRuntimeStore : ISessionStateStore
             Profile = new ProfileState
             {
                 ProfileId = state.Profile.ProfileId,
-                ActiveConductor = state.Profile.ActiveConductor,
                 ActiveLoreSet = state.Profile.ActiveLoreSet,
                 ActiveNarrativeRules = state.Profile.ActiveNarrativeRules,
                 ActiveWritingStyle = state.Profile.ActiveWritingStyle,
@@ -782,7 +766,6 @@ internal sealed class FakeProfileConfigService : IProfileConfigService
     {
         ["default"] = new()
         {
-            Conductor = "default-conductor",
             LoreSet = "default-lore",
             NarrativeRules = "default-rules",
             WritingStyle = "default-style",
@@ -794,7 +777,6 @@ internal sealed class FakeProfileConfigService : IProfileConfigService
         },
         ["grim"] = new()
         {
-            Conductor = "grim-conductor",
             LoreSet = "grim-lore",
             NarrativeRules = "grim-rules",
             WritingStyle = "grim-style",
@@ -806,7 +788,6 @@ internal sealed class FakeProfileConfigService : IProfileConfigService
         },
         ["storm"] = new()
         {
-            Conductor = "storm-conductor",
             LoreSet = "storm-lore",
             NarrativeRules = "storm-rules",
             WritingStyle = "storm-style",

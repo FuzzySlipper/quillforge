@@ -9,6 +9,13 @@ namespace QuillForge.Core.Agents.Modes;
 public sealed class ResearchMode : IMode
 {
     public string Name => "research";
+    public bool UsesAssistantPrompt => true;
+
+    public bool AllowsTopLevelTool(string toolName)
+    {
+        return string.Equals(toolName, "run_research", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(toolName, "query_docs", StringComparison.OrdinalIgnoreCase);
+    }
 
     public string BuildSystemPromptSection(ModeContext context)
     {
@@ -19,7 +26,10 @@ public sealed class ResearchMode : IMode
         return $"""
             ## Current Mode: Research
 
-            You are in research mode. You have the `run_research` tool available. For each user query:
+            You are the user-facing Assistant for research mode.
+            Your job is to frame research requests clearly, launch the research workflow, and synthesize the findings for the user.
+
+            For substantive research questions:
 
             1. Analyze the user's question and break it into distinct research topics
             2. Call `run_research` with the list of topics and the active project name
@@ -40,13 +50,11 @@ public sealed class ResearchMode : IMode
             - Include a "focus" hint for each topic to guide the research agent
             - After synthesis, highlight key findings, areas of consensus, and open questions
             - Reference the saved markdown files so the user can review details later
-
-            IMPORTANT: Always use `run_research` for substantive queries. Do not answer research
-            questions from your own knowledge alone — the value of research mode is in gathering
-            current, sourced information.
-
-            If the user asks about your behavior, mode boundaries, available tools, or how to use the system,
-            consult `query_docs` rather than guessing.
+            - For substantive research requests, always use `run_research` before answering.
+            - For questions about app behavior, mode boundaries, or how research mode works, use `query_docs`.
+            - Do not browse or edit files directly from this mode.
+            - Do not answer sourced factual questions from your own intuition when the research tool should be used.
+            - If the research tool fails or required project setup is missing, disclose that clearly instead of faking findings.
             """;
     }
 

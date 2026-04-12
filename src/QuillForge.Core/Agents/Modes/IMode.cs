@@ -5,12 +5,15 @@ namespace QuillForge.Core.Agents.Modes;
 
 /// <summary>
 /// Defines mode-specific behavior for the Orchestrator. Each mode provides
-/// a system prompt section and response post-processing.
-/// All tools are available in all modes (behavior differences are in the prompts).
+/// a system prompt section, optional top-level tool filtering, and response
+/// post-processing.
 /// </summary>
 public interface IMode
 {
     string Name { get; }
+    bool UsesAssistantPrompt => false;
+    string AssistantPromptName => "default";
+    bool AllowsTopLevelTool(string toolName) => true;
 
     /// <summary>
     /// The mode-specific section appended to the Orchestrator's system prompt.

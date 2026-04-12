@@ -35,7 +35,7 @@ public sealed class ProbeBatteryTests
     [Fact]
     public void BuildProbePrompt_IncludesAllToolNames()
     {
-        var prompt = ProbeBattery.BuildProbePrompt("test persona", SampleTools, "general");
+        var prompt = ProbeBattery.BuildProbePrompt("test persona", SampleTools, "guide");
 
         Assert.Contains("`query_lore`", prompt);
         Assert.Contains("`write_prose`", prompt);
@@ -45,7 +45,7 @@ public sealed class ProbeBatteryTests
     [Fact]
     public void BuildProbePrompt_IncludesAllScenarioTitles()
     {
-        var prompt = ProbeBattery.BuildProbePrompt("test persona", SampleTools, "general");
+        var prompt = ProbeBattery.BuildProbePrompt("test persona", SampleTools, "guide");
 
         foreach (var scenario in ProbeBattery.Scenarios)
         {
@@ -64,7 +64,7 @@ public sealed class ProbeBatteryTests
     [Fact]
     public void BuildProbePrompt_IncludesSystemPrompt()
     {
-        var prompt = ProbeBattery.BuildProbePrompt("You are a creative writing assistant.", SampleTools, "general");
+        var prompt = ProbeBattery.BuildProbePrompt("You are a creative writing assistant.", SampleTools, "guide");
 
         Assert.Contains("You are a creative writing assistant.", prompt);
     }
@@ -72,7 +72,7 @@ public sealed class ProbeBatteryTests
     [Fact]
     public void BuildProbePrompt_IncludesAnalysisInstructions()
     {
-        var prompt = ProbeBattery.BuildProbePrompt("test", SampleTools, "general");
+        var prompt = ProbeBattery.BuildProbePrompt("test", SampleTools, "guide");
 
         Assert.Contains("Initial Assessment", prompt);
         Assert.Contains("Tool Selection", prompt);

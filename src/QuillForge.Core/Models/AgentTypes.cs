@@ -94,6 +94,12 @@ public sealed record AgentContext
     public string? LastAssistantResponse { get; init; }
 
     /// <summary>
+    /// Optional callback for recording completed reasoning artifacts emitted by
+    /// top-level or nested agents during one interactive turn.
+    /// </summary>
+    public Func<ReasoningArtifact, CancellationToken, Task>? OnReasoningArtifact { get; init; }
+
+    /// <summary>
     /// Optional callback for recording token usage from nested LLM calls that occur
     /// inside tool handlers (e.g. LibrarianAgent called via QueryLoreHandler).
     /// The ToolLoop only aggregates its own completion rounds; nested calls must

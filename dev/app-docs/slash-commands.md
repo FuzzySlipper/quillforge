@@ -13,7 +13,7 @@ Type `/` in the input bar to see available commands. Tab completes the command n
 |---------|-------|-------------|
 | `/help` | `/help` | List available commands |
 | `/status` | `/status` | Show current system status |
-| `/mode` | `/mode [general\|writer\|roleplay\|forge\|council\|research]` | Switch operating mode |
+| `/mode` | `/mode [guide\|writer\|roleplay\|forge\|council\|research]` | Switch operating mode |
 | `/new` | `/new` | Start a new session |
 | `/clear` | `/clear` | Clear chat messages (keeps server session) |
 | `/profile` | `/profile` | Open profile picker |
@@ -45,7 +45,7 @@ Type `/` in the input bar to see available commands. Tab completes the command n
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `/forge` | `/forge new\|design\|start\|status\|pause\|approve\|list` | Manage StoryForge projects |
+| `/forge` | `/forge new\|design\|start\|status\|pause\|approve\|list` | Manage Forge projects and pipeline stages |
 
 ## Media
 

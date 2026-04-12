@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -11,7 +12,7 @@ public static class ProfileEndpoints
 {
     public static void MapProfileEndpoints(this WebApplication app, string contentRoot)
     {
-        // Switch active conductor/lore/writing style
+        // Switch active profile-backed runtime context.
         app.MapPost("/api/profiles/switch", async (
             ProfileSwitchRequest request,
             ISessionBootstrapService bootstrapService,
@@ -38,7 +39,6 @@ public static class ProfileEndpoints
                 sessionId,
                 new SetSessionProfileCommand(
                     request.ProfileId,
-                    request.Conductor,
                     request.Lore,
                     request.NarrativeRules,
                     request.WritingStyle,
@@ -79,7 +79,6 @@ public static class ProfileEndpoints
             {
                 SessionId = state.SessionId,
                 ActiveProfileId = SessionProfileHydration.RequireProfileId(state.Profile),
-                ActiveConductor = SessionProfileHydration.RequireActiveConductor(state.Profile),
                 ActiveLore = SessionProfileHydration.RequireActiveLoreSet(state.Profile),
                 ActiveNarrativeRules = SessionProfileHydration.RequireActiveNarrativeRules(state.Profile),
                 ActiveWritingStyle = SessionProfileHydration.RequireActiveWritingStyle(state.Profile),
@@ -130,12 +129,29 @@ public static class ProfileEndpoints
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var root = body.RootElement;
+            ResolvedProfileConfig? existingProfile = null;
+
+            try
+            {
+                existingProfile = await profileService.LoadResolvedAsync(profileId, ct);
+            }
+            catch (FileNotFoundException)
+            {
+                existingProfile = null;
+            }
+
+            var legacyConductor = existingProfile?.Config.Conductor;
+            if (root.TryGetProperty("conductor", out var legacyConductorEl))
+            {
+                var requestedLegacyConductor = legacyConductorEl.GetString();
+                legacyConductor = string.IsNullOrWhiteSpace(requestedLegacyConductor)
+                    ? null
+                    : requestedLegacyConductor.Trim();
+            }
 
             var config = new ProfileConfig
             {
-                Conductor = root.TryGetProperty("conductor", out var conductorEl)
-                    ? conductorEl.GetString() ?? "default"
-                    : "default",
+                Conductor = legacyConductor,
                 LoreSet = root.TryGetProperty("loreSet", out var loreSetEl)
                     ? loreSetEl.GetString() ?? "default"
                     : root.TryGetProperty("lore", out var loreEl)
@@ -210,7 +226,6 @@ public static class ProfileEndpoints
                 return Results.Ok(new ProfileSwitchResponse
                 {
                     ActiveProfileId = selection.ProfileId,
-                    ActiveConductor = selection.Config.Conductor,
                     ActiveLore = selection.Config.LoreSet,
                     ActiveNarrativeRules = selection.Config.NarrativeRules,
                     ActiveWritingStyle = selection.Config.WritingStyle,
@@ -290,6 +305,52 @@ public static class ProfileEndpoints
             var normalizedPath = filePath.Replace('\\', '/');
             await fileService.WriteAsync($"{ContentPaths.Conductor}/{normalizedPath}", content, ct);
             return Results.Ok(new { Path = filePath, Status = "ok" });
+        });
+
+        app.MapGet("/api/assistant-prompts", () =>
+        {
+            var promptsDir = Path.Combine(contentRoot, ContentPaths.Assistant);
+            if (!Directory.Exists(promptsDir))
+            {
+                return Results.Ok(new { Files = Array.Empty<object>(), Active = "default" });
+            }
+
+            var files = new List<object>();
+            foreach (var p in Directory.GetFiles(promptsDir, "*.md").OrderBy(f => f))
+            {
+                var content = File.ReadAllText(p);
+                files.Add(new
+                {
+                    Path = Path.GetFileName(p),
+                    Name = Path.GetFileNameWithoutExtension(p),
+                    Tokens = content.Length / 4,
+                    Size = content.Length,
+                });
+            }
+
+            return Results.Ok(new { Files = files, Active = "default" });
+        });
+
+        app.MapGet("/api/assistant-prompts/{name}", async (
+            string name,
+            [FromServices] IAssistantPromptStore store,
+            CancellationToken ct) =>
+        {
+            var content = await store.LoadAsync(name, ct);
+            return Results.Ok(new { Path = name, Content = content, Tokens = content.Length / 4 });
+        });
+
+        app.MapPut("/api/assistant-prompts/{name}", async (
+            string name,
+            HttpContext httpContext,
+            IContentFileService fileService,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var content = body.RootElement.TryGetProperty("content", out var el) ? el.GetString() ?? "" : "";
+
+            await fileService.WriteAsync($"{ContentPaths.Assistant}/{name}.md", content, ct);
+            return Results.Ok(new { Name = name, Status = "ok" });
         });
 
         // Narrative rules endpoints
@@ -468,7 +529,6 @@ public static class ProfileEndpoints
         return new ProfileConfigResponse
         {
             ProfileId = resolved.ProfileId,
-            Conductor = resolved.Config.Conductor,
             LoreSet = resolved.Config.LoreSet,
             NarrativeRules = resolved.Config.NarrativeRules,
             WritingStyle = resolved.Config.WritingStyle,

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import MDEditor from "@uiw/react-md-editor";
 import Overlay from "./Overlay";
 import { listConductors, readConductor, writeConductor, type ConductorFileInfo } from "../api";
+import { listAssistantPrompts, readAssistantPrompt, writeAssistantPrompt, type AssistantPromptInfo } from "../api";
 import { listNarrativeRules, readNarrativeRules, writeNarrativeRules, type NarrativeRulesInfo } from "../api";
 import { listWritingStyles, readWritingStyle, writeWritingStyle, type WritingStyleInfo } from "../api";
 
@@ -11,11 +12,12 @@ interface PromptBrowserProps {
   onChanged: () => void;
 }
 
-type Tab = "conductor" | "narrative" | "writing";
+type Tab = "conductor" | "assistant" | "narrative" | "writing";
 
 export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowserProps) {
   const [tab, setTab] = useState<Tab>("conductor");
   const [conductorFiles, setConductorFiles] = useState<ConductorFileInfo[]>([]);
+  const [assistantFiles, setAssistantFiles] = useState<AssistantPromptInfo[]>([]);
   const [narrativeRulesFiles, setNarrativeRulesFiles] = useState<NarrativeRulesInfo[]>([]);
   const [styleFiles, setStyleFiles] = useState<WritingStyleInfo[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -28,6 +30,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
   useEffect(() => {
     if (!open) return;
     listConductors().then((data) => setConductorFiles(data.files));
+    listAssistantPrompts().then((data) => setAssistantFiles(data.files));
     listNarrativeRules().then((data) => setNarrativeRulesFiles(data.files));
     listWritingStyles().then((data) => setStyleFiles(data.files));
   }, [open]);
@@ -71,6 +74,19 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
     }
   }
 
+  async function handleSelectAssistantPrompt(name: string) {
+    setLoading(true);
+    try {
+      const data = await readAssistantPrompt(name);
+      setSelected(name);
+      setSelectedType("assistant");
+      setContent(data.content);
+      setOriginalContent(data.content);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleSave() {
     if (!selected) return;
     setSaving(true);
@@ -79,6 +95,10 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
         await writeConductor(selected, content);
         const data = await listConductors();
         setConductorFiles(data.files);
+      } else if (selectedType === "assistant") {
+        await writeAssistantPrompt(selected, content);
+        const data = await listAssistantPrompts();
+        setAssistantFiles(data.files);
       } else if (selectedType === "narrative") {
         await writeNarrativeRules(selected, content);
         const data = await listNarrativeRules();
@@ -112,6 +132,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
   }, {});
 
   const totalConductorTokens = conductorFiles.reduce((sum, f) => sum + f.tokens, 0);
+  const totalAssistantTokens = assistantFiles.reduce((sum, f) => sum + f.tokens, 0);
   const totalNarrativeRulesTokens = narrativeRulesFiles.reduce((sum, f) => sum + f.tokens, 0);
   const totalStyleTokens = styleFiles.reduce((sum, f) => sum + f.tokens, 0);
 
@@ -180,7 +201,10 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
         {/* Tab switcher */}
         <div className="flex gap-2">
           <button onClick={() => setTab("conductor")} className={tabClass("conductor")}>
-            Conductor
+            Legacy Conductors
+          </button>
+          <button onClick={() => setTab("assistant")} className={tabClass("assistant")}>
+            Assistant
           </button>
           <button onClick={() => setTab("narrative")} className={tabClass("narrative")}>
             Narrative Rules
@@ -192,6 +216,9 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
 
         {tab === "conductor" && (
           <>
+            <div className="rounded-lg border border-border/60 bg-input-bg px-3 py-2 text-xs text-text-muted">
+              Legacy reference only. Live routing is now app-owned by mode rather than driven by conductor prompt text.
+            </div>
             <div className="text-xs text-text-muted">
               {conductorFiles.length} files · ~{Math.round(totalConductorTokens / 1000)}k tokens total
             </div>
@@ -219,6 +246,30 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
                 </div>
               </div>
             ))}
+          </>
+        )}
+
+        {tab === "assistant" && (
+          <>
+            <div className="text-xs text-text-muted">
+              {assistantFiles.length} files · ~{Math.round(totalAssistantTokens / 1000)}k tokens total
+            </div>
+            {assistantFiles.length === 0 ? (
+              <p className="text-sm text-text-muted">No assistant prompt files yet.</p>
+            ) : (
+              <div className="flex flex-col">
+                {assistantFiles.map((f) => (
+                  <button
+                    key={f.name}
+                    onClick={() => handleSelectAssistantPrompt(f.name)}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-input-bg text-left transition-colors"
+                  >
+                    <span className="text-sm text-text">{f.name}</span>
+                    <span className="text-xs text-text-muted">~{f.tokens} tok</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         )}
 

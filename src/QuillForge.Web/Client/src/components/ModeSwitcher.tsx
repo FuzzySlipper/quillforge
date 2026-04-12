@@ -11,7 +11,7 @@ interface ModeSwitcherProps {
 }
 
 const MODE_LABELS: Record<Mode, string> = {
-  general: "General",
+  guide: "Guide",
   writer: "Writer",
   roleplay: "Roleplay",
   forge: "Forge",
@@ -20,17 +20,17 @@ const MODE_LABELS: Record<Mode, string> = {
 };
 
 const MODE_DESCRIPTIONS: Record<Mode, string> = {
-  general: "Free-form routing — the orchestrator decides what you need.",
+  guide: "Onboarding and troubleshooting surface that explains modes and helps you pick the right workflow.",
   writer: "Project-based writing with accept/reject/regenerate flow.",
   roleplay: "Chat-based roleplay with a character card.",
-  forge: "Automated story generation pipeline with planning and chapter drafting.",
+  forge: "Command-and-pipeline control surface for Forge projects, stage runs, and status checks.",
   council: "Every message is routed through the council for multiple perspectives before synthesis.",
   research: "Multi-agent web research with parallel topic investigation and organized markdown findings.",
 };
 
 export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: ModeSwitcherProps) {
   const [current, setCurrent] = useState<ModeInfo | null>(null);
-  const [selectedMode, setSelectedMode] = useState<Mode>("general");
+  const [selectedMode, setSelectedMode] = useState<Mode>("guide");
   const [projects, setProjects] = useState<string[]>([]);
   const [project, setProject] = useState("");
   const [saving, setSaving] = useState(false);
@@ -58,7 +58,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
       });
     } else if (selectedMode === "research") {
       listResearchProjects().then((p) => setProjects(p.projects ?? []));
-    } else if (selectedMode !== "general" && selectedMode !== "council") {
+    } else if (selectedMode !== "guide" && selectedMode !== "council") {
       // Fetch projects for writer/forge
       getProjects(selectedMode).then((p) => setProjects(p.projects ?? []));
     }
@@ -83,7 +83,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
   const needsProject = selectedMode === "writer" || selectedMode === "forge" || selectedMode === "research";
   const needsCharacter = selectedMode === "roleplay";
   const canApply =
-    selectedMode === "general" ||
+    selectedMode === "guide" ||
     selectedMode === "council" ||
     (needsProject && !!project) ||
     (needsCharacter && !!selectedCharacter);

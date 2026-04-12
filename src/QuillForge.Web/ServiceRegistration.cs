@@ -62,6 +62,11 @@ public static class ServiceRegistration
                 sp.GetRequiredService<ILogger<FileSystemConductorStore>>()));
         services.AddSingleton<IConductorStore>(sp => sp.GetRequiredService<FileSystemConductorStore>());
 
+        services.AddSingleton<IAssistantPromptStore>(sp =>
+            new FileSystemAssistantPromptStore(
+                Path.Combine(contentRoot, ContentPaths.Assistant),
+                sp.GetRequiredService<ILogger<FileSystemAssistantPromptStore>>()));
+
         services.AddSingleton<ICharacterCardStore>(sp =>
             new FileSystemCharacterCardStore(
                 Path.Combine(contentRoot, ContentPaths.CharacterCards),
@@ -112,6 +117,7 @@ public static class ServiceRegistration
             sp.GetRequiredService<QuillForge.Core.Agents.LibrarianAgent>(),
             sp.GetRequiredService<ILoreStore>(),
             sp.GetRequiredService<IContentFileService>(),
+            sp.GetRequiredService<CanonPrerequisiteGuard>(),
             sp.GetRequiredService<ILogger<QueryLoreHandler>>()));
         services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<QueryLoreHandler>());
         services.AddSingleton<WriteProseHandler>();

@@ -51,11 +51,11 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         var root = document.RootElement;
 
         Assert.Equal("session-profile", root.GetProperty("activeProfileId").GetString());
-        Assert.Equal("session-conductor", root.GetProperty("activeConductor").GetString());
         Assert.Equal("session-lore", root.GetProperty("activeLore").GetString());
         Assert.Equal("session-rules", root.GetProperty("activeNarrativeRules").GetString());
         Assert.Equal("session-style", root.GetProperty("activeWritingStyle").GetString());
         Assert.Equal("default", root.GetProperty("defaultProfileId").GetString());
+        Assert.False(root.TryGetProperty("activeConductor", out _));
     }
 
     [Fact]
@@ -93,14 +93,15 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         var root = document.RootElement;
 
         Assert.Equal("writer", root.GetProperty("mode").GetString());
+        Assert.Equal("session-profile", root.GetProperty("profile").GetString());
         Assert.Equal("session-lore", root.GetProperty("loreSet").GetString());
-        Assert.Equal("session-conductor", root.GetProperty("conductor").GetString());
         Assert.Equal("session-style", root.GetProperty("writingStyle").GetString());
         Assert.Equal("SessionGuide", root.GetProperty("aiCharacter").GetString());
         Assert.Equal("SessionAuthor", root.GetProperty("userCharacter").GetString());
         Assert.Equal(2, root.GetProperty("conversationTurns").GetInt32());
         Assert.True(root.GetProperty("historyTokens").GetInt32() > 0);
         Assert.Equal(64000, root.GetProperty("contextLimit").GetInt32());
+        Assert.False(root.TryGetProperty("conductor", out _));
     }
 
     [Fact]
@@ -146,7 +147,6 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
                 NullLogger<AutoUpdateService>.Instance,
                 sp.GetRequiredService<IHttpClientFactory>(),
                 sp.GetRequiredService<AppConfig>()));
-        builder.Services.AddSingleton<IConductorStore>(new TestConductorStore());
         builder.Services.AddSingleton<ILoreStore>(new TestLoreStore());
         builder.Services.AddSingleton<INarrativeRulesStore>(new TestNarrativeRulesStore());
         builder.Services.AddSingleton<IWritingStyleStore>(new TestWritingStyleStore());
@@ -265,7 +265,6 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
                     Profile = new ProfileState
                     {
                         ProfileId = "session-profile",
-                        ActiveConductor = "session-conductor",
                         ActiveLoreSet = "session-lore",
                         ActiveNarrativeRules = "session-rules",
                         ActiveWritingStyle = "session-style",
@@ -279,11 +278,10 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
                 }
                 : new SessionState
                 {
-                    Mode = new ModeSelectionState { ActiveMode = Mode.General },
+                    Mode = new ModeSelectionState { ActiveMode = Mode.Guide },
                     Profile = new ProfileState
                     {
                         ProfileId = "default",
-                        ActiveConductor = "default-conductor",
                         ActiveLoreSet = "default-lore",
                         ActiveNarrativeRules = "default-rules",
                         ActiveWritingStyle = "default-style",
@@ -370,15 +368,6 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
 
         public Task<InteractiveSessionContext> LoadAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
-    }
-
-    private sealed class TestConductorStore : IConductorStore
-    {
-        public Task<string> LoadAsync(string conductorName, int? maxTokens = null, CancellationToken ct = default)
-            => Task.FromResult(conductorName == "session-conductor" ? "session conductor prompt" : "default conductor prompt");
-
-        public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<string>>(["default-conductor", "session-conductor"]);
     }
 
     private sealed class TestLoreStore : ILoreStore

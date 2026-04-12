@@ -10,6 +10,13 @@ public sealed class WriterMode : IMode
 {
     public string Name => "writer";
 
+    public bool AllowsTopLevelTool(string toolName)
+    {
+        return !string.Equals(toolName, "write_prose", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(toolName, "update_story_state", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(toolName, "update_narrative_state", StringComparison.OrdinalIgnoreCase);
+    }
+
     public string BuildSystemPromptSection(ModeContext context)
     {
         var pendingNote = !string.IsNullOrEmpty(context.WriterPendingContent)
@@ -23,11 +30,18 @@ public sealed class WriterMode : IMode
             Current file: {context.CurrentFile ?? "none"}
 
             Workflow:
-            1. Use write_prose to generate content based on the user's request
-            2. Present the generated text to the user
-            3. IMPORTANT: Do NOT write to the file until the user accepts the content
-            4. Wait for the user to accept, reject, or request modifications
-            5. Only after acceptance, use write_file to save the content
+            1. Use direct_scene for canon-sensitive drafting requests
+            2. direct_scene is the mandatory grounding layer before prose: it owns lore checks, scene planning, story-state updates, narrative-state updates, and handoff to the prose writer
+            3. Present the returned draft prose to the user for review
+            4. IMPORTANT: Do NOT write to the file until the user accepts the content
+            5. Wait for the user to accept, reject, or request modifications
+            6. Only after acceptance, use write_file to save the content
+
+            Rules:
+            - Do not call write_prose directly from the top level in Writer mode.
+            - Do not bypass the grounding layer for scene writing, chapter drafting, or canon-sensitive revision.
+            - The visible prose should come back through direct_scene, then enter the normal review workflow.
+            - If the user corrects canon, characterization, chronology, or relationship details, re-ground against the relevant lore/profile context before generating a revision. Do not patch only the single sentence they flagged.
 
             {context.FileContext ?? ""}{pendingNote}
 

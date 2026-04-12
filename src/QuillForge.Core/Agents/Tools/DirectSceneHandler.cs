@@ -26,14 +26,14 @@ public sealed class DirectSceneHandler : TypedToolHandler<DirectSceneArgs>
 
     public override ToolDefinition Definition => new(
         Name,
-        "Direct the next beat of an interactive scene, update story state, and return the final prose response.",
+        "Route a canon-sensitive scene or drafting request through the Narrative Director, which grounds the request, updates state, and returns the final prose response.",
         JsonDocument.Parse("""
             {
                 "type": "object",
                 "properties": {
                     "user_message": {
                         "type": "string",
-                        "description": "The latest in-scene user message or action to respond to"
+                        "description": "The latest scene, roleplay, or grounded drafting request to respond to"
                     }
                 },
                 "required": ["user_message"]
@@ -52,15 +52,26 @@ public sealed class DirectSceneHandler : TypedToolHandler<DirectSceneArgs>
             "DirectSceneHandler: directing scene for session {SessionId}",
             context.SessionId);
 
-        var result = await _narrativeDirector.DirectSceneAsync(
-            new NarrativeDirectionRequest
-            {
-                UserMessage = userMessage,
-            },
-            context,
-            ct);
+        try
+        {
+            var result = await _narrativeDirector.DirectSceneAsync(
+                new NarrativeDirectionRequest
+                {
+                    UserMessage = userMessage,
+                },
+                context,
+                ct);
 
-        return ToolResult.Ok(result.ResponseText);
+            return ToolResult.Ok(result.ResponseText);
+        }
+        catch (CanonPrerequisiteException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "DirectSceneHandler rejected grounded scene generation for session {SessionId}",
+                context.SessionId);
+            return ToolResult.Fail(ex.Message);
+        }
     }
 }
 

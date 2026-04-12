@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
+using QuillForge.Core.Agents;
 using QuillForge.Core.Agents.Tools;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Core.Tests.Fakes;
 
 namespace QuillForge.Core.Tests;
 
@@ -126,6 +128,97 @@ public sealed class StoryStateHandlerTests
 
         Assert.Single(storyState.LoadedPaths);
         Assert.Equal("my-novel/.state.yaml", storyState.LoadedPaths[0]);
+    }
+
+    [Fact]
+    public async Task WriteProseHandler_ReturnsFailure_WhenWritingStyleIsMissing()
+    {
+        var completion = new FakeCompletionService();
+        var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
+        var toolLoop = new ToolLoop(completion, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore(new Dictionary<string, string>
+        {
+            ["canon.md"] = "Canon exists.",
+        });
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(""),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
+        var proseWriter = new ProseWriterAgent(
+            toolLoop,
+            new StubToolHandler("query_lore"),
+            guard,
+            new AppConfig(),
+            NullLogger<ProseWriterAgent>.Instance);
+        var storyState = new TrackingStoryStateService();
+        var sessionContextService = new FakeInteractiveSessionContextService(new Dictionary<Guid, string>
+        {
+            [SessionA] = "my-novel",
+        });
+        var handler = new WriteProseHandler(proseWriter, sessionContextService, storyState, NullLogger<WriteProseHandler>.Instance);
+        var context = new AgentContext
+        {
+            SessionId = SessionA,
+            ActiveMode = Mode.Writer,
+            ActiveLoreSet = "default",
+            ActiveWritingStyle = "missing-style",
+        };
+        var input = new ToolInput(JsonDocument.Parse("""{"scene_description": "test scene"}""").RootElement);
+
+        var result = await handler.HandleAsync(input, context);
+
+        Assert.False(result.Success);
+        Assert.Contains("writing style", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(storyState.LoadedPaths);
+        Assert.Equal("my-novel/.state.yaml", storyState.LoadedPaths[0]);
+        Assert.Empty(completion.ReceivedRequests);
+    }
+
+    [Fact]
+    public async Task WriteProseHandler_ReturnsFailure_WhenLoreIsMissing()
+    {
+        var completion = new FakeCompletionService();
+        var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
+        var toolLoop = new ToolLoop(completion, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore();
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
+        var proseWriter = new ProseWriterAgent(
+            toolLoop,
+            new StubToolHandler("query_lore"),
+            guard,
+            new AppConfig(),
+            NullLogger<ProseWriterAgent>.Instance);
+        var storyState = new TrackingStoryStateService();
+        var sessionContextService = new FakeInteractiveSessionContextService(new Dictionary<Guid, string>
+        {
+            [SessionA] = "my-novel",
+        });
+        var handler = new WriteProseHandler(proseWriter, sessionContextService, storyState, NullLogger<WriteProseHandler>.Instance);
+        var context = new AgentContext
+        {
+            SessionId = SessionA,
+            ActiveMode = Mode.Writer,
+            ActiveLoreSet = "missing-lore",
+            ActiveWritingStyle = "default",
+        };
+        var input = new ToolInput(JsonDocument.Parse("""{"scene_description": "test scene"}""").RootElement);
+
+        var result = await handler.HandleAsync(input, context);
+
+        Assert.False(result.Success);
+        Assert.Contains("active lore set", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(storyState.LoadedPaths);
+        Assert.Equal("my-novel/.state.yaml", storyState.LoadedPaths[0]);
+        Assert.Empty(completion.ReceivedRequests);
     }
 
     [Fact]

@@ -55,7 +55,7 @@
     "user": "11111111-2222-3333-4444-555555555555",
     "assistant": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
   },
-  "mode": "general",
+  "mode": "guide",
   "messageCount": 4,
   "toolRounds": 1,
   "stopReason": "end_turn",

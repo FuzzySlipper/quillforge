@@ -102,15 +102,15 @@ public sealed class ScenarioTests : IDisposable
 
         var modes = new IMode[]
         {
-            new GeneralMode(),
+            new GuideMode(),
             new WriterMode(),
         };
 
-        var conductorStore = new FakeConductorStore(_tempDir);
+        var assistantPromptStore = new FakeAssistantPromptStore();
         var sessionContextService = new NoOpSessionContextService();
 
         var orchestrator = new OrchestratorAgent(
-            toolLoop, modes, conductorStore, sessionContextService, appConfig,
+            toolLoop, modes, assistantPromptStore, sessionContextService, appConfig,
             loggerFactory.CreateLogger<OrchestratorAgent>());
 
         var atomicWriter = new QuillForge.Storage.Utilities.AtomicFileWriter(
@@ -127,7 +127,7 @@ public sealed class ScenarioTests : IDisposable
             loggerFactory.CreateLogger<SessionRuntimeService>());
         var bootstrapService = new SessionBootstrapService(
             sessionStore, runtimeStore, profileService, loggerFactory, loggerFactory.CreateLogger<SessionBootstrapService>());
-        var profileReadService = new FakeProfileReadService(runtimeService, conductorStore);
+        var profileReadService = new FakeProfileReadService(runtimeService);
 
         IToolHandler[] tools = [];
 
@@ -197,7 +197,7 @@ public sealed class ScenarioTests : IDisposable
         {
             return Task.FromResult(new InteractiveSessionContext
             {
-                ActiveMode = Mode.General,
+                ActiveMode = Mode.Guide,
                 ProjectName = "default",
                 StoryStatePath = "default/.state.yaml",
             });
@@ -244,7 +244,6 @@ public sealed class ScenarioTests : IDisposable
             => Task.FromResult(new ProfileState
             {
                 ProfileId = profileId ?? "default",
-                ActiveConductor = "default",
                 ActiveLoreSet = "default",
                 ActiveNarrativeRules = "default",
                 ActiveWritingStyle = "default",
@@ -254,11 +253,9 @@ public sealed class ScenarioTests : IDisposable
     private sealed class FakeProfileReadService : ISessionProfileReadService
     {
         private readonly ISessionStateService _runtimeService;
-        private readonly IConductorStore _conductorStore;
-        public FakeProfileReadService(ISessionStateService runtimeService, IConductorStore conductorStore)
+        public FakeProfileReadService(ISessionStateService runtimeService)
         {
             _runtimeService = runtimeService;
-            _conductorStore = conductorStore;
         }
 
         public Task<SessionProfileReadView> LoadAsync(Guid? sessionId, CancellationToken ct = default)
@@ -271,7 +268,6 @@ public sealed class ScenarioTests : IDisposable
             Guid? sessionId, PrepareInteractiveRequestOptions options, CancellationToken ct = default)
         {
             var state = await _runtimeService.LoadViewAsync(sessionId, ct);
-            var conductor = await _conductorStore.LoadAsync("default", ct: ct);
             var resolvedSessionId = sessionId ?? Guid.CreateVersion7();
             var sessionContext = new InteractiveSessionContext
             {
@@ -287,7 +283,6 @@ public sealed class ScenarioTests : IDisposable
                     SessionState = state,
                     DefaultProfileId = "default",
                     ActiveProfileId = "default",
-                    ActiveConductor = "default",
                     ActiveLoreSet = "default",
                     ActiveNarrativeRules = "default",
                     ActiveWritingStyle = "default",
@@ -303,8 +298,16 @@ public sealed class ScenarioTests : IDisposable
                     ActiveNarrativeRules = "default",
                     SessionContext = sessionContext,
                 },
-                Conductor = conductor,
             };
         }
+    }
+
+    private sealed class FakeAssistantPromptStore : IAssistantPromptStore
+    {
+        public Task<string> LoadAsync(string promptName, CancellationToken ct = default)
+            => Task.FromResult(string.Empty);
+
+        public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>(["default"]);
     }
 }

@@ -48,10 +48,10 @@ public class SessionStateTests
     }
 
     [Fact]
-    public void ModeSelectionState_DefaultsToGeneral()
+    public void ModeSelectionState_DefaultsToGuide()
     {
         var mode = new ModeSelectionState();
-        Assert.Equal(Mode.General, mode.ActiveMode);
+        Assert.Equal(Mode.Guide, mode.ActiveMode);
         Assert.Null(mode.ProjectName);
         Assert.Null(mode.CurrentFile);
         Assert.Null(mode.Character);
@@ -62,19 +62,19 @@ public class SessionStateTests
     {
         var profile = new ProfileState();
         Assert.Null(profile.ProfileId);
-        Assert.Null(profile.ActiveConductor);
         Assert.Null(profile.ActiveLoreSet);
         Assert.Null(profile.ActiveWritingStyle);
     }
 
     [Fact]
-    public void ProfileState_DeserializesLegacyActivePersonaIntoActiveConductor()
+    public void ProfileState_IgnoresLegacyConductorFieldsDuringDeserialization()
     {
         var state = JsonSerializer.Deserialize<SessionState>(
             """
             {
               "profile": {
                 "profileId": "grim",
+                "activeConductor": "legacy-conductor",
                 "activePersona": "legacy-conductor"
               }
             }
@@ -86,7 +86,8 @@ public class SessionStateTests
 
         Assert.NotNull(state);
         Assert.Equal("grim", state.Profile.ProfileId);
-        Assert.Equal("legacy-conductor", state.Profile.ActiveConductor);
+        Assert.Null(state.Profile.IgnoredLegacyActiveConductor);
+        Assert.Null(state.Profile.IgnoredLegacyActivePersona);
     }
 
     [Fact]
@@ -224,7 +225,6 @@ public class SessionStateTests
             Profile = new ProfileState
             {
                 ProfileId = "grim",
-                ActiveConductor = "narrator",
                 ActiveLoreSet = "fantasy",
                 ActiveWritingStyle = "literary",
             },
@@ -257,7 +257,6 @@ public class SessionStateTests
         Assert.Equal("chapter1.md", state.Mode.CurrentFile);
         Assert.Equal("hero", state.Mode.Character);
         Assert.Equal("grim", state.Profile.ProfileId);
-        Assert.Equal("narrator", state.Profile.ActiveConductor);
         Assert.Equal("fantasy", state.Profile.ActiveLoreSet);
         Assert.Equal("literary", state.Profile.ActiveWritingStyle);
         Assert.Equal("guide", state.Roleplay.ActiveAiCharacter);

@@ -13,6 +13,13 @@ public sealed class RoleplayMode : IMode
 
     public string Name => NameConst;
 
+    public bool AllowsTopLevelTool(string toolName)
+    {
+        return !string.Equals(toolName, "write_prose", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(toolName, "update_story_state", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(toolName, "update_narrative_state", StringComparison.OrdinalIgnoreCase);
+    }
+
     public string BuildSystemPromptSection(ModeContext context)
     {
         var characterSection = string.IsNullOrWhiteSpace(context.CharacterSection)
@@ -29,7 +36,8 @@ public sealed class RoleplayMode : IMode
 
             Workflow:
             - Use direct_scene for in-scene narrative responses
-            - direct_scene owns scene direction, story-state updates, lore checks, and handoff to the prose writer
+            - direct_scene is the mandatory grounding layer before prose generation in Roleplay mode
+            - direct_scene owns scene direction, story-state updates, lore checks, narrative-state updates, and handoff to the prose writer
             - Prose returned from direct_scene is automatically appended to the current file
             - Special commands the user may give: "regenerate", "delete that", "undo"
             - Use roll_dice for explicit combat, random encounters, and game mechanics, then continue the scene with direct_scene if needed
@@ -39,6 +47,9 @@ public sealed class RoleplayMode : IMode
             Do not add assistant framing, self-description, or out-of-scene commentary unless the user explicitly asks for it
             or a tool failure must be disclosed.
             When answering in-scene, let the prose and character voices carry the response.
+            Do not call write_prose, update_story_state, or update_narrative_state directly from the top level in Roleplay mode.
+            If the user corrects canon or characterization, re-ground against the relevant lore and character context before continuing.
+            Do not patch only the quoted mistake and keep improvising from the old assumption.
 
             {context.FileContext ?? ""}
 

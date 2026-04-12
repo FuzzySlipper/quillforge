@@ -11,7 +11,7 @@ public sealed class FaultInjectionTests
     private static readonly AgentContext DefaultContext = new()
     {
         SessionId = Guid.CreateVersion7(),
-        ActiveMode = Mode.General,
+        ActiveMode = Mode.Guide,
     };
 
     private static ToolLoop CreateToolLoop(ICompletionService service) =>

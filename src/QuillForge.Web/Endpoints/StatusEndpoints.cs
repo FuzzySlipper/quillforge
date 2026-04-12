@@ -17,7 +17,6 @@ public static class StatusEndpoints
             AutoUpdateService updateService,
             AppConfig config,
             ILoreStore loreStore,
-            IConductorStore conductorStore,
             ISessionStore sessionStore,
             ProviderRegistry providerRegistry,
             CancellationToken ct) =>
@@ -54,14 +53,6 @@ public static class StatusEndpoints
             }
             catch { /* lore set may not exist */ }
 
-            var conductorTokens = 0;
-            try
-            {
-                var conductorPrompt = await conductorStore.LoadAsync(readView.ActiveConductor, config.Persona.MaxTokens, ct);
-                conductorTokens = conductorPrompt.Length / 4;
-            }
-            catch { /* conductor may not exist */ }
-
             var contextLimit = ResolveContextLimit(providerRegistry, config.Models.Orchestrator);
 
             return Results.Ok(new StatusResponse
@@ -69,10 +60,10 @@ public static class StatusEndpoints
                 Version = BuildInfo.Version,
                 Build = BuildInfo.InformationalVersion,
                 Mode = chatState.Mode.ActiveMode.ToWireString(),
+                Profile = readView.ActiveProfileId,
                 Project = chatState.Mode.ProjectName,
                 File = chatState.Mode.CurrentFile,
                 LoreSet = readView.ActiveLoreSet,
-                Conductor = readView.ActiveConductor,
                 WritingStyle = readView.ActiveWritingStyle,
                 Model = config.Models.Orchestrator,
                 Layout = config.Layout.Active,
@@ -82,7 +73,6 @@ public static class StatusEndpoints
                 LoreFiles = loreFiles,
                 ContextLimit = contextLimit,
                 LoreTokens = loreTokens,
-                ConductorTokens = conductorTokens,
                 HistoryTokens = historyTokens,
                 DiagnosticsLivePanel = config.Diagnostics.LivePanel,
                 Update = updateService.UpdateAvailable ? new UpdateInfoDto

@@ -144,6 +144,7 @@ public sealed class ToolLoop
                 {
                     _logger.LogWarning("ToolLoop hit max rounds ({MaxRounds}) during continuation", config.MaxToolRounds);
                     progress?.Invoke($"Hit max rounds ({config.MaxToolRounds}) during continuation");
+                    await CaptureReasoningArtifactAsync(config, context, response.Reasoning, response.ProviderReplay, ct);
                     return BuildResponse(
                         response.Content,
                         StopReason.MaxRounds,
@@ -165,6 +166,7 @@ public sealed class ToolLoop
                 progress?.Invoke(
                     $"ToolLoop complete after {round} rounds — " +
                     $"total {totalUsage.InputTokens}in/{totalUsage.OutputTokens}out tokens");
+                await CaptureReasoningArtifactAsync(config, context, response.Reasoning, response.ProviderReplay, ct);
                 return BuildResponse(
                     response.Content,
                     response.StopReason,
@@ -182,6 +184,7 @@ public sealed class ToolLoop
                     "ToolLoop hit max rounds ({MaxRounds}), returning last response",
                     config.MaxToolRounds);
                 progress?.Invoke($"Hit max rounds ({config.MaxToolRounds}), returning last response");
+                await CaptureReasoningArtifactAsync(config, context, response.Reasoning, response.ProviderReplay, ct);
                 return BuildResponse(
                     response.Content,
                     StopReason.MaxRounds,
@@ -279,6 +282,7 @@ public sealed class ToolLoop
 
             var collectedText = new List<string>();
             var collectedToolCalls = new List<ToolCallDeltaReceivedEvent>();
+            var collectedReasoning = new System.Text.StringBuilder();
             StopReason? stopReason = null;
             TokenUsage? usage = null;
             ProviderReplayEnvelope? providerReplay = null;
@@ -290,6 +294,11 @@ public sealed class ToolLoop
                     case TextDeltaEvent textDelta:
                         collectedText.Add(textDelta.Text);
                         yield return textDelta;
+                        break;
+
+                    case ReasoningDeltaEvent reasoningDelta:
+                        collectedReasoning.Append(reasoningDelta.Text);
+                        yield return reasoningDelta;
                         break;
 
                     case ToolCallDeltaReceivedEvent toolCall:
@@ -404,6 +413,13 @@ public sealed class ToolLoop
                         $"Stream complete: stop={effectiveStop.ToWireString()}, tokens={usage?.InputTokens ?? 0}in/{usage?.OutputTokens ?? 0}out");
                 }
 
+                await CaptureReasoningArtifactAsync(
+                    config,
+                    context,
+                    collectedReasoning.Length > 0 ? collectedReasoning.ToString() : null,
+                    providerReplay,
+                    ct);
+
                 yield return new DoneEvent(effectiveStop, usage ?? new TokenUsage(0, 0))
                 {
                     ProviderReplay = providerReplay,
@@ -419,6 +435,12 @@ public sealed class ToolLoop
                 if (_diagnosticsEnabled)
                     yield return new DiagnosticEvent(DiagnosticCategory.Warning,
                         $"Hit max tool rounds ({config.MaxToolRounds})", DiagnosticLevel.Warning);
+                await CaptureReasoningArtifactAsync(
+                    config,
+                    context,
+                    collectedReasoning.Length > 0 ? collectedReasoning.ToString() : null,
+                    providerReplay,
+                    ct);
                 yield return new DoneEvent(StopReason.MaxRounds, usage ?? new TokenUsage(0, 0))
                 {
                     ProviderReplay = providerReplay,
@@ -615,6 +637,27 @@ public sealed class ToolLoop
             map[tool.Name] = tool;
         }
         return map;
+    }
+
+    private static async Task CaptureReasoningArtifactAsync(
+        AgentConfig config,
+        AgentContext context,
+        string? reasoning,
+        ProviderReplayEnvelope? providerReplay,
+        CancellationToken ct)
+    {
+        if (context.OnReasoningArtifact is null)
+        {
+            return;
+        }
+
+        var artifact = ReasoningArtifacts.CreateForAgent(config.AgentName, reasoning, providerReplay);
+        if (artifact is null)
+        {
+            return;
+        }
+
+        await context.OnReasoningArtifact(artifact, ct);
     }
 
     private static AgentResponse BuildResponse(

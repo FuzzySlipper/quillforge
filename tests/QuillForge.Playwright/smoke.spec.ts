@@ -67,13 +67,14 @@ test.describe('API Smoke Tests', () => {
     expect(d.build.uptime).toBeTruthy();
   });
 
-  test('profiles returns conductors and lore sets', async ({ request }) => {
+  test('profiles returns profile-backed runtime options', async ({ request }) => {
     const d = await (await request.get(`${BASE}/api/profiles`)).json();
-    expect(d.conductors).toBeTruthy();
     expect(d.loreSets).toBeTruthy();
     expect(d.narrativeRules).toBeTruthy();
     expect(d.writingStyles).toBeTruthy();
+    expect(d.librarianPrompts).toBeTruthy();
     expect(d.activeNarrativeRules).toBeTruthy();
+    expect(d.conductors).toBeUndefined();
   });
 
   test('layouts returns list', async ({ request }) => {
@@ -111,11 +112,12 @@ test.describe('API Smoke Tests', () => {
   });
 
   test('mode switch round-trip', async ({ request }) => {
-    for (const mode of ['general', 'writer', 'roleplay', 'forge', 'council']) {
+    for (const mode of ['guide', 'writer', 'roleplay', 'forge', 'council']) {
       const d = await (await request.post(`${BASE}/api/mode`, { data: { mode } })).json();
       expect(d.mode).toBe(mode);
     }
-    await request.post(`${BASE}/api/mode`, { data: { mode: 'general' } });
+    const alias = await (await request.post(`${BASE}/api/mode`, { data: { mode: 'general' } })).json();
+    expect(alias.mode).toBe('guide');
   });
 
   test('session create and list', async ({ request }) => {
@@ -145,7 +147,7 @@ test.describe('API Smoke Tests', () => {
 
   test('profiles/switch succeeds', async ({ request }) => {
     const resp = await request.post(`${BASE}/api/profiles/switch`, {
-      data: { conductor: 'default', lore: 'default', narrativeRules: 'default', writingStyle: 'default' },
+      data: { lore: 'default', narrativeRules: 'default', writingStyle: 'default' },
     });
     expect(resp.ok()).toBe(true);
   });

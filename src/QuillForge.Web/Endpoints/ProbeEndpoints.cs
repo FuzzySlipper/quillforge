@@ -25,7 +25,6 @@ public static class ProbeEndpoints
             OrchestratorAgent orchestrator,
             IEnumerable<IToolHandler> toolHandlers,
             ISessionProfileReadService profileReadService,
-            IConductorStore conductorStore,
             AppConfig appConfig,
             AtomicFileWriter fileWriter,
             ILogger<Program> logger,
@@ -56,16 +55,8 @@ public static class ProbeEndpoints
             };
             var modeSection = activeMode.BuildSystemPromptSection(modeContext);
 
-            // Load conductor prompt
-            var conductorPromptText = "";
-            try
-            {
-                conductorPromptText = await conductorStore.LoadAsync(
-                    prepared.Conductor,
-                    appConfig.Persona.MaxTokens,
-                    ct);
-            }
-            catch { /* conductor may not exist */ }
+            // Reconstruct the same app-owned prompt prelude used in live chat.
+            var promptPrelude = await orchestrator.BuildPromptPreludeAsync(activeModeName, ct);
 
             // Reconstruct the system prompt (same logic as OrchestratorAgent.BuildSystemPrompt)
             var loreSection = string.IsNullOrWhiteSpace(modeContext.ActiveLoreSet)
@@ -73,7 +64,10 @@ public static class ProbeEndpoints
                 : $"\n\n## Active Lore Set\n\nThe current lore set is \"{modeContext.ActiveLoreSet}\". "
                   + "When using `query_lore`, results come from this lore set. "
                   + "Ground your lore references and world-building in this set's content.";
-            var systemPrompt = $"{conductorPromptText}\n\n{modeSection}{loreSection}";
+            var promptBody = $"{modeSection}{loreSection}";
+            var systemPrompt = string.IsNullOrWhiteSpace(promptPrelude)
+                ? promptBody
+                : $"{promptPrelude}\n\n{promptBody}";
 
             // Collect tool definitions
             var toolDefs = toolHandlers.Select(t => t.Definition).ToList();
@@ -130,7 +124,7 @@ public static class ProbeEndpoints
             report.AppendLine("---");
             report.AppendLine($"timestamp: {timestamp:O}");
             report.AppendLine($"model: {model}");
-            report.AppendLine($"mode: {activeModeName}");
+            report.AppendLine($"mode: {activeModeName.ToWireString()}");
             report.AppendLine($"battery_version: \"{ProbeBattery.Version}\"");
             report.AppendLine($"scenario_count: {ProbeBattery.Scenarios.Count}");
             report.AppendLine($"tool_count: {toolDefs.Count}");
@@ -140,7 +134,7 @@ public static class ProbeEndpoints
             report.AppendLine();
             report.AppendLine($"# Interpretation Probe — {model}");
             report.AppendLine();
-            report.AppendLine($"Mode: **{activeModeName}** | Battery: v{ProbeBattery.Version} | {timestamp:yyyy-MM-dd HH:mm:ss} UTC");
+            report.AppendLine($"Mode: **{activeModeName.ToWireString()}** | Battery: v{ProbeBattery.Version} | {timestamp:yyyy-MM-dd HH:mm:ss} UTC");
             report.AppendLine();
             report.AppendLine("---");
             report.AppendLine();

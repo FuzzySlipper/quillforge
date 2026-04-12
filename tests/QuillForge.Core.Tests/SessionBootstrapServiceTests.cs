@@ -31,12 +31,11 @@ public sealed class SessionBootstrapServiceTests
         Assert.Equal("Bootstrap Session", persistedTree.Name);
         Assert.Equal(tree.SessionId, runtimeState.SessionId);
         Assert.Equal("grim", runtimeState.Profile.ProfileId);
-        Assert.Null(runtimeState.Profile.ActiveConductor);
         Assert.False(runtimeState.Roleplay.HasExplicitAiCharacterSelection);
         Assert.False(runtimeState.Roleplay.HasExplicitUserCharacterSelection);
         Assert.Null(runtimeState.Roleplay.ActiveAiCharacter);
         Assert.Null(runtimeState.Roleplay.ActiveUserCharacter);
-        Assert.Equal(Mode.General, runtimeState.Mode.ActiveMode);
+        Assert.Equal(Mode.Guide, runtimeState.Mode.ActiveMode);
         Assert.Equal(1, profileService.LoadResolvedCallCount);
         Assert.Equal(0, profileService.BuildSessionProfileStateCallCount);
     }

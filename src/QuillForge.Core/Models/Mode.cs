@@ -5,7 +5,7 @@ namespace QuillForge.Core.Models;
 /// </summary>
 public enum Mode
 {
-    General,
+    Guide,
     Writer,
     Roleplay,
     Forge,

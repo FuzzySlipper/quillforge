@@ -32,7 +32,7 @@ public sealed class WriteProseHandler : TypedToolHandler<WriteProseArgs>
     public override string Name => "write_prose";
 
     public override ToolDefinition Definition => new(Name,
-        "Generate prose for a scene. Returns the generated text.",
+        "Generate prose from a grounded scene brief. This is the renderer used by higher-level flows such as the Narrative Director.",
         JsonDocument.Parse("""
             {
                 "type": "object",
@@ -72,8 +72,19 @@ public sealed class WriteProseHandler : TypedToolHandler<WriteProseArgs>
             ToneNotes = input.ToneNotes,
         };
 
-        var result = await _proseWriter.WriteAsync(request, context.ActiveWritingStyle, storyContext, context, ct);
-        return ToolResult.Ok(result.GeneratedText);
+        try
+        {
+            var result = await _proseWriter.WriteAsync(request, context.ActiveWritingStyle, storyContext, context, ct);
+            return ToolResult.Ok(result.GeneratedText);
+        }
+        catch (CanonPrerequisiteException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "WriteProseHandler rejected prose generation for session {SessionId}",
+                context.SessionId);
+            return ToolResult.Fail(ex.Message);
+        }
     }
 }
 

@@ -112,6 +112,16 @@ public sealed class FirstRunSetup
             - If a tool or dependency fails, say so plainly instead of hiding the failure.
             """);
 
+        WriteIfMissing(Path.Combine(contentRoot, ContentPaths.Assistant, "default.md"), """
+            # Default Assistant Style
+
+            Tone guidance:
+            - Sound calm, warm, and collaborative.
+            - Explain what you are doing in plain language.
+            - Help the user understand results without pretending you did the specialist work yourself.
+            - Keep the focus on clarity, synthesis, and next steps.
+            """);
+
         WriteIfMissing(
             Path.Combine(contentRoot, ContentPaths.LibrarianPrompts, "default.md"),
             LibrarianPromptDefaults.DefaultMarkdown);

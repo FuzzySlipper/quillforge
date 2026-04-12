@@ -64,6 +64,11 @@ public sealed class FakeCompletionService : ICompletionService
     {
         var response = await CompleteAsync(request, ct);
 
+        if (!string.IsNullOrWhiteSpace(response.Reasoning))
+        {
+            yield return new ReasoningDeltaEvent(response.Reasoning);
+        }
+
         foreach (var block in response.Content.Blocks)
         {
             switch (block)

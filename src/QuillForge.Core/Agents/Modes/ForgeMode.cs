@@ -3,39 +3,46 @@ using QuillForge.Core.Models;
 namespace QuillForge.Core.Agents.Modes;
 
 /// <summary>
-/// Forge prep mode. Conversationally designs a story before the autonomous pipeline runs.
-/// Works through premise, characters, world-building, tone, and structure.
-/// Saves artifacts to the forge project directory.
+/// Forge operator mode. Helps the user navigate forge commands, inspect project
+/// state, and prepare inputs without becoming a second hidden planning/writing
+/// pipeline in plain chat.
 /// </summary>
 public sealed class ForgeMode : IMode
 {
     public string Name => "forge";
 
+    public bool AllowsTopLevelTool(string toolName)
+    {
+        return string.Equals(toolName, "query_docs", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(toolName, "list_files", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(toolName, "read_file", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(toolName, "search_files", StringComparison.OrdinalIgnoreCase);
+    }
+
     public string BuildSystemPromptSection(ModeContext context)
     {
         return $"""
-            ## Current Mode: Forge (Story Design)
+            ## Current Mode: Forge
 
-            You are in forge mode, designing a story for project "{context.ProjectName ?? "untitled"}".
+            You are in forge mode for project "{context.ProjectName ?? "untitled"}".
 
-            This is the PREP phase — work conversationally with the user to design the story before
-            the autonomous writing pipeline runs. Work through:
+            Forge is a command- and pipeline-owned workflow. Your job in plain chat is to help the user
+            operate that workflow, not to silently become the planning/writing/review engine yourself.
 
-            1. **Premise** — Core concept, hook, themes
-            2. **Characters** — Main cast, motivations, relationships
-            3. **World** — Setting details, rules, atmosphere
-            4. **Tone** — Narrative voice, genre expectations, mood
-            5. **Structure** — Arc type (complete/episodic), chapter count, pacing
-
-            Save design artifacts using:
-            - write_file(directory="forge", path="{context.ProjectName}/plan/premise.md") for the story premise
-            - write_file(directory="lore", ...) for character bios and world-building entries
+            What you should do here:
+            - explain forge concepts, commands, and stage ownership
+            - tell the user the next command to run based on their goal
+            - help them prepare valid inputs for `/forge new`, `/forge design`, `/forge start`, `/forge status`, `/forge pause`, and `/forge approve`
+            - use `query_docs` for forge workflow questions
+            - use lightweight inspection tools such as `list_files`, `read_file`, and `search_files` only when the user asks to inspect an existing forge project or prompt file
 
             IMPORTANT:
-            - Do NOT write manifest.yaml — it is auto-managed by the pipeline.
-            - Do NOT embed file paths or file references in planning documents. Planning documents
-              (premise.md, outlines, briefs) should be self-contained prose. The autonomous pipeline
-              retrieves lore at runtime via the query_lore tool — it does not follow file paths in documents.
+            - Do NOT write premise, outline, brief, draft, review, or assembly content from normal forge chat turns.
+            - Do NOT treat Forge mode like a second Writer mode or a hidden Narrative Director flow.
+            - Do NOT run planning, writing, review, or assembly logic yourself when `/forge` commands own that work.
+            - Do NOT edit `manifest.json` manually; it is pipeline-owned.
+            - If the user wants actual forge stage execution, direct them to the matching `/forge` command.
+            - If the user wants prose or canon-sensitive scene writing, direct them to Writer or Roleplay instead of doing it in Forge chat.
 
             If the user asks about your behavior, mode boundaries, available tools, or how to use the system,
             consult `query_docs` rather than guessing.

@@ -77,4 +77,43 @@ public sealed class FileSystemProfileConfigStoreTests : IDisposable
 
         Assert.True(File.Exists(Path.Combine(_tempDir, "profiles", "default.yaml")));
     }
+
+    [Fact]
+    public async Task SaveAsync_OmitsNullLegacyConductorFromYaml()
+    {
+        var store = CreateStore();
+
+        await store.SaveAsync("modern", new ProfileConfig
+        {
+            LoreSet = "science",
+            NarrativeRules = "clean",
+            WritingStyle = "concise",
+        });
+
+        var yaml = await File.ReadAllTextAsync(Path.Combine(_tempDir, "profiles", "modern.yaml"));
+
+        Assert.DoesNotContain("conductor:", yaml, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LoadAsync_ProfileWithoutLegacyConductor_RoundTripsNull()
+    {
+        var store = CreateStore();
+        var profilePath = Path.Combine(_tempDir, "profiles", "modern.yaml");
+        Directory.CreateDirectory(Path.GetDirectoryName(profilePath)!);
+        await File.WriteAllTextAsync(
+            profilePath,
+            """
+            lore_set: science
+            narrative_rules: clean
+            writing_style: concise
+            librarian_prompt: spoiler-safe
+            """);
+
+        var loaded = await store.LoadAsync("modern");
+
+        Assert.Null(loaded.Conductor);
+        Assert.Equal("science", loaded.LoreSet);
+        Assert.Equal("spoiler-safe", loaded.LibrarianPrompt);
+    }
 }

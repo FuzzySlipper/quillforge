@@ -38,6 +38,7 @@ public sealed record MessageMetadata
     public int? OutputTokens { get; init; }
     public StopReason? StopReason { get; init; }
     public string? Reasoning { get; init; }
+    public IReadOnlyList<ReasoningArtifact> ReasoningArtifacts { get; init; } = [];
 
     /// <summary>
     /// Adapter-owned replay data preserved with the message so resumed sessions

@@ -6,10 +6,10 @@ public sealed record StatusResponse
     public required string Version { get; init; }
     public required string Build { get; init; }
     public required string Mode { get; init; }
+    public required string Profile { get; init; }
     public string? Project { get; init; }
     public string? File { get; init; }
     public required string LoreSet { get; init; }
-    public required string Conductor { get; init; }
     public required string WritingStyle { get; init; }
     public required string Model { get; init; }
     public required string Layout { get; init; }
@@ -19,7 +19,6 @@ public sealed record StatusResponse
     public required int LoreFiles { get; init; }
     public int ContextLimit { get; init; }
     public required int LoreTokens { get; init; }
-    public required int ConductorTokens { get; init; }
     public int HistoryTokens { get; init; }
     public required bool DiagnosticsLivePanel { get; init; }
     public UpdateInfoDto? Update { get; init; }

@@ -17,6 +17,7 @@ public sealed class NarrativeDirectorAgent
     private readonly UpdateStoryStateHandler _updateStoryStateHandler;
     private readonly UpdateNarrativeStateHandler _updateNarrativeStateHandler;
     private readonly WriteProseHandler _writeProseHandler;
+    private readonly CanonPrerequisiteGuard _canonGuard;
     private readonly INarrativeRulesStore _narrativeRulesStore;
     private readonly ILogger<NarrativeDirectorAgent> _logger;
     private readonly string _model;
@@ -28,6 +29,7 @@ public sealed class NarrativeDirectorAgent
         UpdateStoryStateHandler updateStoryStateHandler,
         UpdateNarrativeStateHandler updateNarrativeStateHandler,
         WriteProseHandler writeProseHandler,
+        CanonPrerequisiteGuard canonGuard,
         INarrativeRulesStore narrativeRulesStore,
         AppConfig appConfig,
         ILogger<NarrativeDirectorAgent> logger)
@@ -37,6 +39,7 @@ public sealed class NarrativeDirectorAgent
         _updateStoryStateHandler = updateStoryStateHandler;
         _updateNarrativeStateHandler = updateNarrativeStateHandler;
         _writeProseHandler = writeProseHandler;
+        _canonGuard = canonGuard;
         _narrativeRulesStore = narrativeRulesStore;
         _logger = logger;
         _model = appConfig.Models.NarrativeDirector;
@@ -49,7 +52,12 @@ public sealed class NarrativeDirectorAgent
         CancellationToken ct = default)
     {
         var sessionContext = context.SessionContext;
-        var narrativeRules = await _narrativeRulesStore.LoadAsync(context.ActiveNarrativeRules, ct);
+        await _canonGuard.EnsureQueryableLoreAvailableAsync(context, "continue grounded scene generation", ct);
+        _canonGuard.EnsureRoleplayCharacterContextAvailable(context, sessionContext, "continue grounded scene generation");
+        var narrativeRules = await _canonGuard.RequireNarrativeRulesAsync(
+            context,
+            "continue grounded scene generation",
+            ct);
         var systemPrompt = BuildSystemPrompt(narrativeRules, context, sessionContext);
 
         _logger.LogInformation(
@@ -60,7 +68,7 @@ public sealed class NarrativeDirectorAgent
 
         var messages = new List<CompletionMessage>
         {
-            new("user", new MessageContent(BuildUserTurnPrompt(request, sessionContext, context.LastAssistantResponse))),
+            new("user", new MessageContent(BuildUserTurnPrompt(request, context.ActiveMode, sessionContext, context.LastAssistantResponse))),
         };
 
         var config = new AgentConfig
@@ -98,7 +106,11 @@ public sealed class NarrativeDirectorAgent
         CancellationToken ct = default)
     {
         var sessionContext = context.SessionContext;
-        var narrativeRules = await _narrativeRulesStore.LoadAsync(context.ActiveNarrativeRules, ct);
+        await _canonGuard.EnsureQueryableLoreAvailableAsync(context, "generate a reusable plot arc", ct);
+        var narrativeRules = await _canonGuard.RequireNarrativeRulesAsync(
+            context,
+            "generate a reusable plot arc",
+            ct);
         var systemPrompt = BuildPlotPrompt(narrativeRules, context, sessionContext);
 
         _logger.LogInformation(
@@ -143,7 +155,7 @@ public sealed class NarrativeDirectorAgent
         InteractiveSessionContext? sessionContext)
     {
         var rulesSection = string.IsNullOrWhiteSpace(narrativeRules)
-            ? "No narrative rules file is active. Apply sensible scene-direction judgment."
+            ? "Narrative rules were unavailable for this request. Stop and disclose the missing prerequisite instead of inventing replacement canon."
             : narrativeRules;
 
         var characterSection = string.IsNullOrWhiteSpace(sessionContext?.CharacterSection)
@@ -197,9 +209,11 @@ public sealed class NarrativeDirectorAgent
             - You do not speak as a separate assistant persona.
             - You do not output planning notes, tool commentary, or OOC framing unless a tool failure must be disclosed.
             - For roleplay turns, the final response must be only the scene prose that should be shown to the user.
+            - For writer turns, the final response must be only the grounded draft prose that should be shown to the user for review.
             - Use `write_prose` for the final visible scene response rather than writing that prose yourself.
             - Before finishing the turn, update narrative state with concise notes that will help the next turn continue cleanly.
             - When an active plot materially advances or is bypassed, update plot progress in `update_narrative_state`.
+            - If the user corrects characterization, relationships, gifts, promises, timeline facts, or prior scene details, treat that as a signal to re-ground against canon before continuing. Re-check the relevant lore and character context instead of patching only the quoted mistake.
 
             ## Narrative Rules
 
@@ -213,7 +227,7 @@ public sealed class NarrativeDirectorAgent
         InteractiveSessionContext? sessionContext)
     {
         var rulesSection = string.IsNullOrWhiteSpace(narrativeRules)
-            ? "No narrative rules file is active. Build a strong, coherent plot arc from the available context."
+            ? "Narrative rules were unavailable for this request. Stop and disclose the missing prerequisite instead of inventing a replacement plot frame."
             : narrativeRules;
 
         var characterSection = string.IsNullOrWhiteSpace(sessionContext?.CharacterSection)
@@ -255,6 +269,7 @@ public sealed class NarrativeDirectorAgent
 
     private static string BuildUserTurnPrompt(
         NarrativeDirectionRequest request,
+        Mode activeMode,
         InteractiveSessionContext? sessionContext,
         string? lastAssistantResponse)
     {
@@ -270,9 +285,18 @@ public sealed class NarrativeDirectorAgent
             ? ""
             : $"\n\nLast assistant prose response:\n{lastAssistantResponse}";
 
+        var modeInstruction = activeMode switch
+        {
+            Mode.Writer =>
+                "Direct the next grounded writing turn. Reconcile the request against canon, decide what should happen on the page, update story state and narrative notes if needed, and use write_prose for the final draft prose that will be shown to the user for review.",
+            Mode.Roleplay =>
+                "Direct the next turn of the interactive scene. Decide what happens, update story state and narrative notes if needed, and use write_prose for the final visible response.",
+            _ =>
+                "Direct the next grounded prose turn. Decide what happens, update story state and narrative notes if needed, and use write_prose for the final visible response.",
+        };
+
         return $"""
-            Direct the next turn of the interactive scene.
-            Decide what happens, update story state and narrative notes if needed, and use write_prose for the final visible response.{projectSection}{fileSection}{lastResponseSection}
+            {modeInstruction}{projectSection}{fileSection}{lastResponseSection}
 
             User message:
             {request.UserMessage}

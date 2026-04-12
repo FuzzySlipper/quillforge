@@ -37,7 +37,13 @@ public class QueryLoreHandlerStatsTests
         var toolLoop = new ToolLoop(completion, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
 
         var librarian = new LibrarianAgent(toolLoop, loreStore, promptStore, new AppConfig(), LogFactory.CreateLogger<LibrarianAgent>());
-        var handler = new QueryLoreHandler(librarian, loreStore, fileService, LogFactory.CreateLogger<QueryLoreHandler>());
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            LogFactory.CreateLogger<CanonPrerequisiteGuard>());
+        var handler = new QueryLoreHandler(librarian, loreStore, fileService, guard, LogFactory.CreateLogger<QueryLoreHandler>());
 
         var tracker = new ForgeStatsTracker();
         var context = new AgentContext
@@ -80,12 +86,18 @@ public class QueryLoreHandlerStatsTests
         var toolLoop = new ToolLoop(completion, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
 
         var librarian = new LibrarianAgent(toolLoop, loreStore, promptStore, new AppConfig(), LogFactory.CreateLogger<LibrarianAgent>());
-        var handler = new QueryLoreHandler(librarian, loreStore, fileService, LogFactory.CreateLogger<QueryLoreHandler>());
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            LogFactory.CreateLogger<CanonPrerequisiteGuard>());
+        var handler = new QueryLoreHandler(librarian, loreStore, fileService, guard, LogFactory.CreateLogger<QueryLoreHandler>());
 
         var context = new AgentContext
         {
             SessionId = Guid.CreateVersion7(),
-            ActiveMode = Mode.General,
+            ActiveMode = Mode.Guide,
             ActiveLoreSet = "default",
             // OnNestedCompletion intentionally null — non-forge flow
         };
@@ -117,7 +129,13 @@ public class QueryLoreHandlerStatsTests
         var toolLoop = new ToolLoop(completion, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
 
         var librarian = new LibrarianAgent(toolLoop, loreStore, promptStore, new AppConfig(), LogFactory.CreateLogger<LibrarianAgent>());
-        var handler = new QueryLoreHandler(librarian, loreStore, fileService, LogFactory.CreateLogger<QueryLoreHandler>());
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            LogFactory.CreateLogger<CanonPrerequisiteGuard>());
+        var handler = new QueryLoreHandler(librarian, loreStore, fileService, guard, LogFactory.CreateLogger<QueryLoreHandler>());
 
         var context = new AgentContext
         {
@@ -147,6 +165,40 @@ public class QueryLoreHandlerStatsTests
         // Should still contain the expected lore payload fields
         Assert.True(root.TryGetProperty("RelevantPassages", out _) || root.TryGetProperty("relevant_passages", out _),
             "Serialized result should contain lore payload");
+    }
+
+    [Fact]
+    public async Task QueryLoreHandler_ReturnsFailure_WhenLoreSetIsEmpty()
+    {
+        var completion = new FakeCompletionService();
+        var loreStore = new InMemoryLoreStore(new Dictionary<string, string>());
+        var promptStore = new InMemoryLibrarianPromptStore("");
+        var fileService = new FakeContentFileService();
+        var continuation = new ContinuationStrategy(LogFactory.CreateLogger<ContinuationStrategy>());
+        var toolLoop = new ToolLoop(completion, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
+
+        var librarian = new LibrarianAgent(toolLoop, loreStore, promptStore, new AppConfig(), LogFactory.CreateLogger<LibrarianAgent>());
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            LogFactory.CreateLogger<CanonPrerequisiteGuard>());
+        var handler = new QueryLoreHandler(librarian, loreStore, fileService, guard, LogFactory.CreateLogger<QueryLoreHandler>());
+
+        var result = await handler.HandleAsync(
+            new ToolInput(JsonDocument.Parse("""{"query":"Who owns the sapphires?"}""").RootElement),
+            new AgentContext
+            {
+                SessionId = Guid.CreateVersion7(),
+                ActiveMode = Mode.Writer,
+                ActiveLoreSet = "default",
+            },
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("active lore set", result.Error);
+        Assert.Empty(completion.ReceivedRequests);
     }
 
     [Fact]

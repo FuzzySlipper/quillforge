@@ -1,4 +1,4 @@
-export type Mode = "general" | "writer" | "roleplay" | "forge" | "council" | "research";
+export type Mode = "guide" | "writer" | "roleplay" | "forge" | "council" | "research";
 
 export interface MessageVariant {
   content: string;
@@ -33,18 +33,17 @@ export interface Status {
   version: string;
   build: string;
   mode: Mode;
+  profile: string;
   project: string | null;
   file: string | null;
   loreFiles: number;
   loreSet: string;
-  conductor: string;
   writingStyle: string;
   model: string;
   conversationTurns: number;
   layout: string;
   contextLimit: number;
   loreTokens: number;
-  conductorTokens: number;
   historyTokens: number;
   diagnosticsLivePanel?: boolean;
   aiCharacter: string;
@@ -62,12 +61,10 @@ export interface Profiles {
   profileIds: string[];
   defaultProfileId: string;
   activeProfileId: string;
-  conductors: string[];
   loreSets: string[];
   narrativeRules: string[];
   writingStyles: string[];
   librarianPrompts: string[];
-  activeConductor: string;
   activeLore: string;
   activeNarrativeRules: string;
   activeWritingStyle: string;
@@ -86,7 +83,6 @@ export interface ModeInfo {
 export interface ProfileSwitchResult {
   sessionId?: string | null;
   activeProfileId: string;
-  activeConductor: string;
   activeLore: string;
   activeNarrativeRules: string;
   activeWritingStyle: string;

@@ -78,7 +78,8 @@ const commands: Record<string, CommandDef> = {
       const s = ctx.status;
       const lines = [
         `**Mode:** ${s.mode}`,
-        `**Conductor:** ${s.conductor}`,
+        `**Profile:** ${s.profile}`,
+        `**Routing:** app-owned by mode`,
         `**Writing style:** ${s.writingStyle}`,
         `**Lore set:** ${s.loreSet} (${s.loreFiles} files)`,
         `**Model:** ${s.model}`,
@@ -92,16 +93,17 @@ const commands: Record<string, CommandDef> = {
 
   mode: {
     description: "Switch operating mode",
-    usage: "[general|writer|roleplay|council]",
+    usage: "[guide|writer|roleplay|forge|council|research]",
     handler: async (args, ctx) => {
-      const target = args.trim().toLowerCase();
-      if (!target) {
+      const rawTarget = args.trim().toLowerCase();
+      if (!rawTarget) {
         ctx.openMode();
         return { output: null };
       }
-      const valid: Mode[] = ["general", "writer", "roleplay", "council"];
+      const target = rawTarget === "general" ? "guide" : rawTarget;
+      const valid: Mode[] = ["guide", "writer", "roleplay", "forge", "council", "research"];
       if (!valid.includes(target as Mode)) {
-        return { output: `Unknown mode \`${target}\`. Valid modes: ${valid.join(", ")}` };
+        return { output: `Unknown mode \`${rawTarget}\`. Valid modes: ${valid.join(", ")}` };
       }
       await ctx.setMode(target as Mode);
       return { output: `Switched to **${target}** mode.` };
@@ -458,7 +460,7 @@ const commands: Record<string, CommandDef> = {
   },
 
   forge: {
-    description: "Manage StoryForge projects",
+    description: "Manage Forge pipeline projects and stages",
     usage: "new <name> | design <name> | start <name> | status <name> | pause <name> | approve <name> | list",
     handler: async (args, ctx) => {
       const parts = args.trim().split(/\s+/);
@@ -468,11 +470,11 @@ const commands: Record<string, CommandDef> = {
       if (!sub || sub === "list") {
         try {
           const res = await fetch("/api/forge/projects");
-          const data = await res.json();
-          if (!data.projects?.length) {
+          const projects = await res.json();
+          if (!Array.isArray(projects) || projects.length === 0) {
             return { output: "No forge projects yet. Use `/forge new <name>` to create one." };
           }
-          const lines = data.projects.map(
+          const lines = projects.map(
             (p: { name: string; stage: string; chapterCount: number; paused: boolean }) =>
               `- **${p.name}** — stage: ${p.stage}, chapters: ${p.chapterCount}${p.paused ? " (paused)" : ""}`,
           );
@@ -495,7 +497,7 @@ const commands: Record<string, CommandDef> = {
             await ctx.setMode("forge" as Mode, name);
             return {
               output: null,
-              autoSend: `I just created a new forge project called "${name}". Help me design the story.`,
+              autoSend: `I just created a new forge project called "${name}". Tell me the next Forge command I should run and what inputs it expects.`,
             };
           }
           return { output: data.error || "Failed to create project." };

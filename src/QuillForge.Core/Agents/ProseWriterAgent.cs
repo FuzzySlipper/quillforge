@@ -12,8 +12,7 @@ public sealed class ProseWriterAgent
 {
     private readonly ToolLoop _toolLoop;
     private readonly IToolHandler _queryLoreHandler;
-    private readonly ILoreStore _loreStore;
-    private readonly IWritingStyleStore _writingStyleStore;
+    private readonly CanonPrerequisiteGuard _canonGuard;
     private readonly ILogger<ProseWriterAgent> _logger;
     private readonly string _model;
     private readonly ProseWriterBudget _budget;
@@ -21,15 +20,13 @@ public sealed class ProseWriterAgent
     public ProseWriterAgent(
         ToolLoop toolLoop,
         IToolHandler queryLoreHandler,
-        ILoreStore loreStore,
-        IWritingStyleStore writingStyleStore,
+        CanonPrerequisiteGuard canonGuard,
         AppConfig appConfig,
         ILogger<ProseWriterAgent> logger)
     {
         _toolLoop = toolLoop;
         _queryLoreHandler = queryLoreHandler;
-        _loreStore = loreStore;
-        _writingStyleStore = writingStyleStore;
+        _canonGuard = canonGuard;
         _logger = logger;
         _model = appConfig.Models.ProseWriter;
         _budget = appConfig.Agents.ProseWriter;
@@ -49,20 +46,21 @@ public sealed class ProseWriterAgent
             "ProseWriter starting: scene=\"{Scene}\", style=\"{Style}\"",
             Truncate(request.SceneDescription, 80), writingStyleName);
 
-        var writingStyle = await _writingStyleStore.LoadAsync(writingStyleName, ct);
+        await _canonGuard.EnsureQueryableLoreAvailableAsync(context, "render grounded prose", ct);
+        var writingStyle = await _canonGuard.RequireWritingStyleAsync(
+            writingStyleName,
+            context,
+            "render grounded prose",
+            ct);
 
-        // Check if the active lore set has any content
-        var loreContent = await _loreStore.LoadLoreSetAsync(context.ActiveLoreSet, ct);
-        var hasLore = loreContent.Count > 0;
-
-        var systemPrompt = BuildSystemPrompt(writingStyle, storyContext, request.ToneNotes, hasLore);
+        var systemPrompt = BuildSystemPrompt(writingStyle, storyContext, request.ToneNotes);
 
         var config = new AgentConfig
         {
             Model = _model,
             MaxTokens = _budget.MaxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = hasLore ? _budget.MaxToolRounds : 0,
+            MaxToolRounds = _budget.MaxToolRounds,
             AgentName = "prose-writer",
         };
 
@@ -71,7 +69,7 @@ public sealed class ProseWriterAgent
             new("user", new MessageContent(request.SceneDescription)),
         };
 
-        var tools = hasLore ? [_queryLoreHandler] : Array.Empty<IToolHandler>();
+        var tools = new[] { _queryLoreHandler };
         var response = await _toolLoop.RunAsync(config, tools, messages, context, ct);
         var generatedText = response.Content.GetText();
 
@@ -97,25 +95,19 @@ public sealed class ProseWriterAgent
         };
     }
 
-    internal static string BuildSystemPrompt(string writingStyle, string storyContext, string? toneNotes, bool hasLore)
+    internal static string BuildSystemPrompt(string writingStyle, string storyContext, string? toneNotes)
     {
         var toneSection = string.IsNullOrWhiteSpace(toneNotes)
             ? ""
             : $"\n\n## Tone Notes\n\n{toneNotes}";
 
-        var loreRules = hasLore
-            ? """
+        var loreRules = """
             1. Before writing, use the query_lore tool to verify character details, locations, and
                world-building facts relevant to the scene.
             2. Stay faithful to established lore. Do not contradict existing world-building.
             3. Maintain consistency with the story so far.
             4. Write prose only — no metadata, no commentary, no scene headings unless requested.
-            5. If the scene requires details not in the lore, write around them naturally.
-            """
-            : """
-            1. No lore set is active — write freely without world-building constraints.
-            2. Maintain consistency with the story so far.
-            3. Write prose only — no metadata, no commentary, no scene headings unless requested.
+            5. If a required canon detail cannot be confirmed, stop and disclose that gap rather than inventing it.
             """;
 
         return $"""

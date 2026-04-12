@@ -95,19 +95,20 @@ builder.Services.AddSingleton<ICompletionService>(sp =>
 // --- Core agents ---
 builder.Services.AddSingleton<ContinuationStrategy>();
 builder.Services.AddSingleton<ToolLoop>();
+builder.Services.AddSingleton<CanonPrerequisiteGuard>();
 builder.Services.AddSingleton<LibrarianAgent>();
 builder.Services.AddSingleton<ProseWriterAgent>(sp =>
 {
     var toolLoop = sp.GetRequiredService<ToolLoop>();
     var config = sp.GetRequiredService<AppConfig>();
-    var loreStore = sp.GetRequiredService<ILoreStore>();
     var queryLore = new QueryLoreHandler(
         sp.GetRequiredService<LibrarianAgent>(),
-        loreStore,
+        sp.GetRequiredService<ILoreStore>(),
         sp.GetRequiredService<IContentFileService>(),
+        sp.GetRequiredService<CanonPrerequisiteGuard>(),
         sp.GetRequiredService<ILogger<QueryLoreHandler>>());
-    return new ProseWriterAgent(toolLoop, queryLore, loreStore,
-        sp.GetRequiredService<IWritingStyleStore>(),
+    return new ProseWriterAgent(toolLoop, queryLore,
+        sp.GetRequiredService<CanonPrerequisiteGuard>(),
         config,
         sp.GetRequiredService<ILogger<ProseWriterAgent>>());
 });
@@ -170,7 +171,7 @@ builder.Services.AddSingleton<IToolHandler>(sp =>
         sp.GetRequiredService<ILogger<RunResearchHandler>>()));
 
 // --- Modes (explicit, no scanning) ---
-builder.Services.AddSingleton<IMode, GeneralMode>();
+builder.Services.AddSingleton<IMode, GuideMode>();
 builder.Services.AddSingleton<IMode, WriterMode>();
 builder.Services.AddSingleton<IMode, RoleplayMode>();
 builder.Services.AddSingleton<IMode, ForgeMode>();

@@ -88,10 +88,54 @@ public sealed class ProfileConfigServiceTests
         var state = await service.BuildSessionProfileStateAsync("builder");
 
         Assert.Equal("builder", state.ProfileId);
-        Assert.Null(state.ActiveConductor);
         Assert.Null(state.ActiveLoreSet);
         Assert.Null(state.ActiveNarrativeRules);
         Assert.Null(state.ActiveWritingStyle);
+    }
+
+    [Fact]
+    public async Task SaveAsync_NormalizesBlankLegacyConductorToNull()
+    {
+        var appConfigStore = new InMemoryAppConfigStore(new AppConfig());
+        var profileStore = new InMemoryProfileConfigStore();
+        var runtimeStore = new InMemoryProfileUsageRuntimeStore();
+        var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
+
+        var saved = await service.SaveAsync("modern", new ProfileConfig
+        {
+            Conductor = "   ",
+            LoreSet = "science",
+            NarrativeRules = "clean",
+            WritingStyle = "concise",
+        });
+
+        Assert.Null(saved.Config.Conductor);
+
+        var loaded = await profileStore.LoadAsync("modern");
+        Assert.Null(loaded.Conductor);
+    }
+
+    [Fact]
+    public async Task SelectAsync_ProfileWithoutLegacyConductor_PreservesExistingCompatibilityPersona()
+    {
+        var appConfigStore = new InMemoryAppConfigStore(new AppConfig
+        {
+            Persona = new PersonaConfig { Active = "legacy-persona" },
+        });
+        var profileStore = new InMemoryProfileConfigStore();
+        var runtimeStore = new InMemoryProfileUsageRuntimeStore();
+        await profileStore.SaveAsync("research", new ProfileConfig
+        {
+            LoreSet = "science",
+            NarrativeRules = "clean",
+            WritingStyle = "concise",
+        });
+
+        var service = new ProfileConfigService(profileStore, appConfigStore, runtimeStore, NullLogger<ProfileConfigService>.Instance);
+        var selection = await service.SelectAsync("research");
+
+        Assert.Equal("legacy-persona", selection.UpdatedAppConfig.Persona.Active);
+        Assert.Null(selection.Config.Conductor);
     }
 
     [Fact]

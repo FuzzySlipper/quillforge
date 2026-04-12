@@ -70,7 +70,27 @@ public sealed class ProfileConfigLifecycleEndpointTests
     [Fact]
     public async Task PutEndpoint_RoundTripsLibrarianPrompt()
     {
-        var profileService = new TrackingProfileConfigService();
+        var profileService = new TrackingProfileConfigService
+        {
+            ExistingResolvedProfile = new ResolvedProfileConfig
+            {
+                ProfileId = "grim",
+                Config = new ProfileConfig
+                {
+                    Conductor = "legacy-editor",
+                    LoreSet = "existing-lore",
+                    NarrativeRules = "existing-rules",
+                    WritingStyle = "existing-style",
+                    LibrarianPrompt = "default",
+                    Roleplay = new RoleplayConfig
+                    {
+                        AiCharacter = "existing-ai",
+                        UserCharacter = "existing-user",
+                    },
+                },
+                Persisted = true,
+            },
+        };
         await using var app = BuildApp(profileService);
 
         var response = await InvokeJsonAsync(
@@ -79,7 +99,6 @@ public sealed class ProfileConfigLifecycleEndpointTests
             "/api/profile-configs/grim",
             """
             {
-              "conductor": "editor",
               "loreSet": "grim-dark",
               "narrativeRules": "strict",
               "writingStyle": "literary",
@@ -93,9 +112,35 @@ public sealed class ProfileConfigLifecycleEndpointTests
         Assert.Equal("grim", profileService.LastSavedProfileId);
         Assert.NotNull(profileService.LastSavedConfig);
         Assert.Equal("spoiler-safe", profileService.LastSavedConfig!.LibrarianPrompt);
+        Assert.Equal("legacy-editor", profileService.LastSavedConfig.Conductor);
 
         using var document = JsonDocument.Parse(response.Body);
         Assert.Equal("spoiler-safe", document.RootElement.GetProperty("librarianPrompt").GetString());
+        Assert.False(document.RootElement.TryGetProperty("conductor", out _));
+    }
+
+    [Fact]
+    public async Task PutEndpoint_NewProfileWithoutConductor_SavesNullLegacyConductor()
+    {
+        var profileService = new TrackingProfileConfigService();
+        await using var app = BuildApp(profileService);
+
+        var response = await InvokeJsonAsync(
+            app,
+            "PUT",
+            "/api/profile-configs/modern",
+            """
+            {
+              "loreSet": "science",
+              "narrativeRules": "clean",
+              "writingStyle": "concise",
+              "librarianPrompt": "spoiler-safe"
+            }
+            """);
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.NotNull(profileService.LastSavedConfig);
+        Assert.Null(profileService.LastSavedConfig!.Conductor);
     }
 
     [Fact]
@@ -274,6 +319,7 @@ public sealed class ProfileConfigLifecycleEndpointTests
         public string? LastSavedProfileId { get; private set; }
         public ProfileConfig? LastSavedConfig { get; private set; }
         public Exception? DeleteException { get; init; }
+        public ResolvedProfileConfig? ExistingResolvedProfile { get; init; }
 
         public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
             => throw new NotSupportedException();
@@ -282,7 +328,15 @@ public sealed class ProfileConfigLifecycleEndpointTests
             => throw new NotSupportedException();
 
         public Task<ResolvedProfileConfig> LoadResolvedAsync(string? profileId = null, CancellationToken ct = default)
-            => throw new NotSupportedException();
+        {
+            if (ExistingResolvedProfile is not null
+                && string.Equals(ExistingResolvedProfile.ProfileId, profileId, StringComparison.Ordinal))
+            {
+                return Task.FromResult(ExistingResolvedProfile);
+            }
+
+            throw new FileNotFoundException($"Profile {profileId} not found");
+        }
 
         public Task<ResolvedProfileConfig> SaveAsync(string profileId, ProfileConfig config, CancellationToken ct = default)
         {

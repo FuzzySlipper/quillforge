@@ -42,6 +42,23 @@ public class FileSystemSessionStoreTests : IDisposable
             {
                 StopReason = StopReason.EndTurn,
                 Reasoning = "Keep the greeting brief.",
+                ReasoningArtifacts =
+                [
+                    new ReasoningArtifact
+                    {
+                        AgentId = "assistant",
+                        AgentLabel = "Assistant",
+                        Content = "Keep the greeting brief.",
+                        Sequence = 0,
+                    },
+                    new ReasoningArtifact
+                    {
+                        AgentId = "prose-writer",
+                        AgentLabel = "Prose Writer",
+                        Content = "Lead with the smile.",
+                        Sequence = 1,
+                    },
+                ],
                 ProviderReplay = new ReasoningReplayEnvelope(
                     "Hi there!",
                     "Keep the greeting brief.",
@@ -60,6 +77,13 @@ public class FileSystemSessionStoreTests : IDisposable
         Assert.Equal("Hello!", thread[0].Content.GetText());
         Assert.Equal("Hi there!", thread[1].Content.GetText());
         Assert.Equal("Keep the greeting brief.", thread[1].Metadata?.Reasoning);
+        var artifacts = thread[1].Metadata?.ReasoningArtifacts;
+        Assert.NotNull(artifacts);
+        Assert.Equal(2, artifacts.Count);
+        Assert.Equal("assistant", artifacts[0].AgentId);
+        Assert.Equal("Keep the greeting brief.", artifacts[0].Content);
+        Assert.Equal("prose-writer", artifacts[1].AgentId);
+        Assert.Equal("Lead with the smile.", artifacts[1].Content);
         var replay = Assert.IsType<ReasoningReplayEnvelope>(thread[1].Metadata?.ProviderReplay);
         Assert.Equal("Hi there!", replay.Content);
         Assert.Equal("Keep the greeting brief.", replay.ReasoningContent);

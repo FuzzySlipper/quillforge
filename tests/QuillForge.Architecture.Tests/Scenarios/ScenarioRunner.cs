@@ -54,10 +54,10 @@ public sealed class ScenarioRunner
         // Set profile if specified
         if (!string.IsNullOrEmpty(scenario.Profile))
         {
-            await _runtimeService.SetProfileAsync(
-                sessionId,
-                new SetSessionProfileCommand(scenario.Profile, null, null, null, null, null),
-                ct);
+                await _runtimeService.SetProfileAsync(
+                    sessionId,
+                    new SetSessionProfileCommand(scenario.Profile, null, null, null, null),
+                    ct);
         }
 
         for (int i = 0; i < scenario.Steps.Count; i++)
@@ -91,7 +91,7 @@ public sealed class ScenarioRunner
                     stepResult.Action = $"set_profile: {profileId}";
                     await _runtimeService.SetProfileAsync(
                         sessionId,
-                        new SetSessionProfileCommand(profileId, null, null, null, null, null),
+                        new SetSessionProfileCommand(profileId, null, null, null, null),
                         ct);
                 }
                 else if (step.ReloadSession)
@@ -144,7 +144,6 @@ public sealed class ScenarioRunner
             ct);
         var sessionState = prepared.ProfileView.SessionState;
         var context = prepared.AgentContext;
-        var conductor = prepared.Conductor;
 
         var assistantText = new System.Text.StringBuilder();
         var assistantReasoning = new System.Text.StringBuilder();
@@ -153,7 +152,7 @@ public sealed class ScenarioRunner
         ProviderReplayEnvelope? providerReplay = null;
 
         await foreach (var evt in _orchestrator.HandleStreamAsync(
-            sessionState, conductor, "default", 4096, _tools, messages, context, ct: ct))
+            sessionState, "default", 4096, _tools, messages, context, ct: ct))
         {
             switch (evt)
             {

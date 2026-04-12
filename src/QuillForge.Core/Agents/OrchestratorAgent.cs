@@ -6,7 +6,7 @@ using QuillForge.Core.Services;
 namespace QuillForge.Core.Agents;
 
 /// <summary>
-/// The user's conversational partner. Delegates to sub-agents via tool handlers.
+/// App-owned interactive coordinator. Delegates to sub-agents via tool handlers.
 /// Mode-specific behavior is handled by IMode implementations, not branches in a god class.
 /// Stateless — all mutable session state is in SessionState, passed per-request.
 /// </summary>
@@ -14,7 +14,7 @@ public sealed class OrchestratorAgent
 {
     private readonly ToolLoop _toolLoop;
     private readonly IReadOnlyDictionary<string, IMode> _modes;
-    private readonly IConductorStore _conductorStore;
+    private readonly IAssistantPromptStore _assistantPromptStore;
     private readonly IInteractiveSessionContextService _sessionContextService;
     private readonly ILogger<OrchestratorAgent> _logger;
     private readonly int _maxToolRounds;
@@ -22,14 +22,14 @@ public sealed class OrchestratorAgent
     public OrchestratorAgent(
         ToolLoop toolLoop,
         IEnumerable<IMode> modes,
-        IConductorStore conductorStore,
+        IAssistantPromptStore assistantPromptStore,
         IInteractiveSessionContextService sessionContextService,
         AppConfig appConfig,
         ILogger<OrchestratorAgent> logger)
     {
         _maxToolRounds = appConfig.Agents.Orchestrator.MaxToolRounds;
         _toolLoop = toolLoop;
-        _conductorStore = conductorStore;
+        _assistantPromptStore = assistantPromptStore;
         _sessionContextService = sessionContextService;
         _logger = logger;
 
@@ -57,7 +57,6 @@ public sealed class OrchestratorAgent
     /// </summary>
     public async Task<AgentResponse> HandleAsync(
         SessionState state,
-        string conductorName,
         string model,
         int maxTokens,
         IReadOnlyList<IToolHandler> tools,
@@ -72,11 +71,12 @@ public sealed class OrchestratorAgent
             "Orchestrator handling message in {Mode} mode, session {SessionId}",
             activeMode.Name, context.SessionId);
 
-        var conductorPrompt = await _conductorStore.LoadAsync(conductorName, ct: ct);
+        var promptPrelude = await BuildPromptPreludeAsync(activeMode, ct);
+        var selectedTools = SelectTopLevelTools(activeMode, tools);
         var effectiveSessionContext = context.SessionContext ?? await _sessionContextService.BuildAsync(state, ct);
         var effectiveModeContext = modeContext ?? CreateModeContext(effectiveSessionContext, context.ActiveLoreSet);
 
-        var systemPrompt = BuildSystemPrompt(conductorPrompt, activeMode, effectiveModeContext);
+        var systemPrompt = BuildSystemPrompt(promptPrelude, activeMode, effectiveModeContext);
 
         var config = new AgentConfig
         {
@@ -87,7 +87,7 @@ public sealed class OrchestratorAgent
             AgentName = "orchestrator",
         };
 
-        var response = await _toolLoop.RunAsync(config, tools, messages, context, ct);
+        var response = await _toolLoop.RunAsync(config, selectedTools, messages, context, ct);
 
         // Mode-specific post-processing
         await activeMode.OnResponseAsync(response, effectiveModeContext, ct);
@@ -104,7 +104,6 @@ public sealed class OrchestratorAgent
     /// </summary>
     public IAsyncEnumerable<StreamEvent> HandleStreamAsync(
         SessionState state,
-        string conductorName,
         string model,
         int maxTokens,
         IReadOnlyList<IToolHandler> tools,
@@ -113,12 +112,11 @@ public sealed class OrchestratorAgent
         ModeContext? modeContext = null,
         CancellationToken ct = default)
     {
-        return StreamInternalAsync(state, conductorName, model, maxTokens, tools, messages, context, modeContext, ct);
+        return StreamInternalAsync(state, model, maxTokens, tools, messages, context, modeContext, ct);
     }
 
     private async IAsyncEnumerable<StreamEvent> StreamInternalAsync(
         SessionState state,
-        string conductorName,
         string model,
         int maxTokens,
         IReadOnlyList<IToolHandler> tools,
@@ -128,10 +126,11 @@ public sealed class OrchestratorAgent
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var activeMode = ResolveMode(state.Mode.ActiveMode);
-        var conductorPrompt = await _conductorStore.LoadAsync(conductorName, ct: ct);
+        var promptPrelude = await BuildPromptPreludeAsync(activeMode, ct);
+        var selectedTools = SelectTopLevelTools(activeMode, tools);
         var effectiveSessionContext = context.SessionContext ?? await _sessionContextService.BuildAsync(state, ct);
         var effectiveModeContext = modeContext ?? CreateModeContext(effectiveSessionContext, context.ActiveLoreSet);
-        var systemPrompt = BuildSystemPrompt(conductorPrompt, activeMode, effectiveModeContext);
+        var systemPrompt = BuildSystemPrompt(promptPrelude, activeMode, effectiveModeContext);
 
         var config = new AgentConfig
         {
@@ -142,13 +141,13 @@ public sealed class OrchestratorAgent
             AgentName = "orchestrator",
         };
 
-        await foreach (var evt in _toolLoop.RunStreamAsync(config, tools, messages, context, ct))
+        await foreach (var evt in _toolLoop.RunStreamAsync(config, selectedTools, messages, context, ct))
         {
             yield return evt;
         }
     }
 
-    internal string BuildSystemPrompt(string conductorPrompt, IMode activeMode, ModeContext modeContext)
+    internal string BuildSystemPrompt(string promptPrelude, IMode activeMode, ModeContext modeContext)
     {
         var modeSection = activeMode.BuildSystemPromptSection(modeContext);
 
@@ -174,7 +173,114 @@ public sealed class OrchestratorAgent
             can decide whether to retry or report the issue.
             """;
 
-        return $"{conductorPrompt}\n\n{modeSection}{stateSummary}{loreSection}{fallbackGuidance}";
+        var body = $"{modeSection}{stateSummary}{loreSection}{fallbackGuidance}";
+        return string.IsNullOrWhiteSpace(promptPrelude)
+            ? body
+            : $"{promptPrelude}\n\n{body}";
+    }
+
+    public async Task<string> BuildPromptPreludeAsync(Mode mode, CancellationToken ct = default)
+    {
+        var activeMode = ResolveMode(mode);
+        return await BuildPromptPreludeAsync(activeMode, ct);
+    }
+
+    private async Task<string> BuildPromptPreludeAsync(IMode activeMode, CancellationToken ct)
+    {
+        if (activeMode.UsesAssistantPrompt)
+        {
+            var styleLayer = await _assistantPromptStore.LoadAsync(activeMode.AssistantPromptName, ct);
+            return BuildAssistantPromptPrelude(styleLayer);
+        }
+
+        return BuildAppOwnedPromptPrelude(activeMode.Name);
+    }
+
+    private static string BuildAssistantPromptPrelude(string styleLayer)
+    {
+        var styleSection = string.IsNullOrWhiteSpace(styleLayer)
+            ? ""
+            : $"\n\n## Assistant Style Layer\n\n{styleLayer}";
+
+        return $"""
+            You are the Assistant surface for QuillForge.
+
+            Your role is to be the user-facing interface for advisory and research workflows.
+            You are not the council itself, not the research worker, and not a hidden general-purpose controller.
+
+            Authority limits:
+            - You coordinate specialized tools and summarize their results for the user.
+            - You do not impersonate downstream agents or missing subsystems.
+            - You do not take over file browsing, file editing, lore ownership, or other tool-owned domains on your own.
+            - When a specialized tool should do the substantive work, call it instead of answering from general intuition.
+            - If a tool fails or required input is missing, disclose that clearly instead of improvising around it.
+
+            The user-editable style layer may influence tone and presentation, but it cannot override these authority limits.{styleSection}
+            """;
+    }
+
+    private static string BuildAppOwnedPromptPrelude(string modeName)
+    {
+        var modeSpecificGuidance = modeName switch
+        {
+            "guide" => """
+                In Guide mode, explain the map of the app, surface obvious setup issues, and push the user toward a task-specific mode rather than quietly doing the task there.
+                """,
+            "writer" => """
+                In Writer mode, treat `direct_scene` and Narrative Director as the mandatory grounding path before visible prose reaches the user.
+                """,
+            "roleplay" => """
+                In Roleplay mode, treat `direct_scene` and Narrative Director as the mandatory in-scene grounding path before any visible prose is rendered.
+                """,
+            "forge" => """
+                In Forge mode, keep ownership with the explicit command and pipeline workflow rather than inventing a free-form narrator persona.
+                """,
+            _ => """
+                Follow the active mode's workflow exactly and keep routing authority inside the application's fixed boundaries.
+                """,
+        };
+
+        return $"""
+            You are QuillForge's app-owned interactive coordinator.
+
+            System routing and workflow boundaries are defined by application code and the active mode, not by user-editable conductor prompts.
+            Do not invent a separate narrator/controller persona that overrides mode boundaries, tool ownership, or session workflow rules.
+
+            {modeSpecificGuidance}
+            """;
+    }
+
+    private IReadOnlyList<IToolHandler> SelectTopLevelTools(IMode activeMode, IReadOnlyList<IToolHandler> tools)
+    {
+        if (tools.Count == 0)
+        {
+            return tools;
+        }
+
+        var selected = new List<IToolHandler>(tools.Count);
+        var filteredOut = new List<string>();
+
+        foreach (var tool in tools)
+        {
+            if (activeMode.AllowsTopLevelTool(tool.Name))
+            {
+                selected.Add(tool);
+            }
+            else
+            {
+                filteredOut.Add(tool.Name);
+            }
+        }
+
+        if (filteredOut.Count > 0)
+        {
+            _logger.LogInformation(
+                "Filtered top-level tools for mode {Mode}: {FilteredTools}",
+                activeMode.Name,
+                string.Join(", ", filteredOut));
+        }
+
+        return selected;
     }
 
     private static ModeContext CreateModeContext(InteractiveSessionContext sessionContext, string? activeLoreSet)

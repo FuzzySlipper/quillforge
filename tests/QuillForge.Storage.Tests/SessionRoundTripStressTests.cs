@@ -62,7 +62,6 @@ public sealed class SessionRoundTripStressTests : IDisposable
             Profile = new ProfileState
             {
                 ProfileId = "stress-profile",
-                ActiveConductor = "stress-conductor",
                 ActiveLoreSet = "stress-lore",
                 ActiveNarrativeRules = "stress-rules",
                 ActiveWritingStyle = "stress-style",

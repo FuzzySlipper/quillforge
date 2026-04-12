@@ -50,6 +50,9 @@ public class DefaultsIntegrationTests : IDisposable
         // Should have conductor files
         Assert.True(Directory.Exists(Path.Combine(_tempDir, "conductor", "narrator")));
 
+        // Should have assistant prompts
+        Assert.True(File.Exists(Path.Combine(_tempDir, "assistant", "default.md")));
+
         // Should have narrative rules
         Assert.True(File.Exists(Path.Combine(_tempDir, "narrative-rules", "default.md")));
 
@@ -183,6 +186,25 @@ public class DefaultsIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task AssistantPromptStore_LoadsDefaultAssistantPrompt()
+    {
+        if (_defaultsPath is null) return;
+
+        var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
+        setup.EnsureContentDirectory(_tempDir, _defaultsPath);
+
+        var store = new FileSystemAssistantPromptStore(
+            Path.Combine(_tempDir, "assistant"),
+            NullLoggerFactory.Instance.CreateLogger<FileSystemAssistantPromptStore>());
+
+        var prompts = await store.ListAsync();
+        Assert.Contains("default", prompts);
+
+        var content = await store.LoadAsync("default");
+        Assert.Contains("Default Assistant Style", content);
+    }
+
+    [Fact]
     public void FirstRunSetup_CreatesMinimalConductorDefault_WhenDefaultsAreMissing()
     {
         var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
@@ -212,6 +234,28 @@ public class DefaultsIntegrationTests : IDisposable
         Assert.True(File.Exists(promptPath));
         Assert.Contains(
             "Search the entire lore corpus thoroughly before responding.",
+            File.ReadAllText(promptPath));
+    }
+
+    [Fact]
+    public void FirstRunSetup_ExistingInstall_SeedsMissingAssistantPromptDefault()
+    {
+        if (_defaultsPath is null) return;
+
+        Directory.CreateDirectory(_tempDir);
+        Directory.CreateDirectory(Path.Combine(_tempDir, "conductor"));
+        File.WriteAllText(Path.Combine(_tempDir, "conductor", "custom.md"), "Existing content");
+
+        var promptPath = Path.Combine(_tempDir, "assistant", "default.md");
+        Assert.False(File.Exists(promptPath));
+
+        var setup = new FirstRunSetup(NullLoggerFactory.Instance.CreateLogger<FirstRunSetup>());
+        var isFirstRun = setup.EnsureContentDirectory(_tempDir, _defaultsPath);
+
+        Assert.False(isFirstRun);
+        Assert.True(File.Exists(promptPath));
+        Assert.Contains(
+            "Default Assistant Style",
             File.ReadAllText(promptPath));
     }
 

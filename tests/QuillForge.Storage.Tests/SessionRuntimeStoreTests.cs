@@ -34,11 +34,10 @@ public class SessionRuntimeStoreTests : IDisposable
     {
         var state = await _store.LoadAsync(Guid.NewGuid());
 
-        Assert.Equal(Mode.General, state.Mode.ActiveMode);
+        Assert.Equal(Mode.Guide, state.Mode.ActiveMode);
         Assert.Null(state.Mode.ProjectName);
         Assert.Equal(WriterState.Idle, state.Writer.State);
         Assert.Null(state.Profile.ProfileId);
-        Assert.Null(state.Profile.ActiveConductor);
         Assert.False(state.Roleplay.HasExplicitAiCharacterSelection);
         Assert.Null(state.Roleplay.ActiveAiCharacter);
     }
@@ -49,7 +48,7 @@ public class SessionRuntimeStoreTests : IDisposable
         var state = await _store.LoadAsync(null);
 
         Assert.Null(state.SessionId);
-        Assert.Equal(Mode.General, state.Mode.ActiveMode);
+        Assert.Equal(Mode.Guide, state.Mode.ActiveMode);
         Assert.Null(state.Profile.ProfileId);
     }
 
@@ -70,7 +69,7 @@ public class SessionRuntimeStoreTests : IDisposable
 
         var loaded = await _store.LoadAsync(Guid.NewGuid());
 
-        Assert.Equal(Mode.General, loaded.Mode.ActiveMode);
+        Assert.Equal(Mode.Guide, loaded.Mode.ActiveMode);
         Assert.Null(loaded.Mode.ProjectName);
     }
 
@@ -91,7 +90,6 @@ public class SessionRuntimeStoreTests : IDisposable
             Profile = new ProfileState
             {
                 ProfileId = "grim",
-                ActiveConductor = "narrator",
                 ActiveLoreSet = "fantasy",
                 ActiveNarrativeRules = "default",
                 ActiveWritingStyle = "literary",
@@ -130,7 +128,6 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.Equal("chapter1.md", loaded.Mode.CurrentFile);
         Assert.Equal("hero", loaded.Mode.Character);
         Assert.Equal("grim", loaded.Profile.ProfileId);
-        Assert.Equal("narrator", loaded.Profile.ActiveConductor);
         Assert.Equal("fantasy", loaded.Profile.ActiveLoreSet);
         Assert.Equal("default", loaded.Profile.ActiveNarrativeRules);
         Assert.Equal("literary", loaded.Profile.ActiveWritingStyle);
@@ -145,6 +142,27 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.Equal("ruins-entry", loaded.Narrative.PlotProgress.CurrentBeat);
         Assert.Contains("call-to-adventure", loaded.Narrative.PlotProgress.CompletedBeats);
         Assert.Contains("The rival arrived early.", loaded.Narrative.PlotProgress.Deviations);
+    }
+
+    [Fact]
+    public async Task Load_LegacyGeneralMode_MapsToGuide()
+    {
+        var sessionId = Guid.NewGuid();
+        var path = Path.Combine(_tempDir, ContentPaths.DataSessionState, $"{sessionId}.json");
+        await File.WriteAllTextAsync(
+            path,
+            """
+            {
+              "sessionId": "00000000-0000-0000-0000-000000000000",
+              "mode": {
+                "activeModeName": "general"
+              }
+            }
+            """);
+
+        var loaded = await _store.LoadAsync(sessionId);
+
+        Assert.Equal(Mode.Guide, loaded.Mode.ActiveMode);
     }
 
     [Fact]
@@ -195,7 +213,7 @@ public class SessionRuntimeStoreTests : IDisposable
         var loaded = await _store.LoadAsync(sessionId);
 
         // Should get fresh defaults after delete
-        Assert.Equal(Mode.General, loaded.Mode.ActiveMode);
+        Assert.Equal(Mode.Guide, loaded.Mode.ActiveMode);
     }
 
     [Fact]

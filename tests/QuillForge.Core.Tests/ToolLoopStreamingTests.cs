@@ -20,7 +20,7 @@ public class ToolLoopStreamingTests
     private static readonly AgentContext DefaultContext = new()
     {
         SessionId = Guid.CreateVersion7(),
-        ActiveMode = Mode.General,
+        ActiveMode = Mode.Guide,
     };
 
     private static ToolLoop CreateLoop(ICompletionService completionService)
@@ -55,6 +55,39 @@ public class ToolLoopStreamingTests
         Assert.Equal("streamed text", ((TextDeltaEvent)events[0]).Text);
         Assert.IsType<DoneEvent>(events[1]);
         Assert.Equal(StopReason.EndTurn, ((DoneEvent)events[1]).StopReason);
+    }
+
+    [Fact]
+    public async Task StreamWithReasoning_CapturesReasoningArtifactForTheAgent()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueResponse(new CompletionResponse
+        {
+            Content = new MessageContent("streamed text"),
+            StopReason = StopReason.EndTurn,
+            Usage = new TokenUsage(10, 20),
+            Reasoning = "Think through the routing first.",
+        });
+
+        var loop = CreateLoop(fake);
+        var collector = new ReasoningArtifactCollector();
+        var config = DefaultConfig with { AgentName = "orchestrator" };
+        var context = DefaultContext with { OnReasoningArtifact = collector.CaptureAsync };
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("hi")),
+        };
+
+        var events = new List<StreamEvent>();
+        await foreach (var evt in loop.RunStreamAsync(config, [], messages, context))
+        {
+            events.Add(evt);
+        }
+
+        Assert.Contains(events, evt => evt is ReasoningDeltaEvent reasoning && reasoning.Text == "Think through the routing first.");
+        var artifact = Assert.Single(collector.Snapshot());
+        Assert.Equal("orchestrator", artifact.AgentId);
+        Assert.Equal("Think through the routing first.", artifact.Content);
     }
 
     [Fact]

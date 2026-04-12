@@ -6,7 +6,9 @@ namespace QuillForge.Core.Models;
 /// </summary>
 public sealed record ProfileConfig
 {
-    public string Conductor { get; set; } = "default";
+    // Legacy migration-only field. Live routing is app-owned by mode, but we
+    // continue reading old profile conductor values during the transition.
+    public string? Conductor { get; set; }
     public string LoreSet { get; set; } = "default";
     public string NarrativeRules { get; set; } = "default";
     public string WritingStyle { get; set; } = "default";

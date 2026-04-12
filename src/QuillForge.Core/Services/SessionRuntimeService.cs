@@ -57,12 +57,6 @@ public sealed class SessionRuntimeService : ISessionStateService
                 currentView.Profile.ProfileId,
                 targetProfile.ProfileId,
                 StringComparison.OrdinalIgnoreCase);
-
-            var effectiveConductor = ResolveEffectiveChoice(
-                command.Conductor,
-                currentView.Profile.ActiveConductor,
-                targetProfile.Config.Conductor,
-                profileChanged);
             var effectiveLoreSet = ResolveEffectiveChoice(
                 command.LoreSet,
                 currentView.Profile.ActiveLoreSet,
@@ -85,7 +79,6 @@ public sealed class SessionRuntimeService : ISessionStateService
                 profileChanged);
 
             state.Profile.ProfileId = targetProfile.ProfileId;
-            state.Profile.ActiveConductor = ToSparseOverride(effectiveConductor, targetProfile.Config.Conductor);
             state.Profile.ActiveLoreSet = ToSparseOverride(effectiveLoreSet, targetProfile.Config.LoreSet);
             state.Profile.ActiveNarrativeRules = ToSparseOverride(effectiveNarrativeRules, targetProfile.Config.NarrativeRules);
             state.Profile.ActiveWritingStyle = ToSparseOverride(effectiveWritingStyle, targetProfile.Config.WritingStyle);
@@ -112,10 +105,9 @@ public sealed class SessionRuntimeService : ISessionStateService
 
             var hydrated = await HydrateProfileViewAsync(state, ct);
             _logger.LogInformation(
-                "Session profile updated: session={SessionId} profileId={ProfileId} conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
+                "Session profile updated: session={SessionId} profileId={ProfileId} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle} aiCharacter={AiCharacter} userCharacter={UserCharacter}",
                 sessionId,
                 hydrated.Profile.ProfileId,
-                hydrated.Profile.ActiveConductor,
                 hydrated.Profile.ActiveLoreSet,
                 hydrated.Profile.ActiveNarrativeRules,
                 hydrated.Profile.ActiveWritingStyle,
@@ -197,7 +189,8 @@ public sealed class SessionRuntimeService : ISessionStateService
                 "Another mutating operation is already running for this session.");
         }
 
-        if (!Enum.TryParse<Mode>(command.Mode, ignoreCase: true, out var parsedMode))
+        var parsedMode = ModeExtensions.TryParseMode(command.Mode);
+        if (!parsedMode.HasValue)
         {
             _logger.LogWarning(
                 "Session mode update rejected: session={SessionId} invalidMode={Mode}",
@@ -209,19 +202,20 @@ public sealed class SessionRuntimeService : ISessionStateService
         var state = await LoadStateAsync(sessionId, ct);
         var resolvedProfile = await LoadProfileForViewAsync(state.Profile.ProfileId, ct);
         var oldMode = state.Mode.ActiveMode;
+        var targetMode = parsedMode.Value;
 
-        if (oldMode == Mode.Writer && parsedMode != Mode.Writer)
+        if (oldMode == Mode.Writer && targetMode != Mode.Writer)
         {
             state.Writer.PendingContent = null;
             state.Writer.State = WriterState.Idle;
             _logger.LogInformation("Writer pending state reset during mode change for session {SessionId}", sessionId);
         }
 
-        state.Mode.ActiveMode = parsedMode;
+        state.Mode.ActiveMode = targetMode;
         state.Mode.ProjectName = command.Project;
         state.Mode.CurrentFile = command.File;
 
-        if (parsedMode == Mode.Roleplay)
+        if (targetMode == Mode.Roleplay)
         {
             var requestedCharacter = NormalizeChoice(command.Character);
             if (requestedCharacter is not null)
@@ -510,7 +504,6 @@ public sealed class SessionRuntimeService : ISessionStateService
             ? new ProfileState
             {
                 ProfileId = state.Profile.ProfileId,
-                ActiveConductor = null,
                 ActiveLoreSet = null,
                 ActiveNarrativeRules = null,
                 ActiveWritingStyle = null,
@@ -519,7 +512,6 @@ public sealed class SessionRuntimeService : ISessionStateService
             : new ProfileState
             {
                 ProfileId = state.Profile.ProfileId,
-                ActiveConductor = NormalizeStoredOverride(state.Profile.ActiveConductor, resolved.Config.Conductor),
                 ActiveLoreSet = NormalizeStoredOverride(state.Profile.ActiveLoreSet, resolved.Config.LoreSet),
                 ActiveNarrativeRules = NormalizeStoredOverride(state.Profile.ActiveNarrativeRules, resolved.Config.NarrativeRules),
                 ActiveWritingStyle = NormalizeStoredOverride(state.Profile.ActiveWritingStyle, resolved.Config.WritingStyle),
@@ -584,7 +576,6 @@ public sealed class SessionRuntimeService : ISessionStateService
             Profile = new ProfileState
             {
                 ProfileId = resolved.ProfileId,
-                ActiveConductor = NormalizeChoice(state.Profile.ActiveConductor) ?? resolved.Config.Conductor,
                 ActiveLoreSet = NormalizeChoice(state.Profile.ActiveLoreSet) ?? resolved.Config.LoreSet,
                 ActiveNarrativeRules = NormalizeChoice(state.Profile.ActiveNarrativeRules) ?? resolved.Config.NarrativeRules,
                 ActiveWritingStyle = NormalizeChoice(state.Profile.ActiveWritingStyle) ?? resolved.Config.WritingStyle,
@@ -680,15 +671,14 @@ public sealed class SessionRuntimeService : ISessionStateService
 
     private static bool LooksLikeLegacyHydratedProfileState(ProfileState profile)
     {
-        return NormalizeChoice(profile.ActiveConductor) is not null
-            && NormalizeChoice(profile.ActiveLoreSet) is not null
+        return NormalizeChoice(profile.ActiveLoreSet) is not null
             && NormalizeChoice(profile.ActiveNarrativeRules) is not null
             && NormalizeChoice(profile.ActiveWritingStyle) is not null;
     }
 
     private static bool IsUntouchedSessionState(SessionState state)
     {
-        return state.Mode.ActiveMode == Mode.General
+        return state.Mode.ActiveMode == Mode.Guide
             && string.IsNullOrWhiteSpace(state.Mode.ProjectName)
             && string.IsNullOrWhiteSpace(state.Mode.CurrentFile)
             && string.IsNullOrWhiteSpace(state.Mode.Character)
@@ -706,7 +696,6 @@ public sealed class SessionRuntimeService : ISessionStateService
     private static bool ProfileStatesEqual(ProfileState left, ProfileState right)
     {
         return string.Equals(left.ProfileId, right.ProfileId, StringComparison.Ordinal)
-            && string.Equals(left.ActiveConductor, right.ActiveConductor, StringComparison.Ordinal)
             && string.Equals(left.ActiveLoreSet, right.ActiveLoreSet, StringComparison.Ordinal)
             && string.Equals(left.ActiveNarrativeRules, right.ActiveNarrativeRules, StringComparison.Ordinal)
             && string.Equals(left.ActiveWritingStyle, right.ActiveWritingStyle, StringComparison.Ordinal)

@@ -12,7 +12,6 @@ interface ProfilePickerProps {
 
 export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: ProfilePickerProps) {
   const [profiles, setProfiles] = useState<Profiles | null>(null);
-  const [conductor, setConductor] = useState("");
   const [loreSet, setLoreSet] = useState("");
   const [narrativeRules, setNarrativeRules] = useState("");
   const [style, setStyle] = useState("");
@@ -23,7 +22,6 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
     if (!open) return;
     getProfiles(sessionId).then((p) => {
       setProfiles(p);
-      setConductor(p.activeConductor);
       setLoreSet(p.activeLore);
       setNarrativeRules(p.activeNarrativeRules);
       setStyle(p.activeWritingStyle);
@@ -36,7 +34,6 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
     try {
       const result = await switchProfile({
         sessionId,
-        conductor,
         lore: loreSet,
         narrativeRules,
         writingStyle: style,
@@ -53,18 +50,9 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
     <Overlay open={open} onClose={onClose} title="Profile">
       {profiles ? (
         <div className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-text-muted">Conductor</span>
-            <select
-              value={conductor}
-              onChange={(e) => setConductor(e.target.value)}
-              className="bg-input-bg text-text border border-border rounded-lg px-3 py-2"
-            >
-              {profiles.conductors.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </label>
+          <div className="rounded-lg border border-border/60 bg-input-bg px-3 py-2 text-sm text-text-muted">
+            Routing is app-owned by mode. Legacy conductor prompts remain available in the prompt browser for migration/reference, but they no longer steer live chat routing.
+          </div>
 
           <label className="flex flex-col gap-1">
             <span className="text-sm text-text-muted">Lore Set</span>

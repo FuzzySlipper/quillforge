@@ -21,7 +21,7 @@ public class ToolLoopTests
     private static readonly AgentContext DefaultContext = new()
     {
         SessionId = Guid.CreateVersion7(),
-        ActiveMode = Mode.General,
+        ActiveMode = Mode.Guide,
     };
 
     private static ToolLoop CreateLoop(FakeCompletionService fakeService)
@@ -62,6 +62,68 @@ public class ToolLoopTests
         Assert.Equal(StopReason.EndTurn, result.StopReason);
         Assert.Equal(0, result.ToolRoundsUsed);
         Assert.Single(fake.ReceivedRequests);
+    }
+
+    [Fact]
+    public async Task RunAsync_WithReasoningArtifactSink_CapturesAgentAttributedArtifact()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueResponse(new CompletionResponse
+        {
+            Content = new MessageContent("Final scene text."),
+            StopReason = StopReason.EndTurn,
+            Usage = new TokenUsage(12, 18),
+            Reasoning = "Verify the scene brief before writing.",
+        });
+        var loop = CreateLoop(fake);
+        var collector = new ReasoningArtifactCollector();
+        var config = DefaultConfig with { AgentName = "prose-writer" };
+        var context = DefaultContext with { OnReasoningArtifact = collector.CaptureAsync };
+
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("Write the scene.")),
+        };
+
+        await loop.RunAsync(config, [], messages, context);
+
+        var artifact = Assert.Single(collector.Snapshot());
+        Assert.Equal("prose-writer", artifact.AgentId);
+        Assert.Equal("Prose Writer", artifact.AgentLabel);
+        Assert.Equal("Verify the scene brief before writing.", artifact.Content);
+        Assert.Equal(0, artifact.Sequence);
+    }
+
+    [Fact]
+    public async Task RunAsync_UsesProviderReplayReasoningWhenResponseReasoningIsAbsent()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueResponse(new CompletionResponse
+        {
+            Content = new MessageContent("Grounded answer."),
+            StopReason = StopReason.EndTurn,
+            Usage = new TokenUsage(8, 11),
+            ProviderReplay = new ReasoningReplayEnvelope(
+                "Grounded answer.",
+                "Use the replay reasoning.",
+                []),
+        });
+        var loop = CreateLoop(fake);
+        var collector = new ReasoningArtifactCollector();
+        var config = DefaultConfig with { AgentName = "narrative-director" };
+        var context = DefaultContext with { OnReasoningArtifact = collector.CaptureAsync };
+
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("Continue the scene.")),
+        };
+
+        await loop.RunAsync(config, [], messages, context);
+
+        var artifact = Assert.Single(collector.Snapshot());
+        Assert.Equal("narrative-director", artifact.AgentId);
+        Assert.Equal("Narrative Director", artifact.AgentLabel);
+        Assert.Equal("Use the replay reasoning.", artifact.Content);
     }
 
     [Fact]

@@ -223,7 +223,7 @@ public sealed class ContractSnapshotTests
                 User = Guid.Parse("11111111-2222-3333-4444-555555555555"),
                 Assistant = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
             },
-            Mode = "general",
+            Mode = "guide",
             MessageCount = 4,
             ToolRounds = 1,
             StopReason = "end_turn",
@@ -253,7 +253,6 @@ public sealed class ContractSnapshotTests
             Profile = new ProfileState
             {
                 ProfileId = "dark-fantasy",
-                ActiveConductor = "grim-narrator",
                 ActiveLoreSet = "shadow-realm",
                 ActiveNarrativeRules = "dark-rules",
                 ActiveWritingStyle = "gothic-prose",
@@ -314,7 +313,7 @@ public sealed class ContractSnapshotTests
 
     private static void AssertJsonSnapshot<T>(string name, T value, JsonSerializerOptions options)
     {
-        var actual = JsonSerializer.Serialize(value, options);
+        var actual = NormalizeSnapshot(JsonSerializer.Serialize(value, options));
         var approvedPath = Path.Combine(SnapshotsDir, $"{name}.approved.json");
 
         if (!File.Exists(approvedPath))
@@ -325,7 +324,7 @@ public sealed class ContractSnapshotTests
             return;
         }
 
-        var approved = File.ReadAllText(approvedPath);
+        var approved = NormalizeSnapshot(File.ReadAllText(approvedPath));
         if (actual != approved)
         {
             var message =
@@ -340,7 +339,7 @@ public sealed class ContractSnapshotTests
 
     private static void AssertYamlSnapshot<T>(string name, T value)
     {
-        var actual = YamlSerializer.Serialize(value);
+        var actual = NormalizeSnapshot(YamlSerializer.Serialize(value));
         var approvedPath = Path.Combine(SnapshotsDir, $"{name}.approved.yaml");
 
         if (!File.Exists(approvedPath))
@@ -350,7 +349,7 @@ public sealed class ContractSnapshotTests
             return;
         }
 
-        var approved = File.ReadAllText(approvedPath);
+        var approved = NormalizeSnapshot(File.ReadAllText(approvedPath));
         if (actual != approved)
         {
             var message =
@@ -361,5 +360,10 @@ public sealed class ContractSnapshotTests
                 "If the change is intentional, delete the .approved.yaml file and re-run to regenerate.";
             Assert.Fail(message);
         }
+    }
+
+    private static string NormalizeSnapshot(string content)
+    {
+        return content.Replace("\r\n", "\n").TrimEnd('\n');
     }
 }

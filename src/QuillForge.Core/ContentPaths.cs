@@ -11,6 +11,7 @@ public static class ContentPaths
     public const string Lore = "lore";
     public const string LoreDefault = "lore/default";
     public const string Conductor = "conductor";
+    public const string Assistant = "assistant";
     public const string LibrarianPrompts = "librarian-prompts";
     public const string NarrativeRules = "narrative-rules";
     public const string Profiles = "profiles";
@@ -48,6 +49,7 @@ public static class ContentPaths
     [
         LoreDefault,
         Conductor,
+        Assistant,
         LibrarianPrompts,
         NarrativeRules,
         Profiles,

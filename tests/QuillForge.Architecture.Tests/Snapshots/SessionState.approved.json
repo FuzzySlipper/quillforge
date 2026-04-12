@@ -8,7 +8,6 @@
   },
   "profile": {
     "profileId": "dark-fantasy",
-    "activeConductor": "grim-narrator",
     "activeLoreSet": "shadow-realm",
     "activeNarrativeRules": "dark-rules",
     "activeWritingStyle": "gothic-prose"

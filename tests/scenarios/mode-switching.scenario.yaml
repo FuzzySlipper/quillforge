@@ -11,13 +11,13 @@ steps:
       mode: writer
       has_content: true
 
-  - set_mode: general
+  - set_mode: guide
     expect:
-      mode: general
+      mode: guide
       writer_state: idle
 
   - chat: "What were we just talking about?"
     expect:
-      mode: general
+      mode: guide
       has_content: true
       message_count_gte: 4

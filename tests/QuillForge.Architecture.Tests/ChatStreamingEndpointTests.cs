@@ -25,24 +25,24 @@ public sealed class ChatStreamingEndpointTests
         var runtimeService = new RecordingRuntimeService();
         var sessionStore = new InMemorySessionStore();
         var completionService = new ScriptedStreamingCompletionService();
-        var toolHandler = new QueryLoreToolHandler();
+        var toolHandler = new QueryDocsToolHandler();
 
         completionService.EnqueueStream(
-            new ReasoningDeltaEvent("Thinking through the archive."),
+            new ReasoningDeltaEvent("Checking the guide docs."),
             new ToolCallDeltaReceivedEvent(
-                "query_lore",
+                "query_docs",
                 "call_1",
                 ParseJson("""{"query":"moon archive"}""")),
             new DoneEvent(StopReason.ToolUse, new TokenUsage(3, 4)));
         completionService.EnqueueStream(
-            new ReasoningDeltaEvent("Answering from the recovered lore."),
-            new TextDeltaEvent("Lore "),
+            new ReasoningDeltaEvent("Answering from the documentation."),
+            new TextDeltaEvent("Docs "),
             new TextDeltaEvent("answer"),
             new DoneEvent(StopReason.EndTurn, new TokenUsage(5, 7))
             {
                 ProviderReplay = new ReasoningReplayEnvelope(
-                    "Lore answer",
-                    "Answering from the recovered lore.",
+                    "Docs answer",
+                    "Answering from the documentation.",
                     []),
             });
 
@@ -92,21 +92,21 @@ public sealed class ChatStreamingEndpointTests
         Assert.False(string.IsNullOrWhiteSpace(diagnosticLevel.GetString()));
 
         var reasoningEvent = events.First(evt => evt.Type == "reasoning_delta");
-        Assert.Equal("Thinking through the archive.", reasoningEvent.Payload.GetProperty("text").GetString());
+        Assert.Equal("Checking the guide docs.", reasoningEvent.Payload.GetProperty("text").GetString());
 
         var toolEvent = events.First(evt => evt.Type == "tool");
-        Assert.Equal("query_lore", toolEvent.Payload.GetProperty("name").GetString());
+        Assert.Equal("query_docs", toolEvent.Payload.GetProperty("name").GetString());
         Assert.Equal("call_1", toolEvent.Payload.GetProperty("id").GetString());
 
         var textEvents = events.Where(evt => evt.Type == "text_delta").ToList();
         Assert.Equal(2, textEvents.Count);
-        Assert.Equal("Lore ", textEvents[0].Payload.GetProperty("text").GetString());
+        Assert.Equal("Docs ", textEvents[0].Payload.GetProperty("text").GetString());
         Assert.Equal("answer", textEvents[1].Payload.GetProperty("text").GetString());
 
         var doneEvent = events.First(evt => evt.Type == "done");
         Assert.Equal(sessionId.ToString(), doneEvent.Payload.GetProperty("sessionId").GetGuid().ToString());
-        Assert.Equal("Lore answer", doneEvent.Payload.GetProperty("content").GetString());
-        Assert.Equal("Answering from the recovered lore.", doneEvent.Payload.GetProperty("reasoning").GetString());
+        Assert.Equal("Docs answer", doneEvent.Payload.GetProperty("content").GetString());
+        Assert.Equal("Answering from the documentation.", doneEvent.Payload.GetProperty("reasoning").GetString());
         Assert.Equal("end_turn", doneEvent.Payload.GetProperty("stopReason").GetString());
         Assert.Equal("Discussion", doneEvent.Payload.GetProperty("responseType").GetString());
         Assert.Equal(5, doneEvent.Payload.GetProperty("usage").GetProperty("input").GetInt32());
@@ -125,16 +125,20 @@ public sealed class ChatStreamingEndpointTests
         Assert.Equal("assistant", thread[1].Role);
         Assert.Equal(userNodeId, thread[0].Id);
         Assert.Equal(assistantNodeId, thread[1].Id);
-        Assert.Equal("Lore answer", thread[1].Content.GetText());
+        Assert.Equal("Docs answer", thread[1].Content.GetText());
         Assert.Equal(StopReason.EndTurn, thread[1].Metadata?.StopReason);
-        Assert.Equal("Answering from the recovered lore.", thread[1].Metadata?.Reasoning);
+        Assert.Equal("Answering from the documentation.", thread[1].Metadata?.Reasoning);
+        var artifact = Assert.Single(thread[1].Metadata?.ReasoningArtifacts ?? []);
+        Assert.Equal("orchestrator", artifact.AgentId);
+        Assert.Equal("Orchestrator", artifact.AgentLabel);
+        Assert.Equal("Answering from the documentation.", artifact.Content);
         var replay = Assert.IsType<ReasoningReplayEnvelope>(thread[1].Metadata?.ProviderReplay);
-        Assert.Equal("Answering from the recovered lore.", replay.ReasoningContent);
+        Assert.Equal("Answering from the documentation.", replay.ReasoningContent);
 
         Assert.Single(runtimeService.CaptureCalls);
         Assert.Equal(sessionId, runtimeService.CaptureCalls[0].SessionId);
-        Assert.Equal("Lore answer", runtimeService.CaptureCalls[0].Command.Content);
-        Assert.Equal(Mode.General, runtimeService.CaptureCalls[0].Command.SourceMode);
+        Assert.Equal("Docs answer", runtimeService.CaptureCalls[0].Command.Content);
+        Assert.Equal(Mode.Guide, runtimeService.CaptureCalls[0].Command.SourceMode);
         Assert.Equal(2, completionService.StreamRequestCount);
         Assert.Equal(1, toolHandler.CallCount);
     }
@@ -284,6 +288,7 @@ public sealed class ChatStreamingEndpointTests
         builder.Services.AddSingleton(preparedService);
         builder.Services.AddSingleton<ISessionProfileReadService>(sp => sp.GetRequiredService<PreparedContextService>());
         builder.Services.AddSingleton<IConductorStore>(new RecordingConductorStore());
+        builder.Services.AddSingleton<IAssistantPromptStore>(new TestAssistantPromptStore());
         builder.Services.AddSingleton<IInteractiveSessionContextService>(new NoOpInteractiveSessionContextService());
         builder.Services.AddSingleton<ISessionStateService>(runtimeService);
         builder.Services.AddSingleton<ISessionBootstrapService>(new TestSessionBootstrapService());
@@ -304,8 +309,8 @@ public sealed class ChatStreamingEndpointTests
         builder.Services.AddSingleton(sp =>
             new OrchestratorAgent(
                 sp.GetRequiredService<ToolLoop>(),
-                [new GeneralMode()],
-                sp.GetRequiredService<IConductorStore>(),
+                [new GuideMode()],
+                sp.GetRequiredService<IAssistantPromptStore>(),
                 sp.GetRequiredService<IInteractiveSessionContextService>(),
                 sp.GetRequiredService<AppConfig>(),
                 NullLogger<OrchestratorAgent>.Instance));
@@ -430,7 +435,7 @@ public sealed class ChatStreamingEndpointTests
             var resolvedSessionId = sessionId ?? Guid.CreateVersion7();
             var sessionContext = new InteractiveSessionContext
             {
-                ActiveMode = Mode.General,
+                ActiveMode = Mode.Guide,
                 ProjectName = "prepared-project",
                 StoryStatePath = "prepared-project/.state.yaml",
                 CurrentFile = "scene.md",
@@ -441,14 +446,13 @@ public sealed class ChatStreamingEndpointTests
                 SessionId = resolvedSessionId,
                 Mode = new ModeSelectionState
                 {
-                    ActiveMode = Mode.General,
+                    ActiveMode = Mode.Guide,
                     ProjectName = "prepared-project",
                     CurrentFile = "scene.md",
                 },
                 Profile = new ProfileState
                 {
                     ProfileId = "prepared-profile",
-                    ActiveConductor = "prepared-conductor",
                     ActiveLoreSet = "prepared-lore",
                     ActiveNarrativeRules = "prepared-rules",
                     ActiveWritingStyle = "prepared-style",
@@ -462,7 +466,6 @@ public sealed class ChatStreamingEndpointTests
                     SessionState = state,
                     DefaultProfileId = "default",
                     ActiveProfileId = "prepared-profile",
-                    ActiveConductor = "prepared-conductor",
                     ActiveLoreSet = "prepared-lore",
                     ActiveNarrativeRules = "prepared-rules",
                     ActiveWritingStyle = "prepared-style",
@@ -472,14 +475,13 @@ public sealed class ChatStreamingEndpointTests
                 AgentContext = new AgentContext
                 {
                     SessionId = resolvedSessionId,
-                    ActiveMode = Mode.General,
+                    ActiveMode = Mode.Guide,
                     ActiveLoreSet = "prepared-lore",
                     ActiveWritingStyle = "prepared-style",
                     ActiveNarrativeRules = "prepared-rules",
                     SessionContext = sessionContext,
                     LastAssistantResponse = options.LastAssistantResponse,
                 },
-                Conductor = "prepared-conductor",
                 AssistantPortraitUrl = "/backgrounds/assistant.png",
                 UserPortraitUrl = "/backgrounds/user.png",
             });
@@ -632,13 +634,13 @@ public sealed class ChatStreamingEndpointTests
         }
     }
 
-    private sealed class QueryLoreToolHandler : IToolHandler
+    private sealed class QueryDocsToolHandler : IToolHandler
     {
-        public string Name => "query_lore";
+        public string Name => "query_docs";
 
         public ToolDefinition Definition => new(
             Name,
-            "Query lore by text.",
+            "Query documentation by text.",
             ParseJson(
                 """
                 {
@@ -656,12 +658,21 @@ public sealed class ChatStreamingEndpointTests
         {
             CallCount++;
             var query = input.GetRequiredString("query");
-            return Task.FromResult(ToolResult.Ok($"Lore result for {query}"));
+            return Task.FromResult(ToolResult.Ok($"Docs result for {query}"));
         }
     }
 
     private sealed class TestRequestBodyDetectionFeature : IHttpRequestBodyDetectionFeature
     {
         public bool CanHaveBody => true;
+    }
+
+    private sealed class TestAssistantPromptStore : IAssistantPromptStore
+    {
+        public Task<string> LoadAsync(string promptName, CancellationToken ct = default)
+            => Task.FromResult(string.Empty);
+
+        public Task<IReadOnlyList<string>> ListAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>(["default"]);
     }
 }

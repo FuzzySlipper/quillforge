@@ -20,6 +20,7 @@ public sealed class FileSystemProfileConfigStore : IProfileConfigStore
 
     private static readonly ISerializer YamlSerializer = new SerializerBuilder()
         .WithNamingConvention(UnderscoredNamingConvention.Instance)
+        .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
         .Build();
 
     private readonly string _profilesPath;
@@ -69,7 +70,7 @@ public sealed class FileSystemProfileConfigStore : IProfileConfigStore
             "Loaded profile config {ProfileId} from {Path}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
             profileId,
             path,
-            config.Conductor,
+            config.Conductor ?? "(none)",
             config.LoreSet,
             config.NarrativeRules,
             config.WritingStyle);
@@ -87,7 +88,7 @@ public sealed class FileSystemProfileConfigStore : IProfileConfigStore
             "Saved profile config {ProfileId} to {Path}: conductor={Conductor} lore={LoreSet} narrativeRules={NarrativeRules} writingStyle={WritingStyle}",
             profileId,
             path,
-            config.Conductor,
+            config.Conductor ?? "(none)",
             config.LoreSet,
             config.NarrativeRules,
             config.WritingStyle);

@@ -116,7 +116,7 @@ public sealed class SessionLifecycleServiceTests
         {
             SessionId = sourceTree.SessionId,
             Mode = new ModeSelectionState { ActiveMode = Mode.Roleplay, Character = "captain" },
-            Profile = new ProfileState { ProfileId = "grim", ActiveConductor = "grim-captain" },
+            Profile = new ProfileState { ProfileId = "grim" },
             Roleplay = new RoleplayRuntimeState
             {
                 HasExplicitAiCharacterSelection = true,
@@ -140,7 +140,6 @@ public sealed class SessionLifecycleServiceTests
         Assert.Equal(Mode.Roleplay, forkedRuntime.Mode.ActiveMode);
         Assert.Equal("captain", forkedRuntime.Mode.Character);
         Assert.Equal("grim", forkedRuntime.Profile.ProfileId);
-        Assert.Equal("grim-captain", forkedRuntime.Profile.ActiveConductor);
         Assert.Equal("captain", forkedRuntime.Roleplay.ActiveAiCharacter);
         Assert.Equal("envoy", forkedRuntime.Roleplay.ActiveUserCharacter);
         Assert.Equal("The captain already distrusts the envoy.", forkedRuntime.Narrative.DirectorNotes);
@@ -166,7 +165,7 @@ public sealed class SessionLifecycleServiceTests
         await Assert.ThrowsAsync<FileNotFoundException>(() => sessionStore.LoadAsync(sessionId));
         var runtime = await runtimeStore.LoadAsync(sessionId);
         Assert.Equal(sessionId, runtime.SessionId);
-        Assert.Equal(Mode.General, runtime.Mode.ActiveMode);
+        Assert.Equal(Mode.Guide, runtime.Mode.ActiveMode);
     }
 
     private static SessionLifecycleService CreateService(
@@ -266,7 +265,6 @@ internal sealed class InMemoryRuntimeStore : ISessionStateStore
             Profile = new ProfileState
             {
                 ProfileId = state.Profile.ProfileId,
-                ActiveConductor = state.Profile.ActiveConductor,
                 ActiveLoreSet = state.Profile.ActiveLoreSet,
                 ActiveNarrativeRules = state.Profile.ActiveNarrativeRules,
                 ActiveWritingStyle = state.Profile.ActiveWritingStyle,
