@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Implemented foundation for tasks `579` through `581`.
 
 ## Related Work
 
@@ -11,6 +11,9 @@ Proposed
 - Den task `580` — Add dual-sided trace schema and evaluator for provider/app comparison
 - Den task `581` — Expand synthetic Forge test runner to use harness provider and debug bridge
 - Den task `582` — Prototype agent-backed provider workers for exploratory harness runs
+- `docs/architecture/provider-harness-agent-worker-prototype.md`
+- `docs/architecture/provider-harness-local-provider-contract.md`
+- `docs/architecture/provider-harness-dual-sided-trace-contract.md`
 - `docs/architecture/llm-transport-boundary.md`
 - `docs/architecture/session-runtime-command-event-reference.md`
 - `docs/architecture/profile-session-conversation-ownership.md`
@@ -261,15 +264,11 @@ This phase should land task `579`.
 ### Proposed code location
 
 Use a dedicated testing-side project rather than burying this in production Web
-code. The likely shape is:
+code. The current implementation lives in:
 
-- `tests/QuillForge.Harness/`
+- `tests/QuillForge.ProviderHarness.Tests/`
 
-or, if split more narrowly:
-
-- `tests/QuillForge.ProviderHarness/`
-
-This project can host:
+This project now hosts:
 
 - a lightweight ASP.NET Core app or `WebApplicationFactory`-friendly host
 - scripted scenario fixtures
@@ -436,7 +435,7 @@ This keeps the trace durable and inspectable without polluting session storage.
 
 ## Phase 3: App Driver Integration
 
-This phase should land task `581`.
+This phase lands task `581`.
 
 ### Primary orchestration path
 
@@ -464,6 +463,27 @@ The app driver should support:
 - approve/resume Forge
 - poll Forge status
 - snapshot relevant files
+
+### Current implemented slice
+
+The current harness runner covers a real Forge pause/resume workflow through an
+in-process Development app plus the Forge-specific debug bridge endpoints:
+
+- create Forge project
+- run planning + design until the pipeline pauses before writing
+- run writing/review until the pipeline pauses after chapter one
+- approve/resume to final assembly
+- collect provider-side request traces for each phase
+- collect app-side Forge events and status snapshots for each phase
+- capture manifest and key file artifacts (`plan/*`, `drafts/*`, `output/*`,
+  `run-lore.md`)
+
+This lives primarily in:
+
+- `tests/QuillForge.ProviderHarness.Tests/HarnessForgeScenarioRunner.cs`
+- `tests/QuillForge.ProviderHarness.Tests/HarnessForgeScenarioTests.cs`
+- `src/QuillForge.Web/Endpoints/DebugBridgeEndpoints.cs`
+- `src/QuillForge.Web/Contracts/DebugBridgeContracts.cs`
 
 ### Scenario model
 

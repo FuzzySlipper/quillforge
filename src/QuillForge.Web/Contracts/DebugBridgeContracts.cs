@@ -52,6 +52,35 @@ public sealed record DebugBridgeStateResponse
     public string? File { get; init; }
 }
 
+public sealed record DebugBridgeForgeCreateResponse
+{
+    public required string ProjectName { get; init; }
+    public required bool Created { get; init; }
+    public string? PremisePath { get; init; }
+}
+
+public sealed record DebugBridgeForgeRunResponse
+{
+    public required string ProjectName { get; init; }
+    public required string Operation { get; init; }
+    public required IReadOnlyList<DebugBridgeForgeEventDto> Events { get; init; }
+    public string? FinalEventType { get; init; }
+    public ForgeStatusResponse? Status { get; init; }
+}
+
+public sealed record DebugBridgeForgeEventDto
+{
+    public required string Type { get; init; }
+    public string? Message { get; init; }
+    public string? Source { get; init; }
+    public string? Chapter { get; init; }
+    public string? Status { get; init; }
+    public int? WordCount { get; init; }
+    public string? Detail { get; init; }
+    public int? ChaptersComplete { get; init; }
+    public long? TotalTokens { get; init; }
+}
+
 /// <summary>
 /// Response from POST /api/debug/bridge/chat/stream.
 /// Returns the full streaming event sequence as a collected JSON array

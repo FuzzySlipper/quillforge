@@ -10,6 +10,7 @@
     <Project Path="tests/Den.Persistence.Tests/Den.Persistence.Tests.csproj" />
     <Project Path="tests/QuillForge.Architecture.Tests/QuillForge.Architecture.Tests.csproj" />
     <Project Path="tests/QuillForge.Core.Tests/QuillForge.Core.Tests.csproj" />
+    <Project Path="tests/QuillForge.ProviderHarness.Tests/QuillForge.ProviderHarness.Tests.csproj" />
     <Project Path="tests/QuillForge.Providers.Tests/QuillForge.Providers.Tests.csproj" />
     <Project Path="tests/QuillForge.Storage.Tests/QuillForge.Storage.Tests.csproj" />
   </Folder>

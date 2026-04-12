@@ -134,36 +134,10 @@ public static class ForgeEndpoints
             IContentFileService fileService,
             CancellationToken ct) =>
         {
-            try
-            {
-                var json = await fileService.ReadAsync($"forge/{name}/manifest.json", ct);
-                var manifest = JsonSerializer.Deserialize<ForgeManifest>(json,
-                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-
-                if (manifest is null)
-                    return Results.NotFound(new { Error = "Manifest not found" });
-
-                return Results.Ok(new ForgeStatusResponse
-                {
-                    ProjectName = manifest.ProjectName,
-                    Stage = manifest.Stage.ToString(),
-                    ChapterCount = manifest.ChapterCount,
-                    Paused = manifest.Paused,
-                    Chapters = manifest.Chapters.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => new ForgeChapterStatusDto
-                        {
-                            State = kvp.Value.State.ToString(),
-                            RevisionCount = kvp.Value.RevisionCount,
-                            WordCount = kvp.Value.WordCount,
-                        }),
-                    Stats = manifest.Stats,
-                });
-            }
-            catch (FileNotFoundException)
-            {
-                return Results.NotFound(new { Error = $"Project '{name}' not found" });
-            }
+            var status = await TryLoadStatusResponseAsync(name, fileService, ct);
+            return status is null
+                ? Results.NotFound(new { Error = $"Project '{name}' not found" })
+                : Results.Ok(status);
         });
 
         // POST /api/forge/projects/{name}/approve — resume from pause
@@ -243,7 +217,7 @@ public static class ForgeEndpoints
     /// <summary>
     /// Build a ForgeContext from an existing manifest or create a fresh one.
     /// </summary>
-    private static async Task<ForgeContext> BuildForgeContextAsync(
+    internal static async Task<ForgeContext> BuildForgeContextAsync(
         string projectName,
         ForgePipeline pipeline,
         ForgePlannerAgent planner,
@@ -381,7 +355,7 @@ public static class ForgeEndpoints
         };
     }
 
-    private static async Task<bool> IsDesignCompleteAsync(
+    internal static async Task<bool> IsDesignCompleteAsync(
         IContentFileService fileService,
         string projectName,
         CancellationToken ct)
@@ -395,6 +369,48 @@ public static class ForgeEndpoints
 
         var briefFiles = await fileService.ListAsync($"forge/{projectName}/plan", "ch-*-brief.md", ct);
         return briefFiles.Count > 0;
+    }
+
+    internal static async Task<ForgeStatusResponse?> TryLoadStatusResponseAsync(
+        string projectName,
+        IContentFileService fileService,
+        CancellationToken ct)
+    {
+        try
+        {
+            var json = await fileService.ReadAsync($"forge/{projectName}/manifest.json", ct);
+            var manifest = JsonSerializer.Deserialize<ForgeManifest>(
+                json,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+            return manifest is null
+                ? null
+                : ToStatusResponse(manifest);
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    internal static ForgeStatusResponse ToStatusResponse(ForgeManifest manifest)
+    {
+        return new ForgeStatusResponse
+        {
+            ProjectName = manifest.ProjectName,
+            Stage = manifest.Stage.ToString(),
+            ChapterCount = manifest.ChapterCount,
+            Paused = manifest.Paused,
+            Chapters = manifest.Chapters.ToDictionary(
+                kvp => kvp.Key,
+                kvp => new ForgeChapterStatusDto
+                {
+                    State = kvp.Value.State.ToString(),
+                    RevisionCount = kvp.Value.RevisionCount,
+                    WordCount = kvp.Value.WordCount,
+                }),
+            Stats = manifest.Stats,
+        };
     }
 
     /// <summary>

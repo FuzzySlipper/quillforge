@@ -1,6 +1,8 @@
 using System.Text.Json;
+using QuillForge.Core;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
+using QuillForge.Core.Pipeline;
 using QuillForge.Core.Services;
 using QuillForge.Web.Contracts;
 using QuillForge.Web.Services;
@@ -13,9 +15,16 @@ namespace QuillForge.Web.Endpoints;
 /// </summary>
 public static class DebugBridgeEndpoints
 {
+    public static void MapForgeDebugBridgeEndpoints(this WebApplication app)
+    {
+        var group = app.MapGroup("/api/debug/bridge");
+        MapForgeBridgeRoutes(group);
+    }
+
     public static void MapDebugBridgeEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/debug/bridge");
+        MapForgeBridgeRoutes(group);
 
         group.MapPost("/chat", async (
             HttpContext httpContext,
@@ -457,5 +466,287 @@ public static class DebugBridgeEndpoints
         }
 
         return ReasoningArtifacts.GetContent(null, providerReplay);
+    }
+
+    private static void MapForgeBridgeRoutes(RouteGroupBuilder group)
+    {
+        group.MapPost("/forge/create", async (
+            HttpContext httpContext,
+            IContentFileService fileService,
+            CancellationToken ct) =>
+        {
+            var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
+            var root = body.RootElement;
+            var projectName = root.TryGetProperty("name", out var nameEl)
+                ? nameEl.GetString() ?? "untitled"
+                : "untitled";
+            var premise = root.TryGetProperty("premise", out var premiseEl)
+                ? premiseEl.GetString()
+                : null;
+
+            await fileService.WriteAsync($"{ContentPaths.Forge}/{projectName}/plan/.gitkeep", "", ct);
+            await fileService.WriteAsync($"{ContentPaths.Forge}/{projectName}/drafts/.gitkeep", "", ct);
+            await fileService.WriteAsync($"{ContentPaths.Forge}/{projectName}/output/.gitkeep", "", ct);
+
+            string? premisePath = null;
+            if (!string.IsNullOrWhiteSpace(premise))
+            {
+                premisePath = $"{ContentPaths.Forge}/{projectName}/plan/premise.md";
+                await fileService.WriteAsync(premisePath, premise, ct);
+            }
+
+            return Results.Ok(new DebugBridgeForgeCreateResponse
+            {
+                ProjectName = projectName,
+                Created = true,
+                PremisePath = premisePath,
+            });
+        });
+
+        group.MapPost("/forge/{name}/design", async (
+            string name,
+            ForgePipeline pipeline,
+            ForgePlannerAgent planner,
+            ForgeWriterAgent writer,
+            ForgeReviewerAgent reviewer,
+            IContentFileService fileService,
+            IEnumerable<IToolHandler> toolHandlers,
+            IWritingStyleStore writingStyleStore,
+            ILoreStore loreStore,
+            AppConfig config,
+            ILogger<ForgePipeline> logger,
+            CancellationToken ct) =>
+        {
+            var context = await ForgeEndpoints.BuildForgeContextAsync(
+                name,
+                pipeline,
+                planner,
+                writer,
+                reviewer,
+                fileService,
+                toolHandlers,
+                writingStyleStore,
+                loreStore,
+                config,
+                logger,
+                ct);
+
+            var startStage = await ForgeEndpoints.IsDesignCompleteAsync(fileService, name, ct)
+                ? ForgeStage.Design
+                : ForgeStage.Planning;
+
+            context.Manifest = context.Manifest with
+            {
+                Stage = startStage,
+                Paused = false,
+            };
+
+            var events = await CollectForgeEventsAsync(
+                pipeline.RunAsync(context, ct, pauseAfterStage: ForgeStage.Design),
+                ct);
+            events.Add(new DebugBridgeForgeEventDto
+            {
+                Type = "complete",
+                Message = "Design phase complete.",
+            });
+
+            return Results.Ok(await BuildForgeRunResponseAsync(name, "design", events, fileService, ct));
+        });
+
+        group.MapPost("/forge/{name}/start", async (
+            string name,
+            ForgePipeline pipeline,
+            ForgePlannerAgent planner,
+            ForgeWriterAgent writer,
+            ForgeReviewerAgent reviewer,
+            IContentFileService fileService,
+            IEnumerable<IToolHandler> toolHandlers,
+            IWritingStyleStore writingStyleStore,
+            ILoreStore loreStore,
+            AppConfig config,
+            ILogger<ForgePipeline> logger,
+            CancellationToken ct) =>
+        {
+            var context = await ForgeEndpoints.BuildForgeContextAsync(
+                name,
+                pipeline,
+                planner,
+                writer,
+                reviewer,
+                fileService,
+                toolHandlers,
+                writingStyleStore,
+                loreStore,
+                config,
+                logger,
+                ct);
+
+            context.Manifest = context.Manifest with { Paused = false };
+
+            var events = await CollectForgeEventsAsync(pipeline.RunAsync(context, ct), ct);
+            return Results.Ok(await BuildForgeRunResponseAsync(name, "start", events, fileService, ct));
+        });
+
+        group.MapPost("/forge/{name}/approve", async (
+            string name,
+            ForgePipeline pipeline,
+            ForgePlannerAgent planner,
+            ForgeWriterAgent writer,
+            ForgeReviewerAgent reviewer,
+            IContentFileService fileService,
+            IEnumerable<IToolHandler> toolHandlers,
+            IWritingStyleStore writingStyleStore,
+            ILoreStore loreStore,
+            AppConfig config,
+            ILogger<ForgePipeline> logger,
+            CancellationToken ct) =>
+        {
+            var context = await ForgeEndpoints.BuildForgeContextAsync(
+                name,
+                pipeline,
+                planner,
+                writer,
+                reviewer,
+                fileService,
+                toolHandlers,
+                writingStyleStore,
+                loreStore,
+                config,
+                logger,
+                ct);
+
+            if (!context.Manifest.Paused)
+            {
+                return Results.BadRequest(new DebugBridgeForgeRunResponse
+                {
+                    ProjectName = name,
+                    Operation = "approve",
+                    Events =
+                    [
+                        new DebugBridgeForgeEventDto
+                        {
+                            Type = "error",
+                            Message = "Pipeline is not paused",
+                        },
+                    ],
+                    FinalEventType = "error",
+                    Status = ForgeEndpoints.ToStatusResponse(context.Manifest),
+                });
+            }
+
+            context.Manifest = context.Manifest with { Paused = false };
+
+            var events = await CollectForgeEventsAsync(pipeline.RunAsync(context, ct), ct);
+            return Results.Ok(await BuildForgeRunResponseAsync(name, "approve", events, fileService, ct));
+        });
+
+        group.MapPost("/forge/{name}/pause", async (
+            string name,
+            ForgePipeline pipeline,
+            IContentFileService fileService,
+            CancellationToken ct) =>
+        {
+            pipeline.RequestPause();
+
+            var status = await ForgeEndpoints.TryLoadStatusResponseAsync(name, fileService, ct);
+            return Results.Ok(new DebugBridgeForgeRunResponse
+            {
+                ProjectName = name,
+                Operation = "pause",
+                Events =
+                [
+                    new DebugBridgeForgeEventDto
+                    {
+                        Type = "pause_requested",
+                        Message = "Pause requested for forge pipeline.",
+                    },
+                ],
+                FinalEventType = "pause_requested",
+                Status = status,
+            });
+        });
+    }
+
+    private static async Task<List<DebugBridgeForgeEventDto>> CollectForgeEventsAsync(
+        IAsyncEnumerable<ForgeEvent> stream,
+        CancellationToken ct)
+    {
+        var events = new List<DebugBridgeForgeEventDto>();
+        await foreach (var evt in stream.WithCancellation(ct))
+        {
+            events.Add(MapForgeEvent(evt));
+        }
+
+        return events;
+    }
+
+    private static async Task<DebugBridgeForgeRunResponse> BuildForgeRunResponseAsync(
+        string projectName,
+        string operation,
+        IReadOnlyList<DebugBridgeForgeEventDto> events,
+        IContentFileService fileService,
+        CancellationToken ct)
+    {
+        return new DebugBridgeForgeRunResponse
+        {
+            ProjectName = projectName,
+            Operation = operation,
+            Events = events,
+            FinalEventType = events.LastOrDefault()?.Type,
+            Status = await ForgeEndpoints.TryLoadStatusResponseAsync(projectName, fileService, ct),
+        };
+    }
+
+    private static DebugBridgeForgeEventDto MapForgeEvent(ForgeEvent evt)
+    {
+        return evt switch
+        {
+            StageStartedEvent stage => new DebugBridgeForgeEventDto
+            {
+                Type = "stage_started",
+                Message = stage.StageName,
+            },
+            StageCompletedEvent stage => new DebugBridgeForgeEventDto
+            {
+                Type = "stage_completed",
+                Message = stage.StageName,
+            },
+            ChapterProgressEvent chapter => new DebugBridgeForgeEventDto
+            {
+                Type = "chapter",
+                Chapter = chapter.ChapterId,
+                Status = chapter.Status,
+                Detail = chapter.Detail,
+            },
+            ForgeLogEvent log => new DebugBridgeForgeEventDto
+            {
+                Type = "progress",
+                Message = log.Message,
+                Source = log.Source,
+            },
+            ForgePausedEvent pause => new DebugBridgeForgeEventDto
+            {
+                Type = "pause",
+                Message = pause.Message,
+            },
+            ForgeCompletedEvent done => new DebugBridgeForgeEventDto
+            {
+                Type = "complete",
+                Message = "Pipeline complete",
+                ChaptersComplete = done.Stats.AgentCalls,
+                TotalTokens = done.Stats.TotalInputTokens + done.Stats.TotalOutputTokens,
+            },
+            ForgeErrorEvent error => new DebugBridgeForgeEventDto
+            {
+                Type = "error",
+                Message = error.Message,
+                Source = error.StageName,
+            },
+            _ => new DebugBridgeForgeEventDto
+            {
+                Type = "unknown",
+                Message = evt.GetType().Name,
+            },
+        };
     }
 }
