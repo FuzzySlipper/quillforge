@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 using QuillForge.Core;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
@@ -505,16 +506,16 @@ public static class DebugBridgeEndpoints
 
         group.MapPost("/forge/{name}/design", async (
             string name,
-            ForgePipeline pipeline,
-            ForgePlannerAgent planner,
-            ForgeWriterAgent writer,
-            ForgeReviewerAgent reviewer,
-            IContentFileService fileService,
-            IEnumerable<IToolHandler> toolHandlers,
-            IWritingStyleStore writingStyleStore,
-            ILoreStore loreStore,
-            AppConfig config,
-            ILogger<ForgePipeline> logger,
+            [FromServices] ForgePipeline pipeline,
+            [FromServices] ForgePlannerAgent planner,
+            [FromServices] ForgeWriterAgent writer,
+            [FromServices] ForgeReviewerAgent reviewer,
+            [FromServices] IContentFileService fileService,
+            [FromServices] IEnumerable<IToolHandler> toolHandlers,
+            [FromServices] IWritingStyleStore writingStyleStore,
+            [FromServices] ILoreStore loreStore,
+            [FromServices] AppConfig config,
+            [FromServices] ILogger<ForgePipeline> logger,
             CancellationToken ct) =>
         {
             var context = await ForgeEndpoints.BuildForgeContextAsync(
@@ -555,16 +556,16 @@ public static class DebugBridgeEndpoints
 
         group.MapPost("/forge/{name}/start", async (
             string name,
-            ForgePipeline pipeline,
-            ForgePlannerAgent planner,
-            ForgeWriterAgent writer,
-            ForgeReviewerAgent reviewer,
-            IContentFileService fileService,
-            IEnumerable<IToolHandler> toolHandlers,
-            IWritingStyleStore writingStyleStore,
-            ILoreStore loreStore,
-            AppConfig config,
-            ILogger<ForgePipeline> logger,
+            [FromServices] ForgePipeline pipeline,
+            [FromServices] ForgePlannerAgent planner,
+            [FromServices] ForgeWriterAgent writer,
+            [FromServices] ForgeReviewerAgent reviewer,
+            [FromServices] IContentFileService fileService,
+            [FromServices] IEnumerable<IToolHandler> toolHandlers,
+            [FromServices] IWritingStyleStore writingStyleStore,
+            [FromServices] ILoreStore loreStore,
+            [FromServices] AppConfig config,
+            [FromServices] ILogger<ForgePipeline> logger,
             CancellationToken ct) =>
         {
             var context = await ForgeEndpoints.BuildForgeContextAsync(
@@ -589,16 +590,16 @@ public static class DebugBridgeEndpoints
 
         group.MapPost("/forge/{name}/approve", async (
             string name,
-            ForgePipeline pipeline,
-            ForgePlannerAgent planner,
-            ForgeWriterAgent writer,
-            ForgeReviewerAgent reviewer,
-            IContentFileService fileService,
-            IEnumerable<IToolHandler> toolHandlers,
-            IWritingStyleStore writingStyleStore,
-            ILoreStore loreStore,
-            AppConfig config,
-            ILogger<ForgePipeline> logger,
+            [FromServices] ForgePipeline pipeline,
+            [FromServices] ForgePlannerAgent planner,
+            [FromServices] ForgeWriterAgent writer,
+            [FromServices] ForgeReviewerAgent reviewer,
+            [FromServices] IContentFileService fileService,
+            [FromServices] IEnumerable<IToolHandler> toolHandlers,
+            [FromServices] IWritingStyleStore writingStyleStore,
+            [FromServices] ILoreStore loreStore,
+            [FromServices] AppConfig config,
+            [FromServices] ILogger<ForgePipeline> logger,
             CancellationToken ct) =>
         {
             var context = await ForgeEndpoints.BuildForgeContextAsync(
@@ -642,8 +643,8 @@ public static class DebugBridgeEndpoints
 
         group.MapPost("/forge/{name}/pause", async (
             string name,
-            ForgePipeline pipeline,
-            IContentFileService fileService,
+            [FromServices] ForgePipeline pipeline,
+            [FromServices] IContentFileService fileService,
             CancellationToken ct) =>
         {
             pipeline.RequestPause();
