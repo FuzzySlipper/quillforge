@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Services;
 using QuillForge.Storage.Utilities;
@@ -10,6 +11,55 @@ namespace QuillForge.Storage.Docs;
 /// </summary>
 public sealed class FileSystemDocsService : IDocsService
 {
+    private static readonly HashSet<string> SearchStopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "a",
+        "an",
+        "and",
+        "app",
+        "are",
+        "be",
+        "between",
+        "can",
+        "check",
+        "docs",
+        "doc",
+        "does",
+        "do",
+        "explain",
+        "for",
+        "help",
+        "how",
+        "i",
+        "in",
+        "is",
+        "me",
+        "my",
+        "of",
+        "on",
+        "or",
+        "please",
+        "show",
+        "tell",
+        "that",
+        "the",
+        "their",
+        "these",
+        "this",
+        "those",
+        "to",
+        "understand",
+        "use",
+        "what",
+        "which",
+        "work",
+        "works",
+        "workflow",
+        "workflows",
+        "you",
+        "your",
+    };
+
     private readonly string _docsRoot;
     private readonly ILogger<FileSystemDocsService> _logger;
 
@@ -67,39 +117,247 @@ public sealed class FileSystemDocsService : IDocsService
             return Task.FromResult<IReadOnlyList<DocSearchResult>>(results);
         }
 
+        var normalizedQuery = query.Trim();
+        var queryTerms = TokenizeQuery(normalizedQuery);
+        var candidates = new List<SearchCandidate>();
+
         foreach (var file in Directory.GetFiles(_docsRoot, "*.md").OrderBy(f => f))
         {
             ct.ThrowIfCancellationRequested();
             var raw = File.ReadAllText(file);
-            var (name, _) = ParseFrontmatter(raw);
+            var (name, summary) = ParseFrontmatter(raw);
             var body = StripFrontmatter(raw);
             var slug = Path.GetFileNameWithoutExtension(file);
+            var effectiveName = name ?? slug;
+            var effectiveSummary = summary ?? "";
 
-            var snippets = new List<string>();
-            var lines = body.Split('\n');
-            for (var i = 0; i < lines.Length; i++)
+            var match = EvaluateMatch(effectiveName, effectiveSummary, body, normalizedQuery, queryTerms);
+            if (!match.IsMatch)
             {
-                if (lines[i].Contains(query, StringComparison.OrdinalIgnoreCase))
-                {
-                    // Include surrounding context (1 line before and after)
-                    var start = Math.Max(0, i - 1);
-                    var end = Math.Min(lines.Length - 1, i + 1);
-                    var snippet = string.Join('\n', lines[start..(end + 1)]).Trim();
-                    if (!string.IsNullOrEmpty(snippet))
-                    {
-                        snippets.Add(snippet);
-                    }
-                }
+                continue;
             }
 
-            if (snippets.Count > 0)
+            var snippets = CollectSnippets(effectiveName, effectiveSummary, body, normalizedQuery, queryTerms);
+            candidates.Add(new SearchCandidate(new DocSearchResult(slug, effectiveName, snippets), match.Score));
+
+            _logger.LogDebug(
+                "Doc search matched topic {Slug}: phraseMatch={HasPhraseMatch}, matchedTerms={MatchedTerms}/{RequiredTerms}",
+                slug,
+                match.HasPhraseMatch,
+                match.MatchedTermCount,
+                match.RequiredTermCount);
+        }
+
+        candidates.Sort(static (left, right) =>
+        {
+            var scoreComparison = right.Score.CompareTo(left.Score);
+            if (scoreComparison != 0)
             {
-                results.Add(new DocSearchResult(slug, name ?? slug, snippets));
+                return scoreComparison;
+            }
+
+            return string.Compare(left.Result.Slug, right.Result.Slug, StringComparison.Ordinal);
+        });
+
+        foreach (var candidate in candidates)
+        {
+            results.Add(candidate.Result);
+        }
+
+        _logger.LogDebug("Doc search for \"{Query}\" found {Count} matching topics", normalizedQuery, results.Count);
+        return Task.FromResult<IReadOnlyList<DocSearchResult>>(results);
+    }
+
+    private static SearchMatch EvaluateMatch(
+        string name,
+        string summary,
+        string body,
+        string query,
+        IReadOnlyList<string> queryTerms)
+    {
+        var hasPhraseMatch =
+            ContainsIgnoreCase(name, query) ||
+            ContainsIgnoreCase(summary, query) ||
+            ContainsIgnoreCase(body, query);
+
+        var matchedTermCount = CountMatchedTerms(name, summary, body, queryTerms);
+        if (hasPhraseMatch)
+        {
+            return new SearchMatch(true, true, matchedTermCount, queryTerms.Count);
+        }
+
+        if (queryTerms.Count == 0)
+        {
+            return new SearchMatch(false, false, 0, 0);
+        }
+
+        var requiredTermCount = GetRequiredTermCount(queryTerms.Count);
+        var isMatch = matchedTermCount >= requiredTermCount;
+        return new SearchMatch(isMatch, false, matchedTermCount, requiredTermCount);
+    }
+
+    private static List<string> CollectSnippets(
+        string name,
+        string summary,
+        string body,
+        string query,
+        IReadOnlyList<string> queryTerms)
+    {
+        var snippets = new List<string>();
+        var seenSnippets = new HashSet<string>(StringComparer.Ordinal);
+
+        if (IsTextMatch(name, query, queryTerms))
+        {
+            AddSnippet(snippets, seenSnippets, "# " + name);
+        }
+
+        if (!string.IsNullOrWhiteSpace(summary) && IsTextMatch(summary, query, queryTerms))
+        {
+            AddSnippet(snippets, seenSnippets, "Summary: " + summary);
+        }
+
+        var lines = body.Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (!IsTextMatch(lines[i], query, queryTerms))
+            {
+                continue;
+            }
+
+            // Include surrounding context (1 line before and after).
+            var start = Math.Max(0, i - 1);
+            var end = Math.Min(lines.Length - 1, i + 1);
+            var snippet = string.Join('\n', lines[start..(end + 1)]).Trim();
+            AddSnippet(snippets, seenSnippets, snippet);
+        }
+
+        return snippets;
+    }
+
+    private static void AddSnippet(List<string> snippets, HashSet<string> seenSnippets, string snippet)
+    {
+        if (string.IsNullOrWhiteSpace(snippet))
+        {
+            return;
+        }
+
+        if (!seenSnippets.Add(snippet))
+        {
+            return;
+        }
+
+        snippets.Add(snippet);
+    }
+
+    private static bool IsTextMatch(string text, string query, IReadOnlyList<string> queryTerms)
+    {
+        if (ContainsIgnoreCase(text, query))
+        {
+            return true;
+        }
+
+        foreach (var term in queryTerms)
+        {
+            if (ContainsIgnoreCase(text, term))
+            {
+                return true;
             }
         }
 
-        _logger.LogDebug("Doc search for \"{Query}\" found {Count} matching topics", query, results.Count);
-        return Task.FromResult<IReadOnlyList<DocSearchResult>>(results);
+        return false;
+    }
+
+    private static int CountMatchedTerms(
+        string name,
+        string summary,
+        string body,
+        IReadOnlyList<string> queryTerms)
+    {
+        var matchedTermCount = 0;
+
+        foreach (var term in queryTerms)
+        {
+            if (ContainsIgnoreCase(name, term) ||
+                ContainsIgnoreCase(summary, term) ||
+                ContainsIgnoreCase(body, term))
+            {
+                matchedTermCount++;
+            }
+        }
+
+        return matchedTermCount;
+    }
+
+    private static int GetRequiredTermCount(int queryTermCount)
+    {
+        if (queryTermCount <= 4)
+        {
+            return queryTermCount;
+        }
+
+        return queryTermCount - 1;
+    }
+
+    private static List<string> TokenizeQuery(string query)
+    {
+        var terms = new List<string>();
+        var seenTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var builder = new StringBuilder();
+
+        foreach (var ch in query)
+        {
+            if (char.IsLetterOrDigit(ch) || ch == '_' || ch == '-')
+            {
+                builder.Append(ch);
+                continue;
+            }
+
+            AddToken(builder, terms, seenTerms);
+        }
+
+        AddToken(builder, terms, seenTerms);
+        return terms;
+    }
+
+    private static void AddToken(
+        StringBuilder builder,
+        List<string> terms,
+        HashSet<string> seenTerms)
+    {
+        if (builder.Length == 0)
+        {
+            return;
+        }
+
+        var token = builder.ToString();
+        builder.Clear();
+
+        if (token.Length <= 1)
+        {
+            return;
+        }
+
+        if (SearchStopWords.Contains(token))
+        {
+            return;
+        }
+
+        if (!seenTerms.Add(token))
+        {
+            return;
+        }
+
+        terms.Add(token);
+    }
+
+    private static bool ContainsIgnoreCase(string text, string value)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        return text.Contains(value, StringComparison.OrdinalIgnoreCase);
     }
 
     private static (string? Name, string? Summary) ParseFrontmatter(string content)
@@ -164,5 +422,16 @@ public sealed class FileSystemDocsService : IDocsService
         }
 
         return content[(endIndex + 3)..].TrimStart('\r', '\n');
+    }
+
+    private sealed record SearchCandidate(DocSearchResult Result, int Score);
+
+    private sealed record SearchMatch(
+        bool IsMatch,
+        bool HasPhraseMatch,
+        int MatchedTermCount,
+        int RequiredTermCount)
+    {
+        public int Score => (HasPhraseMatch ? 100 : 0) + MatchedTermCount;
     }
 }

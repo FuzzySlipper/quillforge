@@ -19,8 +19,8 @@ public interface IDocsService
     Task<DocEntry?> GetTopicAsync(string slug, CancellationToken ct = default);
 
     /// <summary>
-    /// Searches all docs for lines matching the query string (case-insensitive).
-    /// Returns matching snippets grouped by topic.
+    /// Searches docs by exact phrase or key terms across the topic title,
+    /// summary, and body. Returns matching snippets grouped by topic.
     /// </summary>
     Task<IReadOnlyList<DocSearchResult>> SearchAsync(string query, CancellationToken ct = default);
 }

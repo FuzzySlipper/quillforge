@@ -143,6 +143,63 @@ public sealed class FileSystemDocsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Search_MultiTermQuery_MatchesAcrossSummaryAndBody()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "ownership.md"), """
+            ---
+            name: Ownership
+            summary: AppConfig and ProfileConfig separate global defaults from reusable bundles.
+            ---
+            SessionState owns the active runtime for one session.
+            ConversationTree stores the branching message history.
+            """);
+
+        var results = await _service.SearchAsync("AppConfig ProfileConfig SessionState ConversationTree");
+
+        Assert.Single(results);
+        Assert.Equal("ownership", results[0].Slug);
+        Assert.Contains(results[0].Snippets, snippet => snippet.Contains("Summary: AppConfig", StringComparison.Ordinal));
+        Assert.Contains(results[0].Snippets, snippet => snippet.Contains("ConversationTree", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Search_NaturalLanguageQuery_IgnoresCommonInstructionWords()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "ownership.md"), """
+            ---
+            name: Ownership
+            summary: AppConfig and ProfileConfig separate global defaults from reusable bundles.
+            ---
+            SessionState owns the active runtime for one session.
+            ConversationTree stores the branching message history.
+            """);
+
+        var results = await _service.SearchAsync(
+            "Can you check the docs and explain the difference between AppConfig, ProfileConfig, SessionState, and ConversationTree?");
+
+        Assert.Single(results);
+        Assert.Equal("ownership", results[0].Slug);
+    }
+
+    [Fact]
+    public async Task Search_FindsMatchesInTopicNameAndSummary()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "tree.md"), """
+            ---
+            name: ConversationTree Guide
+            summary: ConversationTree stores branching chat history.
+            ---
+            This topic covers persistence details.
+            """);
+
+        var results = await _service.SearchAsync("ConversationTree");
+
+        Assert.Single(results);
+        Assert.Contains(results[0].Snippets, snippet => snippet.Contains("# ConversationTree Guide", StringComparison.Ordinal));
+        Assert.Contains(results[0].Snippets, snippet => snippet.Contains("Summary: ConversationTree", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Search_CaseInsensitive()
     {
         File.WriteAllText(Path.Combine(_tempDir, "test.md"), """
