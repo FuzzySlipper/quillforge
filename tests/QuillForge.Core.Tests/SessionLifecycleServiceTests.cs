@@ -57,6 +57,8 @@ public sealed class SessionLifecycleServiceTests
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Pending review text",
+                PendingProjectName = "novel",
+                PendingFileName = "chapter-1.md",
                 State = WriterState.PendingReview,
             },
             Narrative = new NarrativeRuntimeState
@@ -88,6 +90,8 @@ public sealed class SessionLifecycleServiceTests
         Assert.Equal("captain", forkedRuntime.Roleplay.ActiveAiCharacter);
         Assert.Equal("envoy", forkedRuntime.Roleplay.ActiveUserCharacter);
         Assert.Null(forkedRuntime.Writer.PendingContent);
+        Assert.Null(forkedRuntime.Writer.PendingProjectName);
+        Assert.Null(forkedRuntime.Writer.PendingFileName);
         Assert.Equal(WriterState.Idle, forkedRuntime.Writer.State);
         Assert.Equal("Keep the pressure rising.", forkedRuntime.Narrative.DirectorNotes);
         Assert.Equal("gate-arc", forkedRuntime.Narrative.ActivePlotFile);
@@ -279,6 +283,8 @@ internal sealed class InMemoryRuntimeStore : ISessionStateStore
             Writer = new WriterRuntimeState
             {
                 PendingContent = state.Writer.PendingContent,
+                PendingProjectName = state.Writer.PendingProjectName,
+                PendingFileName = state.Writer.PendingFileName,
                 State = state.Writer.State,
             },
             Narrative = new NarrativeRuntimeState

@@ -403,6 +403,8 @@ public sealed class ContractSnapshotTests
             Writer = new WriterRuntimeState
             {
                 PendingContent = "The knight drew his sword as shadows gathered.",
+                PendingProjectName = "epic-fantasy",
+                PendingFileName = "chapter-07.md",
                 State = WriterState.PendingReview,
             },
             Narrative = new NarrativeRuntimeState

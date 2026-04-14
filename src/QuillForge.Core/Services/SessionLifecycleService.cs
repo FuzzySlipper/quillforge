@@ -93,6 +93,8 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
             Writer = new WriterRuntimeState
             {
                 PendingContent = null,
+                PendingProjectName = null,
+                PendingFileName = null,
                 State = WriterState.Idle,
             },
             Narrative = new NarrativeRuntimeState

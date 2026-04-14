@@ -96,6 +96,8 @@ public class SessionStateTests
         var writer = new WriterRuntimeState();
         Assert.Equal(WriterState.Idle, writer.State);
         Assert.Null(writer.PendingContent);
+        Assert.Null(writer.PendingProjectName);
+        Assert.Null(writer.PendingFileName);
     }
 
     [Fact]
@@ -238,6 +240,8 @@ public class SessionStateTests
             Writer = new WriterRuntimeState
             {
                 PendingContent = "pending text",
+                PendingProjectName = "my-novel",
+                PendingFileName = "chapter1.md",
                 State = WriterState.PendingReview,
             },
             Narrative = new NarrativeRuntimeState
@@ -262,6 +266,8 @@ public class SessionStateTests
         Assert.Equal("guide", state.Roleplay.ActiveAiCharacter);
         Assert.Equal("author", state.Roleplay.ActiveUserCharacter);
         Assert.Equal("pending text", state.Writer.PendingContent);
+        Assert.Equal("my-novel", state.Writer.PendingProjectName);
+        Assert.Equal("chapter1.md", state.Writer.PendingFileName);
         Assert.Equal(WriterState.PendingReview, state.Writer.State);
         Assert.Equal("track the rising pressure", state.Narrative.DirectorNotes);
         Assert.Equal("arc-one", state.Narrative.ActivePlotFile);

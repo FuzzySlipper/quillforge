@@ -167,6 +167,8 @@ public sealed class RoleplayRuntimeState
 public sealed class WriterRuntimeState
 {
     public string? PendingContent { get; set; }
+    public string? PendingProjectName { get; set; }
+    public string? PendingFileName { get; set; }
     public WriterState State { get; set; } = WriterState.Idle;
 }
 

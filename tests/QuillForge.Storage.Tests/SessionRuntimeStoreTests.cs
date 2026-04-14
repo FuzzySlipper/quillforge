@@ -104,6 +104,8 @@ public class SessionRuntimeStoreTests : IDisposable
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Once upon a time...",
+                PendingProjectName = "test-project",
+                PendingFileName = "chapter1.md",
                 State = WriterState.PendingReview,
             },
             Narrative = new NarrativeRuntimeState
@@ -136,6 +138,8 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.True(loaded.Roleplay.HasExplicitUserCharacterSelection);
         Assert.Equal("author", loaded.Roleplay.ActiveUserCharacter);
         Assert.Equal("Once upon a time...", loaded.Writer.PendingContent);
+        Assert.Equal("test-project", loaded.Writer.PendingProjectName);
+        Assert.Equal("chapter1.md", loaded.Writer.PendingFileName);
         Assert.Equal(WriterState.PendingReview, loaded.Writer.State);
         Assert.Equal("The hero has entered the ruins.", loaded.Narrative.DirectorNotes);
         Assert.Equal("ruins-arc.md", loaded.Narrative.ActivePlotFile);

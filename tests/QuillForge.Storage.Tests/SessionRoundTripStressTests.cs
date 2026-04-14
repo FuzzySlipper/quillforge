@@ -114,6 +114,8 @@ public sealed class SessionRoundTripStressTests : IDisposable
             expectedReasoning.Add(reasoning);
 
             runtime.Writer.PendingContent = $"Pending draft turn {turn}";
+            runtime.Writer.PendingProjectName = $"project-{turn % 3}";
+            runtime.Writer.PendingFileName = $"chapter-{turn}.md";
             runtime.Writer.State = turn % 2 == 0 ? WriterState.PendingReview : WriterState.Idle;
             runtime.Roleplay.ActiveAiCharacter = $"guide-{turn}";
             runtime.Roleplay.HasExplicitAiCharacterSelection = true;
@@ -152,6 +154,8 @@ public sealed class SessionRoundTripStressTests : IDisposable
             Assert.Equal("stress-profile", runtime.Profile.ProfileId);
             Assert.Equal("stress-lore", runtime.Profile.ActiveLoreSet);
             Assert.Equal($"Pending draft turn {turn}", runtime.Writer.PendingContent);
+            Assert.Equal($"project-{turn % 3}", runtime.Writer.PendingProjectName);
+            Assert.Equal($"chapter-{turn}.md", runtime.Writer.PendingFileName);
             Assert.Equal(turn % 2 == 0 ? WriterState.PendingReview : WriterState.Idle, runtime.Writer.State);
             Assert.Equal($"guide-{turn}", runtime.Roleplay.ActiveAiCharacter);
             Assert.Equal($"Director notes {turn}", runtime.Narrative.DirectorNotes);
@@ -193,6 +197,8 @@ public sealed class SessionRoundTripStressTests : IDisposable
         Assert.Equal(expectedReasoning, assistantReasoningFromStore);
 
         Assert.Equal("Pending draft turn 23", finalRuntime.Writer.PendingContent);
+        Assert.Equal("project-2", finalRuntime.Writer.PendingProjectName);
+        Assert.Equal("chapter-23.md", finalRuntime.Writer.PendingFileName);
         Assert.Equal(WriterState.Idle, finalRuntime.Writer.State);
         Assert.Equal("guide-23", finalRuntime.Roleplay.ActiveAiCharacter);
         Assert.Equal("Director notes 23", finalRuntime.Narrative.DirectorNotes);

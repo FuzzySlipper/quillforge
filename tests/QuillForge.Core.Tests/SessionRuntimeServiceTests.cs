@@ -62,6 +62,8 @@ public sealed class SessionRuntimeServiceTests
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Pending chapter text",
+                PendingProjectName = "novel",
+                PendingFileName = "chapter1.md",
                 State = WriterState.PendingReview,
             },
         });
@@ -76,6 +78,8 @@ public sealed class SessionRuntimeServiceTests
         Assert.Equal(Mode.Guide, result.Value.Mode.ActiveMode);
         Assert.Equal(WriterState.Idle, result.Value.Writer.State);
         Assert.Null(result.Value.Writer.PendingContent);
+        Assert.Null(result.Value.Writer.PendingProjectName);
+        Assert.Null(result.Value.Writer.PendingFileName);
     }
 
     [Fact]
@@ -86,7 +90,12 @@ public sealed class SessionRuntimeServiceTests
         await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveMode = Mode.Writer },
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Writer,
+                ProjectName = "novel",
+                CurrentFile = "chapter1.md",
+            },
         });
 
         var service = CreateService(store);
@@ -99,6 +108,8 @@ public sealed class SessionRuntimeServiceTests
         var captured = Assert.IsType<WriterPendingContentCapturedEvent>(result.Value);
         Assert.Equal(WriterState.PendingReview, captured.SessionView.Writer.State);
         Assert.NotNull(captured.SessionView.Writer.PendingContent);
+        Assert.Equal("novel", captured.SessionView.Writer.PendingProjectName);
+        Assert.Equal("chapter1.md", captured.SessionView.Writer.PendingFileName);
         Assert.Equal("default", captured.SessionView.Profile.ProfileId);
         Assert.Equal(Mode.Writer, captured.SourceMode);
     }
@@ -122,6 +133,8 @@ public sealed class SessionRuntimeServiceTests
             Writer = new WriterRuntimeState
             {
                 PendingContent = initialDraft,
+                PendingProjectName = "old-project",
+                PendingFileName = "old-file.md",
                 State = WriterState.PendingReview,
             },
         });
@@ -134,10 +147,14 @@ public sealed class SessionRuntimeServiceTests
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         var captured = Assert.IsType<WriterPendingContentCapturedEvent>(result.Value);
         Assert.Equal(revisedDraft, captured.SessionView.Writer.PendingContent);
+        Assert.Equal("novel", captured.SessionView.Writer.PendingProjectName);
+        Assert.Equal("chapter1.md", captured.SessionView.Writer.PendingFileName);
         Assert.Equal(WriterState.PendingReview, captured.SessionView.Writer.State);
 
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(revisedDraft, saved.Writer.PendingContent);
+        Assert.Equal("novel", saved.Writer.PendingProjectName);
+        Assert.Equal("chapter1.md", saved.Writer.PendingFileName);
         Assert.Equal(WriterState.PendingReview, saved.Writer.State);
     }
 
@@ -183,6 +200,8 @@ public sealed class SessionRuntimeServiceTests
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Accepted text",
+                PendingProjectName = "novel",
+                PendingFileName = "chapter1.md",
                 State = WriterState.PendingReview,
             },
         });
@@ -199,7 +218,45 @@ public sealed class SessionRuntimeServiceTests
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(WriterState.Idle, saved.Writer.State);
         Assert.Null(saved.Writer.PendingContent);
+        Assert.Null(saved.Writer.PendingProjectName);
+        Assert.Null(saved.Writer.PendingFileName);
         Assert.Equal("Accepted text", await storyStore.ReadAsync("novel", "chapter1.md"));
+    }
+
+    [Fact]
+    public async Task AcceptWriterPendingAsync_LegacyPendingWithoutCapturedTarget_UsesCurrentWriterTarget()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var storyStore = new InMemoryStoryStore();
+        var sessionId = Guid.CreateVersion7();
+        await store.SaveAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Writer,
+                ProjectName = "novel",
+                CurrentFile = "chapter1.md",
+            },
+            Writer = new WriterRuntimeState
+            {
+                PendingContent = "Accepted text",
+                State = WriterState.PendingReview,
+            },
+        });
+
+        var service = CreateService(store, storyStore: storyStore);
+        var result = await service.AcceptWriterPendingAsync(sessionId);
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.Equal("story/novel/chapter1.md", result.Value!.SavedPath);
+        Assert.Equal("Accepted text", await storyStore.ReadAsync("novel", "chapter1.md"));
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(WriterState.Idle, saved.Writer.State);
+        Assert.Null(saved.Writer.PendingContent);
+        Assert.Null(saved.Writer.PendingProjectName);
+        Assert.Null(saved.Writer.PendingFileName);
     }
 
     [Fact]
@@ -232,6 +289,44 @@ public sealed class SessionRuntimeServiceTests
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(WriterState.Idle, saved.Writer.State);
         Assert.Null(saved.Writer.PendingContent);
+        Assert.Null(saved.Writer.PendingProjectName);
+        Assert.Null(saved.Writer.PendingFileName);
+    }
+
+    [Fact]
+    public async Task AcceptWriterPendingAsync_UsesCapturedTarget_WhenActiveWriterTargetChanges()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var storyStore = new InMemoryStoryStore();
+        var service = CreateService(store, storyStore: storyStore);
+        var sessionId = Guid.CreateVersion7();
+        var draft = new string('b', 320);
+
+        await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("writer", "project-a", "chapter-a.md", null));
+        await service.CaptureWriterPendingAsync(
+            sessionId,
+            new CaptureWriterPendingCommand(draft, Mode.Writer));
+        await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("writer", "project-b", "chapter-b.md", null));
+
+        var result = await service.AcceptWriterPendingAsync(sessionId);
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.Equal("story/project-a/chapter-a.md", result.Value!.SavedPath);
+        Assert.Equal(draft, await storyStore.ReadAsync("project-a", "chapter-a.md"));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => storyStore.ReadAsync("project-b", "chapter-b.md"));
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(Mode.Writer, saved.Mode.ActiveMode);
+        Assert.Equal("project-b", saved.Mode.ProjectName);
+        Assert.Equal("chapter-b.md", saved.Mode.CurrentFile);
+        Assert.Equal(WriterState.Idle, saved.Writer.State);
+        Assert.Null(saved.Writer.PendingContent);
+        Assert.Null(saved.Writer.PendingProjectName);
+        Assert.Null(saved.Writer.PendingFileName);
     }
 
     [Fact]
@@ -280,12 +375,14 @@ public sealed class SessionRuntimeServiceTests
             Mode = new ModeSelectionState
             {
                 ActiveMode = Mode.Writer,
-                ProjectName = "../escape",
+                ProjectName = "novel",
                 CurrentFile = "chapter1.md",
             },
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Accepted text",
+                PendingProjectName = "../escape",
+                PendingFileName = "chapter1.md",
                 State = WriterState.PendingReview,
             },
         });
@@ -302,6 +399,8 @@ public sealed class SessionRuntimeServiceTests
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(WriterState.PendingReview, saved.Writer.State);
         Assert.Equal("Accepted text", saved.Writer.PendingContent);
+        Assert.Equal("../escape", saved.Writer.PendingProjectName);
+        Assert.Equal("chapter1.md", saved.Writer.PendingFileName);
     }
 
     [Fact]
@@ -316,6 +415,8 @@ public sealed class SessionRuntimeServiceTests
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Rejected text",
+                PendingProjectName = "novel",
+                PendingFileName = "chapter1.md",
                 State = WriterState.PendingReview,
             },
         });
@@ -327,10 +428,14 @@ public sealed class SessionRuntimeServiceTests
         Assert.NotNull(result.Value);
         Assert.Equal(WriterState.Idle, result.Value.SessionView.Writer.State);
         Assert.Null(result.Value.SessionView.Writer.PendingContent);
+        Assert.Null(result.Value.SessionView.Writer.PendingProjectName);
+        Assert.Null(result.Value.SessionView.Writer.PendingFileName);
 
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(WriterState.Idle, saved.Writer.State);
         Assert.Null(saved.Writer.PendingContent);
+        Assert.Null(saved.Writer.PendingProjectName);
+        Assert.Null(saved.Writer.PendingFileName);
     }
 
     [Fact]
@@ -363,6 +468,8 @@ public sealed class SessionRuntimeServiceTests
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(WriterState.Idle, saved.Writer.State);
         Assert.Null(saved.Writer.PendingContent);
+        Assert.Null(saved.Writer.PendingProjectName);
+        Assert.Null(saved.Writer.PendingFileName);
     }
 
     [Fact]
@@ -922,6 +1029,8 @@ internal sealed class InMemorySessionRuntimeStore : ISessionStateStore
             Writer = new WriterRuntimeState
             {
                 PendingContent = state.Writer.PendingContent,
+                PendingProjectName = state.Writer.PendingProjectName,
+                PendingFileName = state.Writer.PendingFileName,
                 State = state.Writer.State,
             },
             Narrative = new NarrativeRuntimeState

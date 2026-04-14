@@ -209,8 +209,7 @@ public sealed class SessionRuntimeService : ISessionStateService
 
         if (oldMode == Mode.Writer && targetMode != Mode.Writer)
         {
-            state.Writer.PendingContent = null;
-            state.Writer.State = WriterState.Idle;
+            ClearWriterPendingState(state.Writer);
             _logger.LogInformation("Writer pending state reset during mode change for session {SessionId}", sessionId);
         }
 
@@ -296,14 +295,18 @@ public sealed class SessionRuntimeService : ISessionStateService
         }
 
         state.Writer.PendingContent = command.Content;
+        state.Writer.PendingProjectName = NormalizeChoice(state.Mode.ProjectName);
+        state.Writer.PendingFileName = NormalizeChoice(state.Mode.CurrentFile);
         state.Writer.State = WriterState.PendingReview;
         await _store.SaveAsync(state, ct);
         var hydrated = await HydrateProfileViewAsync(state, ct);
 
         _logger.LogInformation(
-            "Writer pending content captured: session={SessionId} contentLength={Length}",
+            "Writer pending content captured: session={SessionId} contentLength={Length} project={Project} file={File}",
             sessionId,
-            command.Content.Length);
+            command.Content.Length,
+            state.Writer.PendingProjectName,
+            state.Writer.PendingFileName);
 
         return SessionMutationResult<WriterPendingCaptureEvent>.Success(
             new WriterPendingContentCapturedEvent(hydrated, command.Content.Length, command.SourceMode));
@@ -339,13 +342,18 @@ public sealed class SessionRuntimeService : ISessionStateService
                 "Writer pending content can only be accepted while Writer mode is active.");
         }
 
-        var projectName = NormalizeChoice(state.Mode.ProjectName);
-        var fileName = NormalizeChoice(state.Mode.CurrentFile);
+        var target = ResolveWriterPendingTarget(state);
+        var projectName = target.ProjectName;
+        var fileName = target.FileName;
         if (!IsSafeRelativePath(projectName) || !IsSafeRelativePath(fileName))
         {
             _logger.LogWarning(
-                "Writer pending accept rejected: session={SessionId} invalid target project={Project} file={File}",
+                "Writer pending accept rejected: session={SessionId} invalid target project={Project} file={File} capturedProject={CapturedProject} capturedFile={CapturedFile} currentProject={CurrentProject} currentFile={CurrentFile}",
                 sessionId,
+                projectName,
+                fileName,
+                state.Writer.PendingProjectName,
+                state.Writer.PendingFileName,
                 state.Mode.ProjectName,
                 state.Mode.CurrentFile);
             return SessionMutationResult<WriterPendingContentAcceptedEvent>.Invalid(
@@ -356,16 +364,16 @@ public sealed class SessionRuntimeService : ISessionStateService
         var savedPath = BuildWriterSavedPath(projectName!, fileName!);
 
         await _storyStore.WriteAsync(projectName!, fileName!, accepted, ct);
-        state.Writer.PendingContent = null;
-        state.Writer.State = WriterState.Idle;
+        ClearWriterPendingState(state.Writer);
         await _store.SaveAsync(state, ct);
 
         _logger.LogInformation(
-            "Writer pending content accepted: session={SessionId} project={Project} file={File} contentLength={Length}",
+            "Writer pending content accepted: session={SessionId} project={Project} file={File} contentLength={Length} usedCapturedTarget={UsedCapturedTarget}",
             sessionId,
             projectName,
             fileName,
-            accepted.Length);
+            accepted.Length,
+            target.UsedCapturedTarget);
 
         return SessionMutationResult<WriterPendingContentAcceptedEvent>.Success(
             new WriterPendingContentAcceptedEvent(sessionId, accepted, savedPath));
@@ -391,8 +399,7 @@ public sealed class SessionRuntimeService : ISessionStateService
             return SessionMutationResult<WriterPendingContentRejectedEvent>.Invalid("No pending writer content to reject.");
         }
 
-        state.Writer.PendingContent = null;
-        state.Writer.State = WriterState.Idle;
+        ClearWriterPendingState(state.Writer);
         await _store.SaveAsync(state, ct);
 
         _logger.LogInformation("Writer pending content rejected: session={SessionId}", sessionId);
@@ -610,6 +617,8 @@ public sealed class SessionRuntimeService : ISessionStateService
             Writer = new WriterRuntimeState
             {
                 PendingContent = state.Writer.PendingContent,
+                PendingProjectName = state.Writer.PendingProjectName,
+                PendingFileName = state.Writer.PendingFileName,
                 State = state.Writer.State,
             },
             Narrative = new NarrativeRuntimeState
@@ -705,6 +714,8 @@ public sealed class SessionRuntimeService : ISessionStateService
             && !state.Roleplay.HasExplicitUserCharacterSelection
             && state.Writer.State == WriterState.Idle
             && string.IsNullOrWhiteSpace(state.Writer.PendingContent)
+            && string.IsNullOrWhiteSpace(state.Writer.PendingProjectName)
+            && string.IsNullOrWhiteSpace(state.Writer.PendingFileName)
             && string.IsNullOrWhiteSpace(state.Narrative.DirectorNotes)
             && string.IsNullOrWhiteSpace(state.Narrative.ActivePlotFile)
             && string.IsNullOrWhiteSpace(state.Narrative.PlotProgress.CurrentBeat)
@@ -803,6 +814,29 @@ public sealed class SessionRuntimeService : ISessionStateService
         }
 
         return true;
+    }
+
+    private static void ClearWriterPendingState(WriterRuntimeState writer)
+    {
+        writer.PendingContent = null;
+        writer.PendingProjectName = null;
+        writer.PendingFileName = null;
+        writer.State = WriterState.Idle;
+    }
+
+    private static (string? ProjectName, string? FileName, bool UsedCapturedTarget) ResolveWriterPendingTarget(SessionState state)
+    {
+        var pendingProjectName = NormalizeChoice(state.Writer.PendingProjectName);
+        var pendingFileName = NormalizeChoice(state.Writer.PendingFileName);
+        if (pendingProjectName is not null && pendingFileName is not null)
+        {
+            return (pendingProjectName, pendingFileName, true);
+        }
+
+        return (
+            NormalizeChoice(state.Mode.ProjectName),
+            NormalizeChoice(state.Mode.CurrentFile),
+            false);
     }
 
     private static string BuildWriterSavedPath(string projectName, string fileName)
