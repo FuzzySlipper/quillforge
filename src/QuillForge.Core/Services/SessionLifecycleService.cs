@@ -100,6 +100,7 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
             Narrative = new NarrativeRuntimeState
             {
                 DirectorNotes = source.Narrative.DirectorNotes,
+                StickySessionCanon = source.Narrative.StickySessionCanon,
                 ActivePlotFile = source.Narrative.ActivePlotFile,
                 PlotProgress = new PlotProgressState
                 {

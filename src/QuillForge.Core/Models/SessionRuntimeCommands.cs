@@ -25,6 +25,7 @@ public sealed record CaptureWriterPendingCommand(
 
 public sealed record UpdateNarrativeStateCommand(
     string DirectorNotes,
+    string? StickySessionCanon = null,
     string? ActivePlotFile = null,
     PlotProgressUpdate? PlotProgress = null);
 

@@ -224,6 +224,10 @@ function App() {
     };
   }
 
+  // Chat transport only: use this for conversational turns that should flow
+  // through /api/chat/stream and the LLM/tool loop. Do not route deterministic
+  // app mutations through chat text; use dedicated endpoints for delete/fork/
+  // mode switches/accept-reject so the backend remains authoritative.
   async function doSend(text: string, regenerateParentId?: string | null) {
     setSending(true);
     setStreamStatus("Connecting...");
@@ -717,6 +721,8 @@ function App() {
     if (!lastAssistant) return;
 
     try {
+      // This is a real conversation mutation, not a chat prompt. Keep it on
+      // the explicit delete endpoint instead of sending magic text via doSend.
       await conversationDeleteMessage(currentSessionId, lastAssistant.id);
       await reloadSessionMessages(currentSessionId);
     } catch (err) {

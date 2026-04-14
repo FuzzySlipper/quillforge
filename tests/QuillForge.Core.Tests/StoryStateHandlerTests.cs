@@ -244,6 +244,7 @@ public sealed class StoryStateHandlerTests
             """
             {
                 "director_notes": "Keep the pressure on the heroine.",
+                "sticky_session_canon": "- The captain already knows her crest.\n- The gate guard is testing her resolve.",
                 "active_plot_file": "gate-arc.md",
                 "plot_progress": {
                     "current_beat": "gate-confrontation",
@@ -258,6 +259,7 @@ public sealed class StoryStateHandlerTests
         Assert.True(result.Success);
         Assert.NotNull(runtimeService.LastNarrativeCommand);
         Assert.Equal("Keep the pressure on the heroine.", runtimeService.LastNarrativeCommand!.DirectorNotes);
+        Assert.Contains("The captain already knows her crest.", runtimeService.LastNarrativeCommand.StickySessionCanon);
         Assert.Equal("gate-arc.md", runtimeService.LastNarrativeCommand.ActivePlotFile);
         Assert.Equal("gate-confrontation", runtimeService.LastNarrativeCommand.PlotProgress!.CurrentBeat);
         Assert.Equal(["arrival", "inspection"], runtimeService.LastNarrativeCommand.PlotProgress.CompletedBeats);

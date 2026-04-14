@@ -120,6 +120,7 @@ public sealed class SessionRoundTripStressTests : IDisposable
             runtime.Roleplay.ActiveAiCharacter = $"guide-{turn}";
             runtime.Roleplay.HasExplicitAiCharacterSelection = true;
             runtime.Narrative.DirectorNotes = $"Director notes {turn}";
+            runtime.Narrative.StickySessionCanon = $"Sticky canon {turn}";
             runtime.Narrative.ActivePlotFile = $"plot-{turn % 3}.md";
             runtime.Narrative.PlotProgress.CurrentBeat = $"beat-{turn}";
             runtime.Narrative.PlotProgress.CompletedBeats.Add($"completed-{turn}");
@@ -159,6 +160,7 @@ public sealed class SessionRoundTripStressTests : IDisposable
             Assert.Equal(turn % 2 == 0 ? WriterState.PendingReview : WriterState.Idle, runtime.Writer.State);
             Assert.Equal($"guide-{turn}", runtime.Roleplay.ActiveAiCharacter);
             Assert.Equal($"Director notes {turn}", runtime.Narrative.DirectorNotes);
+            Assert.Equal($"Sticky canon {turn}", runtime.Narrative.StickySessionCanon);
             Assert.Equal($"plot-{turn % 3}.md", runtime.Narrative.ActivePlotFile);
             Assert.Equal($"beat-{turn}", runtime.Narrative.PlotProgress.CurrentBeat);
             Assert.Contains($"completed-{turn}", runtime.Narrative.PlotProgress.CompletedBeats);
@@ -202,6 +204,7 @@ public sealed class SessionRoundTripStressTests : IDisposable
         Assert.Equal(WriterState.Idle, finalRuntime.Writer.State);
         Assert.Equal("guide-23", finalRuntime.Roleplay.ActiveAiCharacter);
         Assert.Equal("Director notes 23", finalRuntime.Narrative.DirectorNotes);
+        Assert.Equal("Sticky canon 23", finalRuntime.Narrative.StickySessionCanon);
         Assert.Equal("beat-23", finalRuntime.Narrative.PlotProgress.CurrentBeat);
         Assert.Contains("completed-23", finalRuntime.Narrative.PlotProgress.CompletedBeats);
         Assert.Contains("deviation-20", finalRuntime.Narrative.PlotProgress.Deviations);

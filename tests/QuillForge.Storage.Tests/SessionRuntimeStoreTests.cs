@@ -111,6 +111,7 @@ public class SessionRuntimeStoreTests : IDisposable
             Narrative = new NarrativeRuntimeState
             {
                 DirectorNotes = "The hero has entered the ruins.",
+                StickySessionCanon = "- The rival reached the ruins first.\n- The hero still carries the broken lantern.",
                 ActivePlotFile = "ruins-arc.md",
                 PlotProgress = new PlotProgressState
                 {
@@ -142,6 +143,7 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.Equal("chapter1.md", loaded.Writer.PendingFileName);
         Assert.Equal(WriterState.PendingReview, loaded.Writer.State);
         Assert.Equal("The hero has entered the ruins.", loaded.Narrative.DirectorNotes);
+        Assert.Contains("The rival reached the ruins first.", loaded.Narrative.StickySessionCanon);
         Assert.Equal("ruins-arc.md", loaded.Narrative.ActivePlotFile);
         Assert.Equal("ruins-entry", loaded.Narrative.PlotProgress.CurrentBeat);
         Assert.Contains("call-to-adventure", loaded.Narrative.PlotProgress.CompletedBeats);

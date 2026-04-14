@@ -628,6 +628,7 @@ public sealed class SessionRuntimeServiceTests
             sessionId,
             new UpdateNarrativeStateCommand(
                 "The party committed to the heist.",
+                null,
                 "heist-arc",
                 new PlotProgressUpdate(
                     "vault-entry",
@@ -639,6 +640,27 @@ public sealed class SessionRuntimeServiceTests
         Assert.Equal("vault-entry", result.Value.Narrative.PlotProgress.CurrentBeat);
         Assert.Contains("setup", result.Value.Narrative.PlotProgress.CompletedBeats);
         Assert.Contains("The guard captain joined the crew.", result.Value.Narrative.PlotProgress.Deviations);
+    }
+
+    [Fact]
+    public async Task UpdateNarrativeStateAsync_PersistsStickySessionCanon()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        var result = await service.UpdateNarrativeStateAsync(
+            sessionId,
+            new UpdateNarrativeStateCommand(
+                "Rowan is masking his fear behind dry humor.",
+                "- Captain Rowe suspects contraband in the tide tunnels.\n- Rowan still carries the lighthouse keeper's ring."));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Contains("Captain Rowe suspects contraband", result.Value.Narrative.StickySessionCanon);
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Contains("lighthouse keeper's ring", saved.Narrative.StickySessionCanon);
     }
 
     [Fact]
@@ -1162,6 +1184,7 @@ internal sealed class InMemorySessionRuntimeStore : ISessionStateStore
             Narrative = new NarrativeRuntimeState
             {
                 DirectorNotes = state.Narrative.DirectorNotes,
+                StickySessionCanon = state.Narrative.StickySessionCanon,
                 ActivePlotFile = state.Narrative.ActivePlotFile,
                 PlotProgress = new PlotProgressState
                 {

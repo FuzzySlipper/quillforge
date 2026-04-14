@@ -483,6 +483,10 @@ public sealed class SessionRuntimeService : ISessionStateService
 
         var state = await LoadStateAsync(sessionId, ct);
         state.Narrative.DirectorNotes = command.DirectorNotes;
+        if (command.StickySessionCanon is not null)
+        {
+            state.Narrative.StickySessionCanon = NormalizeChoice(command.StickySessionCanon);
+        }
         if (command.ActivePlotFile is not null)
         {
             state.Narrative.ActivePlotFile = command.ActivePlotFile;
@@ -498,9 +502,10 @@ public sealed class SessionRuntimeService : ISessionStateService
         var hydrated = await HydrateProfileViewAsync(state, ct);
 
         _logger.LogInformation(
-            "Narrative state updated: session={SessionId} notesLength={Length} activePlot={ActivePlot}",
+            "Narrative state updated: session={SessionId} notesLength={Length} stickyCanonLength={StickyCanonLength} activePlot={ActivePlot}",
             sessionId,
             command.DirectorNotes.Length,
+            state.Narrative.StickySessionCanon?.Length ?? 0,
             hydrated.Narrative.ActivePlotFile);
 
         return SessionMutationResult<SessionState>.Success(hydrated);
@@ -675,6 +680,7 @@ public sealed class SessionRuntimeService : ISessionStateService
             Narrative = new NarrativeRuntimeState
             {
                 DirectorNotes = state.Narrative.DirectorNotes,
+                StickySessionCanon = state.Narrative.StickySessionCanon,
                 ActivePlotFile = state.Narrative.ActivePlotFile,
                 PlotProgress = new PlotProgressState
                 {
@@ -768,6 +774,7 @@ public sealed class SessionRuntimeService : ISessionStateService
             && string.IsNullOrWhiteSpace(state.Writer.PendingProjectName)
             && string.IsNullOrWhiteSpace(state.Writer.PendingFileName)
             && string.IsNullOrWhiteSpace(state.Narrative.DirectorNotes)
+            && string.IsNullOrWhiteSpace(state.Narrative.StickySessionCanon)
             && string.IsNullOrWhiteSpace(state.Narrative.ActivePlotFile)
             && string.IsNullOrWhiteSpace(state.Narrative.PlotProgress.CurrentBeat)
             && state.Narrative.PlotProgress.CompletedBeats.Count == 0

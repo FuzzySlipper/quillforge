@@ -6,7 +6,11 @@ namespace QuillForge.Core.Services;
 
 public sealed class InteractiveSessionContextService : IInteractiveSessionContextService
 {
+    private const int RecentConversationMessageLimit = 8;
+    private const int RecentConversationMessageTrimLength = 280;
+
     private readonly ISessionStateService _runtimeService;
+    private readonly ISessionStore _sessionStore;
     private readonly ICharacterCardStore _characterCardStore;
     private readonly IStoryStateService _storyStateService;
     private readonly IContentFileService _contentFileService;
@@ -15,6 +19,7 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
 
     public InteractiveSessionContextService(
         ISessionStateService runtimeService,
+        ISessionStore sessionStore,
         ICharacterCardStore characterCardStore,
         IStoryStateService storyStateService,
         IContentFileService contentFileService,
@@ -22,6 +27,7 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
         ILogger<InteractiveSessionContextService> logger)
     {
         _runtimeService = runtimeService;
+        _sessionStore = sessionStore;
         _characterCardStore = characterCardStore;
         _storyStateService = storyStateService;
         _contentFileService = contentFileService;
@@ -38,6 +44,7 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
         string? fileContext = null;
         string? activePlotContent = null;
         string? plotProgressSummary = null;
+        string? recentConversationSummary = null;
 
         var projectName = state.Mode.ProjectName ?? "default";
         var storyStatePath = $"{projectName}/.state.yaml";
@@ -109,6 +116,7 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
         }
 
         plotProgressSummary = BuildPlotProgressSummary(state.Narrative.PlotProgress);
+        recentConversationSummary = await LoadRecentConversationSummaryAsync(state.SessionId, ct);
 
         return new InteractiveSessionContext
         {
@@ -122,6 +130,8 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
             FileContext = fileContext,
             WriterPendingContent = state.Writer.PendingContent,
             DirectorNotes = state.Narrative.DirectorNotes,
+            StickySessionCanon = state.Narrative.StickySessionCanon,
+            RecentConversationSummary = recentConversationSummary,
             ActivePlotFile = state.Narrative.ActivePlotFile,
             ActivePlotContent = activePlotContent,
             PlotProgressSummary = plotProgressSummary,
@@ -134,6 +144,25 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
     {
         var state = await _runtimeService.LoadViewAsync(sessionId, ct);
         return await BuildAsync(state, ct);
+    }
+
+    private async Task<string?> LoadRecentConversationSummaryAsync(Guid? sessionId, CancellationToken ct)
+    {
+        if (!sessionId.HasValue)
+        {
+            return null;
+        }
+
+        try
+        {
+            var tree = await _sessionStore.LoadAsync(sessionId.Value, ct);
+            return BuildRecentConversationSummary(tree.ToFlatThread());
+        }
+        catch (FileNotFoundException ex)
+        {
+            _logger.LogDebug(ex, "No conversation thread found for session {SessionId}", sessionId);
+            return null;
+        }
     }
 
     private static string? BuildPlotProgressSummary(PlotProgressState progress)
@@ -163,5 +192,41 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
         }
 
         return string.Join("\n", lines);
+    }
+
+    private static string? BuildRecentConversationSummary(IReadOnlyList<MessageNode> thread)
+    {
+        if (thread.Count == 0)
+        {
+            return null;
+        }
+
+        var lines = new List<string>();
+        var recentMessages = thread
+            .Where(node =>
+                string.Equals(node.Role, "user", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.Role, "assistant", StringComparison.OrdinalIgnoreCase))
+            .TakeLast(RecentConversationMessageLimit);
+
+        foreach (var node in recentMessages)
+        {
+            var content = node.Content.GetText().ReplaceLineEndings(" ").Trim();
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                continue;
+            }
+
+            if (content.Length > RecentConversationMessageTrimLength)
+            {
+                content = content[..RecentConversationMessageTrimLength] + "...";
+            }
+
+            var label = string.Equals(node.Role, "user", StringComparison.OrdinalIgnoreCase)
+                ? "User"
+                : "Assistant";
+            lines.Add($"{label}: {content}");
+        }
+
+        return lines.Count == 0 ? null : string.Join("\n", lines);
     }
 }

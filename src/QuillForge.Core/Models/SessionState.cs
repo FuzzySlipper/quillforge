@@ -179,6 +179,7 @@ public sealed class WriterRuntimeState
 public sealed class NarrativeRuntimeState
 {
     public string? DirectorNotes { get; set; }
+    public string? StickySessionCanon { get; set; }
     public string? ActivePlotFile { get; set; }
     public PlotProgressState PlotProgress { get; set; } = new();
 }

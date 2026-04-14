@@ -17,6 +17,12 @@ public sealed class InteractiveSessionContextServiceTests
             ["tension"] = "high",
             ["location"] = "keep",
         });
+        var sessionStore = new InMemoryInteractiveSessionStore();
+        var sessionId = Guid.CreateVersion7();
+        var tree = new ConversationTree(sessionId, "Roleplay Session", NullLogger<ConversationTree>.Instance);
+        tree.Append(tree.ActiveLeafId, "user", new MessageContent("Captain Rowe says contraband is moving through the tide tunnels."));
+        tree.Append(tree.ActiveLeafId, "assistant", new MessageContent("Sir Rowan closes his hand over the brass compass and glances toward the trapdoor."));
+        await sessionStore.SaveAsync(tree);
         var files = new FakeContentFileService();
         files.SeedFile("story/novel/chapter1.md", new string('a', 520));
         var plots = new FakePlotStore();
@@ -24,6 +30,7 @@ public sealed class InteractiveSessionContextServiceTests
 
         var service = new InteractiveSessionContextService(
             runtimeService,
+            sessionStore,
             cardStore,
             storyState,
             files,
@@ -32,7 +39,7 @@ public sealed class InteractiveSessionContextServiceTests
 
         var context = await service.BuildAsync(new SessionState
         {
-            SessionId = Guid.CreateVersion7(),
+            SessionId = sessionId,
             Mode = new ModeSelectionState
             {
                 ActiveMode = Mode.Roleplay,
@@ -48,6 +55,7 @@ public sealed class InteractiveSessionContextServiceTests
             Narrative = new NarrativeRuntimeState
             {
                 DirectorNotes = "Captain is wavering.",
+                StickySessionCanon = "- Captain Rowe suspects contraband in the tide tunnels.",
                 ActivePlotFile = "gate-arc",
                 PlotProgress = new PlotProgressState
                 {
@@ -66,6 +74,9 @@ public sealed class InteractiveSessionContextServiceTests
         Assert.NotNull(context.FileContext);
         Assert.StartsWith("...\n", context.FileContext, StringComparison.Ordinal);
         Assert.Equal("Pending scene text", context.WriterPendingContent);
+        Assert.Contains("Captain Rowe suspects contraband", context.StickySessionCanon);
+        Assert.Contains("User: Captain Rowe says contraband is moving through the tide tunnels.", context.RecentConversationSummary);
+        Assert.Contains("Assistant: Sir Rowan closes his hand over the brass compass", context.RecentConversationSummary);
         Assert.Equal("gate-arc", context.ActivePlotFile);
         Assert.Contains("Beat one", context.ActivePlotContent);
         Assert.Contains("Current beat: gate-confrontation", context.PlotProgressSummary);
@@ -89,6 +100,7 @@ public sealed class InteractiveSessionContextServiceTests
 
         var service = new InteractiveSessionContextService(
             runtimeService,
+            new InMemoryInteractiveSessionStore(),
             new FakeCharacterCardStoreForContext(),
             new StoryStateServiceWithData(new Dictionary<string, object>()),
             new FakeContentFileService(),
@@ -100,6 +112,36 @@ public sealed class InteractiveSessionContextServiceTests
         Assert.Equal(Mode.Writer, context.ActiveMode);
         Assert.Equal("novel", context.ProjectName);
         Assert.Equal("novel/.state.yaml", context.StoryStatePath);
+    }
+}
+
+internal sealed class InMemoryInteractiveSessionStore : ISessionStore
+{
+    private readonly Dictionary<Guid, ConversationTree> _sessions = [];
+
+    public Task<ConversationTree> LoadAsync(Guid sessionId, CancellationToken ct = default)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+        {
+            throw new FileNotFoundException($"Session not found: {sessionId}");
+        }
+
+        return Task.FromResult(session);
+    }
+
+    public Task SaveAsync(ConversationTree session, CancellationToken ct = default)
+    {
+        _sessions[session.SessionId] = session;
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<SessionSummary>> ListAsync(CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<SessionSummary>>([]);
+
+    public Task DeleteAsync(Guid sessionId, CancellationToken ct = default)
+    {
+        _sessions.Remove(sessionId);
+        return Task.CompletedTask;
     }
 }
 

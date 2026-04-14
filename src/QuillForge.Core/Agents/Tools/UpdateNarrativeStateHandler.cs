@@ -36,6 +36,10 @@ public sealed class UpdateNarrativeStateHandler : TypedToolHandler<UpdateNarrati
                         "type": "string",
                         "description": "Concise running notes for the narrative director to carry into the next turn"
                     },
+                    "sticky_session_canon": {
+                        "type": "string",
+                        "description": "Concise bullet list of session-established scene facts that should remain authoritative local canon unless contradicted"
+                    },
                     "active_plot_file": {
                         "type": "string",
                         "description": "Optional active plot file name to keep associated with this session"
@@ -81,7 +85,7 @@ public sealed class UpdateNarrativeStateHandler : TypedToolHandler<UpdateNarrati
 
         var result = await _runtimeService.UpdateNarrativeStateAsync(
             context.SessionId,
-            new UpdateNarrativeStateCommand(directorNotes, input.ActivePlotFile, plotProgress),
+            new UpdateNarrativeStateCommand(directorNotes, input.StickySessionCanon, input.ActivePlotFile, plotProgress),
             ct);
 
         if (result.Status == SessionMutationStatus.Busy)
@@ -108,6 +112,7 @@ public sealed class UpdateNarrativeStateHandler : TypedToolHandler<UpdateNarrati
 public sealed record UpdateNarrativeStateArgs
 {
     public string DirectorNotes { get; init; } = "";
+    public string? StickySessionCanon { get; init; }
     public string? ActivePlotFile { get; init; }
     public NarrativePlotProgressArgs? PlotProgress { get; init; }
 }

@@ -17,6 +17,8 @@ public sealed record InteractiveSessionContext
     public string? FileContext { get; init; }
     public string? WriterPendingContent { get; init; }
     public string? DirectorNotes { get; init; }
+    public string? StickySessionCanon { get; init; }
+    public string? RecentConversationSummary { get; init; }
     public string? ActivePlotFile { get; init; }
     public string? ActivePlotContent { get; init; }
     public string? PlotProgressSummary { get; init; }

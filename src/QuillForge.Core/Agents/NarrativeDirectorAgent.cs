@@ -170,6 +170,14 @@ public sealed class NarrativeDirectorAgent
             ? ""
             : $"\n\n## Director Notes From Prior Turns\n\n{sessionContext.DirectorNotes}";
 
+        var stickyCanonSection = string.IsNullOrWhiteSpace(sessionContext?.StickySessionCanon)
+            ? ""
+            : $"\n\n## Sticky Session Canon\n\n{sessionContext.StickySessionCanon}";
+
+        var recentConversationSection = string.IsNullOrWhiteSpace(sessionContext?.RecentConversationSummary)
+            ? ""
+            : $"\n\n## Recent Session Conversation\n\n{sessionContext.RecentConversationSummary}";
+
         var activePlotSection = string.IsNullOrWhiteSpace(sessionContext?.ActivePlotFile)
             ? ""
             : $"\n\n## Active Plot File\n\n{sessionContext.ActivePlotFile}";
@@ -201,7 +209,7 @@ public sealed class NarrativeDirectorAgent
             - Control NPC reactions, pacing, and immediate consequences.
             - Use `query_lore` before making specific world claims when established lore matters.
             - Use `update_story_state` when the turn changes relationships, conditions, plot pressure, or scene facts.
-            - Use `update_narrative_state` to save concise running director notes for the next turn.
+            - Use `update_narrative_state` to save concise running director notes and sticky session canon for the next turn.
             - If an active plot is loaded, treat it as a reusable plan and track this session's progress or deviations separately.
             - Use `write_prose` to generate the actual player-visible response.
 
@@ -212,12 +220,14 @@ public sealed class NarrativeDirectorAgent
             - For writer turns, the final response must be only the grounded draft prose that should be shown to the user for review.
             - Use `write_prose` for the final visible scene response rather than writing that prose yourself.
             - Before finishing the turn, update narrative state with concise notes that will help the next turn continue cleanly.
+            - Treat non-conflicting facts established in the current chat as authoritative local canon for this session unless explicit lore, character context, or user correction contradicts them.
+            - Keep `sticky_session_canon` current as a concise bullet list of session-established facts, promises, suspicions, objects, alliances, and scene truths that later turns must preserve.
             - When an active plot materially advances or is bypassed, update plot progress in `update_narrative_state`.
             - If the user corrects characterization, relationships, gifts, promises, timeline facts, or prior scene details, treat that as a signal to re-ground against canon before continuing. Re-check the relevant lore and character context instead of patching only the quoted mistake.
 
             ## Narrative Rules
 
-            {rulesSection}{characterSection}{storyStateSection}{narrativeNotesSection}{activePlotSection}{activePlotContentSection}{plotProgressSection}{fileContextSection}{loreSection}
+            {rulesSection}{characterSection}{storyStateSection}{narrativeNotesSection}{stickyCanonSection}{recentConversationSection}{activePlotSection}{activePlotContentSection}{plotProgressSection}{fileContextSection}{loreSection}
             """;
     }
 

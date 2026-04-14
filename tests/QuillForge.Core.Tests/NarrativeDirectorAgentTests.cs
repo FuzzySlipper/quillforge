@@ -60,6 +60,8 @@ public sealed class NarrativeDirectorAgentTests
                     StoryStateSummary = "The gate is closed due to curfew.",
                     StoryStatePath = "gatehouse/.state.yaml",
                     DirectorNotes = "The captain is suspicious but not hostile.",
+                    StickySessionCanon = "- Captain Elian believes the visitor is hiding something.",
+                    RecentConversationSummary = "User: I mention Captain Rowe and the tide tunnels.\nAssistant: Elian's grip tightens on the key ring.",
                     ActivePlotFile = "gate-arc",
                     ActivePlotContent = "# Gate Arc\n\n- Beat: let the guard test her resolve.",
                     PlotProgressSummary = "Current beat: gate-confrontation",
@@ -74,6 +76,10 @@ public sealed class NarrativeDirectorAgentTests
         Assert.Contains("curfew", request.SystemPrompt!);
         Assert.Contains("Captain Elian", request.SystemPrompt!);
         Assert.Contains("suspicious but not hostile", request.SystemPrompt!);
+        Assert.Contains("Sticky Session Canon", request.SystemPrompt!);
+        Assert.Contains("Captain Elian believes the visitor is hiding something.", request.SystemPrompt!);
+        Assert.Contains("Recent Session Conversation", request.SystemPrompt!);
+        Assert.Contains("Captain Rowe and the tide tunnels", request.SystemPrompt!);
         Assert.Contains("Gate Arc", request.SystemPrompt!);
         Assert.Contains("Current beat: gate-confrontation", request.SystemPrompt!);
         Assert.Contains("keeps the gate shut", request.Messages.Single().Content.GetText());
@@ -464,6 +470,7 @@ internal sealed class FakeSessionRuntimeService : ISessionStateService
                 Narrative = new NarrativeRuntimeState
                 {
                     DirectorNotes = command.DirectorNotes,
+                    StickySessionCanon = command.StickySessionCanon,
                     ActivePlotFile = command.ActivePlotFile,
                     PlotProgress = new PlotProgressState
                     {

@@ -64,6 +64,7 @@ public sealed class SessionLifecycleServiceTests
             Narrative = new NarrativeRuntimeState
             {
                 DirectorNotes = "Keep the pressure rising.",
+                StickySessionCanon = "- The rival saw the map.\n- The captain already distrusts the envoy.",
                 ActivePlotFile = "gate-arc",
                 PlotProgress = new PlotProgressState
                 {
@@ -94,6 +95,7 @@ public sealed class SessionLifecycleServiceTests
         Assert.Null(forkedRuntime.Writer.PendingFileName);
         Assert.Equal(WriterState.Idle, forkedRuntime.Writer.State);
         Assert.Equal("Keep the pressure rising.", forkedRuntime.Narrative.DirectorNotes);
+        Assert.Contains("The rival saw the map.", forkedRuntime.Narrative.StickySessionCanon);
         Assert.Equal("gate-arc", forkedRuntime.Narrative.ActivePlotFile);
         Assert.Equal("midpoint", forkedRuntime.Narrative.PlotProgress.CurrentBeat);
         Assert.Contains("opening", forkedRuntime.Narrative.PlotProgress.CompletedBeats);
@@ -131,6 +133,7 @@ public sealed class SessionLifecycleServiceTests
             Narrative = new NarrativeRuntimeState
             {
                 DirectorNotes = "The captain already distrusts the envoy.",
+                StickySessionCanon = "- The envoy promised the signet ring by dawn.",
             },
         });
 
@@ -147,6 +150,7 @@ public sealed class SessionLifecycleServiceTests
         Assert.Equal("captain", forkedRuntime.Roleplay.ActiveAiCharacter);
         Assert.Equal("envoy", forkedRuntime.Roleplay.ActiveUserCharacter);
         Assert.Equal("The captain already distrusts the envoy.", forkedRuntime.Narrative.DirectorNotes);
+        Assert.Contains("The envoy promised the signet ring by dawn.", forkedRuntime.Narrative.StickySessionCanon);
     }
 
     [Fact]
@@ -290,6 +294,7 @@ internal sealed class InMemoryRuntimeStore : ISessionStateStore
             Narrative = new NarrativeRuntimeState
             {
                 DirectorNotes = state.Narrative.DirectorNotes,
+                StickySessionCanon = state.Narrative.StickySessionCanon,
                 ActivePlotFile = state.Narrative.ActivePlotFile,
                 PlotProgress = new PlotProgressState
                 {

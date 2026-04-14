@@ -47,6 +47,8 @@ public sealed class RoleplayMode : IMode
             Do not add assistant framing, self-description, or out-of-scene commentary unless the user explicitly asks for it
             or a tool failure must be disclosed.
             When answering in-scene, let the prose and character voices carry the response.
+            Treat non-conflicting facts established in this session's chat as authoritative local canon unless explicit lore,
+            character context, or user correction contradicts them.
             Do not call write_prose, update_story_state, or update_narrative_state directly from the top level in Roleplay mode.
             If the user corrects canon or characterization, re-ground against the relevant lore and character context before continuing.
             Do not patch only the quoted mistake and keep improvising from the old assumption.
