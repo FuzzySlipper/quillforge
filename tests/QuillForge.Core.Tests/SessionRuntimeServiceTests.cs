@@ -104,6 +104,44 @@ public sealed class SessionRuntimeServiceTests
     }
 
     [Fact]
+    public async Task CaptureWriterPendingAsync_ReplacesExistingPendingReviewContent()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var sessionId = Guid.CreateVersion7();
+        var initialDraft = new string('a', 300);
+        var revisedDraft = new string('b', 320);
+        await store.SaveAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Writer,
+                ProjectName = "novel",
+                CurrentFile = "chapter1.md",
+            },
+            Writer = new WriterRuntimeState
+            {
+                PendingContent = initialDraft,
+                State = WriterState.PendingReview,
+            },
+        });
+
+        var service = CreateService(store);
+        var result = await service.CaptureWriterPendingAsync(
+            sessionId,
+            new CaptureWriterPendingCommand(revisedDraft, Mode.Writer));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        var captured = Assert.IsType<WriterPendingContentCapturedEvent>(result.Value);
+        Assert.Equal(revisedDraft, captured.SessionView.Writer.PendingContent);
+        Assert.Equal(WriterState.PendingReview, captured.SessionView.Writer.State);
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(revisedDraft, saved.Writer.PendingContent);
+        Assert.Equal(WriterState.PendingReview, saved.Writer.State);
+    }
+
+    [Fact]
     public async Task CaptureWriterPendingAsync_SkipsOutsideWriterMode()
     {
         var store = new InMemorySessionRuntimeStore();
@@ -131,11 +169,17 @@ public sealed class SessionRuntimeServiceTests
     public async Task AcceptWriterPendingAsync_ReturnsContent_AndResetsWriterState()
     {
         var store = new InMemorySessionRuntimeStore();
+        var storyStore = new InMemoryStoryStore();
         var sessionId = Guid.CreateVersion7();
         await store.SaveAsync(new SessionState
         {
             SessionId = sessionId,
-            Mode = new ModeSelectionState { ActiveMode = Mode.Writer },
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Writer,
+                ProjectName = "novel",
+                CurrentFile = "chapter1.md",
+            },
             Writer = new WriterRuntimeState
             {
                 PendingContent = "Accepted text",
@@ -143,13 +187,47 @@ public sealed class SessionRuntimeServiceTests
             },
         });
 
-        var service = CreateService(store);
+        var service = CreateService(store, storyStore: storyStore);
         var result = await service.AcceptWriterPendingAsync(sessionId);
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.NotNull(result.Value);
         Assert.Equal("Accepted text", result.Value.AcceptedContent);
         Assert.Equal(sessionId, result.Value.SessionId);
+        Assert.Equal("story/novel/chapter1.md", result.Value.SavedPath);
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(WriterState.Idle, saved.Writer.State);
+        Assert.Null(saved.Writer.PendingContent);
+        Assert.Equal("Accepted text", await storyStore.ReadAsync("novel", "chapter1.md"));
+    }
+
+    [Fact]
+    public async Task AcceptWriterPendingAsync_AfterRevision_WritesRevisedContent()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var storyStore = new InMemoryStoryStore();
+        var service = CreateService(store, storyStore: storyStore);
+        var sessionId = Guid.CreateVersion7();
+        var initialDraft = new string('a', 300);
+        var revisedDraft = new string('b', 320);
+
+        await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("writer", "novel", "chapter1.md", null));
+        await service.CaptureWriterPendingAsync(
+            sessionId,
+            new CaptureWriterPendingCommand(initialDraft, Mode.Writer));
+        await service.CaptureWriterPendingAsync(
+            sessionId,
+            new CaptureWriterPendingCommand(revisedDraft, Mode.Writer));
+
+        var result = await service.AcceptWriterPendingAsync(sessionId);
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.Equal(revisedDraft, result.Value!.AcceptedContent);
+        Assert.Equal("story/novel/chapter1.md", result.Value.SavedPath);
+        Assert.Equal(revisedDraft, await storyStore.ReadAsync("novel", "chapter1.md"));
 
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(WriterState.Idle, saved.Writer.State);
@@ -179,6 +257,38 @@ public sealed class SessionRuntimeServiceTests
         Assert.NotNull(result.Value);
         Assert.Equal(WriterState.Idle, result.Value.SessionView.Writer.State);
         Assert.Null(result.Value.SessionView.Writer.PendingContent);
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(WriterState.Idle, saved.Writer.State);
+        Assert.Null(saved.Writer.PendingContent);
+    }
+
+    [Fact]
+    public async Task RejectWriterPendingAsync_AfterRevision_ClearsRevisedPendingState()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var storyStore = new InMemoryStoryStore();
+        var service = CreateService(store, storyStore: storyStore);
+        var sessionId = Guid.CreateVersion7();
+        var initialDraft = new string('a', 300);
+        var revisedDraft = new string('b', 320);
+
+        await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("writer", "novel", "chapter1.md", null));
+        await service.CaptureWriterPendingAsync(
+            sessionId,
+            new CaptureWriterPendingCommand(initialDraft, Mode.Writer));
+        await service.CaptureWriterPendingAsync(
+            sessionId,
+            new CaptureWriterPendingCommand(revisedDraft, Mode.Writer));
+
+        var result = await service.RejectWriterPendingAsync(sessionId);
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.Equal(WriterState.Idle, result.Value!.SessionView.Writer.State);
+        Assert.Null(result.Value.SessionView.Writer.PendingContent);
+        await Assert.ThrowsAsync<FileNotFoundException>(() => storyStore.ReadAsync("novel", "chapter1.md"));
 
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(WriterState.Idle, saved.Writer.State);
@@ -654,12 +764,14 @@ public sealed class SessionRuntimeServiceTests
 
     private static SessionRuntimeService CreateService(
         InMemorySessionRuntimeStore store,
-        FakeProfileConfigService? profileService = null)
+        FakeProfileConfigService? profileService = null,
+        InMemoryStoryStore? storyStore = null)
     {
         return new SessionRuntimeService(
             store,
             new InMemorySessionMutationGate(NullLogger<InMemorySessionMutationGate>.Instance),
             profileService ?? new FakeProfileConfigService(),
+            storyStore ?? new InMemoryStoryStore(),
             Modes,
             NullLogger<SessionRuntimeService>.Instance);
     }
@@ -754,6 +866,63 @@ internal sealed class InMemorySessionRuntimeStore : ISessionStateStore
                 },
             },
         };
+    }
+}
+
+internal sealed class InMemoryStoryStore : IStoryStore
+{
+    private readonly Dictionary<string, string> _files = [];
+
+    public Task<string> ReadAsync(string projectName, string fileName, CancellationToken ct = default)
+    {
+        var key = GetKey(projectName, fileName);
+        if (!_files.TryGetValue(key, out var content))
+        {
+            throw new FileNotFoundException($"Story file not found: {projectName}/{fileName}");
+        }
+
+        return Task.FromResult(content);
+    }
+
+    public Task AppendAsync(string projectName, string fileName, string content, CancellationToken ct = default)
+    {
+        var key = GetKey(projectName, fileName);
+        _files[key] = _files.TryGetValue(key, out var existing)
+            ? existing + content
+            : content;
+        return Task.CompletedTask;
+    }
+
+    public Task WriteAsync(string projectName, string fileName, string content, CancellationToken ct = default)
+    {
+        _files[GetKey(projectName, fileName)] = content;
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<string>> ListProjectsAsync(CancellationToken ct = default)
+    {
+        var projects = _files.Keys
+            .Select(key => key.Split('/', 2)[0])
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<string>>(projects);
+    }
+
+    public Task<IReadOnlyList<string>> ListFilesAsync(string projectName, CancellationToken ct = default)
+    {
+        var prefix = projectName + "/";
+        var files = _files.Keys
+            .Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
+            .Select(key => key[prefix.Length..])
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<string>>(files);
+    }
+
+    private static string GetKey(string projectName, string fileName)
+    {
+        return $"{projectName}/{fileName}";
     }
 }
 

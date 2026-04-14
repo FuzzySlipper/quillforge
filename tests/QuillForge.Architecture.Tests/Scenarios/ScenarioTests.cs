@@ -123,7 +123,7 @@ public sealed class ScenarioTests : IDisposable
             loggerFactory.CreateLogger<QuillForge.Core.Services.InMemorySessionMutationGate>());
         var profileService = new NoOpProfileConfigService();
         var runtimeService = new SessionRuntimeService(
-            runtimeStore, gate, profileService, modes,
+            runtimeStore, gate, profileService, new NoOpStoryStore(), modes,
             loggerFactory.CreateLogger<SessionRuntimeService>());
         var bootstrapService = new SessionBootstrapService(
             sessionStore, runtimeStore, profileService, loggerFactory, loggerFactory.CreateLogger<SessionBootstrapService>());
@@ -248,6 +248,24 @@ public sealed class ScenarioTests : IDisposable
                 ActiveNarrativeRules = "default",
                 ActiveWritingStyle = "default",
             });
+    }
+
+    private sealed class NoOpStoryStore : IStoryStore
+    {
+        public Task<string> ReadAsync(string projectName, string fileName, CancellationToken ct = default)
+            => Task.FromResult(string.Empty);
+
+        public Task AppendAsync(string projectName, string fileName, string content, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task WriteAsync(string projectName, string fileName, string content, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task<IReadOnlyList<string>> ListProjectsAsync(CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>([]);
+
+        public Task<IReadOnlyList<string>> ListFilesAsync(string projectName, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>([]);
     }
 
     private sealed class FakeProfileReadService : ISessionProfileReadService

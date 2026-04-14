@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getMode, getStatus, getSessionUsage, newSession, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork } from "./api";
+import { acceptWriterPending, getMode, getStatus, getSessionUsage, newSession, rejectWriterPending, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork } from "./api";
 import type { Message, MessageVariant, Mode, Status, DiagnosticEntry, SessionUsage, ReasoningArtifact } from "./types";
 import { parseCommand, executeCommand } from "./commands";
 import type { CommandContext } from "./commands";
@@ -618,7 +618,33 @@ function App() {
   }
 
   async function handleAccept() {
-    await doSend("accept");
+    if (!currentSessionId) {
+      addSystemMessage("No active session for Writer accept.");
+      return;
+    }
+
+    try {
+      const result = await acceptWriterPending(currentSessionId);
+      addSystemMessage(`Accepted pending draft and saved to \`${result.savedPath}\`.`);
+      refreshStatus(result.sessionId);
+    } catch (err) {
+      addSystemMessage(`Failed to accept pending draft: ${err instanceof Error ? err.message : "unknown error"}`);
+    }
+  }
+
+  async function handleReject() {
+    if (!currentSessionId) {
+      addSystemMessage("No active session for Writer reject.");
+      return;
+    }
+
+    try {
+      const result = await rejectWriterPending(currentSessionId);
+      addSystemMessage("Rejected pending draft.");
+      refreshStatus(result.sessionId);
+    } catch (err) {
+      addSystemMessage(`Failed to reject pending draft: ${err instanceof Error ? err.message : "unknown error"}`);
+    }
   }
 
   async function handleRegenerate() {
@@ -764,6 +790,7 @@ function App() {
         <WriterControls
           hasPending={hasPending}
           onAccept={handleAccept}
+          onReject={handleReject}
           onRegenerate={handleRegenerate}
           disabled={sending}
         />

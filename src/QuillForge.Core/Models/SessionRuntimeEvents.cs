@@ -17,7 +17,8 @@ public sealed record WriterPendingCaptureSkippedEvent(
 
 public sealed record WriterPendingContentAcceptedEvent(
     Guid? SessionId,
-    string AcceptedContent);
+    string AcceptedContent,
+    string SavedPath);
 
 public sealed record WriterPendingContentRejectedEvent(
     SessionState SessionView);

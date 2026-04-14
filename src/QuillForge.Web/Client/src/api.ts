@@ -260,6 +260,32 @@ export async function getMode(sessionId?: string | null): Promise<ModeInfo> {
   return request(`/api/mode${query}`);
 }
 
+export interface WriterPendingAcceptResult {
+  sessionId: string;
+  status: string;
+  savedPath: string;
+  contentLength: number;
+}
+
+export interface WriterPendingRejectResult {
+  sessionId: string;
+  status: string;
+}
+
+export async function acceptWriterPending(sessionId: string): Promise<WriterPendingAcceptResult> {
+  return request("/api/writer/pending/accept", {
+    method: "POST",
+    body: JSON.stringify({ sessionId }),
+  });
+}
+
+export async function rejectWriterPending(sessionId: string): Promise<WriterPendingRejectResult> {
+  return request("/api/writer/pending/reject", {
+    method: "POST",
+    body: JSON.stringify({ sessionId }),
+  });
+}
+
 export async function setMode(
   mode: Mode,
   project?: string,

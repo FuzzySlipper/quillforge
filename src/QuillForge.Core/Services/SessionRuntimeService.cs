@@ -11,18 +11,21 @@ public sealed class SessionRuntimeService : ISessionStateService
     private readonly ISessionStateStore _store;
     private readonly ISessionMutationGate _gate;
     private readonly IProfileConfigService _profileService;
+    private readonly IStoryStore _storyStore;
     private readonly ILogger<SessionRuntimeService> _logger;
 
     public SessionRuntimeService(
         ISessionStateStore store,
         ISessionMutationGate gate,
         IProfileConfigService profileService,
+        IStoryStore storyStore,
         IEnumerable<IMode> _,
         ILogger<SessionRuntimeService> logger)
     {
         _store = store;
         _gate = gate;
         _profileService = profileService;
+        _storyStore = storyStore;
         _logger = logger;
     }
 
@@ -280,7 +283,8 @@ public sealed class SessionRuntimeService : ISessionStateService
                     "mode_mismatch"));
         }
 
-        if (state.Writer.State != WriterState.Idle)
+        if (state.Writer.State != WriterState.Idle
+            && state.Writer.State != WriterState.PendingReview)
         {
             _logger.LogInformation(
                 "Writer pending capture skipped: session={SessionId} writerState={WriterState}",
@@ -338,18 +342,46 @@ public sealed class SessionRuntimeService : ISessionStateService
             return SessionMutationResult<WriterPendingContentAcceptedEvent>.Invalid("No pending writer content to accept.");
         }
 
+        if (state.Mode.ActiveMode != Mode.Writer)
+        {
+            _logger.LogWarning(
+                "Writer pending accept rejected: session={SessionId} mode={Mode}",
+                sessionId,
+                state.Mode.ActiveMode);
+            return SessionMutationResult<WriterPendingContentAcceptedEvent>.Invalid(
+                "Writer pending content can only be accepted while Writer mode is active.");
+        }
+
+        var projectName = NormalizeChoice(state.Mode.ProjectName);
+        var fileName = NormalizeChoice(state.Mode.CurrentFile);
+        if (!IsSafeRelativePath(projectName) || !IsSafeRelativePath(fileName))
+        {
+            _logger.LogWarning(
+                "Writer pending accept rejected: session={SessionId} invalid target project={Project} file={File}",
+                sessionId,
+                state.Mode.ProjectName,
+                state.Mode.CurrentFile);
+            return SessionMutationResult<WriterPendingContentAcceptedEvent>.Invalid(
+                "Writer pending content requires an active project and file before it can be accepted.");
+        }
+
         var accepted = state.Writer.PendingContent;
+        var savedPath = BuildWriterSavedPath(projectName!, fileName!);
+
+        _logger.LogInformation(
+            "Writer pending content accepted: session={SessionId} project={Project} file={File} contentLength={Length}",
+            sessionId,
+            projectName,
+            fileName,
+            accepted.Length);
+
+        await _storyStore.WriteAsync(projectName!, fileName!, accepted, ct);
         state.Writer.PendingContent = null;
         state.Writer.State = WriterState.Idle;
         await _store.SaveAsync(state, ct);
 
-        _logger.LogInformation(
-            "Writer pending content accepted: session={SessionId} contentLength={Length}",
-            sessionId,
-            accepted.Length);
-
         return SessionMutationResult<WriterPendingContentAcceptedEvent>.Success(
-            new WriterPendingContentAcceptedEvent(sessionId, accepted));
+            new WriterPendingContentAcceptedEvent(sessionId, accepted, savedPath));
     }
 
     public async Task<SessionMutationResult<WriterPendingContentRejectedEvent>> RejectWriterPendingAsync(
@@ -754,5 +786,40 @@ public sealed class SessionRuntimeService : ISessionStateService
     private static string? NormalizeChoice(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static bool IsSafeRelativePath(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var normalized = value.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        if (Path.IsPathRooted(normalized))
+        {
+            return false;
+        }
+
+        var segments = normalized.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var segment in segments)
+        {
+            if (segment == "." || segment == "..")
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string BuildWriterSavedPath(string projectName, string fileName)
+    {
+        return $"{ContentPaths.Story}/{projectName}/{fileName.Replace('\\', '/')}";
     }
 }

@@ -341,6 +341,7 @@ app.MapStatusEndpoints();
 app.MapSessionEndpoints();
 app.MapChatEndpoints();
 app.MapModeEndpoints();
+app.MapWriterEndpoints();
 app.MapProviderEndpoints();
 app.MapProviderFetchModelsEndpoint();
 app.MapForgeEndpoints();

@@ -1,11 +1,12 @@
 interface WriterControlsProps {
   hasPending: boolean;
   onAccept: () => void;
+  onReject: () => void;
   onRegenerate: () => void;
   disabled: boolean;
 }
 
-export default function WriterControls({ hasPending, onAccept, onRegenerate, disabled }: WriterControlsProps) {
+export default function WriterControls({ hasPending, onAccept, onReject, onRegenerate, disabled }: WriterControlsProps) {
   if (!hasPending) return null;
 
   return (
@@ -16,6 +17,13 @@ export default function WriterControls({ hasPending, onAccept, onRegenerate, dis
         className="flex-1 bg-green-700 hover:bg-green-600 text-white font-medium rounded-lg px-4 py-2 text-sm disabled:opacity-50 transition-colors"
       >
         Accept
+      </button>
+      <button
+        onClick={onReject}
+        disabled={disabled}
+        className="flex-1 bg-red-700 hover:bg-red-600 text-white font-medium rounded-lg px-4 py-2 text-sm disabled:opacity-50 transition-colors"
+      >
+        Reject
       </button>
       <button
         onClick={onRegenerate}
