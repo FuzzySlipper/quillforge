@@ -154,6 +154,39 @@ public sealed class SessionLifecycleServiceTests
     }
 
     [Fact]
+    public async Task ForkAsync_RoleplayTarget_DerivesForkSpecificFile()
+    {
+        var sessionStore = new InMemorySessionStore();
+        var runtimeStore = new InMemoryRuntimeStore();
+        var service = CreateService(sessionStore, runtimeStore);
+
+        var sourceTree = new ConversationTree(
+            Guid.CreateVersion7(),
+            "Roleplay Session",
+            NullLogger<ConversationTree>.Instance);
+        sourceTree.Append(sourceTree.RootId, "user", new MessageContent("Start the scene."));
+        await sessionStore.SaveAsync(sourceTree);
+
+        await runtimeStore.SaveAsync(new SessionState
+        {
+            SessionId = sourceTree.SessionId,
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Roleplay,
+                ProjectName = "campaign-alpha",
+                CurrentFile = "scenes/scene-07.md",
+            },
+        });
+
+        var forkedTree = await service.ForkAsync(sourceTree.SessionId);
+        var forkedRuntime = await runtimeStore.LoadAsync(forkedTree.SessionId);
+
+        Assert.Equal("campaign-alpha", forkedRuntime.Mode.ProjectName);
+        Assert.Matches(@"^scenes/scene-07-fork-[0-9a-f]{8}\.md$", forkedRuntime.Mode.CurrentFile);
+        Assert.NotEqual("scenes/scene-07.md", forkedRuntime.Mode.CurrentFile);
+    }
+
+    [Fact]
     public async Task DeleteAsync_RemovesConversationAndRuntimeTogether()
     {
         var sessionStore = new InMemorySessionStore();

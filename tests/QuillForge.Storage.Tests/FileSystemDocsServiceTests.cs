@@ -182,6 +182,31 @@ public sealed class FileSystemDocsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Search_KeepsDomainTermsLikeWorkflow()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "writer.md"), """
+            ---
+            name: Writer Mode
+            summary: Guided prose generation with approval workflow.
+            ---
+            Writer mode drafts prose and waits for approval before saving.
+            """);
+
+        File.WriteAllText(Path.Combine(_tempDir, "other.md"), """
+            ---
+            name: Misc Notes
+            summary: Unrelated summary.
+            ---
+            This note mentions the writer once but says nothing about approvals.
+            """);
+
+        var results = await _service.SearchAsync("writer workflow");
+
+        var match = Assert.Single(results);
+        Assert.Equal("writer", match.Slug);
+    }
+
+    [Fact]
     public async Task Search_FindsMatchesInTopicNameAndSummary()
     {
         File.WriteAllText(Path.Combine(_tempDir, "tree.md"), """
@@ -197,6 +222,74 @@ public sealed class FileSystemDocsServiceTests : IDisposable
         Assert.Single(results);
         Assert.Contains(results[0].Snippets, snippet => snippet.Contains("# ConversationTree Guide", StringComparison.Ordinal));
         Assert.Contains(results[0].Snippets, snippet => snippet.Contains("Summary: ConversationTree", StringComparison.Ordinal));
+        Assert.Contains(results[0].Snippets, snippet => snippet.Contains("This topic covers persistence details.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Search_PrefersTitlePhraseMatchOverBodyPhraseMatch()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "tree.md"), """
+            ---
+            name: ConversationTree Guide
+            summary: ConversationTree stores branching chat history.
+            ---
+            This topic covers persistence details.
+            """);
+
+        File.WriteAllText(Path.Combine(_tempDir, "notes.md"), """
+            ---
+            name: Persistence Notes
+            summary: Save and load behavior.
+            ---
+            This page mentions ConversationTree once in passing near the end.
+            """);
+
+        var results = await _service.SearchAsync("ConversationTree");
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal("tree", results[0].Slug);
+        Assert.Equal("notes", results[1].Slug);
+    }
+
+    [Fact]
+    public async Task Search_AllInstructionWordsWithoutPhraseMatch_ReturnsEmpty()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "writer.md"), """
+            ---
+            name: Writer Mode
+            summary: Guided prose generation with approval workflow.
+            ---
+            Writer mode drafts prose and waits for approval before saving.
+            """);
+
+        var results = await _service.SearchAsync("can you help me please");
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task Search_FiveTermRelaxation_DoesNotSurfaceLooseNoiseMatches()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "strong.md"), """
+            ---
+            name: Runtime Ownership
+            summary: alpha beta gamma delta
+            ---
+            This document explains how ownership works.
+            """);
+
+        File.WriteAllText(Path.Combine(_tempDir, "noise.md"), """
+            ---
+            name: Loose Notes
+            summary: alpha beta
+            ---
+            This document is not actually about the same topic.
+            """);
+
+        var results = await _service.SearchAsync("alpha beta gamma delta epsilon");
+
+        var match = Assert.Single(results);
+        Assert.Equal("strong", match.Slug);
     }
 
     [Fact]

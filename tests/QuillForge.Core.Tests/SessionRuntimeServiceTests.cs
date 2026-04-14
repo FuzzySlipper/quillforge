@@ -664,6 +664,40 @@ public sealed class SessionRuntimeServiceTests
     }
 
     [Fact]
+    public async Task UpdateNarrativeStateAsync_EmptyStickySessionCanon_DoesNotClearExistingCanon()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        await store.SaveAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Narrative = new NarrativeRuntimeState
+            {
+                StickySessionCanon = "- Rowan still carries the lighthouse keeper's ring.",
+            },
+        });
+
+        var result = await service.UpdateNarrativeStateAsync(
+            sessionId,
+            new UpdateNarrativeStateCommand(
+                "Rowan is still evasive.",
+                "   "));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Equal(
+            "- Rowan still carries the lighthouse keeper's ring.",
+            result.Value.Narrative.StickySessionCanon);
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(
+            "- Rowan still carries the lighthouse keeper's ring.",
+            saved.Narrative.StickySessionCanon);
+    }
+
+    [Fact]
     public async Task LoadViewAsync_HydratesDefaultProfileWithoutPersistingOverrides()
     {
         var store = new InMemorySessionRuntimeStore();

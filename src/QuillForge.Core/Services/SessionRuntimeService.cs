@@ -485,7 +485,18 @@ public sealed class SessionRuntimeService : ISessionStateService
         state.Narrative.DirectorNotes = command.DirectorNotes;
         if (command.StickySessionCanon is not null)
         {
-            state.Narrative.StickySessionCanon = NormalizeChoice(command.StickySessionCanon);
+            var normalizedStickyCanon = NormalizeChoice(command.StickySessionCanon);
+            if (normalizedStickyCanon is not null)
+            {
+                state.Narrative.StickySessionCanon = normalizedStickyCanon;
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Narrative state update ignored empty sticky canon field: session={SessionId} existingStickyCanonLength={StickyCanonLength}",
+                    sessionId,
+                    state.Narrative.StickySessionCanon?.Length ?? 0);
+            }
         }
         if (command.ActivePlotFile is not null)
         {

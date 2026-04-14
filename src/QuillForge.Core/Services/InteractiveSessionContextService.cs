@@ -6,7 +6,7 @@ namespace QuillForge.Core.Services;
 
 public sealed class InteractiveSessionContextService : IInteractiveSessionContextService
 {
-    private const int RecentConversationMessageLimit = 8;
+    private const int RecentConversationMessageLimit = 12;
     private const int RecentConversationMessageTrimLength = 280;
 
     private readonly ISessionStateService _runtimeService;
@@ -116,7 +116,10 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
         }
 
         plotProgressSummary = BuildPlotProgressSummary(state.Narrative.PlotProgress);
-        recentConversationSummary = await LoadRecentConversationSummaryAsync(state.SessionId, ct);
+        recentConversationSummary = await LoadRecentConversationSummaryAsync(
+            state.SessionId,
+            !string.IsNullOrWhiteSpace(state.Narrative.StickySessionCanon),
+            ct);
 
         return new InteractiveSessionContext
         {
@@ -146,7 +149,10 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
         return await BuildAsync(state, ct);
     }
 
-    private async Task<string?> LoadRecentConversationSummaryAsync(Guid? sessionId, CancellationToken ct)
+    private async Task<string?> LoadRecentConversationSummaryAsync(
+        Guid? sessionId,
+        bool hasStickySessionCanon,
+        CancellationToken ct)
     {
         if (!sessionId.HasValue)
         {
@@ -156,7 +162,17 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
         try
         {
             var tree = await _sessionStore.LoadAsync(sessionId.Value, ct);
-            return BuildRecentConversationSummary(tree.ToFlatThread());
+            var relevantMessages = GetRelevantConversationMessages(tree.ToFlatThread());
+            if (relevantMessages.Count > RecentConversationMessageLimit && !hasStickySessionCanon)
+            {
+                _logger.LogInformation(
+                    "Recent conversation summary truncated without sticky canon present: session={SessionId} relevantMessageCount={MessageCount} limit={Limit}",
+                    sessionId,
+                    relevantMessages.Count,
+                    RecentConversationMessageLimit);
+            }
+
+            return BuildRecentConversationSummary(relevantMessages);
         }
         catch (FileNotFoundException ex)
         {
@@ -194,19 +210,31 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
         return string.Join("\n", lines);
     }
 
-    private static string? BuildRecentConversationSummary(IReadOnlyList<MessageNode> thread)
+    private static List<MessageNode> GetRelevantConversationMessages(IReadOnlyList<MessageNode> thread)
     {
-        if (thread.Count == 0)
+        var relevantMessages = new List<MessageNode>();
+
+        foreach (var node in thread)
+        {
+            if (string.Equals(node.Role, "user", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.Role, "assistant", StringComparison.OrdinalIgnoreCase))
+            {
+                relevantMessages.Add(node);
+            }
+        }
+
+        return relevantMessages;
+    }
+
+    private static string? BuildRecentConversationSummary(IReadOnlyList<MessageNode> relevantMessages)
+    {
+        if (relevantMessages.Count == 0)
         {
             return null;
         }
 
         var lines = new List<string>();
-        var recentMessages = thread
-            .Where(node =>
-                string.Equals(node.Role, "user", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(node.Role, "assistant", StringComparison.OrdinalIgnoreCase))
-            .TakeLast(RecentConversationMessageLimit);
+        var recentMessages = relevantMessages.TakeLast(RecentConversationMessageLimit);
 
         foreach (var node in recentMessages)
         {
@@ -218,7 +246,7 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
 
             if (content.Length > RecentConversationMessageTrimLength)
             {
-                content = content[..RecentConversationMessageTrimLength] + "...";
+                content = TrimRecentConversationMessage(content);
             }
 
             var label = string.Equals(node.Role, "user", StringComparison.OrdinalIgnoreCase)
@@ -228,5 +256,24 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
         }
 
         return lines.Count == 0 ? null : string.Join("\n", lines);
+    }
+
+    private static string TrimRecentConversationMessage(string content)
+    {
+        if (content.Length <= RecentConversationMessageTrimLength)
+        {
+            return content;
+        }
+
+        var candidate = content[..RecentConversationMessageTrimLength];
+        var lastSpace = candidate.LastIndexOf(' ');
+        var lastTab = candidate.LastIndexOf('\t');
+        var lastWhitespace = Math.Max(lastSpace, lastTab);
+        if (lastWhitespace > RecentConversationMessageTrimLength / 2)
+        {
+            candidate = candidate[..lastWhitespace];
+        }
+
+        return candidate.TrimEnd() + "...";
     }
 }

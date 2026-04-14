@@ -16,16 +16,15 @@ public sealed class FileSystemDocsService : IDocsService
         "a",
         "an",
         "and",
-        "app",
         "are",
         "be",
         "between",
         "can",
         "check",
-        "docs",
-        "doc",
         "does",
         "do",
+        "difference",
+        "differences",
         "explain",
         "for",
         "help",
@@ -54,11 +53,17 @@ public sealed class FileSystemDocsService : IDocsService
         "which",
         "work",
         "works",
-        "workflow",
-        "workflows",
         "you",
         "your",
     };
+
+    private const int TitlePhraseBoost = 300;
+    private const int SummaryPhraseBoost = 200;
+    private const int BodyPhraseBoost = 100;
+    private const int TitleTermBoost = 6;
+    private const int SummaryTermBoost = 4;
+    private const int BodyTermBoost = 2;
+    private const int LeadingBodySnippetTrimLength = 280;
 
     private readonly string _docsRoot;
     private readonly ILogger<FileSystemDocsService> _logger;
@@ -175,25 +180,46 @@ public sealed class FileSystemDocsService : IDocsService
         string query,
         IReadOnlyList<string> queryTerms)
     {
-        var hasPhraseMatch =
-            ContainsIgnoreCase(name, query) ||
-            ContainsIgnoreCase(summary, query) ||
-            ContainsIgnoreCase(body, query);
+        var titlePhraseMatch = ContainsIgnoreCase(name, query);
+        var summaryPhraseMatch = ContainsIgnoreCase(summary, query);
+        var bodyPhraseMatch = ContainsIgnoreCase(body, query);
+        var hasPhraseMatch = titlePhraseMatch || summaryPhraseMatch || bodyPhraseMatch;
 
         var matchedTermCount = CountMatchedTerms(name, summary, body, queryTerms);
+        var titleTermCount = CountMatchedTerms(name, queryTerms);
+        var summaryTermCount = CountMatchedTerms(summary, queryTerms);
+        var bodyTermCount = CountMatchedTerms(body, queryTerms);
         if (hasPhraseMatch)
         {
-            return new SearchMatch(true, true, matchedTermCount, queryTerms.Count);
+            return new SearchMatch(
+                true,
+                titlePhraseMatch,
+                summaryPhraseMatch,
+                bodyPhraseMatch,
+                matchedTermCount,
+                queryTerms.Count,
+                titleTermCount,
+                summaryTermCount,
+                bodyTermCount);
         }
 
         if (queryTerms.Count == 0)
         {
-            return new SearchMatch(false, false, 0, 0);
+            return new SearchMatch(false, false, false, false, 0, 0, 0, 0, 0);
         }
 
         var requiredTermCount = GetRequiredTermCount(queryTerms.Count);
         var isMatch = matchedTermCount >= requiredTermCount;
-        return new SearchMatch(isMatch, false, matchedTermCount, requiredTermCount);
+        return new SearchMatch(
+            isMatch,
+            false,
+            false,
+            false,
+            matchedTermCount,
+            requiredTermCount,
+            titleTermCount,
+            summaryTermCount,
+            bodyTermCount);
     }
 
     private static List<string> CollectSnippets(
@@ -205,15 +231,19 @@ public sealed class FileSystemDocsService : IDocsService
     {
         var snippets = new List<string>();
         var seenSnippets = new HashSet<string>(StringComparer.Ordinal);
+        var frontmatterMatched = false;
+        var foundBodySnippet = false;
 
         if (IsTextMatch(name, query, queryTerms))
         {
             AddSnippet(snippets, seenSnippets, "# " + name);
+            frontmatterMatched = true;
         }
 
         if (!string.IsNullOrWhiteSpace(summary) && IsTextMatch(summary, query, queryTerms))
         {
             AddSnippet(snippets, seenSnippets, "Summary: " + summary);
+            frontmatterMatched = true;
         }
 
         var lines = body.Split('\n');
@@ -229,6 +259,16 @@ public sealed class FileSystemDocsService : IDocsService
             var end = Math.Min(lines.Length - 1, i + 1);
             var snippet = string.Join('\n', lines[start..(end + 1)]).Trim();
             AddSnippet(snippets, seenSnippets, snippet);
+            foundBodySnippet = true;
+        }
+
+        if (frontmatterMatched && !foundBodySnippet)
+        {
+            var leadingBodySnippet = ExtractLeadingBodySnippet(body);
+            if (!string.IsNullOrWhiteSpace(leadingBodySnippet))
+            {
+                AddSnippet(snippets, seenSnippets, leadingBodySnippet);
+            }
         }
 
         return snippets;
@@ -280,6 +320,21 @@ public sealed class FileSystemDocsService : IDocsService
             if (ContainsIgnoreCase(name, term) ||
                 ContainsIgnoreCase(summary, term) ||
                 ContainsIgnoreCase(body, term))
+            {
+                matchedTermCount++;
+            }
+        }
+
+        return matchedTermCount;
+    }
+
+    private static int CountMatchedTerms(string text, IReadOnlyList<string> queryTerms)
+    {
+        var matchedTermCount = 0;
+
+        foreach (var term in queryTerms)
+        {
+            if (ContainsIgnoreCase(text, term))
             {
                 matchedTermCount++;
             }
@@ -360,6 +415,52 @@ public sealed class FileSystemDocsService : IDocsService
         return text.Contains(value, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static string? ExtractLeadingBodySnippet(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return null;
+        }
+
+        var lines = body.ReplaceLineEndings("\n").Split('\n');
+        var snippetLines = new List<string>();
+        var started = false;
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                if (started)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            started = true;
+            snippetLines.Add(line);
+            if (snippetLines.Count >= 3)
+            {
+                break;
+            }
+        }
+
+        if (snippetLines.Count == 0)
+        {
+            return null;
+        }
+
+        var snippet = string.Join('\n', snippetLines);
+        if (snippet.Length <= LeadingBodySnippetTrimLength)
+        {
+            return snippet;
+        }
+
+        return snippet[..LeadingBodySnippetTrimLength].TrimEnd() + "...";
+    }
+
     private static (string? Name, string? Summary) ParseFrontmatter(string content)
     {
         if (!content.StartsWith("---"))
@@ -428,10 +529,24 @@ public sealed class FileSystemDocsService : IDocsService
 
     private sealed record SearchMatch(
         bool IsMatch,
-        bool HasPhraseMatch,
+        bool HasTitlePhraseMatch,
+        bool HasSummaryPhraseMatch,
+        bool HasBodyPhraseMatch,
         int MatchedTermCount,
-        int RequiredTermCount)
+        int RequiredTermCount,
+        int TitleTermCount,
+        int SummaryTermCount,
+        int BodyTermCount)
     {
-        public int Score => (HasPhraseMatch ? 100 : 0) + MatchedTermCount;
+        public bool HasPhraseMatch => HasTitlePhraseMatch || HasSummaryPhraseMatch || HasBodyPhraseMatch;
+
+        public int Score =>
+            (HasTitlePhraseMatch ? TitlePhraseBoost : 0) +
+            (HasSummaryPhraseMatch ? SummaryPhraseBoost : 0) +
+            (HasBodyPhraseMatch ? BodyPhraseBoost : 0) +
+            (TitleTermCount * TitleTermBoost) +
+            (SummaryTermCount * SummaryTermBoost) +
+            (BodyTermCount * BodyTermBoost) +
+            MatchedTermCount;
     }
 }

@@ -113,6 +113,50 @@ public sealed class InteractiveSessionContextServiceTests
         Assert.Equal("novel", context.ProjectName);
         Assert.Equal("novel/.state.yaml", context.StoryStatePath);
     }
+
+    [Fact]
+    public async Task BuildAsync_UsesExpandedRecentConversationWindow_AndWordBoundaryTrim()
+    {
+        var runtimeService = new FakeRuntimeViewService();
+        var sessionStore = new InMemoryInteractiveSessionStore();
+        var sessionId = Guid.CreateVersion7();
+        var tree = new ConversationTree(sessionId, "Long Session", NullLogger<ConversationTree>.Instance);
+
+        for (var i = 1; i <= 12; i++)
+        {
+            tree.Append(tree.ActiveLeafId, "user", new MessageContent($"Message {i:00}"));
+        }
+
+        var longMessage = string.Join(' ', Enumerable.Repeat("lanternlight", 40));
+        tree.Append(tree.ActiveLeafId, "assistant", new MessageContent(longMessage));
+        await sessionStore.SaveAsync(tree);
+
+        var service = new InteractiveSessionContextService(
+            runtimeService,
+            sessionStore,
+            new FakeCharacterCardStoreForContext(),
+            new StoryStateServiceWithData(new Dictionary<string, object>()),
+            new FakeContentFileService(),
+            new FakePlotStore(),
+            NullLogger<InteractiveSessionContextService>.Instance);
+
+        var context = await service.BuildAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Roleplay,
+                ProjectName = "novel",
+                CurrentFile = "chapter1.md",
+            },
+        });
+
+        Assert.DoesNotContain("Message 01", context.RecentConversationSummary);
+        Assert.Contains("Message 02", context.RecentConversationSummary);
+        Assert.Contains("Message 12", context.RecentConversationSummary);
+        Assert.DoesNotContain("lantern...", context.RecentConversationSummary, StringComparison.Ordinal);
+        Assert.Contains("lanternlight...", context.RecentConversationSummary, StringComparison.Ordinal);
+    }
 }
 
 internal sealed class InMemoryInteractiveSessionStore : ISessionStore

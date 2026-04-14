@@ -65,14 +65,16 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
 
     private static SessionState CloneRuntimeStateForFork(SessionState source, Guid forkedSessionId)
     {
+        var (forkedProjectName, forkedFileName) = ResolveForkedModeTarget(source.Mode, forkedSessionId);
+
         return new SessionState
         {
             SessionId = forkedSessionId,
             Mode = new ModeSelectionState
             {
                 ActiveMode = source.Mode.ActiveMode,
-                ProjectName = source.Mode.ProjectName,
-                CurrentFile = source.Mode.CurrentFile,
+                ProjectName = forkedProjectName,
+                CurrentFile = forkedFileName,
                 Character = source.Mode.Character,
             },
             Profile = new ProfileState
@@ -110,5 +112,44 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
                 },
             },
         };
+    }
+
+    private static (string? ProjectName, string? FileName) ResolveForkedModeTarget(
+        ModeSelectionState sourceMode,
+        Guid forkedSessionId)
+    {
+        var projectName = NormalizeChoice(sourceMode.ProjectName);
+        var fileName = NormalizeChoice(sourceMode.CurrentFile);
+        if (sourceMode.ActiveMode != Mode.Roleplay || projectName is null || fileName is null)
+        {
+            return (projectName, fileName);
+        }
+
+        return (projectName, BuildForkedRoleplayFileName(fileName, forkedSessionId));
+    }
+
+    private static string BuildForkedRoleplayFileName(string fileName, Guid forkedSessionId)
+    {
+        var normalizedPath = fileName.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        var directory = Path.GetDirectoryName(normalizedPath);
+        var baseFileName = Path.GetFileName(normalizedPath);
+        var fileStem = Path.GetFileNameWithoutExtension(baseFileName);
+        var extension = Path.GetExtension(baseFileName);
+        var suffix = $"-fork-{forkedSessionId.ToString("N")[..8]}";
+        var forkedFileName = string.IsNullOrEmpty(extension)
+            ? fileStem + suffix
+            : fileStem + suffix + extension;
+
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return forkedFileName;
+        }
+
+        return Path.Combine(directory, forkedFileName).Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    private static string? NormalizeChoice(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Agents;
+using QuillForge.Core.Agents.Modes;
 using QuillForge.Core.Agents.Tools;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -85,6 +86,139 @@ public sealed class NarrativeDirectorAgentTests
         Assert.Contains("keeps the gate shut", request.Messages.Single().Content.GetText());
         Assert.Contains("write_prose", request.Tools!.Select(t => t.Name));
         Assert.Contains("update_narrative_state", request.Tools!.Select(t => t.Name));
+    }
+
+    [Fact]
+    public async Task DirectSceneAsync_MultiTurnStickyCanonCarriesIntoLaterPrompt()
+    {
+        var sessionId = Guid.CreateVersion7();
+        var fake = new FakeCompletionService();
+        fake.EnqueueToolCall(
+            "update_narrative_state",
+            "call_1",
+            """{"director_notes":"Rowan is cautious but no longer deflecting.","sticky_session_canon":"- Captain Rowe suspects contraband in the tide tunnels.\n- Rowan still carries the lighthouse keeper's ring."}""");
+        fake.EnqueueText("Rowan lowers his voice and admits he has already seen the trapdoor used.");
+        fake.EnqueueText("At Captain Rowe's name, Rowan touches the ring and glances toward the tide tunnels.");
+
+        var runtimeStore = new InMemorySessionRuntimeStore();
+        await runtimeStore.SaveAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Roleplay,
+                ProjectName = "harbor",
+                CurrentFile = "scene-01.md",
+            },
+        });
+
+        var runtimeService = new SessionRuntimeService(
+            runtimeStore,
+            new InMemorySessionMutationGate(NullLogger<InMemorySessionMutationGate>.Instance),
+            new FakeProfileConfigService(),
+            new InMemoryStoryStore(),
+            [new GuideMode(), new WriterMode(), new RoleplayMode(), new ForgeMode(), new CouncilMode()],
+            NullLogger<SessionRuntimeService>.Instance);
+
+        var sessionStore = new InMemoryInteractiveSessionStore();
+        var tree = new ConversationTree(sessionId, "Harbor Session", NullLogger<ConversationTree>.Instance);
+        tree.Append(
+            tree.RootId,
+            "user",
+            new MessageContent("Captain Rowe thinks someone is moving contraband through the tide tunnels."));
+        await sessionStore.SaveAsync(tree);
+
+        var contextService = new InteractiveSessionContextService(
+            runtimeService,
+            sessionStore,
+            new FakeCharacterCardStoreForContext(),
+            new StoryStateServiceWithData(new Dictionary<string, object>()),
+            new FakeContentFileService(),
+            new FakePlotStore(),
+            NullLogger<InteractiveSessionContextService>.Instance);
+
+        var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
+        var toolLoop = new ToolLoop(fake, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore(new Dictionary<string, string>
+        {
+            ["harbor.md"] = "The tide tunnels run beneath the old harbor.",
+        });
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
+        var agent = new NarrativeDirectorAgent(
+            toolLoop,
+            new QueryLoreHandler(null!, loreStore, fileService, guard, NullLogger<QueryLoreHandler>.Instance),
+            new UpdateStoryStateHandler(new TrackingStoryStateService(), new FakeInteractiveSessionContextService(), NullLogger<UpdateStoryStateHandler>.Instance),
+            new UpdateNarrativeStateHandler(runtimeService, NullLogger<UpdateNarrativeStateHandler>.Instance),
+            new WriteProseHandler(null!, new FakeInteractiveSessionContextService(), new TrackingStoryStateService(), NullLogger<WriteProseHandler>.Instance),
+            guard,
+            new FakeNarrativeRulesStore(),
+            new AppConfig(),
+            NullLogger<NarrativeDirectorAgent>.Instance);
+
+        var firstTurnContext = await contextService.LoadAsync(sessionId);
+        var firstTurn = await agent.DirectSceneAsync(
+            new NarrativeDirectionRequest
+            {
+                UserMessage = "How does Rowan react when I mention Captain Rowe and the tide tunnels?",
+            },
+            new AgentContext
+            {
+                SessionId = sessionId,
+                ActiveMode = Mode.Roleplay,
+                ActiveLoreSet = "default",
+                ActiveNarrativeRules = "default",
+                SessionContext = firstTurnContext,
+            });
+
+        var runtimeAfterFirstTurn = await runtimeStore.LoadAsync(sessionId);
+        Assert.Contains("Captain Rowe suspects contraband", runtimeAfterFirstTurn.Narrative.StickySessionCanon);
+
+        var updatedTree = await sessionStore.LoadAsync(sessionId);
+        updatedTree.Append(
+            updatedTree.ActiveLeafId,
+            "assistant",
+            new MessageContent(firstTurn.ResponseText),
+            new MessageMetadata
+            {
+                ConversationMode = Mode.Roleplay,
+            });
+        updatedTree.Append(
+            updatedTree.ActiveLeafId,
+            "user",
+            new MessageContent("Before we move, I ask Rowan whose side he is really on."));
+        await sessionStore.SaveAsync(updatedTree);
+
+        var secondTurnContext = await contextService.LoadAsync(sessionId);
+        Assert.Contains("lighthouse keeper's ring", secondTurnContext.StickySessionCanon);
+
+        await agent.DirectSceneAsync(
+            new NarrativeDirectionRequest
+            {
+                UserMessage = "Before we move, I ask Rowan whose side he is really on.",
+            },
+            new AgentContext
+            {
+                SessionId = sessionId,
+                ActiveMode = Mode.Roleplay,
+                ActiveLoreSet = "default",
+                ActiveNarrativeRules = "default",
+                LastAssistantResponse = firstTurn.ResponseText,
+                SessionContext = secondTurnContext,
+            });
+
+        var secondTurnRequest = fake.ReceivedRequests[2];
+        Assert.Contains("Sticky Session Canon", secondTurnRequest.SystemPrompt!);
+        Assert.Contains("Captain Rowe suspects contraband in the tide tunnels.", secondTurnRequest.SystemPrompt!);
+        Assert.Contains("Rowan still carries the lighthouse keeper's ring.", secondTurnRequest.SystemPrompt!);
+        Assert.Contains("Recent Session Conversation", secondTurnRequest.SystemPrompt!);
+        Assert.Contains("Captain Rowe thinks someone is moving contraband", secondTurnRequest.SystemPrompt!);
+        Assert.Contains(firstTurn.ResponseText, secondTurnRequest.SystemPrompt!);
     }
 
     [Fact]
