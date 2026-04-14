@@ -83,6 +83,58 @@ public sealed class SessionRuntimeServiceTests
     }
 
     [Fact]
+    public async Task SetModeAsync_RoleplayWithoutExplicitTarget_DefaultsProjectAndFile()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        var result = await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("roleplay", null, null, null));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Equal(Mode.Roleplay, result.Value.Mode.ActiveMode);
+        Assert.Equal($"roleplay-{sessionId:N}"[..21], result.Value.Mode.ProjectName);
+        Assert.Equal("scene-01.md", result.Value.Mode.CurrentFile);
+        Assert.Equal("default-guide", result.Value.Mode.Character);
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(Mode.Roleplay, saved.Mode.ActiveMode);
+        Assert.Equal($"roleplay-{sessionId:N}"[..21], saved.Mode.ProjectName);
+        Assert.Equal("scene-01.md", saved.Mode.CurrentFile);
+    }
+
+    [Fact]
+    public async Task SetModeAsync_RoleplayWithoutNewTarget_PreservesExistingProjectAndFile()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("roleplay", "campaign-alpha", "scene-07.md", "Archivist"));
+
+        var result = await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("roleplay", null, null, null));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Equal(Mode.Roleplay, result.Value.Mode.ActiveMode);
+        Assert.Equal("campaign-alpha", result.Value.Mode.ProjectName);
+        Assert.Equal("scene-07.md", result.Value.Mode.CurrentFile);
+        Assert.Equal("Archivist", result.Value.Mode.Character);
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal("campaign-alpha", saved.Mode.ProjectName);
+        Assert.Equal("scene-07.md", saved.Mode.CurrentFile);
+        Assert.Equal("Archivist", saved.Mode.Character);
+    }
+
+    [Fact]
     public async Task CaptureWriterPendingAsync_CapturesLongWriterResponse()
     {
         var store = new InMemorySessionRuntimeStore();

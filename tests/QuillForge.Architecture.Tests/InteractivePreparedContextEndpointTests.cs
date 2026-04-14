@@ -102,6 +102,8 @@ public sealed class InteractivePreparedContextEndpointTests : IDisposable
         builder.Services.AddSingleton<IAssistantPromptStore>(new TestAssistantPromptStore());
         builder.Services.AddSingleton<IInteractiveSessionContextService>(new NoOpInteractiveSessionContextService());
         builder.Services.AddSingleton<ISessionStateService>(new NoOpRuntimeService());
+        builder.Services.AddSingleton<RecordingSessionTranscriptService>();
+        builder.Services.AddSingleton<ISessionTranscriptService>(sp => sp.GetRequiredService<RecordingSessionTranscriptService>());
         builder.Services.AddSingleton<ISessionBootstrapService>(new TestSessionBootstrapService());
         builder.Services.AddSingleton<ISessionStore>(new InMemorySessionStore());
         builder.Services.AddSingleton(new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance));

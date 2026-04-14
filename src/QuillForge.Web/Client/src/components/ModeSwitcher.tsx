@@ -33,6 +33,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
   const [selectedMode, setSelectedMode] = useState<Mode>("guide");
   const [projects, setProjects] = useState<string[]>([]);
   const [project, setProject] = useState("");
+  const [file, setFile] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Roleplay character selection
@@ -45,13 +46,14 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
       setCurrent(m);
       setSelectedMode(m.mode);
       setProject(m.project || "");
+      setFile(m.file || (m.mode === "roleplay" ? "scene-01.md" : ""));
     });
   }, [open, sessionId]);
 
   useEffect(() => {
     if (!open) return;
     if (selectedMode === "roleplay") {
-      // Fetch character cards for roleplay mode
+      getProjects(selectedMode).then((p) => setProjects(p.projects ?? []));
       listCharacterCards(sessionId).then((data) => {
         setCharacters(data.cards);
         setSelectedCharacter(data.activeAi || "");
@@ -69,7 +71,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
     try {
       let result;
       if (selectedMode === "roleplay") {
-        result = await setMode(selectedMode, undefined, undefined, selectedCharacter || undefined, sessionId);
+        result = await setMode(selectedMode, project || undefined, file || undefined, selectedCharacter || undefined, sessionId);
       } else {
         result = await setMode(selectedMode, project || undefined, undefined, undefined, sessionId);
       }
@@ -80,13 +82,15 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
     }
   }
 
-  const needsProject = selectedMode === "writer" || selectedMode === "forge" || selectedMode === "research";
+  const needsProject = selectedMode === "writer" || selectedMode === "forge" || selectedMode === "research" || selectedMode === "roleplay";
+  const needsFile = selectedMode === "roleplay";
   const needsCharacter = selectedMode === "roleplay";
   const canApply =
     selectedMode === "guide" ||
     selectedMode === "council" ||
-    (needsProject && !!project) ||
-    (needsCharacter && !!selectedCharacter);
+    ((needsProject ? !!project : true) &&
+      (needsFile ? !!file : true) &&
+      (needsCharacter ? !!selectedCharacter : true));
 
   return (
     <Overlay open={open} onClose={onClose} title="Mode">
@@ -110,7 +114,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
 
           <p className="text-sm text-text-muted">{MODE_DESCRIPTIONS[selectedMode]}</p>
 
-          {/* Writer / Forge: project selector */}
+          {/* Project-based modes: project selector */}
           {needsProject && (
             <label className="flex flex-col gap-1">
               <span className="text-sm text-text-muted">Project</span>
@@ -133,6 +137,19 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
                   className="flex-1 bg-input-bg text-text border border-border rounded-lg px-3 py-2"
                 />
               </div>
+            </label>
+          )}
+
+          {needsFile && (
+            <label className="flex flex-col gap-1">
+              <span className="text-sm text-text-muted">File</span>
+              <input
+                type="text"
+                value={file}
+                onChange={(e) => setFile(e.target.value)}
+                placeholder="scene-01.md"
+                className="bg-input-bg text-text border border-border rounded-lg px-3 py-2"
+              />
             </label>
           )}
 

@@ -101,6 +101,8 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
         builder.Services.AddSingleton(bootstrapService);
         builder.Services.AddSingleton<ISessionBootstrapService>(sp => sp.GetRequiredService<TestSessionBootstrapService>());
         builder.Services.AddSingleton(lifecycleService ?? (ISessionLifecycleService)new NoOpSessionLifecycleService());
+        builder.Services.AddSingleton<RecordingSessionTranscriptService>();
+        builder.Services.AddSingleton<ISessionTranscriptService>(sp => sp.GetRequiredService<RecordingSessionTranscriptService>());
         builder.Services.AddSingleton<ISessionProfileReadService>(new NoOpSessionProfileReadService());
         builder.Services.AddSingleton<IProfileConfigService>(new NoOpProfileConfigService());
         builder.Services.AddSingleton<IAppConfigStore>(new NoOpAppConfigStore());

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -20,6 +21,7 @@ public static class ChatEndpoints
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
             ISessionStateService runtimeService,
+            [FromServices] ISessionTranscriptService transcriptService,
             ISessionBootstrapService bootstrapService,
             ISessionProfileReadService profileReadService,
             ISessionStore sessionStore,
@@ -194,6 +196,7 @@ public static class ChatEndpoints
                     new MessageContent(assistantText.ToString()),
                     new MessageMetadata
                     {
+                        ConversationMode = sessionState.Mode.ActiveMode,
                         Model = model,
                         InputTokens = inputTokens,
                         OutputTokens = outputTokens,
@@ -206,6 +209,10 @@ public static class ChatEndpoints
             }
 
             await sessionStore.SaveAsync(tree, ct);
+            if (assistantText.Length > 0)
+            {
+                await transcriptService.SyncRoleplayTranscriptAsync(sessionId, ct);
+            }
             if (assistantText.Length > 0)
             {
                 var pendingCapture = await runtimeService.CaptureWriterPendingAsync(

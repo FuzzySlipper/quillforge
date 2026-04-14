@@ -25,6 +25,7 @@ public sealed class ChatStreamingEndpointTests
         var runtimeService = new RecordingRuntimeService();
         var sessionStore = new InMemorySessionStore();
         var completionService = new ScriptedStreamingCompletionService();
+        var transcriptService = new RecordingSessionTranscriptService();
         var toolHandler = new QueryDocsToolHandler();
 
         completionService.EnqueueStream(
@@ -51,7 +52,8 @@ public sealed class ChatStreamingEndpointTests
             runtimeService,
             sessionStore,
             completionService,
-            [toolHandler]);
+            [toolHandler],
+            transcriptService);
 
         var sessionId = Guid.CreateVersion7();
         var response = await InvokePostJsonAsync(
@@ -137,6 +139,7 @@ public sealed class ChatStreamingEndpointTests
         Assert.Equal(userNodeId, thread[0].Id);
         Assert.Equal(assistantNodeId, thread[1].Id);
         Assert.Equal("Docs answer", thread[1].Content.GetText());
+        Assert.Equal(Mode.Guide, thread[1].Metadata?.ConversationMode);
         Assert.Equal(StopReason.EndTurn, thread[1].Metadata?.StopReason);
         Assert.Equal("Answering from the documentation.", thread[1].Metadata?.Reasoning);
         var artifact = Assert.Single(thread[1].Metadata?.ReasoningArtifacts ?? []);
@@ -152,6 +155,7 @@ public sealed class ChatStreamingEndpointTests
         Assert.Equal(Mode.Guide, runtimeService.CaptureCalls[0].Command.SourceMode);
         Assert.Equal(2, completionService.StreamRequestCount);
         Assert.Equal(1, toolHandler.CallCount);
+        Assert.Equal([sessionId], transcriptService.SyncedSessionIds);
     }
 
     [Fact]
@@ -161,6 +165,7 @@ public sealed class ChatStreamingEndpointTests
         var runtimeService = new RecordingRuntimeService();
         var sessionStore = new InMemorySessionStore();
         var completionService = new ScriptedStreamingCompletionService();
+        var transcriptService = new RecordingSessionTranscriptService();
 
         completionService.EnqueueStream(new DoneEvent(StopReason.EndTurn, new TokenUsage(1, 2)));
 
@@ -169,7 +174,8 @@ public sealed class ChatStreamingEndpointTests
             runtimeService,
             sessionStore,
             completionService,
-            []);
+            [],
+            transcriptService);
 
         var sessionId = Guid.CreateVersion7();
         var response = await InvokePostJsonAsync(
@@ -214,6 +220,7 @@ public sealed class ChatStreamingEndpointTests
         Assert.Equal("user", thread[0].Role);
         Assert.Empty(runtimeService.CaptureCalls);
         Assert.Equal(1, completionService.StreamRequestCount);
+        Assert.Empty(transcriptService.SyncedSessionIds);
     }
 
     [Fact]
@@ -223,6 +230,7 @@ public sealed class ChatStreamingEndpointTests
         var runtimeService = new RecordingRuntimeService();
         var sessionStore = new InMemorySessionStore();
         var completionService = new ScriptedStreamingCompletionService();
+        var transcriptService = new RecordingSessionTranscriptService();
 
         completionService.EnqueueStream(
             new TextDeltaEvent("Continued answer"),
@@ -251,7 +259,8 @@ public sealed class ChatStreamingEndpointTests
             runtimeService,
             sessionStore,
             completionService,
-            []);
+            [],
+            transcriptService);
 
         var response = await InvokePostJsonAsync(
             app,
@@ -268,6 +277,7 @@ public sealed class ChatStreamingEndpointTests
         var replay = Assert.IsType<ReasoningReplayEnvelope>(replayedAssistantMessage.ProviderReplay);
         Assert.Equal("The archive keeps the old maps.", replay.Content);
         Assert.Equal("I should mention the maps first.", replay.ReasoningContent);
+        Assert.Equal([sessionId], transcriptService.SyncedSessionIds);
     }
 
     private static WebApplication BuildApp(
@@ -275,7 +285,8 @@ public sealed class ChatStreamingEndpointTests
         RecordingRuntimeService runtimeService,
         InMemorySessionStore sessionStore,
         ScriptedStreamingCompletionService completionService,
-        IReadOnlyList<IToolHandler> toolHandlers)
+        IReadOnlyList<IToolHandler> toolHandlers,
+        RecordingSessionTranscriptService? transcriptService = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -307,6 +318,8 @@ public sealed class ChatStreamingEndpointTests
         builder.Services.AddSingleton<IAssistantPromptStore>(new TestAssistantPromptStore());
         builder.Services.AddSingleton<IInteractiveSessionContextService>(new NoOpInteractiveSessionContextService());
         builder.Services.AddSingleton<ISessionStateService>(runtimeService);
+        builder.Services.AddSingleton(transcriptService ?? new RecordingSessionTranscriptService());
+        builder.Services.AddSingleton<ISessionTranscriptService>(sp => sp.GetRequiredService<RecordingSessionTranscriptService>());
         builder.Services.AddSingleton<ISessionBootstrapService>(new TestSessionBootstrapService());
         builder.Services.AddSingleton<ISessionStore>(sessionStore);
 

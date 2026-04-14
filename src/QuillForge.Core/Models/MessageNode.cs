@@ -33,6 +33,7 @@ public sealed record MessageNode
 /// </summary>
 public sealed record MessageMetadata
 {
+    public Mode? ConversationMode { get; init; }
     public string? Model { get; init; }
     public int? InputTokens { get; init; }
     public int? OutputTokens { get; init; }

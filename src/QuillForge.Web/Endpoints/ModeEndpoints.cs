@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 using QuillForge.Core;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
@@ -37,7 +38,8 @@ public static class ModeEndpoints
             ISessionStateService runtimeService,
             ISessionBootstrapService bootstrapService,
             ISessionLifecycleService lifecycleService,
-            StartupPaths paths,
+            [FromServices] ISessionTranscriptService transcriptService,
+            [FromServices] StartupPaths paths,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -56,6 +58,7 @@ public static class ModeEndpoints
                 {
                     "forge" => ContentPaths.Forge,
                     "writer" => ContentPaths.Story,
+                    "roleplay" => ContentPaths.Story,
                     _ => (string?)null,
                 };
 
@@ -114,6 +117,11 @@ public static class ModeEndpoints
             }
 
             var state = result.Value!;
+
+            if (state.Mode.ActiveMode == Mode.Roleplay && state.SessionId.HasValue)
+            {
+                await transcriptService.SyncRoleplayTranscriptAsync(state.SessionId.Value, ct);
+            }
 
             return Results.Ok(new ModeResponse
             {

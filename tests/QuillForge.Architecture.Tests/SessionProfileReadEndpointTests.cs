@@ -154,6 +154,8 @@ public sealed class SessionProfileReadEndpointTests : IDisposable
         builder.Services.AddSingleton<IProfileConfigService>(new TestProfileConfigService());
         builder.Services.AddSingleton<ISessionStateService>(new TestSessionRuntimeService());
         builder.Services.AddSingleton<IInteractiveSessionContextService>(new TestInteractiveSessionContextService());
+        builder.Services.AddSingleton<RecordingSessionTranscriptService>();
+        builder.Services.AddSingleton<ISessionTranscriptService>(sp => sp.GetRequiredService<RecordingSessionTranscriptService>());
         builder.Services.AddSingleton<ISessionBootstrapService>(new NoOpSessionBootstrapService());
         builder.Services.AddSingleton<ISessionLifecycleService>(new NoOpSessionLifecycleService());
         builder.Services.AddSingleton<ISessionProfileReadService, SessionProfileReadService>();

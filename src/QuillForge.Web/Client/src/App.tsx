@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { acceptWriterPending, getMode, getStatus, getSessionUsage, newSession, rejectWriterPending, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork } from "./api";
+import { acceptWriterPending, getMode, getStatus, getSessionUsage, loadSession, newSession, rejectWriterPending, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork } from "./api";
 import type { Message, MessageVariant, Mode, ModeInfo, Status, DiagnosticEntry, SessionUsage, ReasoningArtifact } from "./types";
 import { parseCommand, executeCommand } from "./commands";
 import type { CommandContext } from "./commands";
@@ -579,6 +579,45 @@ function App() {
     abortRef.current?.abort();
   }
 
+  function mapLoadedMessages(
+    msgs: Array<{
+      id: string;
+      role: string;
+      content: string;
+      createdAt: string;
+      reasoning?: string | null;
+      reasoningArtifacts?: ReasoningArtifact[] | null;
+      parentId?: string | null;
+      variants?: Array<{ content: string; createdAt: string; reasoning?: string | null; reasoningArtifacts?: ReasoningArtifact[] | null }> | null;
+    }>,
+  ): Message[] {
+    return msgs.map((m) => ({
+      id: m.id,
+      role: m.role as "user" | "assistant",
+      content: m.content,
+      timestamp: new Date(m.createdAt).getTime() || Date.now(),
+      reasoning: m.reasoning ?? null,
+      reasoningArtifacts: m.reasoningArtifacts ?? undefined,
+      parentId: m.parentId ?? undefined,
+      variants: m.variants?.map((v) => ({
+        content: v.content,
+        responseType: undefined,
+        timestamp: new Date(v.createdAt).getTime(),
+        reasoning: v.reasoning ?? null,
+        reasoningArtifacts: v.reasoningArtifacts ?? undefined,
+      })),
+      activeVariant: m.variants ? 0 : undefined,
+    }));
+  }
+
+  async function reloadSessionMessages(sessionId: string) {
+    const loaded = await loadSession(sessionId);
+    setMessages(mapLoadedMessages(loaded.messages));
+    setCurrentSessionId(loaded.sessionId);
+    setHasPending(false);
+    refreshStatus(loaded.sessionId);
+  }
+
   function handleEditMessage(id: string, newContent: string) {
     setMessages((prev) =>
       prev.map((m) => (m.id === id ? { ...m, content: newContent } : m)),
@@ -672,13 +711,17 @@ function App() {
   }
 
   async function handleDeleteLast() {
-    await doSend("delete");
-    setMessages((prev) => {
-      const lastAssistantIdx = [...prev].reverse().findIndex((m) => m.role === "assistant");
-      if (lastAssistantIdx === -1) return prev;
-      const idx = prev.length - 1 - lastAssistantIdx;
-      return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
-    });
+    if (!currentSessionId) return;
+
+    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+    if (!lastAssistant) return;
+
+    try {
+      await conversationDeleteMessage(currentSessionId, lastAssistant.id);
+      await reloadSessionMessages(currentSessionId);
+    } catch (err) {
+      addSystemMessage(`Failed to delete last roleplay turn: ${err instanceof Error ? err.message : "unknown error"}`);
+    }
   }
 
   async function handleDeleteMessage(id: string) {
@@ -892,25 +935,7 @@ function App() {
         open={sessionsOpen}
         onClose={() => setSessionsOpen(false)}
         onLoad={(sessionId, msgs) => {
-          // Convert backend messages to frontend Message objects using real GUID IDs
-          const restored: Message[] = msgs.map((m) => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            content: m.content,
-            timestamp: new Date(m.createdAt).getTime() || Date.now(),
-            reasoning: m.reasoning ?? null,
-            reasoningArtifacts: m.reasoningArtifacts ?? undefined,
-            parentId: m.parentId ?? undefined,
-            variants: m.variants?.map((v) => ({
-              content: v.content,
-              responseType: undefined,
-              timestamp: new Date(v.createdAt).getTime(),
-              reasoning: v.reasoning ?? null,
-              reasoningArtifacts: v.reasoningArtifacts ?? undefined,
-            })),
-            activeVariant: m.variants ? 0 : undefined,
-          }));
-          setMessages(restored);
+          setMessages(mapLoadedMessages(msgs));
           setCurrentSessionId(sessionId);
           setHasPending(false);
           refreshStatus(sessionId);

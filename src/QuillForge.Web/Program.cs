@@ -184,6 +184,7 @@ builder.Services.AddSingleton<ISessionStateService>(sp =>
     sp.GetRequiredService<SessionRuntimeService>());
 builder.Services.AddSingleton<ISessionBootstrapService, SessionBootstrapService>();
 builder.Services.AddSingleton<ISessionLifecycleService, SessionLifecycleService>();
+builder.Services.AddSingleton<ISessionTranscriptService, SessionTranscriptService>();
 builder.Services.AddSingleton<IInteractiveSessionContextService, InteractiveSessionContextService>();
 builder.Services.AddSingleton<IProfileConfigService, ProfileConfigService>();
 builder.Services.AddSingleton<ISessionProfileReadService, SessionProfileReadService>();

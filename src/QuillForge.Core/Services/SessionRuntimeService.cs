@@ -211,6 +211,23 @@ public sealed class SessionRuntimeService : ISessionStateService
         var newProjectName = NormalizeChoice(command.Project);
         var newFileName = NormalizeChoice(command.File);
 
+        if (targetMode == Mode.Roleplay)
+        {
+            if (newProjectName is null)
+            {
+                newProjectName = oldMode == Mode.Roleplay
+                    ? oldProjectName
+                    : BuildDefaultRoleplayProjectName(sessionId);
+            }
+
+            if (newFileName is null)
+            {
+                newFileName = oldMode == Mode.Roleplay
+                    ? oldFileName
+                    : DefaultRoleplayFileName;
+            }
+        }
+
         if (oldMode == Mode.Writer && targetMode != Mode.Writer)
         {
             ClearWriterPendingState(state.Writer);
@@ -235,8 +252,8 @@ public sealed class SessionRuntimeService : ISessionStateService
         }
 
         state.Mode.ActiveMode = targetMode;
-        state.Mode.ProjectName = command.Project;
-        state.Mode.CurrentFile = command.File;
+        state.Mode.ProjectName = newProjectName;
+        state.Mode.CurrentFile = newFileName;
 
         if (targetMode == Mode.Roleplay)
         {
@@ -818,6 +835,19 @@ public sealed class SessionRuntimeService : ISessionStateService
     private static string? NormalizeChoice(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private const string DefaultRoleplayFileName = "scene-01.md";
+
+    private static string BuildDefaultRoleplayProjectName(Guid? sessionId)
+    {
+        if (!sessionId.HasValue)
+        {
+            return "roleplay-session";
+        }
+
+        var compactId = sessionId.Value.ToString("N")[..12];
+        return $"roleplay-{compactId}";
     }
 
     private static bool IsSafeRelativePath(string? value)

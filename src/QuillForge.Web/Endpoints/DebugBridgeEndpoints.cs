@@ -31,6 +31,7 @@ public static class DebugBridgeEndpoints
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
             ISessionStateService runtimeService,
+            [FromServices] ISessionTranscriptService transcriptService,
             ISessionBootstrapService bootstrapService,
             ISessionProfileReadService profileReadService,
             ISessionStore sessionStore,
@@ -94,6 +95,7 @@ public static class DebugBridgeEndpoints
 
             tree.Append(tree.ActiveLeafId, "assistant", response.Content, new MessageMetadata
             {
+                ConversationMode = sessionState.Mode.ActiveMode,
                 Model = model,
                 InputTokens = response.Usage.InputTokens,
                 OutputTokens = response.Usage.OutputTokens,
@@ -104,6 +106,10 @@ public static class DebugBridgeEndpoints
             });
 
             await sessionStore.SaveAsync(tree, ct);
+            if (!string.IsNullOrWhiteSpace(response.Content.GetText()))
+            {
+                await transcriptService.SyncRoleplayTranscriptAsync(sessionId, ct);
+            }
             var pendingCapture = await runtimeService.CaptureWriterPendingAsync(
                 sessionId,
                 new CaptureWriterPendingCommand(response.Content.GetText(), sessionState.Mode.ActiveMode),
@@ -137,6 +143,7 @@ public static class DebugBridgeEndpoints
             HttpContext httpContext,
             OrchestratorAgent orchestrator,
             ISessionStateService runtimeService,
+            [FromServices] ISessionTranscriptService transcriptService,
             ISessionBootstrapService bootstrapService,
             ISessionProfileReadService profileReadService,
             ISessionStore sessionStore,
@@ -264,6 +271,7 @@ public static class DebugBridgeEndpoints
                     new MessageContent(assistantText.ToString()),
                     new MessageMetadata
                     {
+                        ConversationMode = sessionState.Mode.ActiveMode,
                         Model = model,
                         InputTokens = inputTokens,
                         OutputTokens = outputTokens,
@@ -276,6 +284,10 @@ public static class DebugBridgeEndpoints
             }
 
             await sessionStore.SaveAsync(tree, ct);
+            if (assistantText.Length > 0)
+            {
+                await transcriptService.SyncRoleplayTranscriptAsync(sessionId, ct);
+            }
 
             // Writer pending capture
             string? writerState = null;

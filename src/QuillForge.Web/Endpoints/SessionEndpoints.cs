@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Web.Contracts;
@@ -116,11 +117,13 @@ public static class SessionEndpoints
         group.MapDelete("/{id}/messages/{messageId}", async (
             Guid id, Guid messageId,
             ISessionStore store,
+            [FromServices] ISessionTranscriptService transcriptService,
             CancellationToken ct) =>
         {
             var tree = await store.LoadAsync(id, ct);
             var removed = tree.Delete(messageId);
             await store.SaveAsync(tree, ct);
+            await transcriptService.SyncRoleplayTranscriptAsync(id, ct);
             return Results.Ok(new SessionMessageDeletedResponse { Removed = removed });
         });
 
@@ -129,6 +132,7 @@ public static class SessionEndpoints
             Guid id,
             HttpContext httpContext,
             ISessionLifecycleService lifecycleService,
+            [FromServices] ISessionTranscriptService transcriptService,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
@@ -137,6 +141,7 @@ public static class SessionEndpoints
             try
             {
                 var newTree = await lifecycleService.ForkAsync(id, messageId, ct);
+                await transcriptService.SyncRoleplayTranscriptAsync(newTree.SessionId, ct);
 
                 return Results.Ok(new SessionForkResponse
                 {

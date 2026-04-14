@@ -183,6 +183,11 @@ public sealed class HarnessInteractiveScenarioRunner : IAsyncDisposable
             new FileSystemLoreStore(
                 Path.Combine(_contentRoot, ContentPaths.Lore),
                 sp.GetRequiredService<ILogger<FileSystemLoreStore>>()));
+        builder.Services.AddSingleton<IStoryStore>(sp =>
+            new FileSystemStoryStore(
+                Path.Combine(_contentRoot, ContentPaths.Story),
+                sp.GetRequiredService<AtomicFileWriter>(),
+                sp.GetRequiredService<ILogger<FileSystemStoryStore>>()));
         builder.Services.AddSingleton<IWritingStyleStore>(sp =>
             new FileSystemWritingStyleStore(
                 Path.Combine(_contentRoot, ContentPaths.WritingStyles),
@@ -334,6 +339,7 @@ public sealed class HarnessInteractiveScenarioRunner : IAsyncDisposable
             sp.GetRequiredService<SessionRuntimeService>());
         builder.Services.AddSingleton<ISessionBootstrapService, SessionBootstrapService>();
         builder.Services.AddSingleton<ISessionLifecycleService, SessionLifecycleService>();
+        builder.Services.AddSingleton<ISessionTranscriptService, SessionTranscriptService>();
         builder.Services.AddSingleton<IInteractiveSessionContextService, InteractiveSessionContextService>();
         builder.Services.AddSingleton<IProfileConfigService, ProfileConfigService>();
         builder.Services.AddSingleton<ISessionProfileReadService, SessionProfileReadService>();
