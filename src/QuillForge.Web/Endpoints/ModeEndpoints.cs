@@ -27,6 +27,8 @@ public static class ModeEndpoints
                 File = state.Mode.CurrentFile,
                 Character = state.Mode.Character,
                 PendingContent = state.Writer.PendingContent,
+                PendingProject = state.Writer.PendingProjectName,
+                PendingFile = state.Writer.PendingFileName,
             });
         });
 
@@ -121,6 +123,8 @@ public static class ModeEndpoints
                 File = state.Mode.CurrentFile,
                 Character = state.Mode.Character,
                 PendingContent = state.Writer.PendingContent,
+                PendingProject = state.Writer.PendingProjectName,
+                PendingFile = state.Writer.PendingFileName,
             });
         });
 

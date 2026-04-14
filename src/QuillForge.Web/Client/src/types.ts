@@ -87,6 +87,8 @@ export interface ModeInfo {
   file: string | null;
   character: string | null;
   pendingContent: string | null;
+  pendingProject: string | null;
+  pendingFile: string | null;
 }
 
 export interface ProfileSwitchResult {

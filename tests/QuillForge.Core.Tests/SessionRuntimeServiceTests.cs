@@ -330,6 +330,41 @@ public sealed class SessionRuntimeServiceTests
     }
 
     [Fact]
+    public async Task AcceptWriterPendingAsync_AfterTargetChangeAndRecapture_UsesLatestCapturedTarget()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var storyStore = new InMemoryStoryStore();
+        var service = CreateService(store, storyStore: storyStore);
+        var sessionId = Guid.CreateVersion7();
+        var initialDraft = new string('a', 300);
+        var revisedDraft = new string('b', 320);
+
+        await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("writer", "project-a", "chapter-a.md", null));
+        await service.CaptureWriterPendingAsync(
+            sessionId,
+            new CaptureWriterPendingCommand(initialDraft, Mode.Writer));
+        await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("writer", "project-b", "chapter-b.md", null));
+        await service.CaptureWriterPendingAsync(
+            sessionId,
+            new CaptureWriterPendingCommand(revisedDraft, Mode.Writer));
+
+        var pendingState = await store.LoadAsync(sessionId);
+        Assert.Equal("project-b", pendingState.Writer.PendingProjectName);
+        Assert.Equal("chapter-b.md", pendingState.Writer.PendingFileName);
+
+        var result = await service.AcceptWriterPendingAsync(sessionId);
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.Equal("story/project-b/chapter-b.md", result.Value!.SavedPath);
+        Assert.Equal(revisedDraft, await storyStore.ReadAsync("project-b", "chapter-b.md"));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => storyStore.ReadAsync("project-a", "chapter-a.md"));
+    }
+
+    [Fact]
     public async Task AcceptWriterPendingAsync_WithoutProjectOrFile_ReturnsInvalid_AndPreservesPendingState()
     {
         var store = new InMemorySessionRuntimeStore();
@@ -361,6 +396,45 @@ public sealed class SessionRuntimeServiceTests
         var saved = await store.LoadAsync(sessionId);
         Assert.Equal(WriterState.PendingReview, saved.Writer.State);
         Assert.Equal("Accepted text", saved.Writer.PendingContent);
+    }
+
+    [Fact]
+    public async Task AcceptWriterPendingAsync_PartialCapturedTarget_ReturnsInvalid_AndPreservesPendingState()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var storyStore = new InMemoryStoryStore();
+        var sessionId = Guid.CreateVersion7();
+        await store.SaveAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Writer,
+                ProjectName = "novel",
+                CurrentFile = "chapter1.md",
+            },
+            Writer = new WriterRuntimeState
+            {
+                PendingContent = "Accepted text",
+                PendingProjectName = "novel",
+                State = WriterState.PendingReview,
+            },
+        });
+
+        var service = CreateService(store, storyStore: storyStore);
+        var result = await service.AcceptWriterPendingAsync(sessionId);
+
+        Assert.Equal(SessionMutationStatus.Invalid, result.Status);
+        Assert.Equal(
+            "Writer pending content has an incomplete saved target and cannot be accepted safely.",
+            result.Error);
+        await Assert.ThrowsAsync<FileNotFoundException>(() => storyStore.ReadAsync("novel", "chapter1.md"));
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(WriterState.PendingReview, saved.Writer.State);
+        Assert.Equal("Accepted text", saved.Writer.PendingContent);
+        Assert.Equal("novel", saved.Writer.PendingProjectName);
+        Assert.Null(saved.Writer.PendingFileName);
     }
 
     [Fact]

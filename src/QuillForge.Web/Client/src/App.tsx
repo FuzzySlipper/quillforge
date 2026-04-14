@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { acceptWriterPending, getMode, getStatus, getSessionUsage, newSession, rejectWriterPending, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork } from "./api";
-import type { Message, MessageVariant, Mode, Status, DiagnosticEntry, SessionUsage, ReasoningArtifact } from "./types";
+import type { Message, MessageVariant, Mode, ModeInfo, Status, DiagnosticEntry, SessionUsage, ReasoningArtifact } from "./types";
 import { parseCommand, executeCommand } from "./commands";
 import type { CommandContext } from "./commands";
 import * as tts from "./tts";
@@ -50,6 +50,7 @@ function App() {
   const [backgroundImage, setBackgroundImage] = useState<string | null>(layoutManager.getBackground());
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [hasPending, setHasPending] = useState(false);
+  const [modeInfo, setModeInfo] = useState<ModeInfo | null>(null);
   const [sending, setSending] = useState(false);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -76,6 +77,11 @@ function App() {
   const [diagnosticEntries, setDiagnosticEntries] = useState<DiagnosticEntry[]>([]);
   const [sessionUsage, setSessionUsage] = useState<SessionUsage | null>(null);
 
+  const applyModeInfo = useCallback((info: ModeInfo) => {
+    setModeInfo(info);
+    setHasPending(!!info.pendingContent);
+  }, []);
+
   const refreshStatus = useCallback((sessionIdOverride?: string | null) => {
     const effectiveSessionId = sessionIdOverride ?? currentSessionId;
     getStatus(effectiveSessionId)
@@ -85,8 +91,11 @@ function App() {
       })
       .catch(() => setStatus(null));
     getMode(effectiveSessionId)
-      .then((m) => setHasPending(!!m.pendingContent))
-      .catch(() => {});
+      .then(applyModeInfo)
+      .catch(() => {
+        setModeInfo(null);
+        setHasPending(false);
+      });
     if (effectiveSessionId) {
       getSessionUsage(effectiveSessionId)
         .then(setSessionUsage)
@@ -125,13 +134,16 @@ function App() {
         layoutManager.init();
       });
     getMode()
-      .then((m) => setHasPending(!!m.pendingContent))
-      .catch(() => {});
+      .then(applyModeInfo)
+      .catch(() => {
+        setModeInfo(null);
+        setHasPending(false);
+      });
     fetch("/api/portraits")
       .then((r) => r.json())
       .then((d) => setPortraits(d.portraits ?? []))
       .catch(() => {});
-  }, []);
+  }, [applyModeInfo]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -789,6 +801,10 @@ function App() {
       {mode === "writer" && (
         <WriterControls
           hasPending={hasPending}
+          currentProject={status?.project ?? null}
+          currentFile={status?.file ?? null}
+          pendingProject={modeInfo?.pendingProject ?? null}
+          pendingFile={modeInfo?.pendingFile ?? null}
           onAccept={handleAccept}
           onReject={handleReject}
           onRegenerate={handleRegenerate}

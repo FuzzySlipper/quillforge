@@ -8,6 +8,8 @@ public sealed record ModeResponse
     public string? File { get; init; }
     public string? Character { get; init; }
     public string? PendingContent { get; init; }
+    public string? PendingProject { get; init; }
+    public string? PendingFile { get; init; }
 }
 
 public sealed record ModeSetRequest

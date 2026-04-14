@@ -80,11 +80,15 @@ public sealed class FrontendContractTests
             File = "scene.md",
             Character = "guide",
             PendingContent = "Pending review.",
+            PendingProject = "novel",
+            PendingFile = "scene.md",
         });
 
         Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
         Assert.Equal("Mode", shape["mode"]);
         Assert.Equal("string | null", shape["pendingContent"]);
+        Assert.Equal("string | null", shape["pendingProject"]);
+        Assert.Equal("string | null", shape["pendingFile"]);
     }
 
     [Fact]

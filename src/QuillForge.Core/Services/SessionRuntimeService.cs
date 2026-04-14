@@ -206,11 +206,32 @@ public sealed class SessionRuntimeService : ISessionStateService
         var resolvedProfile = await LoadProfileForViewAsync(state.Profile.ProfileId, ct);
         var oldMode = state.Mode.ActiveMode;
         var targetMode = parsedMode.Value;
+        var oldProjectName = NormalizeChoice(state.Mode.ProjectName);
+        var oldFileName = NormalizeChoice(state.Mode.CurrentFile);
+        var newProjectName = NormalizeChoice(command.Project);
+        var newFileName = NormalizeChoice(command.File);
 
         if (oldMode == Mode.Writer && targetMode != Mode.Writer)
         {
             ClearWriterPendingState(state.Writer);
             _logger.LogInformation("Writer pending state reset during mode change for session {SessionId}", sessionId);
+        }
+        else if (oldMode == Mode.Writer
+            && targetMode == Mode.Writer
+            && state.Writer.State == WriterState.PendingReview
+            && state.Writer.PendingContent is not null
+            && (!string.Equals(oldProjectName, newProjectName, StringComparison.Ordinal)
+                || !string.Equals(oldFileName, newFileName, StringComparison.Ordinal)))
+        {
+            _logger.LogInformation(
+                "Writer mode target changed while pending content exists: session={SessionId} oldProject={OldProject} oldFile={OldFile} newProject={NewProject} newFile={NewFile} pendingProject={PendingProject} pendingFile={PendingFile}",
+                sessionId,
+                oldProjectName,
+                oldFileName,
+                newProjectName,
+                newFileName,
+                state.Writer.PendingProjectName,
+                state.Writer.PendingFileName);
         }
 
         state.Mode.ActiveMode = targetMode;
@@ -343,6 +364,19 @@ public sealed class SessionRuntimeService : ISessionStateService
         }
 
         var target = ResolveWriterPendingTarget(state);
+        if (target.HasIncompleteCapturedTarget)
+        {
+            _logger.LogWarning(
+                "Writer pending accept rejected: session={SessionId} incomplete captured target pendingProject={PendingProject} pendingFile={PendingFile} currentProject={CurrentProject} currentFile={CurrentFile}",
+                sessionId,
+                state.Writer.PendingProjectName,
+                state.Writer.PendingFileName,
+                state.Mode.ProjectName,
+                state.Mode.CurrentFile);
+            return SessionMutationResult<WriterPendingContentAcceptedEvent>.Invalid(
+                "Writer pending content has an incomplete saved target and cannot be accepted safely.");
+        }
+
         var projectName = target.ProjectName;
         var fileName = target.FileName;
         if (!IsSafeRelativePath(projectName) || !IsSafeRelativePath(fileName))
@@ -824,18 +858,24 @@ public sealed class SessionRuntimeService : ISessionStateService
         writer.State = WriterState.Idle;
     }
 
-    private static (string? ProjectName, string? FileName, bool UsedCapturedTarget) ResolveWriterPendingTarget(SessionState state)
+    private static (string? ProjectName, string? FileName, bool UsedCapturedTarget, bool HasIncompleteCapturedTarget) ResolveWriterPendingTarget(SessionState state)
     {
         var pendingProjectName = NormalizeChoice(state.Writer.PendingProjectName);
         var pendingFileName = NormalizeChoice(state.Writer.PendingFileName);
-        if (pendingProjectName is not null && pendingFileName is not null)
+        if ((pendingProjectName is null) != (pendingFileName is null))
         {
-            return (pendingProjectName, pendingFileName, true);
+            return (pendingProjectName, pendingFileName, false, true);
+        }
+
+        if (pendingProjectName is not null)
+        {
+            return (pendingProjectName, pendingFileName, true, false);
         }
 
         return (
             NormalizeChoice(state.Mode.ProjectName),
             NormalizeChoice(state.Mode.CurrentFile),
+            false,
             false);
     }
 
