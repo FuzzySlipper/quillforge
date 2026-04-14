@@ -21,6 +21,7 @@ public class WriterModeTests
         var section = mode.BuildSystemPromptSection(new ModeContext { WriterPendingContent = "Pending..." });
 
         Assert.Contains("pending content awaiting user review", section);
+        Assert.Contains("The app handles accept/reject actions and saving", section);
     }
 
     [Fact]
@@ -42,5 +43,16 @@ public class WriterModeTests
 
         Assert.Contains("If the user corrects canon", section);
         Assert.Contains("Do not patch only the single sentence", section);
+    }
+
+    [Fact]
+    public void SystemPromptSection_DoesNotTellModelToSaveAcceptedDrafts()
+    {
+        var mode = new WriterMode();
+        var section = mode.BuildSystemPromptSection(new ModeContext { ProjectName = "My Novel" });
+
+        Assert.Contains("The app, not the model, handles accept/reject actions and saving accepted drafts", section);
+        Assert.Contains("Do not use write_file for the standard Writer draft acceptance flow", section);
+        Assert.DoesNotContain("Only after acceptance, use write_file to save the content", section);
     }
 }

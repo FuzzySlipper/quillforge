@@ -283,19 +283,6 @@ public sealed class SessionRuntimeService : ISessionStateService
                     "mode_mismatch"));
         }
 
-        if (state.Writer.State != WriterState.Idle
-            && state.Writer.State != WriterState.PendingReview)
-        {
-            _logger.LogInformation(
-                "Writer pending capture skipped: session={SessionId} writerState={WriterState}",
-                sessionId,
-                state.Writer.State);
-            return SessionMutationResult<WriterPendingCaptureEvent>.Success(
-                new WriterPendingCaptureSkippedEvent(
-                    await HydrateProfileViewAsync(state, ct),
-                    "writer_not_idle"));
-        }
-
         if (string.IsNullOrWhiteSpace(command.Content) || command.Content.Length <= PendingContentThreshold)
         {
             _logger.LogInformation(
@@ -368,17 +355,17 @@ public sealed class SessionRuntimeService : ISessionStateService
         var accepted = state.Writer.PendingContent;
         var savedPath = BuildWriterSavedPath(projectName!, fileName!);
 
+        await _storyStore.WriteAsync(projectName!, fileName!, accepted, ct);
+        state.Writer.PendingContent = null;
+        state.Writer.State = WriterState.Idle;
+        await _store.SaveAsync(state, ct);
+
         _logger.LogInformation(
             "Writer pending content accepted: session={SessionId} project={Project} file={File} contentLength={Length}",
             sessionId,
             projectName,
             fileName,
             accepted.Length);
-
-        await _storyStore.WriteAsync(projectName!, fileName!, accepted, ct);
-        state.Writer.PendingContent = null;
-        state.Writer.State = WriterState.Idle;
-        await _store.SaveAsync(state, ct);
 
         return SessionMutationResult<WriterPendingContentAcceptedEvent>.Success(
             new WriterPendingContentAcceptedEvent(sessionId, accepted, savedPath));

@@ -235,6 +235,76 @@ public sealed class SessionRuntimeServiceTests
     }
 
     [Fact]
+    public async Task AcceptWriterPendingAsync_WithoutProjectOrFile_ReturnsInvalid_AndPreservesPendingState()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var storyStore = new InMemoryStoryStore();
+        var sessionId = Guid.CreateVersion7();
+        await store.SaveAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Writer,
+            },
+            Writer = new WriterRuntimeState
+            {
+                PendingContent = "Accepted text",
+                State = WriterState.PendingReview,
+            },
+        });
+
+        var service = CreateService(store, storyStore: storyStore);
+        var result = await service.AcceptWriterPendingAsync(sessionId);
+
+        Assert.Equal(SessionMutationStatus.Invalid, result.Status);
+        Assert.Equal(
+            "Writer pending content requires an active project and file before it can be accepted.",
+            result.Error);
+        await Assert.ThrowsAsync<FileNotFoundException>(() => storyStore.ReadAsync("novel", "chapter1.md"));
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(WriterState.PendingReview, saved.Writer.State);
+        Assert.Equal("Accepted text", saved.Writer.PendingContent);
+    }
+
+    [Fact]
+    public async Task AcceptWriterPendingAsync_PathTraversalTarget_ReturnsInvalid_AndPreservesPendingState()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var storyStore = new InMemoryStoryStore();
+        var sessionId = Guid.CreateVersion7();
+        await store.SaveAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Writer,
+                ProjectName = "../escape",
+                CurrentFile = "chapter1.md",
+            },
+            Writer = new WriterRuntimeState
+            {
+                PendingContent = "Accepted text",
+                State = WriterState.PendingReview,
+            },
+        });
+
+        var service = CreateService(store, storyStore: storyStore);
+        var result = await service.AcceptWriterPendingAsync(sessionId);
+
+        Assert.Equal(SessionMutationStatus.Invalid, result.Status);
+        Assert.Equal(
+            "Writer pending content requires an active project and file before it can be accepted.",
+            result.Error);
+        await Assert.ThrowsAsync<FileNotFoundException>(() => storyStore.ReadAsync("../escape", "chapter1.md"));
+
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(WriterState.PendingReview, saved.Writer.State);
+        Assert.Equal("Accepted text", saved.Writer.PendingContent);
+    }
+
+    [Fact]
     public async Task RejectWriterPendingAsync_ResetsWriterState()
     {
         var store = new InMemorySessionRuntimeStore();
