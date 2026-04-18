@@ -47,5 +47,6 @@ The shell expects the backend sidecar to be built through `npm run prepare:sidec
 
 - the shell defaults to loopback-only backend binding until you explicitly enable LAN/mobile access from the desktop header
 - when LAN/mobile access is enabled, the shell restarts the backend in LAN mode and shows the phone/tablet URL to use on the same trusted network
-- release packaging now prioritizes Fedora RPM, Debian DEB, macOS `.app`/DMG, and the Windows installer with stable asset names for manual downloads or helper scripts
+- release packaging now prioritizes Fedora RPM, Debian DEB, macOS `.app`/`.dmg`, and the Windows installer with stable asset names for manual downloads or helper scripts
 - Linux AppImage packaging is still a follow-up path; local Linux builds can stay on `.deb` unless you explicitly request additional bundles
+- use `docs/desktop-release-validation.md` for the manual install/update/validation checklist before cutting a release tag

@@ -49,6 +49,18 @@ Unless the user explicitly narrows scope, cover:
 - one message delete/fork/regenerate flow when exposed
 - one content browsing/editing flow when exposed
 
+## Desktop Addendum
+
+When the work touches the Tauri wrapper, release artifacts, or desktop-specific startup behavior, also cover:
+- desktop shell launch without a separate browser window
+- workspace creation under `Documents/QuillForge`
+- `Open Workspace` and `Restart Backend` from the shell UI
+- default local-only binding behavior
+- optional LAN/mobile access toggle when that path is part of scope
+- any platform-specific install/update docs that changed as part of the task
+
+For pre-release manual install/update verification, pair this guide with `docs/desktop-release-validation.md`.
+
 ## Required Prompt Set
 
 Include prompts that force real behavior:

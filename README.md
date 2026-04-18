@@ -49,11 +49,15 @@ Current release artifacts prioritize the desktop shell:
 - macOS manual-download bundles: `QuillForge-macos-<arch>.app.zip` and `QuillForge-macos-<arch>.dmg`
 - Windows installer: `QuillForge-windows-x64-setup.exe`
 
-Fedora helper/update URL example:
+Install by platform:
+- Fedora: `sudo dnf install ./QuillForge-fedora-x86_64.rpm`
+- Debian/Ubuntu: `sudo apt install ./QuillForge-debian-amd64.deb`
+- macOS: unzip `QuillForge-macos-<arch>.app.zip` or open the `.dmg`, then move `QuillForge.app` into `Applications`
+- Windows: run `QuillForge-windows-x64-setup.exe`
 
-```bash
-sudo dnf install https://github.com/FuzzySlipper/quillforge/releases/latest/download/QuillForge-fedora-x86_64.rpm
-```
+macOS note for the current unsigned early builds:
+- if macOS blocks launch, open `System Settings -> Privacy & Security`, find the blocked QuillForge message, and choose `Open Anyway`
+- after that, QuillForge should launch normally from `Applications`
 
 After install, launch QuillForge from the desktop app your platform provides. On first run, QuillForge creates a content root with starter content and data folders. Desktop launches stay local-only by default; use the desktop shell's LAN/mobile toggle when you want phone or tablet access on the same trusted network.
 
@@ -63,9 +67,16 @@ Workspace behavior:
 - desktop-mode launches default to `Documents/QuillForge`
 - if a desktop-mode launch finds an older sibling `user/` directory next to the published app and `Documents/QuillForge` is still empty, QuillForge copies that old workspace into `Documents/QuillForge` and leaves the original in place
 
+Manual updates keep your writing workspace in place:
+- Fedora: reinstall the latest RPM over the old one, for example `sudo dnf install https://github.com/FuzzySlipper/quillforge/releases/latest/download/QuillForge-fedora-x86_64.rpm`
+- Debian/Ubuntu: install the new DEB over the old one with `sudo apt install ./QuillForge-debian-amd64.deb`
+- macOS: replace the old `QuillForge.app` in `Applications` with the newer one you downloaded
+- Windows: run the newer installer and let it replace the installed app
+- in all of those cases, leave `Documents/QuillForge` alone unless you are intentionally moving or backing up your writing workspace
+
 If you are running the legacy browser/server host from source or an older portable build, open the URL shown in the terminal. In source-development runs this is usually `http://localhost:5204`.
 
-QuillForge can check GitHub releases and show update availability in the app, but it does not auto-install updates for you.
+QuillForge can check GitHub releases and show update availability in the app, but it does not auto-install updates for you. For a maintainer-facing pre-release checklist, see `docs/desktop-release-validation.md`.
 
 ### From Source
 
@@ -208,7 +219,7 @@ npm install
 npm run tauri:dev
 ```
 
-That flow builds the shell UI, publishes `QuillForge.Web` as a self-contained sidecar for the current host, and launches the desktop app. The tagged release workflow now stages stable desktop assets for Fedora RPM, Debian DEB, macOS zipped `.app` bundles plus DMGs, and a Windows installer. The desktop shell keeps backend binding local-only by default and can explicitly restart in LAN/mobile mode when you need to reach it from a phone or tablet on the same trusted network. Local Linux `tauri:build` runs can still stay focused on `.deb` unless you override bundles explicitly. AppImage packaging remains a follow-up path while linuxdeploy support is being sorted out.
+That flow builds the shell UI, publishes `QuillForge.Web` as a self-contained sidecar for the current host, and launches the desktop app. The tagged release workflow now stages stable desktop assets for Fedora RPM, Debian DEB, macOS zipped `.app` bundles plus DMGs, and a Windows installer. The desktop shell keeps backend binding local-only by default and can explicitly restart in LAN/mobile mode when you need to reach it from a phone or tablet on the same trusted network. Local Linux `tauri:build` runs can still stay focused on `.deb` unless you override bundles explicitly. AppImage packaging remains a follow-up path while linuxdeploy support is being sorted out. Use `docs/desktop-release-validation.md` when you need the concrete pre-tag manual validation checklist.
 
 ### Source Layout
 
