@@ -9,6 +9,7 @@ namespace QuillForge.Web.Services;
 /// </summary>
 public sealed class AutoUpdateService : BackgroundService
 {
+    private const string LatestReleaseApiUrl = "https://api.github.com/repos/FuzzySlipper/quillforge/releases/latest";
     private readonly ILogger<AutoUpdateService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly TimeSpan _checkInterval;
@@ -51,8 +52,7 @@ public sealed class AutoUpdateService : BackgroundService
         var client = _httpClientFactory.CreateClient("github");
         client.DefaultRequestHeaders.UserAgent.ParseAdd("QuillForge-UpdateCheck/1.0");
 
-        var response = await client.GetAsync(
-            "https://api.github.com/repos/quillforge/quillforge/releases/latest", ct);
+        var response = await client.GetAsync(LatestReleaseApiUrl, ct);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -82,6 +82,7 @@ public sealed class AutoUpdateService : BackgroundService
         else
         {
             UpdateAvailable = false;
+            DownloadUrl = null;
             _logger.LogDebug("Up to date: {Version}", currentVersion);
         }
     }

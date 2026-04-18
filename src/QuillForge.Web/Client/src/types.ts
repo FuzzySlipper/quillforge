@@ -57,7 +57,7 @@ export interface Status {
   diagnosticsLivePanel?: boolean;
   aiCharacter: string;
   userCharacter: string;
-  update?: { available: boolean; version: string; url: string } | null;
+  update?: { available: boolean; version: string | null; url: string | null } | null;
 }
 
 export interface DiagnosticEntry {

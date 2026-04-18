@@ -41,6 +41,8 @@ const uuid = (): string =>
         return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
       });
 
+const RELEASES_URL = "https://github.com/FuzzySlipper/quillforge/releases";
+
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -772,6 +774,8 @@ function App() {
   }
 
   const hasAssistantMessages = messages.some((m) => m.role === "assistant");
+  const updateVersion = status?.update?.version ?? "a newer version";
+  const updateUrl = status?.update?.url ?? RELEASES_URL;
 
   const chatContent = (
     <div className="h-dvh flex flex-col bg-bg">
@@ -802,6 +806,25 @@ function App() {
           refreshStatus(result.sessionId);
         }}
       />
+
+      {status?.update?.available && (
+        <div className="flex items-center justify-between gap-3 border-b border-accent/20 bg-accent/10 px-4 py-2 text-sm">
+          <div className="min-w-0">
+            <span className="font-medium text-accent">Update available.</span>{" "}
+            <span className="text-text-muted">
+              Download {updateVersion} from GitHub and replace the app binary. Your <code>user/</code> folder should stay as-is.
+            </span>
+          </div>
+          <a
+            href={updateUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 rounded-md bg-surface-alt px-3 py-1.5 text-xs text-text-muted transition-colors hover:text-text"
+          >
+            Download
+          </a>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
         {messages.length === 0 && (

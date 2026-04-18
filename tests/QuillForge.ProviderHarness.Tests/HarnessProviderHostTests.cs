@@ -320,14 +320,15 @@ public sealed class HarnessProviderHostTests
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "test-key");
 
-        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-        Assert.True(response.IsSuccessStatusCode);
-
-        await using var stream = await response.Content.ReadAsStreamAsync();
-        var buffer = new byte[256];
-
+        HttpResponseMessage? response = null;
         try
         {
+            response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            Assert.True(response.IsSuccessStatusCode);
+
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            var buffer = new byte[256];
+
             while (await stream.ReadAsync(buffer) > 0)
             {
             }
@@ -337,6 +338,10 @@ public sealed class HarnessProviderHostTests
         }
         catch (IOException)
         {
+        }
+        finally
+        {
+            response?.Dispose();
         }
 
         var trace = Assert.Single(host.TraceStore.Snapshot());
