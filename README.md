@@ -38,24 +38,24 @@ QuillForge is under active development. Releases are built from Git tags and are
 
 ### From Release (Recommended)
 
-Download the latest release for your platform from:
+Download the latest desktop release for your platform from:
 
 <https://github.com/FuzzySlipper/quillforge/releases>
 
-Run the binary:
+Current release artifacts prioritize the desktop shell:
+
+- Fedora-friendly RPM: `QuillForge-fedora-x86_64.rpm`
+- Debian-friendly DEB: `QuillForge-debian-amd64.deb`
+- macOS manual-download bundles: `QuillForge-macos-<arch>.app.zip` and `QuillForge-macos-<arch>.dmg`
+- Windows installer: `QuillForge-windows-x64-setup.exe`
+
+Fedora helper/update URL example:
 
 ```bash
-# Linux / macOS
-chmod +x QuillForge.Web
-./QuillForge.Web
+sudo dnf install https://github.com/FuzzySlipper/quillforge/releases/latest/download/QuillForge-fedora-x86_64.rpm
 ```
 
-```powershell
-# Windows
-QuillForge.Web.exe
-```
-
-On first run, QuillForge creates a content root with starter content and data folders.
+After install, launch QuillForge from the desktop app your platform provides. On first run, QuillForge creates a content root with starter content and data folders.
 
 Workspace behavior:
 - source/dev runs normally use repo-local `user/`
@@ -63,7 +63,7 @@ Workspace behavior:
 - desktop-mode launches default to `Documents/QuillForge`
 - if a desktop-mode launch finds an older sibling `user/` directory next to the published app and `Documents/QuillForge` is still empty, QuillForge copies that old workspace into `Documents/QuillForge` and leaves the original in place
 
-Open the URL shown in the terminal. In source-development runs this is usually `http://localhost:5204`. In packaged runs it may differ depending on how the app is launched.
+If you are running the legacy browser/server host from source or an older portable build, open the URL shown in the terminal. In source-development runs this is usually `http://localhost:5204`.
 
 QuillForge can check GitHub releases and show update availability in the app, but it does not auto-install updates for you.
 
@@ -208,7 +208,7 @@ npm install
 npm run tauri:dev
 ```
 
-That flow builds the shell UI, publishes `QuillForge.Web` as a self-contained sidecar for the current host, and launches the desktop app. On Linux the current local `tauri:build` script defaults to `.deb` packaging; AppImage packaging is tracked as part of the later desktop release task.
+That flow builds the shell UI, publishes `QuillForge.Web` as a self-contained sidecar for the current host, and launches the desktop app. The tagged release workflow now stages stable desktop assets for Fedora RPM, Debian DEB, macOS zipped `.app` bundles plus DMGs, and a Windows installer. Local Linux `tauri:build` runs can still stay focused on `.deb` unless you override bundles explicitly. AppImage packaging remains a follow-up path while linuxdeploy support is being sorted out.
 
 ### Source Layout
 

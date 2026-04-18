@@ -33,7 +33,7 @@ npm install
 npm run tauri:build
 ```
 
-The shell expects the backend sidecar to be built through `npm run prepare:sidecar` first; the `tauri:dev` and `tauri:build` scripts already do that.
+The shell expects the backend sidecar to be built through `npm run prepare:sidecar` first; the `tauri:dev` and `tauri:build` scripts already do that. For release packaging, the GitHub workflow builds stable desktop assets for Fedora RPM, Debian DEB, macOS zipped `.app` bundles plus DMGs, and the Windows NSIS installer.
 
 ## Current Behavior
 
@@ -46,5 +46,6 @@ The shell expects the backend sidecar to be built through `npm run prepare:sidec
 ## Notes
 
 - the shell currently defaults to loopback-only backend binding
-- later tasks will add explicit LAN/mobile controls and release-pipeline packaging
-- Linux AppImage packaging is still expected to be finished under task `#696`; the shell task currently defaults local Linux builds to `.deb` because `linuxdeploy` failed in this environment while the app itself and `.deb` bundle completed successfully
+- later tasks will add explicit LAN/mobile controls beyond the current shell
+- release packaging now prioritizes Fedora RPM, Debian DEB, macOS `.app`/DMG, and the Windows installer with stable asset names for manual downloads or helper scripts
+- Linux AppImage packaging is still a follow-up path; local Linux builds can stay on `.deb` unless you explicitly request additional bundles

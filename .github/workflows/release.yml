@@ -26,75 +26,122 @@ jobs:
       - run: dotnet build QuillForge.slnx --no-restore -c Release
       - run: dotnet test QuillForge.slnx --no-build -c Release
 
-  publish:
+  desktop-bundles:
     needs: test
     if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            rid: linux-x64
-            artifact: quillforge-linux-x64
+          - os: ubuntu-22.04
+            artifact_name: desktop-linux-x64
+            target_triple: x86_64-unknown-linux-gnu
+            sidecar_rid: linux-x64
+            tauri_target: ''
+            bundles: deb,rpm
+          - os: macos-latest
+            artifact_name: desktop-macos-x64
+            target_triple: x86_64-apple-darwin
+            sidecar_rid: osx-x64
+            tauri_target: x86_64-apple-darwin
+            bundles: app,dmg
+          - os: macos-latest
+            artifact_name: desktop-macos-arm64
+            target_triple: aarch64-apple-darwin
+            sidecar_rid: osx-arm64
+            tauri_target: aarch64-apple-darwin
+            bundles: app,dmg
           - os: windows-latest
-            rid: win-x64
-            artifact: quillforge-win-x64
-          - os: macos-latest
-            rid: osx-arm64
-            artifact: quillforge-osx-arm64
-          - os: macos-latest
-            rid: osx-x64
-            artifact: quillforge-osx-x64
+            artifact_name: desktop-windows-x64
+            target_triple: x86_64-pc-windows-msvc
+            sidecar_rid: win-x64
+            tauri_target: ''
+            bundles: nsis
 
-    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
           dotnet-quality: 'preview'
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: src/QuillForge.Web/Client/package-lock.json
+          cache-dependency-path: |
+            src/QuillForge.Web/Client/package-lock.json
+            src/QuillForge.Desktop/package-lock.json
 
-      - name: Publish
-        run: >
-          dotnet publish src/QuillForge.Web/QuillForge.Web.csproj
-          -c Release
-          -r ${{ matrix.rid }}
-          --self-contained
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -o publish/
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Upload artifact
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Rust target
+        if: matrix.tauri_target != ''
+        run: rustup target add ${{ matrix.tauri_target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Install web frontend dependencies
+        run: npm ci
+        working-directory: src/QuillForge.Web/Client
+
+      - name: Install desktop dependencies
+        run: npm ci
+        working-directory: src/QuillForge.Desktop
+
+      - name: Build desktop bundles
+        shell: bash
+        env:
+          QUILLFORGE_DESKTOP_HOST_TRIPLE: ${{ matrix.target_triple }}
+          QUILLFORGE_DESKTOP_TARGET_TRIPLE: ${{ matrix.target_triple }}
+          QUILLFORGE_DESKTOP_SIDECAR_RID: ${{ matrix.sidecar_rid }}
+          QUILLFORGE_DESKTOP_BUNDLES: ${{ matrix.bundles }}
+          QUILLFORGE_TAURI_TARGET: ${{ matrix.tauri_target }}
+        run: |
+          args=(--bundles "$QUILLFORGE_DESKTOP_BUNDLES")
+          if [ -n "$QUILLFORGE_TAURI_TARGET" ]; then
+            args+=(--target "$QUILLFORGE_TAURI_TARGET")
+          fi
+          npm run tauri:build -- "${args[@]}"
+        working-directory: src/QuillForge.Desktop
+
+      - name: Stage release assets
+        env:
+          QUILLFORGE_DESKTOP_TARGET_TRIPLE: ${{ matrix.target_triple }}
+          QUILLFORGE_DESKTOP_RELEASE_DIR: ${{ github.workspace }}/release-assets
+        run: node ./scripts/stage-release-assets.mjs
+        working-directory: src/QuillForge.Desktop
+
+      - name: Upload staged assets
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: publish/
+          name: ${{ matrix.artifact_name }}
+          path: release-assets/*
+          if-no-files-found: error
 
   release:
-    needs: publish
+    needs: desktop-bundles
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          path: artifacts/
-
-      - name: Package artifacts
-        run: |
-          cd artifacts
-          for dir in */; do
-            name="${dir%/}"
-            tar -czf "../${name}.tar.gz" -C "$dir" .
-          done
+          path: release-assets
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: '*.tar.gz'
+          tag_name: ${{ github.ref_name }}
+          files: release-assets/**/*
+          fail_on_unmatched_files: true
           generate_release_notes: true
