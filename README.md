@@ -198,6 +198,18 @@ For a faster local suite that skips integration-style tests and live-provider te
 dotnet test QuillForge.slnx --filter "Category!=Integration&Category!=LiveProvider"
 ```
 
+### Desktop Shell
+
+The first Tauri desktop shell lives in `src/QuillForge.Desktop/`.
+
+```bash
+cd src/QuillForge.Desktop
+npm install
+npm run tauri:dev
+```
+
+That flow builds the shell UI, publishes `QuillForge.Web` as a self-contained sidecar for the current host, and launches the desktop app. On Linux the current local `tauri:build` script defaults to `.deb` packaging; AppImage packaging is tracked as part of the later desktop release task.
+
 ### Source Layout
 
 ```text
@@ -207,6 +219,7 @@ src/
   QuillForge.Providers/  LLM adapters and provider-specific integrations
   QuillForge.Storage/    File-backed stores, config/session persistence, content I/O
   QuillForge.Web/        ASP.NET Core host, endpoints, startup, React client
+  QuillForge.Desktop/    Tauri desktop shell, local shell UI, backend sidecar packaging
 
 tests/
   QuillForge.Core.Tests/

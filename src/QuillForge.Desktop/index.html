@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QuillForge Desktop</title>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="shell-toolbar">
+        <div>
+          <p class="eyebrow">QuillForge Desktop</p>
+          <h1>QuillForge</h1>
+        </div>
+        <div class="toolbar-actions">
+          <button id="open-workspace" class="secondary">Open Workspace</button>
+          <button id="restart-backend" class="secondary">Restart Backend</button>
+        </div>
+      </header>
+
+      <main class="shell-main">
+        <section id="status-panel" class="status-panel">
+          <div class="status-card">
+            <p id="status-badge" class="status-badge">Starting</p>
+            <h2 id="status-title">Launching QuillForge backend</h2>
+            <p id="status-message" class="status-copy">
+              Preparing the local QuillForge service and waiting for it to become ready.
+            </p>
+
+            <dl class="status-details">
+              <div>
+                <dt>Workspace</dt>
+                <dd id="workspace-path">Resolving...</dd>
+              </div>
+              <div>
+                <dt>Binding</dt>
+                <dd id="bind-mode">loopback</dd>
+              </div>
+              <div>
+                <dt>Backend Port</dt>
+                <dd id="backend-port">Resolving...</dd>
+              </div>
+            </dl>
+
+            <div class="status-actions">
+              <button id="retry-backend" class="primary">Retry Startup</button>
+              <button id="open-workspace-inline" class="secondary">Open Workspace</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="iframe-panel" class="iframe-panel hidden">
+          <iframe
+            id="backend-frame"
+            title="QuillForge"
+            allow="clipboard-read; clipboard-write"
+            referrerpolicy="no-referrer"
+          ></iframe>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
