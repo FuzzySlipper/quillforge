@@ -34,6 +34,7 @@ public sealed record ModelsConfig
     public string NarrativeDirector { get; set; } = "default";
     public string ProseWriter { get; set; } = "default";
     public string Librarian { get; set; } = "default";
+    public string Canonizer { get; set; } = "default";
     public string ForgeWriter { get; set; } = "default";
     public string ForgePlanner { get; set; } = "default";
     public string ForgeReviewer { get; set; } = "default";
@@ -113,6 +114,7 @@ public sealed record AgentsConfig
     public OrchestratorBudget Orchestrator { get; set; } = new();
     public NarrativeDirectorBudget NarrativeDirector { get; set; } = new();
     public LibrarianBudget Librarian { get; set; } = new();
+    public CanonizerBudget Canonizer { get; set; } = new();
     public ProseWriterBudget ProseWriter { get; set; } = new();
     public ForgePlannerBudget ForgePlanner { get; set; } = new();
     public ForgeWriterBudget ForgeWriter { get; set; } = new();
@@ -139,6 +141,12 @@ public sealed record LibrarianBudget
     public int MaxTokens { get; set; } = 4096;
     public int MaxToolRounds { get; set; } = 1;
     public bool CacheSystemPrompt { get; set; } = true;
+}
+
+public sealed record CanonizerBudget
+{
+    public int MaxTokens { get; set; } = 4096;
+    public int MaxLoreContextChars { get; set; } = 24000;
 }
 
 public sealed record ProseWriterBudget

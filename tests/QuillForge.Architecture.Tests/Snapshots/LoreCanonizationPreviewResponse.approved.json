@@ -1,0 +1,23 @@
+{
+  "sessionId": "01234567-89ab-cdef-0123-456789abcdef",
+  "status": "preview_ready",
+  "proposal": {
+    "sessionId": "01234567-89ab-cdef-0123-456789abcdef",
+    "loreSet": "shadow-realm",
+    "targetFilePath": "session-imports/2026-04-17-01234567.md",
+    "summary": "Found one new fact and one lore refinement.",
+    "newFacts": [
+      "Warden Ilya keeps the bell fragments in the archive vault."
+    ],
+    "modifiedFacts": [
+      "The silver bells cracked during the ash storm."
+    ],
+    "conflicts": [
+      "One speaker claimed the bells were later recast, but the session never confirmed it."
+    ],
+    "proposedMarkdown": "### Ash Storm Aftermath\n\n- The silver bells cracked during the ash storm.",
+    "proposedFileContent": "\u003C!-- quillforge:canonize session=01234567-89ab-cdef-0123-456789abcdef generated=2026-04-17T12:00:00.0000000\u002B00:00 --\u003E\n### Ash Storm Aftermath\n\n- The silver bells cracked during the ash storm.\n\u003C!-- /quillforge:canonize --\u003E",
+    "canApply": true,
+    "generatedAt": "2026-04-17T12:00:00+00:00"
+  }
+}

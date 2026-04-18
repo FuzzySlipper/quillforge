@@ -41,6 +41,11 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
             {
                 MaxTokens = Math.Max(value.Agents.Librarian.MaxTokens, 256),
             },
+            Canonizer = value.Agents.Canonizer with
+            {
+                MaxTokens = Math.Max(value.Agents.Canonizer.MaxTokens, 256),
+                MaxLoreContextChars = Math.Clamp(value.Agents.Canonizer.MaxLoreContextChars, 1000, 200000),
+            },
             ProseWriter = value.Agents.ProseWriter with
             {
                 MaxTokens = Math.Max(value.Agents.ProseWriter.MaxTokens, 256),

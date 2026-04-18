@@ -6,7 +6,7 @@ import type { Mode, ModeInfo } from "../types";
 interface ModeSwitcherProps {
   open: boolean;
   onClose: () => void;
-  onSwitched: (sessionId?: string | null) => void;
+  onSwitched: (sessionId?: string | null, notice?: string | null) => void;
   sessionId?: string | null;
 }
 
@@ -75,7 +75,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
       } else {
         result = await setMode(selectedMode, project || undefined, undefined, undefined, sessionId);
       }
-      onSwitched(result?.sessionId ?? sessionId);
+      onSwitched(result?.sessionId ?? sessionId, result?.notice ?? null);
       onClose();
     } finally {
       setSaving(false);

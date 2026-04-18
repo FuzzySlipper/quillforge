@@ -120,6 +120,30 @@ public class SessionRuntimeStoreTests : IDisposable
                     Deviations = ["The rival arrived early."],
                 },
             },
+            Canonization = new LoreCanonizationRuntimeState
+            {
+                PendingProposal = new LoreCanonizationProposalState
+                {
+                    SessionId = sessionId,
+                    LoreSet = "fantasy",
+                    TargetFilePath = "history/ash-storm.md",
+                    Summary = "Pending import from the session.",
+                    NewFacts = ["The bells cracked during the storm."],
+                    ModifiedFacts = [],
+                    Conflicts = [],
+                    ProposedMarkdown = """
+                        ### Storm
+
+                        - The bells cracked during the storm.
+                        """,
+                    ProposedFileContent = """
+                        ### Storm
+
+                        - The bells cracked during the storm.
+                        """,
+                    CanApply = true,
+                },
+            },
         };
 
         await _store.SaveAsync(state);
@@ -148,6 +172,9 @@ public class SessionRuntimeStoreTests : IDisposable
         Assert.Equal("ruins-entry", loaded.Narrative.PlotProgress.CurrentBeat);
         Assert.Contains("call-to-adventure", loaded.Narrative.PlotProgress.CompletedBeats);
         Assert.Contains("The rival arrived early.", loaded.Narrative.PlotProgress.Deviations);
+        Assert.NotNull(loaded.Canonization?.PendingProposal);
+        Assert.Equal("history/ash-storm.md", loaded.Canonization?.PendingProposal?.TargetFilePath);
+        Assert.Contains("The bells cracked during the storm.", loaded.Canonization?.PendingProposal?.ProposedMarkdown);
     }
 
     [Fact]

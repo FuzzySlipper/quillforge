@@ -3,6 +3,7 @@ using QuillForge.Core;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Storage.Utilities;
+using QuillForge.Web.Services;
 
 namespace QuillForge.Web.Endpoints;
 
@@ -60,14 +61,20 @@ public static class ContentEndpoints
             return Results.Ok(new { Backgrounds = backgrounds });
         });
 
-        app.MapGet("/api/lore", async (ILoreStore loreStore, AppConfig config, CancellationToken ct) =>
+        app.MapGet("/api/lore", async (
+            HttpContext httpContext,
+            ILoreStore loreStore,
+            AppConfig config,
+            ISessionProfileReadService profileReadService,
+            CancellationToken ct) =>
         {
-            var lore = await loreStore.LoadLoreSetAsync(config.Lore.Active, ct);
+            var activeLoreSet = await ResolveActiveLoreSetAsync(httpContext, config, profileReadService, ct);
+            var lore = await loreStore.LoadLoreSetAsync(activeLoreSet, ct);
             var files = lore.Select(kvp => new
             {
                 Path = kvp.Key,
                 Size = kvp.Value.Length,
-                Tokens = kvp.Value.Length / 4, // rough estimate
+                Tokens = kvp.Value.Length / 4,
             }).ToList();
 
             var categories = files
@@ -80,18 +87,24 @@ public static class ContentEndpoints
             {
                 Files = files,
                 Categories = categories,
-                ActiveProject = config.Lore.Active,
-                LorePath = $"lore/{config.Lore.Active}",
+                ActiveProject = activeLoreSet,
+                LorePath = $"lore/{activeLoreSet}",
             });
         });
 
-        app.MapGet("/api/lore/projects", async (ILoreStore loreStore, AppConfig config, CancellationToken ct) =>
+        app.MapGet("/api/lore/projects", async (
+            HttpContext httpContext,
+            ILoreStore loreStore,
+            AppConfig config,
+            ISessionProfileReadService profileReadService,
+            CancellationToken ct) =>
         {
             var projects = await loreStore.ListLoreSetsAsync(ct);
+            var activeLoreSet = await ResolveActiveLoreSetAsync(httpContext, config, profileReadService, ct);
             return Results.Ok(new
             {
                 Projects = projects,
-                Active = config.Lore.Active,
+                Active = activeLoreSet,
             });
         });
 
@@ -117,11 +130,16 @@ public static class ContentEndpoints
             return Results.Ok(new { Status = "ok", Name = name });
         });
 
-        // Individual lore file CRUD (catch-all must come AFTER /api/lore/projects)
-        app.MapGet("/api/lore/{**filePath}", async (string filePath, AppConfig config, CancellationToken ct) =>
+        app.MapGet("/api/lore/{**filePath}", async (
+            string filePath,
+            HttpContext httpContext,
+            AppConfig config,
+            ISessionProfileReadService profileReadService,
+            CancellationToken ct) =>
         {
-            var resolved = Path.GetFullPath(Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active, filePath));
-            var loreDir = Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active);
+            var activeLoreSet = await ResolveActiveLoreSetAsync(httpContext, config, profileReadService, ct);
+            var resolved = Path.GetFullPath(Path.Combine(contentRoot, ContentPaths.Lore, activeLoreSet, filePath));
+            var loreDir = Path.Combine(contentRoot, ContentPaths.Lore, activeLoreSet);
             if (!resolved.StartsWith(loreDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(resolved))
             {
                 return Results.NotFound(new { Error = "File not found" });
@@ -134,14 +152,16 @@ public static class ContentEndpoints
             string filePath,
             HttpContext httpContext,
             AppConfig config,
+            ISessionProfileReadService profileReadService,
             AtomicFileWriter writer,
             CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: ct);
             var content = body.RootElement.TryGetProperty("content", out var el) ? el.GetString() ?? "" : "";
+            var activeLoreSet = await ResolveActiveLoreSetAsync(httpContext, config, profileReadService, ct);
 
-            var resolved = Path.GetFullPath(Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active, filePath));
-            var loreDir = Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active);
+            var resolved = Path.GetFullPath(Path.Combine(contentRoot, ContentPaths.Lore, activeLoreSet, filePath));
+            var loreDir = Path.Combine(contentRoot, ContentPaths.Lore, activeLoreSet);
             if (!resolved.StartsWith(loreDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
                 return Results.BadRequest(new { Error = "Invalid path" });
@@ -149,16 +169,24 @@ public static class ContentEndpoints
 
             var dir = Path.GetDirectoryName(resolved);
             if (dir is not null && !Directory.Exists(dir))
+            {
                 Directory.CreateDirectory(dir);
+            }
 
             await writer.WriteAsync(resolved, content, ct);
             return Results.Ok(new { Path = filePath, Status = "ok" });
         });
 
-        app.MapDelete("/api/lore/{**filePath}", (string filePath, AppConfig config) =>
+        app.MapDelete("/api/lore/{**filePath}", async (
+            string filePath,
+            HttpContext httpContext,
+            AppConfig config,
+            ISessionProfileReadService profileReadService,
+            CancellationToken ct) =>
         {
-            var resolved = Path.GetFullPath(Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active, filePath));
-            var loreDir = Path.Combine(contentRoot, ContentPaths.Lore, config.Lore.Active);
+            var activeLoreSet = await ResolveActiveLoreSetAsync(httpContext, config, profileReadService, ct);
+            var resolved = Path.GetFullPath(Path.Combine(contentRoot, ContentPaths.Lore, activeLoreSet, filePath));
+            var loreDir = Path.Combine(contentRoot, ContentPaths.Lore, activeLoreSet);
             if (!resolved.StartsWith(loreDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(resolved))
             {
                 return Results.NotFound(new { Error = "File not found" });
@@ -167,7 +195,6 @@ public static class ContentEndpoints
             return Results.Ok(new { Deleted = filePath });
         });
 
-        // Serve content files (backgrounds, generated images, etc.) as static files
         app.MapGet("/content/{**path}", (string path) =>
         {
             var fullPath = Path.GetFullPath(Path.Combine(contentRoot, path));
@@ -180,5 +207,21 @@ public static class ContentEndpoints
             }
             return Results.File(fullPath);
         });
+    }
+
+    private static async Task<string> ResolveActiveLoreSetAsync(
+        HttpContext httpContext,
+        AppConfig config,
+        ISessionProfileReadService profileReadService,
+        CancellationToken ct)
+    {
+        var sessionId = httpContext.TryGetSessionId();
+        if (!sessionId.HasValue)
+        {
+            return config.Lore.Active;
+        }
+
+        var view = await profileReadService.LoadAsync(sessionId, ct);
+        return view.ActiveLoreSet;
     }
 }

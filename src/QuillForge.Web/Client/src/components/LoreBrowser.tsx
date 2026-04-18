@@ -42,12 +42,12 @@ export default function LoreBrowser({ open, onClose, onChanged, sessionId }: Lor
   useEffect(() => {
     if (!open) return;
     refresh();
-  }, [open]);
+  }, [open, sessionId]);
 
   async function refresh() {
     const [loreData, projData] = await Promise.all([
-      listLore(),
-      listLoreProjects(),
+      listLore(sessionId),
+      listLoreProjects(sessionId),
     ]);
     setFiles(loreData.files);
     setCategories(loreData.categories);
@@ -79,7 +79,7 @@ export default function LoreBrowser({ open, onClose, onChanged, sessionId }: Lor
   async function handleSelect(path: string) {
     setLoading(true);
     try {
-      const data = await readLore(path);
+      const data = await readLore(path, sessionId);
       setSelected(path);
       setContent(data.content);
       setOriginalContent(data.content);
@@ -92,7 +92,7 @@ export default function LoreBrowser({ open, onClose, onChanged, sessionId }: Lor
     if (!selected) return;
     setSaving(true);
     try {
-      await writeLore(selected, content);
+      await writeLore(selected, content, sessionId);
       setOriginalContent(content);
       await refresh();
       onChanged(sessionId);
@@ -102,7 +102,7 @@ export default function LoreBrowser({ open, onClose, onChanged, sessionId }: Lor
   }
 
   async function handleDelete(path: string) {
-    await deleteLore(path);
+    await deleteLore(path, sessionId);
     if (selected === path) {
       setSelected(null);
       setContent("");
@@ -130,7 +130,7 @@ export default function LoreBrowser({ open, onClose, onChanged, sessionId }: Lor
       ? `# ${newFileName.trim()}\n\n**Description:** \n\n**Goals:** \n\n**Key members:** \n`
       : `# ${newFileName.trim()}\n\n`;
 
-    await writeLore(path, template);
+    await writeLore(path, template, sessionId);
     setNewFileDir(null);
     setNewFileName("");
     await refresh();

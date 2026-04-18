@@ -89,6 +89,7 @@ export interface ModeInfo {
   pendingContent: string | null;
   pendingProject: string | null;
   pendingFile: string | null;
+  notice: string | null;
 }
 
 export interface ProfileSwitchResult {
@@ -125,4 +126,39 @@ export interface ProjectList {
   mode: string;
   directory: string;
   projects: ProjectEntry[];
+}
+
+
+export interface LoreCanonizationProposal {
+  sessionId: string;
+  loreSet: string;
+  targetFilePath: string;
+  summary: string;
+  newFacts: string[];
+  modifiedFacts: string[];
+  conflicts: string[];
+  proposedMarkdown: string;
+  proposedFileContent: string;
+  canApply: boolean;
+  generatedAt: string;
+}
+
+export interface LoreCanonizationPreviewResult {
+  sessionId: string;
+  status: string;
+  proposal: LoreCanonizationProposal;
+}
+
+export interface LoreCanonizationApplyResult {
+  sessionId: string;
+  status: string;
+  loreSet: string;
+  targetFilePath: string;
+  contentLength: number;
+}
+
+export interface LoreCanonizationDiscardResult {
+  sessionId: string;
+  status: string;
+  targetFilePath: string | null;
 }

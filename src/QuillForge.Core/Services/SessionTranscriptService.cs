@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
 
@@ -61,7 +62,12 @@ public sealed class SessionTranscriptService : ISessionTranscriptService
         }
 
         var tree = await _sessionStore.LoadAsync(sessionId, ct);
-        var transcript = BuildRoleplayTranscript(tree.ToFlatThread());
+        var transcript = BuildRoleplayTranscript(
+            sessionId,
+            projectName,
+            fileName,
+            state.Mode.Character,
+            tree.ToFlatThread());
 
         await _storyStore.WriteAsync(projectName, fileName, transcript, ct);
 
@@ -74,9 +80,65 @@ public sealed class SessionTranscriptService : ISessionTranscriptService
             transcript.Length);
     }
 
-    private static string BuildRoleplayTranscript(IReadOnlyList<MessageNode> thread)
+    private static string BuildRoleplayTranscript(
+        Guid sessionId,
+        string projectName,
+        string fileName,
+        string? characterName,
+        IReadOnlyList<MessageNode> thread)
     {
-        var turns = new List<string>();
+        var assistantLabel = BuildAssistantLabel(characterName);
+        var targetPath = $"story/{projectName}/{fileName.Replace('\\', '/')}";
+        var entries = BuildTranscriptEntries(thread, assistantLabel);
+        var builder = new StringBuilder();
+
+        builder.AppendLine($"<!-- quillforge:roleplay-transcript session={sessionId} -->");
+        builder.AppendLine("# Roleplay Transcript");
+        builder.AppendLine();
+        builder.AppendLine("> This file is app-managed by QuillForge.");
+        builder.AppendLine("> It is regenerated from the active roleplay conversation branch on every sync.");
+        builder.AppendLine("> Manual edits here will be overwritten. Put notes in a separate story file.");
+        builder.AppendLine();
+        builder.AppendLine($"Session: `{sessionId}`");
+        builder.AppendLine($"Target: `{targetPath}`");
+
+        if (!string.Equals(assistantLabel, "Assistant", StringComparison.Ordinal))
+        {
+            builder.AppendLine($"Character: `{assistantLabel}`");
+        }
+
+        builder.AppendLine();
+
+        if (entries.Count == 0)
+        {
+            builder.AppendLine("_No roleplay turns have been synced yet._");
+            return builder.ToString().TrimEnd();
+        }
+
+        foreach (var entry in entries)
+        {
+            builder.AppendLine($"## Turn {entry.TurnNumber} - {entry.Label}");
+            builder.AppendLine();
+            builder.AppendLine(entry.Content);
+            builder.AppendLine();
+        }
+
+        return builder.ToString().TrimEnd();
+    }
+
+    private static List<TranscriptEntry> BuildTranscriptEntries(
+        IReadOnlyList<MessageNode> thread,
+        string assistantLabel)
+    {
+        var nodesById = new Dictionary<Guid, MessageNode>(thread.Count);
+        foreach (var node in thread)
+        {
+            nodesById[node.Id] = node;
+        }
+
+        var includedUserNodes = new HashSet<Guid>();
+        var entries = new List<TranscriptEntry>();
+        var turnNumber = 0;
 
         foreach (var node in thread)
         {
@@ -90,16 +152,75 @@ public sealed class SessionTranscriptService : ISessionTranscriptService
                 continue;
             }
 
-            var content = node.Content.GetText().ReplaceLineEndings("\n").Trim();
-            if (string.IsNullOrWhiteSpace(content))
+            var assistantContent = NormalizeTurnContent(node.Content.GetText());
+            if (assistantContent is null)
             {
                 continue;
             }
 
-            turns.Add(content);
+            turnNumber++;
+
+            if (node.ParentId is Guid parentId
+                && nodesById.TryGetValue(parentId, out var parentNode)
+                && string.Equals(parentNode.Role, "user", StringComparison.OrdinalIgnoreCase)
+                && includedUserNodes.Add(parentNode.Id))
+            {
+                var userContent = NormalizeTurnContent(parentNode.Content.GetText());
+                if (userContent is not null)
+                {
+                    entries.Add(new TranscriptEntry(turnNumber, "User", userContent));
+                }
+            }
+
+            entries.Add(new TranscriptEntry(turnNumber, assistantLabel, assistantContent));
         }
 
-        return string.Join("\n\n", turns);
+        return entries;
+    }
+
+    private static string BuildAssistantLabel(string? characterName)
+    {
+        if (string.IsNullOrWhiteSpace(characterName))
+        {
+            return "Assistant";
+        }
+
+        var fileName = Path.GetFileNameWithoutExtension(characterName.Trim());
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return "Assistant";
+        }
+
+        var normalized = fileName
+            .Replace('-', ' ')
+            .Replace('_', ' ')
+            .Trim();
+
+        if (normalized.Length == 0)
+        {
+            return "Assistant";
+        }
+
+        var words = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < words.Length; i++)
+        {
+            var word = words[i];
+            if (word.Length == 1)
+            {
+                words[i] = word.ToUpperInvariant();
+                continue;
+            }
+
+            words[i] = char.ToUpperInvariant(word[0]) + word[1..].ToLowerInvariant();
+        }
+
+        return string.Join(' ', words);
+    }
+
+    private static string? NormalizeTurnContent(string content)
+    {
+        var normalized = content.ReplaceLineEndings("\n").Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private static int CountRoleplayTurns(IReadOnlyList<MessageNode> thread)
@@ -126,4 +247,6 @@ public sealed class SessionTranscriptService : ISessionTranscriptService
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
+
+    private sealed record TranscriptEntry(int TurnNumber, string Label, string Content);
 }

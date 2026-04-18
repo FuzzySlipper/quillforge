@@ -69,6 +69,10 @@ public class SessionState
     /// <summary>Narrative-director session state (notes, active plot selection).</summary>
     public NarrativeRuntimeState Narrative { get; set; } = new();
 
+    /// <summary>Explicit user-invoked lore canonization proposal state.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LoreCanonizationRuntimeState? Canonization { get; set; }
+
     /// <summary>
     /// Timestamp of last mutation. Used to detect stale state on concurrent access.
     /// </summary>

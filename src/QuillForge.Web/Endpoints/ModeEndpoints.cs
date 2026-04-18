@@ -30,6 +30,7 @@ public static class ModeEndpoints
                 PendingContent = state.Writer.PendingContent,
                 PendingProject = state.Writer.PendingProjectName,
                 PendingFile = state.Writer.PendingFileName,
+                Notice = null,
             });
         });
 
@@ -70,6 +71,7 @@ public static class ModeEndpoints
             }
 
             Guid? createdSessionId = null;
+            SessionState? previousState = null;
 
             if (!sessionId.HasValue)
             {
@@ -81,6 +83,10 @@ public static class ModeEndpoints
                     ct);
                 sessionId = tree.SessionId;
                 createdSessionId = tree.SessionId;
+            }
+            else
+            {
+                previousState = await runtimeService.LoadViewAsync(sessionId, ct);
             }
 
             var result = await runtimeService.SetModeAsync(
@@ -117,6 +123,12 @@ public static class ModeEndpoints
             }
 
             var state = result.Value!;
+            var autoWorkspaceNotice = BuildAutoCreatedRoleplayWorkspaceNotice(
+                previousState,
+                mode,
+                project,
+                file,
+                state);
 
             if (state.Mode.ActiveMode == Mode.Roleplay && state.SessionId.HasValue)
             {
@@ -133,6 +145,7 @@ public static class ModeEndpoints
                 PendingContent = state.Writer.PendingContent,
                 PendingProject = state.Writer.PendingProjectName,
                 PendingFile = state.Writer.PendingFileName,
+                Notice = autoWorkspaceNotice,
             });
         });
 
@@ -227,5 +240,46 @@ public static class ModeEndpoints
                 }
             });
         });
+    }
+
+    private static string? BuildAutoCreatedRoleplayWorkspaceNotice(
+        SessionState? previousState,
+        string requestedMode,
+        string? requestedProject,
+        string? requestedFile,
+        SessionState updatedState)
+    {
+        if (!string.Equals(requestedMode, "roleplay", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (updatedState.Mode.ActiveMode != Mode.Roleplay)
+        {
+            return null;
+        }
+
+        if (previousState?.Mode.ActiveMode == Mode.Roleplay)
+        {
+            return null;
+        }
+
+        var projectName = updatedState.Mode.ProjectName;
+        var fileName = updatedState.Mode.CurrentFile;
+        if (string.IsNullOrWhiteSpace(projectName) || string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(requestedProject) && !string.IsNullOrWhiteSpace(requestedFile))
+        {
+            return null;
+        }
+
+        var reason = string.IsNullOrWhiteSpace(requestedProject) && string.IsNullOrWhiteSpace(requestedFile)
+            ? "because no explicit roleplay target was provided."
+            : "because part of the roleplay target was auto-generated.";
+
+        return $"Created roleplay workspace at `story/{projectName}/{fileName}` {reason}";
     }
 }

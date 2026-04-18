@@ -418,9 +418,72 @@ public sealed class ContractSnapshotTests
                     Deviations = ["skipped-mentor-death"],
                 },
             },
+            Canonization = new LoreCanonizationRuntimeState
+            {
+                PendingProposal = new LoreCanonizationProposalState
+                {
+                    SessionId = Guid.Parse("01234567-89ab-cdef-0123-456789abcdef"),
+                    LoreSet = "shadow-realm",
+                    TargetFilePath = "history/ash-storm.md",
+                    Summary = "One lore import is waiting for explicit apply.",
+                    NewFacts = ["Warden Ilya guards the bell fragments in the archive vault."],
+                    ModifiedFacts = ["The silver bells cracked during the ash storm."],
+                    Conflicts = ["A later claim about recasting the bells remains unverified."],
+                    ProposedMarkdown = """
+                        ### Ash Storm Aftermath
+
+                        - The silver bells cracked during the ash storm.
+                        """,
+                    ProposedFileContent = """
+                        <!-- quillforge:canonize session=01234567-89ab-cdef-0123-456789abcdef generated=2026-04-17T12:00:00.0000000+00:00 -->
+                        ### Ash Storm Aftermath
+
+                        - The silver bells cracked during the ash storm.
+                        <!-- /quillforge:canonize -->
+                        """,
+                    CanApply = true,
+                    GeneratedAt = DateTimeOffset.Parse("2026-04-17T12:00:00+00:00"),
+                },
+            },
             LastModified = DateTimeOffset.Parse("2026-03-15T14:30:00+00:00"),
         };
         AssertJsonSnapshot("SessionState", state, SessionStateJsonOptions);
+    }
+
+
+    [Fact]
+    public void LoreCanonizationPreviewResponse_MatchesApprovedSnapshot()
+    {
+        var dto = new LoreCanonizationPreviewResponse
+        {
+            SessionId = Guid.Parse("01234567-89ab-cdef-0123-456789abcdef"),
+            Status = "preview_ready",
+            Proposal = new LoreCanonizationProposalDto
+            {
+                SessionId = Guid.Parse("01234567-89ab-cdef-0123-456789abcdef"),
+                LoreSet = "shadow-realm",
+                TargetFilePath = "session-imports/2026-04-17-01234567.md",
+                Summary = "Found one new fact and one lore refinement.",
+                NewFacts = ["Warden Ilya keeps the bell fragments in the archive vault."],
+                ModifiedFacts = ["The silver bells cracked during the ash storm."],
+                Conflicts = ["One speaker claimed the bells were later recast, but the session never confirmed it."],
+                ProposedMarkdown = """
+                    ### Ash Storm Aftermath
+
+                    - The silver bells cracked during the ash storm.
+                    """,
+                ProposedFileContent = """
+                    <!-- quillforge:canonize session=01234567-89ab-cdef-0123-456789abcdef generated=2026-04-17T12:00:00.0000000+00:00 -->
+                    ### Ash Storm Aftermath
+
+                    - The silver bells cracked during the ash storm.
+                    <!-- /quillforge:canonize -->
+                    """,
+                CanApply = true,
+                GeneratedAt = DateTimeOffset.Parse("2026-04-17T12:00:00+00:00"),
+            },
+        };
+        AssertJsonSnapshot("LoreCanonizationPreviewResponse", dto, DebugBridgeJsonOptions);
     }
 
     // =======================================================================

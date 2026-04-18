@@ -142,6 +142,91 @@ const commands: Record<string, CommandDef> = {
     },
   },
 
+  canonize: {
+    description: "Extract session-established facts into a reviewable lore proposal",
+    usage: "[current [target-file] | apply | discard]",
+    handler: async (args, ctx) => {
+      if (!ctx.sessionId) {
+        return { output: "No active session yet. Start a session with `/new` or send a message first." };
+      }
+
+      const trimmed = args.trim();
+      const lowered = trimmed.toLowerCase();
+      const {
+        previewLoreCanonization,
+        applyLoreCanonization,
+        discardLoreCanonization,
+      } = await import("./api");
+
+      if (lowered === "apply") {
+        const response = await applyLoreCanonization(ctx.sessionId);
+        ctx.refreshStatus();
+        return {
+          output:
+            `Applied lore proposal to \`${response.targetFilePath}\` in **${response.loreSet}**.\n` +
+            `Saved ${response.contentLength} characters.`,
+        };
+      }
+
+      if (lowered === "discard") {
+        const response = await discardLoreCanonization(ctx.sessionId);
+        return {
+          output: response.targetFilePath
+            ? `Discarded the pending lore proposal for \`${response.targetFilePath}\`.`
+            : "Discarded the pending lore proposal.",
+        };
+      }
+
+      let targetFilePath: string | null = null;
+      if (trimmed && lowered !== "current") {
+        targetFilePath = lowered.startsWith("current ")
+          ? trimmed.slice("current".length).trim() || null
+          : trimmed;
+      }
+
+      const response = await previewLoreCanonization(ctx.sessionId, targetFilePath);
+      const proposal = response.proposal;
+      const lines: string[] = [
+        `Prepared lore proposal for \`${proposal.targetFilePath}\` in **${proposal.loreSet}**.`,
+        proposal.summary,
+      ];
+
+      if (proposal.newFacts.length > 0) {
+        lines.push("", "**New Facts**");
+        for (const fact of proposal.newFacts) {
+          lines.push(`- ${fact}`);
+        }
+      }
+
+      if (proposal.modifiedFacts.length > 0) {
+        lines.push("", "**Modified Facts**");
+        for (const fact of proposal.modifiedFacts) {
+          lines.push(`- ${fact}`);
+        }
+      }
+
+      if (proposal.conflicts.length > 0) {
+        lines.push("", "**Conflicts**");
+        for (const fact of proposal.conflicts) {
+          lines.push(`- ${fact}`);
+        }
+      }
+
+      if (proposal.proposedMarkdown) {
+        lines.push("", "**Proposed Markdown**", "```md", proposal.proposedMarkdown, "```");
+      }
+
+      lines.push(
+        "",
+        proposal.canApply
+          ? "Apply with `/canonize apply` or clear it with `/canonize discard`."
+          : "No safe lore changes are ready to apply yet. Review the conflicts or clear it with `/canonize discard`.",
+      );
+
+      return { output: lines.join("\n") };
+    },
+  },
+
   layout: {
     description: "Switch UI layout",
     usage: "[name]",

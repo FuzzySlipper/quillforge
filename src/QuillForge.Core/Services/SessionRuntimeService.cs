@@ -700,6 +700,33 @@ public sealed class SessionRuntimeService : ISessionStateService
                     Deviations = [.. state.Narrative.PlotProgress.Deviations],
                 },
             },
+            Canonization = CloneCanonizationState(state.Canonization),
+        };
+    }
+
+    private static LoreCanonizationRuntimeState? CloneCanonizationState(LoreCanonizationRuntimeState? state)
+    {
+        if (state?.PendingProposal is null)
+        {
+            return state is null ? null : new LoreCanonizationRuntimeState();
+        }
+
+        return new LoreCanonizationRuntimeState
+        {
+            PendingProposal = new LoreCanonizationProposalState
+            {
+                SessionId = state.PendingProposal.SessionId,
+                LoreSet = state.PendingProposal.LoreSet,
+                TargetFilePath = state.PendingProposal.TargetFilePath,
+                Summary = state.PendingProposal.Summary,
+                NewFacts = [.. state.PendingProposal.NewFacts],
+                ModifiedFacts = [.. state.PendingProposal.ModifiedFacts],
+                Conflicts = [.. state.PendingProposal.Conflicts],
+                ProposedMarkdown = state.PendingProposal.ProposedMarkdown,
+                ProposedFileContent = state.PendingProposal.ProposedFileContent,
+                CanApply = state.PendingProposal.CanApply,
+                GeneratedAt = state.PendingProposal.GeneratedAt,
+            },
         };
     }
 

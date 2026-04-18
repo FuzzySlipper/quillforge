@@ -100,6 +100,7 @@ public sealed class SessionLifecycleServiceTests
         Assert.Equal("midpoint", forkedRuntime.Narrative.PlotProgress.CurrentBeat);
         Assert.Contains("opening", forkedRuntime.Narrative.PlotProgress.CompletedBeats);
         Assert.Contains("The rival saw the map.", forkedRuntime.Narrative.PlotProgress.Deviations);
+        Assert.Null(forkedRuntime.Canonization);
     }
 
     [Fact]

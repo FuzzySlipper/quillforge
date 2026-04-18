@@ -14,10 +14,10 @@ namespace QuillForge.Architecture.Tests;
 public class SessionStateTests
 {
     [Fact]
-    public void SessionState_OwnsExactlyFiveSubStates()
+    public void SessionState_OwnsExactlySixSubStates()
     {
-        // The aggregate should have exactly Mode, Profile, Roleplay, Writer, and
-        // Narrative sub-states
+        // The aggregate should have exactly Mode, Profile, Roleplay, Writer,
+        // Narrative, and Canonization sub-states
         // plus SessionId and LastModified metadata. No flat bag of nullable fields.
         var props = typeof(SessionState).GetProperties(BindingFlags.Public | BindingFlags.Instance);
         var subStateProps = props.Where(p =>
@@ -25,15 +25,17 @@ public class SessionStateTests
             p.PropertyType == typeof(ProfileState) ||
             p.PropertyType == typeof(RoleplayRuntimeState) ||
             p.PropertyType == typeof(WriterRuntimeState) ||
-            p.PropertyType == typeof(NarrativeRuntimeState))
+            p.PropertyType == typeof(NarrativeRuntimeState) ||
+            p.PropertyType == typeof(LoreCanonizationRuntimeState))
             .ToList();
 
-        Assert.Equal(5, subStateProps.Count);
+        Assert.Equal(6, subStateProps.Count);
         Assert.Contains(subStateProps, p => p.Name == "Mode");
         Assert.Contains(subStateProps, p => p.Name == "Profile");
         Assert.Contains(subStateProps, p => p.Name == "Roleplay");
         Assert.Contains(subStateProps, p => p.Name == "Writer");
         Assert.Contains(subStateProps, p => p.Name == "Narrative");
+        Assert.Contains(subStateProps, p => p.Name == "Canonization");
     }
 
     [Fact]
@@ -45,6 +47,7 @@ public class SessionStateTests
         Assert.NotNull(state.Roleplay);
         Assert.NotNull(state.Writer);
         Assert.NotNull(state.Narrative);
+        Assert.Null(state.Canonization);
     }
 
     [Fact]
@@ -88,6 +91,13 @@ public class SessionStateTests
         Assert.Equal("grim", state.Profile.ProfileId);
         Assert.Null(state.Profile.IgnoredLegacyActiveConductor);
         Assert.Null(state.Profile.IgnoredLegacyActivePersona);
+    }
+
+    [Fact]
+    public void LoreCanonizationState_DefaultsToNull()
+    {
+        var state = new SessionState();
+        Assert.Null(state.Canonization);
     }
 
     [Fact]
@@ -253,6 +263,30 @@ public class SessionStateTests
                     CurrentBeat = "midpoint",
                 },
             },
+            Canonization = new LoreCanonizationRuntimeState
+            {
+                PendingProposal = new LoreCanonizationProposalState
+                {
+                    SessionId = sessionId,
+                    LoreSet = "fantasy",
+                    TargetFilePath = "history.md",
+                    Summary = "Captured one pending lore import.",
+                    NewFacts = ["The bells cracked during the storm."],
+                    ModifiedFacts = [],
+                    Conflicts = [],
+                    ProposedMarkdown = """
+                        ### Storm
+
+                        - The bells cracked during the storm.
+                        """,
+                    ProposedFileContent = """
+                        ### Storm
+
+                        - The bells cracked during the storm.
+                        """,
+                    CanApply = true,
+                },
+            },
         };
 
         Assert.Equal(sessionId, state.SessionId);
@@ -272,5 +306,7 @@ public class SessionStateTests
         Assert.Equal("track the rising pressure", state.Narrative.DirectorNotes);
         Assert.Equal("arc-one", state.Narrative.ActivePlotFile);
         Assert.Equal("midpoint", state.Narrative.PlotProgress.CurrentBeat);
+        Assert.NotNull(state.Canonization?.PendingProposal);
+        Assert.Equal("history.md", state.Canonization?.PendingProposal?.TargetFilePath);
     }
 }

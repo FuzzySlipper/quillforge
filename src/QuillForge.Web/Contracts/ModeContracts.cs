@@ -10,6 +10,7 @@ public sealed record ModeResponse
     public string? PendingContent { get; init; }
     public string? PendingProject { get; init; }
     public string? PendingFile { get; init; }
+    public string? Notice { get; init; }
 }
 
 public sealed record ModeSetRequest

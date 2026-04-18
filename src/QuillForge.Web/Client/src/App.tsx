@@ -457,6 +457,9 @@ function App() {
           if (result.sessionId) {
             setCurrentSessionId(result.sessionId);
           }
+          if (result.notice) {
+            addSystemMessage(result.notice);
+          }
           refreshStatus(result.sessionId ?? currentSessionId);
         },
         refreshStatus,
@@ -882,7 +885,12 @@ function App() {
       <ModeSwitcher
         open={modeOpen}
         onClose={() => setModeOpen(false)}
-        onSwitched={handleSessionScopedRefresh}
+        onSwitched={(sessionId, notice) => {
+          if (notice) {
+            addSystemMessage(notice);
+          }
+          handleSessionScopedRefresh(sessionId);
+        }}
         sessionId={currentSessionId}
       />
       <ContextOverlay

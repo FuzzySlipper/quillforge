@@ -1,4 +1,15 @@
-import type { Status, Profiles, ModeInfo, Mode, ProfileSwitchResult, SessionUsage, ReasoningArtifact } from "./types";
+import type {
+  Status,
+  Profiles,
+  ModeInfo,
+  Mode,
+  ProfileSwitchResult,
+  SessionUsage,
+  ReasoningArtifact,
+  LoreCanonizationPreviewResult,
+  LoreCanonizationApplyResult,
+  LoreCanonizationDiscardResult,
+} from "./types";
 
 const BASE = "";
 
@@ -463,38 +474,72 @@ export interface LoreFileInfo {
   size: number;
 }
 
-export async function listLore(): Promise<{
+export async function listLore(sessionId?: string | null): Promise<{
   files: LoreFileInfo[];
   categories: string[];
   activeProject: string | null;
   lorePath: string;
 }> {
-  return request("/api/lore");
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return request(`/api/lore${query}`);
 }
 
-export async function readLore(path: string): Promise<{ path: string; content: string; tokens: number }> {
-  return request(`/api/lore/${path.split("/").map(encodeURIComponent).join("/")}`);
+export async function readLore(path: string, sessionId?: string | null): Promise<{ path: string; content: string; tokens: number }> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return request(`/api/lore/${path.split("/").map(encodeURIComponent).join("/")}${query}`);
 }
 
-export async function writeLore(path: string, content: string): Promise<unknown> {
-  return request(`/api/lore/${path.split("/").map(encodeURIComponent).join("/")}`, {
+export async function writeLore(path: string, content: string, sessionId?: string | null): Promise<unknown> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return request(`/api/lore/${path.split("/").map(encodeURIComponent).join("/")}${query}`, {
     method: "PUT",
     body: JSON.stringify({ content }),
   });
 }
 
-export async function deleteLore(path: string): Promise<unknown> {
-  return request(`/api/lore/${path.split("/").map(encodeURIComponent).join("/")}`, { method: "DELETE" });
+export async function deleteLore(path: string, sessionId?: string | null): Promise<unknown> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return request(`/api/lore/${path.split("/").map(encodeURIComponent).join("/")}${query}`, { method: "DELETE" });
 }
 
-export async function listLoreProjects(): Promise<{ projects: string[]; active: string }> {
-  return request("/api/lore/projects");
+export async function listLoreProjects(sessionId?: string | null): Promise<{ projects: string[]; active: string }> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return request(`/api/lore/projects${query}`);
 }
 
 export async function createLoreProject(name: string): Promise<{ status: string; name: string }> {
   return request("/api/lore/projects", {
     method: "POST",
     body: JSON.stringify({ name }),
+  });
+}
+
+
+export async function previewLoreCanonization(
+  sessionId: string,
+  targetFilePath?: string | null,
+): Promise<LoreCanonizationPreviewResult> {
+  return request("/api/lore/canonize/preview", {
+    method: "POST",
+    body: JSON.stringify({ sessionId, targetFilePath }),
+  });
+}
+
+export async function applyLoreCanonization(
+  sessionId: string,
+): Promise<LoreCanonizationApplyResult> {
+  return request("/api/lore/canonize/apply", {
+    method: "POST",
+    body: JSON.stringify({ sessionId }),
+  });
+}
+
+export async function discardLoreCanonization(
+  sessionId: string,
+): Promise<LoreCanonizationDiscardResult> {
+  return request("/api/lore/canonize/discard", {
+    method: "POST",
+    body: JSON.stringify({ sessionId }),
   });
 }
 

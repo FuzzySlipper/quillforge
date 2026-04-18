@@ -82,6 +82,7 @@ public sealed class FrontendContractTests
             PendingContent = "Pending review.",
             PendingProject = "novel",
             PendingFile = "scene.md",
+            Notice = "Created roleplay workspace at story/roleplay-abc/scene-01.md",
         });
 
         Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
@@ -89,6 +90,7 @@ public sealed class FrontendContractTests
         Assert.Equal("string | null", shape["pendingContent"]);
         Assert.Equal("string | null", shape["pendingProject"]);
         Assert.Equal("string | null", shape["pendingFile"]);
+        Assert.Equal("string | null", shape["notice"]);
     }
 
     [Fact]
@@ -166,6 +168,86 @@ public sealed class FrontendContractTests
         {
             Assert.Contains(expectedType, streamEventTypes);
         }
+    }
+
+
+    [Fact]
+    public void LoreCanonizationPreviewResponse_StaysInSyncWith_LoreCanonizationPreviewResultInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("LoreCanonizationPreviewResult");
+        var jsonKeys = SerializeTopLevelKeys(new LoreCanonizationPreviewResponse
+        {
+            SessionId = Guid.CreateVersion7(),
+            Status = "preview_ready",
+            Proposal = new LoreCanonizationProposalDto
+            {
+                SessionId = Guid.CreateVersion7(),
+                LoreSet = "shadow-realm",
+                TargetFilePath = "imports/session.md",
+                Summary = "Captured one safe update.",
+                NewFacts = ["The bells cracked during the ash storm."],
+                ModifiedFacts = [],
+                Conflicts = [],
+                ProposedMarkdown = """
+                    ### Ash Storm
+
+                    - The bells cracked during the ash storm.
+                    """,
+                ProposedFileContent = """
+                    ### Ash Storm
+
+                    - The bells cracked during the ash storm.
+                    """,
+                CanApply = true,
+                GeneratedAt = DateTimeOffset.Parse("2026-04-17T12:00:00+00:00"),
+            },
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("LoreCanonizationProposal", shape["proposal"]);
+        Assert.Equal("string", shape["status"]);
+    }
+
+    [Fact]
+    public void LoreCanonizationProposalDto_StaysInSyncWith_LoreCanonizationProposalInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("LoreCanonizationProposal");
+        var jsonKeys = SerializeTopLevelKeys(new LoreCanonizationProposalDto
+        {
+            SessionId = Guid.CreateVersion7(),
+            LoreSet = "shadow-realm",
+            TargetFilePath = "imports/session.md",
+            Summary = "Captured one safe update.",
+            NewFacts = ["The bells cracked during the ash storm."],
+            ModifiedFacts = [],
+            Conflicts = [],
+            ProposedMarkdown = """
+                ### Ash Storm
+
+                - The bells cracked during the ash storm.
+                """,
+            ProposedFileContent = """
+                ### Ash Storm
+
+                - The bells cracked during the ash storm.
+                """,
+            CanApply = true,
+            GeneratedAt = DateTimeOffset.Parse("2026-04-17T12:00:00+00:00"),
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("string[]", shape["newFacts"]);
+        Assert.Equal("boolean", shape["canApply"]);
+    }
+
+    [Fact]
+    public void CommandsTs_RegistersCanonizeCommand()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("commands.ts"));
+
+        Assert.Contains("canonize:", source, StringComparison.Ordinal);
+        Assert.Contains("/canonize apply", source, StringComparison.Ordinal);
+        Assert.Contains("previewLoreCanonization", source, StringComparison.Ordinal);
     }
 
     [Fact]

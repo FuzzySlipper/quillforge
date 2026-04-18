@@ -55,6 +55,43 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task ModeEndpoint_RoleplayWithoutExplicitTarget_ReturnsAutoCreatedWorkspaceNotice()
+    {
+        var runtimeService = new TestSessionRuntimeService();
+        var bootstrapService = new TestSessionBootstrapService();
+        await using var app = BuildApp(runtimeService, bootstrapService);
+
+        var json = await InvokePostJsonAsync(app, "/api/mode", """{"mode":"roleplay"}""");
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Equal("roleplay", root.GetProperty("mode").GetString());
+        Assert.Equal($"roleplay-{bootstrapService.CreatedSessionId:N}"[..21], root.GetProperty("project").GetString());
+        Assert.Equal("scene-01.md", root.GetProperty("file").GetString());
+        Assert.True(root.TryGetProperty("notice", out var notice));
+        Assert.Contains("Created roleplay workspace at", notice.GetString());
+        Assert.Contains("story/roleplay-", notice.GetString());
+        Assert.Contains("scene-01.md", notice.GetString());
+    }
+
+    [Fact]
+    public async Task ModeEndpoint_RoleplayWithExplicitTarget_DoesNotReturnAutoCreatedWorkspaceNotice()
+    {
+        var runtimeService = new TestSessionRuntimeService();
+        var bootstrapService = new TestSessionBootstrapService();
+        await using var app = BuildApp(runtimeService, bootstrapService);
+
+        var json = await InvokePostJsonAsync(app, "/api/mode", """{"mode":"roleplay","project":"campaign-alpha","file":"scene-07.md","character":"rowan-vale"}""");
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Equal("roleplay", root.GetProperty("mode").GetString());
+        Assert.Equal("campaign-alpha", root.GetProperty("project").GetString());
+        Assert.Equal("scene-07.md", root.GetProperty("file").GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("notice").ValueKind);
+    }
+
+    [Fact]
     public async Task ProfileSwitchEndpoint_WithoutSessionId_CreatesSessionBeforeMutation()
     {
         var runtimeService = new TestSessionRuntimeService();
@@ -193,38 +230,39 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
 
     private sealed class TestSessionRuntimeService : ISessionStateService
     {
+        private readonly Dictionary<Guid, SessionState> _states = [];
+
         public Guid? LastModeSessionId { get; private set; }
         public Guid? LastProfileSessionId { get; private set; }
 
         public Task<SessionState> LoadViewAsync(Guid? sessionId, CancellationToken ct = default)
-            => Task.FromResult(new SessionState
+        {
+            if (sessionId.HasValue && _states.TryGetValue(sessionId.Value, out var existingState))
             {
-                SessionId = sessionId,
-                Profile = new ProfileState
-                {
-                    ProfileId = "default",
-                    ActiveLoreSet = "default-lore",
-                    ActiveNarrativeRules = "default-rules",
-                    ActiveWritingStyle = "default-style",
-                    ActiveLibrarianPrompt = "default",
-                },
-            });
+                return Task.FromResult(CloneState(existingState));
+            }
+
+            return Task.FromResult(CreateDefaultState(sessionId));
+        }
 
         public Task<SessionMutationResult<SessionState>> SetProfileAsync(Guid? sessionId, SetSessionProfileCommand command, CancellationToken ct = default)
         {
             LastProfileSessionId = sessionId;
-            return Task.FromResult(SessionMutationResult<SessionState>.Success(new SessionState
+            var state = sessionId.HasValue && _states.TryGetValue(sessionId.Value, out var existingState)
+                ? CloneState(existingState)
+                : CreateDefaultState(sessionId);
+
+            state.Profile = new ProfileState
             {
-                SessionId = sessionId,
-                Profile = new ProfileState
-                {
-                    ProfileId = command.ProfileId ?? "default",
-                    ActiveLoreSet = command.LoreSet ?? "default-lore",
-                    ActiveNarrativeRules = command.NarrativeRules ?? "default-rules",
-                    ActiveWritingStyle = command.WritingStyle ?? "default-style",
-                    ActiveLibrarianPrompt = "default",
-                },
-            }));
+                ProfileId = command.ProfileId ?? "default",
+                ActiveLoreSet = command.LoreSet ?? "default-lore",
+                ActiveNarrativeRules = command.NarrativeRules ?? "default-rules",
+                ActiveWritingStyle = command.WritingStyle ?? "default-style",
+                ActiveLibrarianPrompt = "default",
+            };
+
+            SaveState(state);
+            return Task.FromResult(SessionMutationResult<SessionState>.Success(CloneState(state)));
         }
 
         public Task<SessionMutationResult<SessionState>> SetRoleplayAsync(Guid? sessionId, SetSessionRoleplayCommand command, CancellationToken ct = default)
@@ -233,24 +271,38 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
         public Task<SessionMutationResult<SessionState>> SetModeAsync(Guid? sessionId, SetSessionModeCommand command, CancellationToken ct = default)
         {
             LastModeSessionId = sessionId;
-            return Task.FromResult(SessionMutationResult<SessionState>.Success(new SessionState
+            var state = sessionId.HasValue && _states.TryGetValue(sessionId.Value, out var existingState)
+                ? CloneState(existingState)
+                : CreateDefaultState(sessionId);
+
+            var activeMode = Enum.Parse<Mode>(command.Mode, ignoreCase: true);
+            var project = command.Project;
+            var file = command.File;
+            if (activeMode == Mode.Roleplay)
             {
-                SessionId = sessionId,
-                Mode = new ModeSelectionState
+                if (string.IsNullOrWhiteSpace(project))
                 {
-                    ActiveMode = Enum.Parse<Mode>(command.Mode, ignoreCase: true),
-                    ProjectName = command.Project,
-                    CurrentFile = command.File,
-                    Character = command.Character,
-                },
-                Profile = new ProfileState
+                    project = sessionId.HasValue
+                        ? $"roleplay-{sessionId.Value:N}"[..21]
+                        : "roleplay-session";
+                }
+
+                if (string.IsNullOrWhiteSpace(file))
                 {
-                    ProfileId = "default",
-                    ActiveLoreSet = "default-lore",
-                    ActiveNarrativeRules = "default-rules",
-                    ActiveWritingStyle = "default-style",
-                },
-            }));
+                    file = "scene-01.md";
+                }
+            }
+
+            state.Mode = new ModeSelectionState
+            {
+                ActiveMode = activeMode,
+                ProjectName = project,
+                CurrentFile = file,
+                Character = command.Character,
+            };
+
+            SaveState(state);
+            return Task.FromResult(SessionMutationResult<SessionState>.Success(CloneState(state)));
         }
 
         public Task<SessionMutationResult<WriterPendingCaptureEvent>> CaptureWriterPendingAsync(Guid? sessionId, CaptureWriterPendingCommand command, CancellationToken ct = default)
@@ -270,6 +322,56 @@ public sealed class SessionBootstrapMutationEndpointTests : IDisposable
 
         public Task<SessionMutationResult<SessionState>> ClearActivePlotAsync(Guid? sessionId, CancellationToken ct = default)
             => throw new NotSupportedException();
+
+        private static SessionState CreateDefaultState(Guid? sessionId)
+        {
+            return new SessionState
+            {
+                SessionId = sessionId,
+                Profile = new ProfileState
+                {
+                    ProfileId = "default",
+                    ActiveLoreSet = "default-lore",
+                    ActiveNarrativeRules = "default-rules",
+                    ActiveWritingStyle = "default-style",
+                    ActiveLibrarianPrompt = "default",
+                },
+            };
+        }
+
+        private static SessionState CloneState(SessionState state)
+        {
+            return new SessionState
+            {
+                SessionId = state.SessionId,
+                LastModified = state.LastModified,
+                Mode = new ModeSelectionState
+                {
+                    ActiveMode = state.Mode.ActiveMode,
+                    ProjectName = state.Mode.ProjectName,
+                    CurrentFile = state.Mode.CurrentFile,
+                    Character = state.Mode.Character,
+                },
+                Profile = new ProfileState
+                {
+                    ProfileId = state.Profile.ProfileId,
+                    ActiveLoreSet = state.Profile.ActiveLoreSet,
+                    ActiveNarrativeRules = state.Profile.ActiveNarrativeRules,
+                    ActiveWritingStyle = state.Profile.ActiveWritingStyle,
+                    ActiveLibrarianPrompt = state.Profile.ActiveLibrarianPrompt,
+                },
+            };
+        }
+
+        private void SaveState(SessionState state)
+        {
+            if (!state.SessionId.HasValue)
+            {
+                return;
+            }
+
+            _states[state.SessionId.Value] = CloneState(state);
+        }
     }
 
     private sealed class NoOpSessionLifecycleService : ISessionLifecycleService

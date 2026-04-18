@@ -111,6 +111,7 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
                     Deviations = [.. source.Narrative.PlotProgress.Deviations],
                 },
             },
+            Canonization = null,
         };
     }
 

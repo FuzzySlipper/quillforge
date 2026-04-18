@@ -1227,6 +1227,25 @@ internal sealed class InMemorySessionRuntimeStore : ISessionStateStore
                     Deviations = [.. state.Narrative.PlotProgress.Deviations],
                 },
             },
+            Canonization = state.Canonization?.PendingProposal is null
+                ? state.Canonization is null ? null : new LoreCanonizationRuntimeState()
+                : new LoreCanonizationRuntimeState
+                {
+                    PendingProposal = new LoreCanonizationProposalState
+                    {
+                        SessionId = state.Canonization.PendingProposal.SessionId,
+                        LoreSet = state.Canonization.PendingProposal.LoreSet,
+                        TargetFilePath = state.Canonization.PendingProposal.TargetFilePath,
+                        Summary = state.Canonization.PendingProposal.Summary,
+                        NewFacts = [.. state.Canonization.PendingProposal.NewFacts],
+                        ModifiedFacts = [.. state.Canonization.PendingProposal.ModifiedFacts],
+                        Conflicts = [.. state.Canonization.PendingProposal.Conflicts],
+                        ProposedMarkdown = state.Canonization.PendingProposal.ProposedMarkdown,
+                        ProposedFileContent = state.Canonization.PendingProposal.ProposedFileContent,
+                        CanApply = state.Canonization.PendingProposal.CanApply,
+                        GeneratedAt = state.Canonization.PendingProposal.GeneratedAt,
+                    },
+                },
         };
     }
 }

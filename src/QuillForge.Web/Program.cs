@@ -185,6 +185,7 @@ builder.Services.AddSingleton<ISessionStateService>(sp =>
 builder.Services.AddSingleton<ISessionBootstrapService, SessionBootstrapService>();
 builder.Services.AddSingleton<ISessionLifecycleService, SessionLifecycleService>();
 builder.Services.AddSingleton<ISessionTranscriptService, SessionTranscriptService>();
+builder.Services.AddSingleton<ISessionLoreCanonizationService, SessionLoreCanonizationService>();
 builder.Services.AddSingleton<IInteractiveSessionContextService, InteractiveSessionContextService>();
 builder.Services.AddSingleton<IProfileConfigService, ProfileConfigService>();
 builder.Services.AddSingleton<ISessionProfileReadService, SessionProfileReadService>();
@@ -343,6 +344,7 @@ app.MapSessionEndpoints();
 app.MapChatEndpoints();
 app.MapModeEndpoints();
 app.MapWriterEndpoints();
+app.MapLoreCanonizationEndpoints();
 app.MapProviderEndpoints();
 app.MapProviderFetchModelsEndpoint();
 app.MapForgeEndpoints();

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Core;
 
 namespace QuillForge.Core.Agents.Tools;
 
@@ -79,9 +80,22 @@ public sealed class WriteFileHandler : IToolHandler
         var dir = input.GetRequiredString("directory");
         var path = input.GetRequiredString("path");
         var content = input.GetRequiredString("content");
+        if (TargetsLore(dir))
+        {
+            _logger.LogWarning("WriteFileHandler blocked lore write attempt: directory={Directory} path={Path}", dir, path);
+            return ToolResult.Fail("Direct write_file access to lore/ is blocked. Use the app-owned lore endpoints or /canonize instead.");
+        }
+
         _logger.LogDebug("WriteFileHandler: writing {Dir}/{Path} ({Length} chars)", dir, path, content.Length);
         await _fileService.WriteAsync($"{dir}/{path}", content, ct);
         return ToolResult.Ok($"Written to {dir}/{path}");
+    }
+
+    private static bool TargetsLore(string directory)
+    {
+        var normalized = directory.Replace('\\', '/').Trim().Trim('/');
+        return string.Equals(normalized, ContentPaths.Lore, StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith(ContentPaths.Lore + "/", StringComparison.OrdinalIgnoreCase);
     }
 }
 

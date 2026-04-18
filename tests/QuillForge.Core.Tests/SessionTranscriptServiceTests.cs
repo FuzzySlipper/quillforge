@@ -7,7 +7,7 @@ namespace QuillForge.Core.Tests;
 public sealed class SessionTranscriptServiceTests
 {
     [Fact]
-    public async Task SyncRoleplayTranscriptAsync_WritesOnlyRoleplayAssistantTurnsFromActiveThread()
+    public async Task SyncRoleplayTranscriptAsync_WritesManagedReadableTranscriptFromActiveThread()
     {
         var sessionId = Guid.CreateVersion7();
         var sessionStore = new InMemorySessionStore();
@@ -53,15 +53,43 @@ public sealed class SessionTranscriptServiceTests
                 ActiveMode = Mode.Roleplay,
                 ProjectName = "campaign-alpha",
                 CurrentFile = "scene-07.md",
+                Character = "rowan-vale",
             },
         });
 
         await service.SyncRoleplayTranscriptAsync(sessionId);
 
         var savedTranscript = await storyStore.ReadAsync("campaign-alpha", "scene-07.md");
-        Assert.Equal(
-            "The iron gate groans open into the rain.\n\nLanternlight catches on wet stone.",
-            savedTranscript);
+        var expected = string.Join(
+            "\n",
+            $"<!-- quillforge:roleplay-transcript session={sessionId} -->",
+            "# Roleplay Transcript",
+            string.Empty,
+            "> This file is app-managed by QuillForge.",
+            "> It is regenerated from the active roleplay conversation branch on every sync.",
+            "> Manual edits here will be overwritten. Put notes in a separate story file.",
+            string.Empty,
+            $"Session: `{sessionId}`",
+            "Target: `story/campaign-alpha/scene-07.md`",
+            "Character: `Rowan Vale`",
+            string.Empty,
+            "## Turn 1 - User",
+            string.Empty,
+            "Open the gate.",
+            string.Empty,
+            "## Turn 1 - Rowan Vale",
+            string.Empty,
+            "The iron gate groans open into the rain.",
+            string.Empty,
+            "## Turn 2 - User",
+            string.Empty,
+            "Keep going.",
+            string.Empty,
+            "## Turn 2 - Rowan Vale",
+            string.Empty,
+            "Lanternlight catches on wet stone.");
+
+        Assert.Equal(expected, savedTranscript);
     }
 
     [Fact]
@@ -139,6 +167,7 @@ public sealed class SessionTranscriptServiceTests
                 ActiveMode = Mode.Roleplay,
                 ProjectName = "campaign-alpha",
                 CurrentFile = "scene-07.md",
+                Character = "rowan-vale",
             },
         });
 
@@ -148,9 +177,11 @@ public sealed class SessionTranscriptServiceTests
         await service.SyncRoleplayTranscriptAsync(sessionId);
 
         var savedTranscript = await storyStore.ReadAsync("campaign-alpha", "scene-07.md");
-        Assert.Equal(
-            "Rowan eases the trapdoor open and listens for the tide below.",
+        Assert.Contains(
+            "## Turn 1 - User\n\nOpen the trapdoor.\n\n## Turn 1 - Rowan Vale\n\nRowan eases the trapdoor open and listens for the tide below.",
             savedTranscript);
+        Assert.DoesNotContain("Captain Rowe", savedTranscript);
+        Assert.Contains("> This file is app-managed by QuillForge.", savedTranscript);
     }
 
     [Fact]
@@ -191,6 +222,7 @@ public sealed class SessionTranscriptServiceTests
                 ActiveMode = Mode.Roleplay,
                 ProjectName = "campaign-alpha",
                 CurrentFile = "scene-07.md",
+                Character = "rowan-vale",
             },
         });
 
@@ -206,9 +238,52 @@ public sealed class SessionTranscriptServiceTests
         await service.SyncRoleplayTranscriptAsync(sessionId);
 
         var savedTranscript = await storyStore.ReadAsync("campaign-alpha", "scene-07.md");
-        Assert.Equal(
-            "Rowan leads you down the wet stone steps.\n\nHe admits Captain Rowe already suspects the tide tunnels.",
+        Assert.Contains(
+            "## Turn 2 - Rowan Vale\n\nHe admits Captain Rowe already suspects the tide tunnels.",
             savedTranscript);
+        Assert.DoesNotContain("He denies knowing anything about it.", savedTranscript);
+        Assert.Contains(
+            "## Turn 2 - User\n\nWhat does he say about the contraband?",
+            savedTranscript);
+    }
+
+    [Fact]
+    public async Task SyncRoleplayTranscriptAsync_WithoutCharacter_UsesAssistantFallbackLabel()
+    {
+        var sessionId = Guid.CreateVersion7();
+        var sessionStore = new InMemorySessionStore();
+        var runtimeStore = new InMemorySessionRuntimeStore();
+        var storyStore = new InMemoryStoryStore();
+        var service = CreateService(sessionStore, runtimeStore, storyStore);
+
+        var tree = new ConversationTree(sessionId, "Roleplay Session", NullLogger<ConversationTree>.Instance);
+        var user = tree.Append(tree.RootId, "user", new MessageContent("Who answers the door?"));
+        tree.Append(
+            user.Id,
+            "assistant",
+            new MessageContent("A watchman cracks the door and studies you in silence."),
+            new MessageMetadata
+            {
+                ConversationMode = Mode.Roleplay,
+            });
+        await sessionStore.SaveAsync(tree);
+
+        await runtimeStore.SaveAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Roleplay,
+                ProjectName = "campaign-alpha",
+                CurrentFile = "scene-08.md",
+            },
+        });
+
+        await service.SyncRoleplayTranscriptAsync(sessionId);
+
+        var savedTranscript = await storyStore.ReadAsync("campaign-alpha", "scene-08.md");
+        Assert.Contains("## Turn 1 - Assistant", savedTranscript);
+        Assert.DoesNotContain("Character:", savedTranscript);
     }
 
     private static SessionTranscriptService CreateService(
