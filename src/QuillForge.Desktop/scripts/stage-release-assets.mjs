@@ -56,10 +56,16 @@ const expectedBundles = new Set(
 const selectedPlan =
   expectedBundles.size === 0
     ? plan
-    : plan.filter((entry) => expectedBundles.has(entry.bundleDir));
+    : plan.filter((entry) => expectedBundles.has(entry.bundleDir) || expectedBundles.has(entry.type));
 
 if (selectedPlan.length === 0) {
   throw new Error(`No release assets remain after applying QUILLFORGE_DESKTOP_EXPECTED_BUNDLES.`);
+}
+
+if (process.platform !== "darwin" && selectedPlan.some((entry) => entry.type === "app")) {
+  throw new Error(
+    "macOS .app staging must run on macOS. Remove 'app' from QUILLFORGE_DESKTOP_EXPECTED_BUNDLES or rerun the staging step on a Darwin host.",
+  );
 }
 
 rmSync(releaseDir, { recursive: true, force: true });
