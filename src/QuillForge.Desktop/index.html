@@ -14,6 +14,7 @@
           <h1>QuillForge</h1>
         </div>
         <div class="toolbar-actions">
+          <button id="toggle-network-access" class="secondary">Enable LAN Access</button>
           <button id="open-workspace" class="secondary">Open Workspace</button>
           <button id="restart-backend" class="secondary">Restart Backend</button>
         </div>
@@ -35,7 +36,7 @@
               </div>
               <div>
                 <dt>Binding</dt>
-                <dd id="bind-mode">loopback</dd>
+                <dd id="bind-mode">local only</dd>
               </div>
               <div>
                 <dt>Backend Port</dt>
@@ -51,12 +52,36 @@
         </section>
 
         <section id="iframe-panel" class="iframe-panel hidden">
-          <iframe
-            id="backend-frame"
-            title="QuillForge"
-            allow="clipboard-read; clipboard-write"
-            referrerpolicy="no-referrer"
-          ></iframe>
+          <div class="iframe-shell">
+            <section class="network-banner">
+              <div class="network-copy">
+                <p class="eyebrow">Mobile Access</p>
+                <h2 id="network-title">Local-only mode</h2>
+                <p id="network-message" class="network-message">
+                  Only this computer can open QuillForge right now.
+                </p>
+              </div>
+              <div class="network-links">
+                <div class="network-link-card">
+                  <span class="network-link-label">This computer</span>
+                  <a id="loopback-url" href="http://127.0.0.1" target="_blank" rel="noreferrer">
+                    http://127.0.0.1
+                  </a>
+                </div>
+                <div id="lan-url-card" class="network-link-card hidden">
+                  <span class="network-link-label">Phone / tablet</span>
+                  <a id="lan-url" href="" target="_blank" rel="noreferrer"></a>
+                </div>
+              </div>
+            </section>
+
+            <iframe
+              id="backend-frame"
+              title="QuillForge"
+              allow="clipboard-read; clipboard-write"
+              referrerpolicy="no-referrer"
+            ></iframe>
+          </div>
         </section>
       </main>
     </div>

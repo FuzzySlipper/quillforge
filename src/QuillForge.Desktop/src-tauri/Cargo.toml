@@ -16,6 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.5.6", features = [] }
 
 [dependencies]
+atomicwrites = "0.4"
 dirs = "6"
 log = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }

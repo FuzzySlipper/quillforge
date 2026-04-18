@@ -1,12 +1,15 @@
 use std::env;
-use std::net::TcpListener;
+use std::fs;
+use std::io::Write;
+use std::net::{IpAddr, TcpListener, UdpSocket};
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use atomicwrites::{AtomicFile, OverwriteBehavior};
 use dirs::{document_dir, home_dir};
 use reqwest::StatusCode;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::async_runtime::{spawn, Mutex, Receiver};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
@@ -20,6 +23,31 @@ const READY_POLL_INTERVAL: Duration = Duration::from_millis(500);
 const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const BACKEND_START_ATTEMPTS: usize = 3;
 const BACKEND_START_RETRY_DELAY: Duration = Duration::from_millis(250);
+const SETTINGS_FILE_NAME: &str = "desktop-settings.json";
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+enum DesktopBindMode {
+    #[default]
+    Loopback,
+    Lan,
+}
+
+impl DesktopBindMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Loopback => "loopback",
+            Self::Lan => "lan",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct DesktopShellSettings {
+    #[serde(default)]
+    bind_mode: DesktopBindMode,
+}
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,68 +57,126 @@ struct DesktopShellStatus {
     backend_url: Option<String>,
     workspace_path: String,
     port: Option<u16>,
-    bind_mode: &'static str,
+    bind_mode: String,
+    loopback_url: Option<String>,
+    lan_url: Option<String>,
     restart_available: bool,
 }
 
 impl DesktopShellStatus {
-    fn starting(workspace_path: String, port: u16, message: impl Into<String>) -> Self {
-        Self {
-            phase: "starting",
-            message: Some(message.into()),
-            backend_url: None,
+    fn starting(
+        workspace_path: String,
+        port: u16,
+        bind_mode: DesktopBindMode,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::for_phase(
+            "starting",
+            Some(message.into()),
+            None,
             workspace_path,
-            port: Some(port),
-            bind_mode: "loopback",
-            restart_available: true,
-        }
+            Some(port),
+            bind_mode,
+            true,
+        )
     }
 
-    fn ready(workspace_path: String, port: u16, backend_url: String) -> Self {
-        Self {
-            phase: "ready",
-            message: Some("The local QuillForge backend is ready.".to_string()),
-            backend_url: Some(backend_url),
+    fn ready(
+        workspace_path: String,
+        port: u16,
+        backend_url: String,
+        bind_mode: DesktopBindMode,
+    ) -> Self {
+        let message = if bind_mode == DesktopBindMode::Lan {
+            if resolve_lan_url(bind_mode, port).is_some() {
+                "LAN/mobile access is enabled for this run.".to_string()
+            } else {
+                "LAN/mobile access is enabled, but no non-loopback address was detected yet."
+                    .to_string()
+            }
+        } else {
+            "The local QuillForge backend is ready.".to_string()
+        };
+
+        Self::for_phase(
+            "ready",
+            Some(message),
+            Some(backend_url),
             workspace_path,
-            port: Some(port),
-            bind_mode: "loopback",
-            restart_available: true,
-        }
+            Some(port),
+            bind_mode,
+            true,
+        )
     }
 
-    fn failed(workspace_path: String, port: Option<u16>, message: impl Into<String>) -> Self {
-        Self {
-            phase: "failed",
-            message: Some(message.into()),
-            backend_url: None,
+    fn failed(
+        workspace_path: String,
+        port: Option<u16>,
+        bind_mode: DesktopBindMode,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::for_phase(
+            "failed",
+            Some(message.into()),
+            None,
             workspace_path,
             port,
-            bind_mode: "loopback",
-            restart_available: true,
-        }
+            bind_mode,
+            true,
+        )
     }
 
-    fn exited(workspace_path: String, port: Option<u16>, message: impl Into<String>) -> Self {
-        Self {
-            phase: "exited",
-            message: Some(message.into()),
-            backend_url: None,
+    fn exited(
+        workspace_path: String,
+        port: Option<u16>,
+        bind_mode: DesktopBindMode,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::for_phase(
+            "exited",
+            Some(message.into()),
+            None,
             workspace_path,
             port,
-            bind_mode: "loopback",
-            restart_available: true,
-        }
+            bind_mode,
+            true,
+        )
     }
 
-    fn stopped(workspace_path: String) -> Self {
-        Self {
-            phase: "stopped",
-            message: Some("Shutting down the QuillForge backend.".to_string()),
-            backend_url: None,
+    fn stopped(workspace_path: String, bind_mode: DesktopBindMode) -> Self {
+        Self::for_phase(
+            "stopped",
+            Some("Shutting down the QuillForge backend.".to_string()),
+            None,
             workspace_path,
-            port: None,
-            bind_mode: "loopback",
-            restart_available: false,
+            None,
+            bind_mode,
+            false,
+        )
+    }
+
+    fn for_phase(
+        phase: &'static str,
+        message: Option<String>,
+        backend_url: Option<String>,
+        workspace_path: String,
+        port: Option<u16>,
+        bind_mode: DesktopBindMode,
+        restart_available: bool,
+    ) -> Self {
+        let loopback_url = port.map(loopback_url_for_port);
+        let lan_url = port.and_then(|value| resolve_lan_url(bind_mode, value));
+
+        Self {
+            phase,
+            message,
+            backend_url,
+            workspace_path,
+            port,
+            bind_mode: bind_mode.as_str().to_string(),
+            loopback_url,
+            lan_url,
+            restart_available,
         }
     }
 }
@@ -103,18 +189,32 @@ impl Default for DesktopShellStatus {
             backend_url: None,
             workspace_path: resolve_workspace_path().display().to_string(),
             port: None,
-            bind_mode: "loopback",
+            bind_mode: DesktopBindMode::Loopback.as_str().to_string(),
+            loopback_url: None,
+            lan_url: None,
             restart_available: true,
         }
     }
 }
 
-#[derive(Default)]
 struct RuntimeState {
     generation: u64,
     child: Option<CommandChild>,
     status: DesktopShellStatus,
+    settings: DesktopShellSettings,
     shutting_down: bool,
+}
+
+impl Default for RuntimeState {
+    fn default() -> Self {
+        Self {
+            generation: 0,
+            child: None,
+            status: DesktopShellStatus::default(),
+            settings: DesktopShellSettings::default(),
+            shutting_down: false,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -130,6 +230,27 @@ async fn get_shell_status(state: State<'_, DesktopRuntime>) -> Result<DesktopShe
 #[tauri::command]
 async fn restart_backend(app: AppHandle) -> Result<(), String> {
     start_backend(app, "Restarting the QuillForge backend...").await
+}
+
+#[tauri::command]
+async fn set_lan_access_enabled(app: AppHandle, enable_lan: bool) -> Result<(), String> {
+    let bind_mode = if enable_lan {
+        DesktopBindMode::Lan
+    } else {
+        DesktopBindMode::Loopback
+    };
+
+    let settings = DesktopShellSettings { bind_mode };
+    save_desktop_settings(&app, &settings)?;
+    update_runtime_settings(&app, settings).await;
+
+    let startup_message = if enable_lan {
+        "Restarting the QuillForge backend with LAN/mobile access enabled..."
+    } else {
+        "Restarting the QuillForge backend in local-only mode..."
+    };
+
+    start_backend(app, startup_message).await
 }
 
 #[tauri::command]
@@ -162,11 +283,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_shell_status,
             restart_backend,
+            set_lan_access_enabled,
             open_workspace
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
             spawn(async move {
+                hydrate_runtime_settings(&app_handle).await;
                 let _ = start_backend(app_handle, "Launching the QuillForge backend...").await;
             });
             Ok(())
@@ -190,6 +313,7 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
     let workspace_path = resolve_workspace_path();
     let workspace_text = workspace_path.display().to_string();
     let generation = begin_backend_start(&app).await?;
+    let bind_mode = current_bind_mode(&app).await;
 
     let desktop_instance_id = format!(
         "{}-{}",
@@ -206,12 +330,13 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
         }
 
         let port = reserve_port().map_err(|error| error.to_string())?;
-        let backend_url = format!("http://127.0.0.1:{port}");
+        let backend_url = loopback_url_for_port(port);
         set_starting_status(
             &app,
             generation,
             workspace_text.clone(),
             port,
+            bind_mode,
             format_startup_message(startup_message, attempt),
         )
         .await?;
@@ -221,7 +346,7 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
             .sidecar("quillforge-backend")
             .map_err(|error| error.to_string())?;
 
-        let args = build_backend_args(&workspace_text, port, &desktop_instance_id);
+        let args = build_backend_args(&workspace_text, port, &desktop_instance_id, bind_mode);
         let (mut events, child) = match sidecar.args(args).spawn() {
             Ok(result) => result,
             Err(error) => {
@@ -231,6 +356,7 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
                     generation,
                     workspace_text.clone(),
                     Some(port),
+                    bind_mode,
                     message.clone(),
                 )
                 .await;
@@ -244,7 +370,15 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
 
         match wait_for_backend_startup(&backend_url, &mut events).await {
             Ok(()) => {
-                set_ready_status(&app, generation, workspace_text.clone(), port, backend_url).await;
+                set_ready_status(
+                    &app,
+                    generation,
+                    workspace_text.clone(),
+                    port,
+                    backend_url,
+                    bind_mode,
+                )
+                .await;
 
                 let app_for_exit = app.clone();
                 let workspace_for_exit = workspace_text.clone();
@@ -256,6 +390,7 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
                                 generation,
                                 workspace_for_exit.clone(),
                                 port,
+                                bind_mode,
                                 terminated.code,
                                 terminated.signal,
                             )
@@ -280,6 +415,7 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
                         generation,
                         workspace_text.clone(),
                         Some(port),
+                        bind_mode,
                         error.clone(),
                     )
                     .await;
@@ -292,7 +428,15 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
     }
 
     let message = "Unable to launch the QuillForge backend sidecar.".to_string();
-    set_failed_status(&app, generation, workspace_text, None, message.clone()).await;
+    set_failed_status(
+        &app,
+        generation,
+        workspace_text,
+        None,
+        bind_mode,
+        message.clone(),
+    )
+    .await;
     Err(message)
 }
 
@@ -355,15 +499,20 @@ async fn set_ready_status(
     workspace_path: String,
     port: u16,
     backend_url: String,
+    bind_mode: DesktopBindMode,
 ) {
     let runtime = app.state::<DesktopRuntime>();
-    let mut state = runtime.inner.lock().await;
-    if generation != state.generation || state.shutting_down {
-        return;
-    }
+    let status = {
+        let mut state = runtime.inner.lock().await;
+        if generation != state.generation || state.shutting_down {
+            return;
+        }
 
-    state.status = DesktopShellStatus::ready(workspace_path, port, backend_url);
-    emit_status(app, &state.status);
+        state.status = DesktopShellStatus::ready(workspace_path, port, backend_url, bind_mode);
+        state.status.clone()
+    };
+
+    emit_status(app, &status);
 }
 
 async fn set_failed_status(
@@ -371,20 +520,25 @@ async fn set_failed_status(
     generation: u64,
     workspace_path: String,
     port: Option<u16>,
+    bind_mode: DesktopBindMode,
     message: String,
 ) {
     let runtime = app.state::<DesktopRuntime>();
-    let mut state = runtime.inner.lock().await;
-    if generation != state.generation {
-        return;
-    }
+    let status = {
+        let mut state = runtime.inner.lock().await;
+        if generation != state.generation {
+            return;
+        }
 
-    if let Some(child) = state.child.take() {
-        let _ = child.kill();
-    }
+        if let Some(child) = state.child.take() {
+            let _ = child.kill();
+        }
 
-    state.status = DesktopShellStatus::failed(workspace_path, port, message);
-    emit_status(app, &state.status);
+        state.status = DesktopShellStatus::failed(workspace_path, port, bind_mode, message);
+        state.status.clone()
+    };
+
+    emit_status(app, &status);
 }
 
 async fn handle_backend_exit(
@@ -392,43 +546,57 @@ async fn handle_backend_exit(
     generation: u64,
     workspace_path: String,
     port: u16,
+    bind_mode: DesktopBindMode,
     code: Option<i32>,
     signal: Option<i32>,
 ) {
     let runtime = app.state::<DesktopRuntime>();
-    let mut state = runtime.inner.lock().await;
-    if generation != state.generation {
-        return;
-    }
+    let status = {
+        let mut state = runtime.inner.lock().await;
+        if generation != state.generation {
+            return;
+        }
 
-    state.child = None;
-    if state.shutting_down {
-        state.status = DesktopShellStatus::stopped(workspace_path);
-    } else {
-        let message = match (code, signal) {
-            (Some(exit_code), _) => {
-                format!("The backend exited unexpectedly with code {exit_code}.")
-            }
-            (_, Some(exit_signal)) => {
-                format!("The backend stopped unexpectedly with signal {exit_signal}.")
-            }
-            _ => "The backend stopped unexpectedly.".to_string(),
-        };
-        state.status = DesktopShellStatus::exited(workspace_path, Some(port), message);
-    }
-    emit_status(&app, &state.status);
+        state.child = None;
+        if state.shutting_down {
+            state.status = DesktopShellStatus::stopped(workspace_path, bind_mode);
+        } else {
+            let message = match (code, signal) {
+                (Some(exit_code), _) => {
+                    format!("The backend exited unexpectedly with code {exit_code}.")
+                }
+                (_, Some(exit_signal)) => {
+                    format!("The backend stopped unexpectedly with signal {exit_signal}.")
+                }
+                _ => "The backend stopped unexpectedly.".to_string(),
+            };
+            state.status =
+                DesktopShellStatus::exited(workspace_path, Some(port), bind_mode, message);
+        }
+        state.status.clone()
+    };
+
+    emit_status(&app, &status);
 }
 
 async fn shutdown_backend(app: AppHandle) {
     let runtime = app.state::<DesktopRuntime>();
-    let mut state = runtime.inner.lock().await;
-    state.shutting_down = true;
+    let status = {
+        let mut state = runtime.inner.lock().await;
+        state.shutting_down = true;
 
-    if let Some(child) = state.child.take() {
-        let _ = child.kill();
-    }
+        if let Some(child) = state.child.take() {
+            let _ = child.kill();
+        }
 
-    state.status = DesktopShellStatus::stopped(state.status.workspace_path.clone());
+        state.status = DesktopShellStatus::stopped(
+            state.status.workspace_path.clone(),
+            state.settings.bind_mode,
+        );
+        state.status.clone()
+    };
+
+    emit_status(&app, &status);
 }
 
 fn emit_status(app: &AppHandle, status: &DesktopShellStatus) {
@@ -457,16 +625,21 @@ async fn set_starting_status(
     generation: u64,
     workspace_path: String,
     port: u16,
+    bind_mode: DesktopBindMode,
     message: String,
 ) -> Result<(), String> {
     let runtime = app.state::<DesktopRuntime>();
-    let mut state = runtime.inner.lock().await;
-    if generation != state.generation || state.shutting_down {
-        return Err("QuillForge desktop is shutting down.".to_string());
-    }
+    let status = {
+        let mut state = runtime.inner.lock().await;
+        if generation != state.generation || state.shutting_down {
+            return Err("QuillForge desktop is shutting down.".to_string());
+        }
 
-    state.status = DesktopShellStatus::starting(workspace_path, port, message);
-    emit_status(app, &state.status);
+        state.status = DesktopShellStatus::starting(workspace_path, port, bind_mode, message);
+        state.status.clone()
+    };
+
+    emit_status(app, &status);
     Ok(())
 }
 
@@ -500,6 +673,92 @@ async fn is_generation_active(app: &AppHandle, generation: u64) -> bool {
     generation == state.generation && !state.shutting_down
 }
 
+async fn current_bind_mode(app: &AppHandle) -> DesktopBindMode {
+    let runtime = app.state::<DesktopRuntime>();
+    let state = runtime.inner.lock().await;
+    state.settings.bind_mode
+}
+
+async fn hydrate_runtime_settings(app: &AppHandle) {
+    let settings = load_desktop_settings(app);
+    update_runtime_settings(app, settings).await;
+}
+
+async fn update_runtime_settings(app: &AppHandle, settings: DesktopShellSettings) {
+    let runtime = app.state::<DesktopRuntime>();
+    let mut state = runtime.inner.lock().await;
+    state.settings = settings.clone();
+    state.status.bind_mode = settings.bind_mode.as_str().to_string();
+}
+
+fn load_desktop_settings(app: &AppHandle) -> DesktopShellSettings {
+    let settings_path = match desktop_settings_path(app) {
+        Ok(path) => path,
+        Err(error) => {
+            log::warn!("{error}");
+            return DesktopShellSettings::default();
+        }
+    };
+
+    let contents = match fs::read_to_string(&settings_path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return DesktopShellSettings::default();
+        }
+        Err(error) => {
+            log::warn!(
+                "Unable to read desktop settings from {}: {error}",
+                settings_path.display()
+            );
+            return DesktopShellSettings::default();
+        }
+    };
+
+    match serde_json::from_str::<DesktopShellSettings>(&contents) {
+        Ok(settings) => settings,
+        Err(error) => {
+            log::warn!(
+                "Unable to parse desktop settings from {}: {error}",
+                settings_path.display()
+            );
+            DesktopShellSettings::default()
+        }
+    }
+}
+
+fn save_desktop_settings(app: &AppHandle, settings: &DesktopShellSettings) -> Result<(), String> {
+    let settings_path = desktop_settings_path(app)?;
+    if let Some(parent) = settings_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            format!(
+                "Unable to create the desktop settings directory {}: {error}",
+                parent.display()
+            )
+        })?;
+    }
+
+    let payload = serde_json::to_vec_pretty(settings)
+        .map_err(|error| format!("Unable to serialize desktop settings: {error}"))?;
+    let atomic_file = AtomicFile::new(&settings_path, OverwriteBehavior::AllowOverwrite);
+    atomic_file
+        .write(|file| {
+            file.write_all(&payload)?;
+            file.write_all(b"\n")?;
+            file.sync_all()
+        })
+        .map_err(|error| format!("Unable to save desktop settings: {error}"))?;
+
+    Ok(())
+}
+
+fn desktop_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("Unable to resolve the desktop settings directory: {error}"))?;
+    Ok(config_dir.join(SETTINGS_FILE_NAME))
+}
+
 fn reserve_port() -> Result<u16, std::io::Error> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let port = listener.local_addr()?.port();
@@ -527,13 +786,18 @@ fn resolve_workspace_path() -> PathBuf {
         .join("user")
 }
 
-fn build_backend_args(workspace_path: &str, port: u16, desktop_instance_id: &str) -> Vec<String> {
+fn build_backend_args(
+    workspace_path: &str,
+    port: u16,
+    desktop_instance_id: &str,
+    bind_mode: DesktopBindMode,
+) -> Vec<String> {
     vec![
         "--desktop-mode".to_string(),
         "--content-root".to_string(),
         workspace_path.to_string(),
         "--bind-mode".to_string(),
-        "loopback".to_string(),
+        bind_mode.as_str().to_string(),
         "--port".to_string(),
         port.to_string(),
         "--desktop-instance-id".to_string(),
@@ -558,6 +822,46 @@ fn format_terminated_message(phase: &str, code: Option<i32>, signal: Option<i32>
         (Some(exit_code), _) => format!("The backend exited {phase} with code {exit_code}."),
         (_, Some(exit_signal)) => format!("The backend stopped {phase} with signal {exit_signal}."),
         _ => format!("The backend stopped unexpectedly {phase}."),
+    }
+}
+
+fn loopback_url_for_port(port: u16) -> String {
+    format!("http://127.0.0.1:{port}")
+}
+
+fn resolve_lan_url(bind_mode: DesktopBindMode, port: u16) -> Option<String> {
+    if bind_mode != DesktopBindMode::Lan {
+        return None;
+    }
+
+    detect_primary_lan_ip().map(|ip| format!("http://{ip}:{port}"))
+}
+
+fn detect_primary_lan_ip() -> Option<IpAddr> {
+    for target in ["1.1.1.1:80", "8.8.8.8:80", "192.0.2.1:80"] {
+        let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+        if socket.connect(target).is_err() {
+            continue;
+        }
+
+        let ip = socket.local_addr().ok()?.ip();
+        if is_usable_lan_ip(ip) {
+            return Some(ip);
+        }
+    }
+
+    None
+}
+
+fn is_usable_lan_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(value) => {
+            value.is_private()
+                && !value.is_loopback()
+                && !value.is_link_local()
+                && !value.is_unspecified()
+        }
+        IpAddr::V6(_) => false,
     }
 }
 

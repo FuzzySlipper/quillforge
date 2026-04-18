@@ -55,7 +55,7 @@ Fedora helper/update URL example:
 sudo dnf install https://github.com/FuzzySlipper/quillforge/releases/latest/download/QuillForge-fedora-x86_64.rpm
 ```
 
-After install, launch QuillForge from the desktop app your platform provides. On first run, QuillForge creates a content root with starter content and data folders.
+After install, launch QuillForge from the desktop app your platform provides. On first run, QuillForge creates a content root with starter content and data folders. Desktop launches stay local-only by default; use the desktop shell's LAN/mobile toggle when you want phone or tablet access on the same trusted network.
 
 Workspace behavior:
 - source/dev runs normally use repo-local `user/`
@@ -208,7 +208,7 @@ npm install
 npm run tauri:dev
 ```
 
-That flow builds the shell UI, publishes `QuillForge.Web` as a self-contained sidecar for the current host, and launches the desktop app. The tagged release workflow now stages stable desktop assets for Fedora RPM, Debian DEB, macOS zipped `.app` bundles plus DMGs, and a Windows installer. Local Linux `tauri:build` runs can still stay focused on `.deb` unless you override bundles explicitly. AppImage packaging remains a follow-up path while linuxdeploy support is being sorted out.
+That flow builds the shell UI, publishes `QuillForge.Web` as a self-contained sidecar for the current host, and launches the desktop app. The tagged release workflow now stages stable desktop assets for Fedora RPM, Debian DEB, macOS zipped `.app` bundles plus DMGs, and a Windows installer. The desktop shell keeps backend binding local-only by default and can explicitly restart in LAN/mobile mode when you need to reach it from a phone or tablet on the same trusted network. Local Linux `tauri:build` runs can still stay focused on `.deb` unless you override bundles explicitly. AppImage packaging remains a follow-up path while linuxdeploy support is being sorted out.
 
 ### Source Layout
 

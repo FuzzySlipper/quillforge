@@ -41,11 +41,11 @@ The shell expects the backend sidecar to be built through `npm run prepare:sidec
 - passes an explicit desktop workspace path rooted at `Documents/QuillForge`
 - waits for `/api/health/ready` before exposing the web UI
 - keeps a shell-owned startup/error surface if the backend fails to launch or exits unexpectedly
-- exposes desktop-owned actions to open the workspace and restart the backend
+- exposes desktop-owned actions to open the workspace, restart the backend, and toggle LAN/mobile access
 
 ## Notes
 
-- the shell currently defaults to loopback-only backend binding
-- later tasks will add explicit LAN/mobile controls beyond the current shell
+- the shell defaults to loopback-only backend binding until you explicitly enable LAN/mobile access from the desktop header
+- when LAN/mobile access is enabled, the shell restarts the backend in LAN mode and shows the phone/tablet URL to use on the same trusted network
 - release packaging now prioritizes Fedora RPM, Debian DEB, macOS `.app`/DMG, and the Windows installer with stable asset names for manual downloads or helper scripts
 - Linux AppImage packaging is still a follow-up path; local Linux builds can stay on `.deb` unless you explicitly request additional bundles
