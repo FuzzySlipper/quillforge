@@ -4,7 +4,7 @@ QuillForge is an AI-powered creative writing system for building stories, lore, 
 
 It is a ground-up C#/.NET rewrite of an older Python/FastAPI app. The rewrite keeps the file-based, user-owned workflow of the original project, but adds stronger architecture boundaries, better session handling, more test coverage, and cleaner provider integration.
 
-QuillForge is under active development. Releases are built from Git tags and are the recommended way for non-technical users to run the app. Your `user/` folder is treated as your data and is meant to survive updates.
+QuillForge is under active development. Releases are built from Git tags and are the recommended way for non-technical users to run the app. Your content root is treated as your data and is meant to survive updates. In current portable builds that root is usually `user/`; desktop-mode launches use `Documents/QuillForge`.
 
 ## Features
 
@@ -55,7 +55,13 @@ chmod +x QuillForge.Web
 QuillForge.Web.exe
 ```
 
-On first run, QuillForge creates a `user/` directory with starter content and data folders.
+On first run, QuillForge creates a content root with starter content and data folders.
+
+Workspace behavior:
+- source/dev runs normally use repo-local `user/`
+- portable published runs normally use a sibling `user/` directory
+- desktop-mode launches default to `Documents/QuillForge`
+- if a desktop-mode launch finds an older sibling `user/` directory next to the published app and `Documents/QuillForge` is still empty, QuillForge copies that old workspace into `Documents/QuillForge` and leaves the original in place
 
 Open the URL shown in the terminal. In source-development runs this is usually `http://localhost:5204`. In packaged runs it may differ depending on how the app is launched.
 
@@ -94,7 +100,7 @@ curl -X POST http://localhost:5204/api/providers \
 
 ## Configuration
 
-QuillForge stores app-level configuration in `user/config.yaml`.
+QuillForge stores app-level configuration in `<content-root>/config.yaml`.
 
 Example:
 
@@ -136,10 +142,10 @@ Naming note: `persona.active` is still a compatibility field from earlier versio
 
 ## Content Directory
 
-QuillForge keeps user-owned content in `user/`. This directory is intended to be portable and safe to back up.
+QuillForge keeps user-owned content in the content root. In source/dev and current portable runs that root is usually `user/`. In desktop-mode launches it defaults to `Documents/QuillForge`. This directory is intended to be portable and safe to back up.
 
 ```text
-user/
+<content-root>/
 ├── config.yaml
 ├── lore/
 ├── assistant/
@@ -172,8 +178,8 @@ user/
 Practical rule:
 
 - Edit the content folders when you want to change lore, prompts, profiles, layouts, or writing assets.
-- Avoid hand-editing `user/data/sessions/` and `user/data/session-state/` unless you are doing recovery or debugging work.
-- `user/conductor/` is retained as legacy migration/reference material if present; current live routing behavior is app-owned by mode.
+- Avoid hand-editing `<content-root>/data/sessions/` and `<content-root>/data/session-state/` unless you are doing recovery or debugging work.
+- `<content-root>/conductor/` is retained as legacy migration/reference material if present; current live routing behavior is app-owned by mode.
 - If you are migrating from SillyTavern or another "one big prompt" setup, see `dev/app-docs/sillytavern-migration.md` for the recommended split across lore, character cards, narrative rules, writing style, librarian prompts, and Assistant tone.
 
 ## Development

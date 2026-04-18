@@ -32,14 +32,18 @@ internal static class QuillForgeApplication
         var launchOptions = BackendLaunchOptions.FromConfiguration(builder.Configuration);
         BackendHostingConfiguration.ApplyOverrides(builder.Configuration, launchOptions);
 
+        using var startupLoggerFactory = LoggerFactory.Create(logging => logging.AddConsole());
         var startupPaths = StartupPathResolver.Resolve(
             builder.Configuration,
             AppContext.BaseDirectory,
             Directory.GetCurrentDirectory());
+        var startupMigration = DesktopWorkspaceMigrator.ImportIfNeeded(
+            startupPaths.MigrationPlan,
+            startupLoggerFactory.CreateLogger("QuillForge.Web.Hosting.DesktopWorkspaceMigrator"));
 
         var contentRoot = startupPaths.ContentRoot;
         var docsRoot = startupPaths.DocsRoot;
-        var appConfig = await LoadAppConfigAsync(contentRoot, startupPaths.DefaultsPath);
+        var appConfig = await LoadAppConfigAsync(contentRoot, startupPaths.DefaultsPath, startupLoggerFactory);
         var endpointBinding = BackendHostingConfiguration.Resolve(builder.Configuration, launchOptions);
         var runtimeInfo = new BackendRuntimeInfo(
             launchOptions.DesktopMode,
@@ -91,15 +95,17 @@ internal static class QuillForgeApplication
         app.MapFallbackToFile("index.html");
 
         app.Services.GetRequiredService<StartupReadinessState>().MarkReady();
-        LogStartupConfiguration(app, runtimeInfo);
+        LogStartupConfiguration(app, runtimeInfo, startupPaths, startupMigration);
 
         return app;
     }
 
-    private static async Task<AppConfig> LoadAppConfigAsync(string contentRoot, string defaultsPath)
+    private static async Task<AppConfig> LoadAppConfigAsync(
+        string contentRoot,
+        string defaultsPath,
+        ILoggerFactory startupLoggerFactory)
     {
-        var firstRunSetup = new FirstRunSetup(
-            LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<FirstRunSetup>());
+        var firstRunSetup = new FirstRunSetup(startupLoggerFactory.CreateLogger<FirstRunSetup>());
         firstRunSetup.EnsureContentDirectory(
             contentRoot,
             Directory.Exists(defaultsPath) ? defaultsPath : null);
@@ -107,17 +113,16 @@ internal static class QuillForgeApplication
         var configPath = Path.Combine(contentRoot, ContentPaths.ConfigFile);
         if (!File.Exists(configPath))
         {
-            var configLoader = new ConfigurationLoader(
-                LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<ConfigurationLoader>());
+            var configLoader = new ConfigurationLoader(startupLoggerFactory.CreateLogger<ConfigurationLoader>());
             configLoader.WriteDefaults(configPath);
         }
 
         var startupWriter = new Den.Persistence.AtomicFileWriter(
-            LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<Den.Persistence.AtomicFileWriter>());
+            startupLoggerFactory.CreateLogger<Den.Persistence.AtomicFileWriter>());
         var appConfigStore = new AppConfigStore(
             contentRoot,
             startupWriter,
-            LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<AppConfigStore>());
+            startupLoggerFactory.CreateLogger<AppConfigStore>());
         return await appConfigStore.LoadAsync();
     }
 
@@ -399,15 +404,29 @@ internal static class QuillForgeApplication
         }
     }
 
-    private static void LogStartupConfiguration(WebApplication app, BackendRuntimeInfo runtimeInfo)
+    private static void LogStartupConfiguration(
+        WebApplication app,
+        BackendRuntimeInfo runtimeInfo,
+        StartupPaths startupPaths,
+        WorkspaceMigrationResult? startupMigration)
     {
         app.Logger.LogInformation(
-            "Backend startup ready: desktopMode={DesktopMode}, bindMode={BindMode}, httpUrl={HttpUrl}, contentRoot={ContentRoot}, desktopInstanceId={DesktopInstanceId}, openBrowser={OpenBrowser}",
+            "Backend startup ready: desktopMode={DesktopMode}, bindMode={BindMode}, httpUrl={HttpUrl}, contentRoot={ContentRoot}, contentRootKind={ContentRootKind}, desktopInstanceId={DesktopInstanceId}, openBrowser={OpenBrowser}",
             runtimeInfo.DesktopMode,
             runtimeInfo.BindMode == BackendBindMode.Loopback ? "loopback" : "lan",
             runtimeInfo.HttpUrl,
             runtimeInfo.ContentRoot,
+            startupPaths.ContentRootKind,
             runtimeInfo.DesktopInstanceId,
             runtimeInfo.OpenBrowser);
+
+        if (startupMigration is not null)
+        {
+            app.Logger.LogInformation(
+                "Desktop workspace import completed from {SourceContentRoot} to {TargetContentRoot} with {CopiedFileCount} copied files",
+                startupMigration.SourceContentRoot,
+                startupMigration.TargetContentRoot,
+                startupMigration.CopiedFileCount);
+        }
     }
 }

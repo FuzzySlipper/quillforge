@@ -4,12 +4,12 @@ This note collects the user-content layout and persisted-document rules that age
 
 ## Content Layout
 
-QuillForge preserves a user-owned `user/` directory structure for compatibility and portability.
+QuillForge preserves a user-owned content-root layout for compatibility and portability.
 
 The current high-level layout is:
 
 ```text
-user/
+<content-root>/
 ├── config.yaml
 ├── lore/
 ├── assistant/
@@ -39,6 +39,12 @@ user/
     └── llm-debug/
 ```
 
+Current content-root expectations:
+- source/dev runs normally use repo-local `user/`
+- portable published runs normally use a sibling `user/` next to the binary
+- desktop-mode published runs default to `Documents/QuillForge`
+- desktop-mode migration should import an existing sibling published `user/` tree into `Documents/QuillForge` when the desktop workspace is still empty
+
 The single source of truth for content directory names in code is:
 - `src/QuillForge.Core/ContentPaths.cs`
 
@@ -50,8 +56,8 @@ Path rules:
 - use `ContentPaths.*` constants instead of bare string literals
 - use those constants for both `Path.Combine(...)` and content-service relative paths
 - preserve the compatibility layout unless there is an explicit migration plan
-- treat `user/data/` as app-owned persisted state rather than normal content-editing surface
-- `user/conductor/` is retained as legacy migration/reference material, not the routing authority for current app behavior
+- treat `data/` under the content root as app-owned persisted state rather than normal content-editing surface
+- `conductor/` is retained as legacy migration/reference material, not the routing authority for current app behavior
 
 ## Persistence Boundary
 

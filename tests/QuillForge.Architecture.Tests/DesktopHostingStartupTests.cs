@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using QuillForge.Core;
 using QuillForge.Web;
 using QuillForge.Web.Endpoints;
 using QuillForge.Web.Hosting;
@@ -36,7 +38,100 @@ public sealed class DesktopHostingStartupTests
             var paths = StartupPathResolver.Resolve(configuration, baseDir, currentDir);
 
             Assert.Equal(explicitContentRoot, paths.ContentRoot);
+            Assert.Equal(StartupContentRootKind.ExplicitOverride, paths.ContentRootKind);
             Assert.Equal(Path.Combine(baseDir, "app-docs"), paths.DocsRoot);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void StartupPathResolver_DesktopPublishedLaunch_UsesDocumentsWorkspaceAndPlansImport()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"quillforge-desktop-workspace-{Guid.NewGuid():N}");
+        var baseDir = Path.Combine(tempRoot, "published");
+        var currentDir = Path.Combine(tempRoot, "working");
+        var documentsDir = Path.Combine(tempRoot, "Documents");
+        var legacyUserRoot = Path.Combine(baseDir, "user");
+        Directory.CreateDirectory(baseDir);
+        Directory.CreateDirectory(currentDir);
+        Directory.CreateDirectory(Path.Combine(legacyUserRoot, ContentPaths.Lore));
+        File.WriteAllText(Path.Combine(legacyUserRoot, ContentPaths.ConfigFile), "models: {}\n");
+
+        try
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["QuillForge:Startup:DesktopMode"] = "true",
+                })
+                .Build();
+
+            var paths = StartupPathResolver.Resolve(configuration, baseDir, currentDir, documentsDir);
+
+            Assert.Equal(Path.Combine(documentsDir, "QuillForge"), paths.ContentRoot);
+            Assert.Equal(StartupContentRootKind.DesktopDefaultDocuments, paths.ContentRootKind);
+            Assert.NotNull(paths.MigrationPlan);
+            Assert.Equal(legacyUserRoot, paths.MigrationPlan!.SourceContentRoot);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void StartupPathResolver_DesktopModeFromSourceTree_KeepsRepoUserBehavior()
+    {
+        var solutionRoot = StartupPathResolver.FindSolutionRoot(Directory.GetCurrentDirectory());
+        Assert.NotNull(solutionRoot);
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["QuillForge:Startup:DesktopMode"] = "true",
+            })
+            .Build();
+
+        var paths = StartupPathResolver.Resolve(configuration, solutionRoot!, solutionRoot!);
+
+        Assert.Equal(Path.Combine(solutionRoot!, "user"), paths.ContentRoot);
+        Assert.Equal(StartupContentRootKind.SourceDevelopment, paths.ContentRootKind);
+        Assert.Null(paths.MigrationPlan);
+    }
+
+    [Fact]
+    public void StartupPathResolver_DesktopPublishedLaunch_DoesNotPlanImport_WhenDocumentsWorkspaceAlreadyHasContent()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"quillforge-desktop-existing-{Guid.NewGuid():N}");
+        var baseDir = Path.Combine(tempRoot, "published");
+        var currentDir = Path.Combine(tempRoot, "working");
+        var documentsDir = Path.Combine(tempRoot, "Documents");
+        var desktopWorkspace = Path.Combine(documentsDir, "QuillForge");
+        var legacyUserRoot = Path.Combine(baseDir, "user");
+        Directory.CreateDirectory(baseDir);
+        Directory.CreateDirectory(currentDir);
+        Directory.CreateDirectory(desktopWorkspace);
+        Directory.CreateDirectory(Path.Combine(legacyUserRoot, ContentPaths.Lore));
+        File.WriteAllText(Path.Combine(legacyUserRoot, ContentPaths.ConfigFile), "models: {}\n");
+        File.WriteAllText(Path.Combine(desktopWorkspace, "notes.txt"), "already using desktop workspace");
+
+        try
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["QuillForge:Startup:DesktopMode"] = "true",
+                })
+                .Build();
+
+            var paths = StartupPathResolver.Resolve(configuration, baseDir, currentDir, documentsDir);
+
+            Assert.Equal(desktopWorkspace, paths.ContentRoot);
+            Assert.Equal(StartupContentRootKind.DesktopDefaultDocuments, paths.ContentRootKind);
+            Assert.Null(paths.MigrationPlan);
         }
         finally
         {
@@ -84,6 +179,42 @@ public sealed class DesktopHostingStartupTests
         Assert.Equal(BackendBindMode.Loopback, binding.BindMode);
         Assert.Equal(8015, binding.Port);
         Assert.Equal("http://127.0.0.1:8015", binding.Url);
+    }
+
+    [Fact]
+    public void DesktopWorkspaceMigrator_ImportsLegacyPortableWorkspace_WhenDocumentsWorkspaceIsEmpty()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"quillforge-migrate-workspace-{Guid.NewGuid():N}");
+        var sourceRoot = Path.Combine(tempRoot, "portable-user");
+        var targetRoot = Path.Combine(tempRoot, "Documents", "QuillForge");
+        Directory.CreateDirectory(Path.Combine(sourceRoot, ContentPaths.LoreDefault));
+        Directory.CreateDirectory(Path.Combine(sourceRoot, ContentPaths.Data));
+        File.WriteAllText(Path.Combine(sourceRoot, ContentPaths.ConfigFile), "models: {}\n");
+        File.WriteAllText(Path.Combine(sourceRoot, ContentPaths.LoreDefault, "world.md"), "legacy lore");
+
+        try
+        {
+            var result = DesktopWorkspaceMigrator.ImportIfNeeded(
+                new WorkspaceMigrationPlan(sourceRoot, targetRoot),
+                NullLogger.Instance);
+
+            Assert.NotNull(result);
+            Assert.Equal(2, result!.CopiedFileCount);
+            Assert.True(File.Exists(Path.Combine(targetRoot, ContentPaths.ConfigFile)));
+            Assert.True(File.Exists(Path.Combine(targetRoot, ContentPaths.LoreDefault, "world.md")));
+            Assert.True(File.Exists(Path.Combine(sourceRoot, ContentPaths.ConfigFile)));
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DesktopWorkspaceMigrator_DoesNothing_WhenNoPlanIsProvided()
+    {
+        var result = DesktopWorkspaceMigrator.ImportIfNeeded(null, NullLogger.Instance);
+        Assert.Null(result);
     }
 
     [Fact]
