@@ -51,7 +51,7 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
       {profiles ? (
         <div className="flex flex-col gap-4">
           <div className="rounded-lg border border-border/60 bg-input-bg px-3 py-2 text-sm text-text-muted">
-            Routing is app-owned by mode. Legacy conductor prompts remain available in the prompt browser for migration/reference, but they no longer steer live chat routing.
+            Routing is app-owned by mode. Live chat behavior now comes from in-app mode configuration rather than legacy conductor prompt files.
           </div>
 
           <label className="flex flex-col gap-1">

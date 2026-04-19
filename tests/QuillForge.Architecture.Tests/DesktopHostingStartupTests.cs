@@ -146,6 +146,7 @@ public sealed class DesktopHostingStartupTests
         [
             "--desktop-mode",
             "--content-root", "/tmp/quillforge",
+            "--runtime-root", "/tmp/quillforge-runtime",
             "--bind-mode=loopback",
             "--port", "42319",
             "--desktop-instance-id", "desktop-123",
@@ -156,10 +157,49 @@ public sealed class DesktopHostingStartupTests
         Assert.Equal(["--environment", "Development"], result.PassThroughArgs);
         Assert.Equal("True", result.ConfigurationOverrides["QuillForge:Startup:DesktopMode"]);
         Assert.Equal("/tmp/quillforge", result.ConfigurationOverrides["QuillForge:ContentRoot"]);
+        Assert.Equal("/tmp/quillforge-runtime", result.ConfigurationOverrides["QuillForge:Startup:RuntimeRoot"]);
         Assert.Equal("loopback", result.ConfigurationOverrides["QuillForge:Startup:BindMode"]);
         Assert.Equal("42319", result.ConfigurationOverrides["QuillForge:Startup:Port"]);
         Assert.Equal("desktop-123", result.ConfigurationOverrides["QuillForge:Startup:DesktopInstanceId"]);
         Assert.Equal("false", result.ConfigurationOverrides["QuillForge:Startup:OpenBrowser"]);
+    }
+
+    [Fact]
+    public async Task QuillForgeApplication_BuildAsync_UsesRuntimeRootForPublishedDesktopAssets()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"quillforge-runtime-root-{Guid.NewGuid():N}");
+        var runtimeRoot = Path.Combine(tempRoot, "runtime");
+        var contentRoot = Path.Combine(tempRoot, "content");
+        Directory.CreateDirectory(Path.Combine(runtimeRoot, "wwwroot"));
+        Directory.CreateDirectory(Path.Combine(runtimeRoot, "app-docs"));
+        Directory.CreateDirectory(contentRoot);
+        File.WriteAllText(Path.Combine(runtimeRoot, "wwwroot", "index.html"), "<!doctype html><title>QuillForge</title>");
+        File.WriteAllText(Path.Combine(runtimeRoot, "appsettings.json"), "{ }");
+
+        try
+        {
+            await using var app = await QuillForgeApplication.BuildAsync(
+            [
+                "--desktop-mode",
+                "--content-root", contentRoot,
+                "--runtime-root", runtimeRoot,
+                "--bind-mode", "loopback",
+                "--port", "42319",
+                "--desktop-instance-id", "desktop-123",
+                "--open-browser", "false",
+            ]);
+
+            Assert.Equal(runtimeRoot, app.Environment.ContentRootPath);
+
+            var startupPaths = app.Services.GetRequiredService<StartupPaths>();
+            Assert.Equal(contentRoot, startupPaths.ContentRoot);
+            Assert.Equal(Path.Combine(runtimeRoot, "app-docs"), startupPaths.DocsRoot);
+            Assert.Equal(StartupContentRootKind.ExplicitOverride, startupPaths.ContentRootKind);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
     }
 
     [Fact]

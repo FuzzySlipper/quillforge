@@ -43,9 +43,8 @@ export default function HeaderBar({ status, layoutName, mode, onOpenProfile, onO
 
   return (
     <header className="flex items-center justify-between px-4 py-3 bg-surface border-b border-border shrink-0">
-      <div className="flex items-center gap-3">
-        <h1 className="text-base font-semibold">Quill Forge</h1>
-        {ready && (
+      <div className="flex items-center gap-3 min-w-0">
+        {ready ? (
           <button
             onClick={onOpenMode}
             className="text-xs px-2 py-1 rounded-md bg-surface-alt text-text-muted hover:text-text transition-colors"
@@ -53,6 +52,10 @@ export default function HeaderBar({ status, layoutName, mode, onOpenProfile, onO
             {status.mode}
             {status.project ? ` / ${status.project}` : ""}
           </button>
+        ) : (
+          <span className="text-xs text-text-muted">
+            {status ? status.status : "connecting..."}
+          </span>
         )}
       </div>
 
@@ -65,7 +68,7 @@ export default function HeaderBar({ status, layoutName, mode, onOpenProfile, onO
             <LabeledBtn label="lore" onClick={onOpenLore} title="Browse lore files">{status.loreSet !== "(default)" ? status.loreSet : ""} ({status.loreFiles})</LabeledBtn>
             <LabeledBtn label="plot" onClick={onOpenPlots} title="Browse plot arcs">plots</LabeledBtn>
             <LabeledBtn label="context" onClick={onOpenContext} title="Context usage">ctx</LabeledBtn>
-            <LabeledBtn label="prompts" onClick={onOpenPrompts} title="Browse assistant, narrative, writing-style, and legacy migration prompts">prompts</LabeledBtn>
+            <LabeledBtn label="prompts" onClick={onOpenPrompts} title="Browse assistant, narrative rules, and writing style prompts">prompts</LabeledBtn>
             <LabeledBtn label="characters" onClick={onOpenCharacters} title="Character cards">chars</LabeledBtn>
             <LabeledBtn label="text" onClick={onOpenTextTheme} title="Text color theme">{textThemeName.toLowerCase()}</LabeledBtn>
             <LabeledBtn label="layout" onClick={onOpenLayout} title="Switch layout">{layoutName}</LabeledBtn>
@@ -83,11 +86,6 @@ export default function HeaderBar({ status, layoutName, mode, onOpenProfile, onO
               {status.model.split("-").slice(0, 2).join("-")}
             </LabeledBtn>
           </>
-        )}
-        {!ready && (
-          <span className="text-xs text-text-muted">
-            {status ? status.status : "connecting..."}
-          </span>
         )}
       </div>
     </header>

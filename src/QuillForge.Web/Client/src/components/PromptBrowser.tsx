@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import MDEditor from "@uiw/react-md-editor";
 import Overlay from "./Overlay";
-import { listConductors, readConductor, writeConductor, type ConductorFileInfo } from "../api";
 import { listAssistantPrompts, readAssistantPrompt, writeAssistantPrompt, type AssistantPromptInfo } from "../api";
 import { listNarrativeRules, readNarrativeRules, writeNarrativeRules, type NarrativeRulesInfo } from "../api";
 import { listWritingStyles, readWritingStyle, writeWritingStyle, type WritingStyleInfo } from "../api";
@@ -12,11 +11,10 @@ interface PromptBrowserProps {
   onChanged: () => void;
 }
 
-type Tab = "conductor" | "assistant" | "narrative" | "writing";
+type Tab = "assistant" | "narrative" | "writing";
 
 export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowserProps) {
   const [tab, setTab] = useState<Tab>("assistant");
-  const [conductorFiles, setConductorFiles] = useState<ConductorFileInfo[]>([]);
   const [assistantFiles, setAssistantFiles] = useState<AssistantPromptInfo[]>([]);
   const [narrativeRulesFiles, setNarrativeRulesFiles] = useState<NarrativeRulesInfo[]>([]);
   const [styleFiles, setStyleFiles] = useState<WritingStyleInfo[]>([]);
@@ -29,24 +27,10 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
 
   useEffect(() => {
     if (!open) return;
-    listConductors().then((data) => setConductorFiles(data.files));
     listAssistantPrompts().then((data) => setAssistantFiles(data.files));
     listNarrativeRules().then((data) => setNarrativeRulesFiles(data.files));
     listWritingStyles().then((data) => setStyleFiles(data.files));
   }, [open]);
-
-  async function handleSelectConductor(path: string) {
-    setLoading(true);
-    try {
-      const data = await readConductor(path);
-      setSelected(path);
-      setSelectedType("conductor");
-      setContent(data.content);
-      setOriginalContent(data.content);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleSelectStyle(name: string) {
     setLoading(true);
@@ -91,11 +75,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
     if (!selected) return;
     setSaving(true);
     try {
-      if (selectedType === "conductor") {
-        await writeConductor(selected, content);
-        const data = await listConductors();
-        setConductorFiles(data.files);
-      } else if (selectedType === "assistant") {
+      if (selectedType === "assistant") {
         await writeAssistantPrompt(selected, content);
         const data = await listAssistantPrompts();
         setAssistantFiles(data.files);
@@ -122,16 +102,6 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
   }
 
   const isDirty = content !== originalContent;
-
-  // Group conductor files by directory
-  const grouped = conductorFiles.reduce<Record<string, ConductorFileInfo[]>>((acc, f) => {
-    const dir = f.path.includes("/") ? f.path.split("/")[0] : "(root)";
-    if (!acc[dir]) acc[dir] = [];
-    acc[dir].push(f);
-    return acc;
-  }, {});
-
-  const totalConductorTokens = conductorFiles.reduce((sum, f) => sum + f.tokens, 0);
   const totalAssistantTokens = assistantFiles.reduce((sum, f) => sum + f.tokens, 0);
   const totalNarrativeRulesTokens = narrativeRulesFiles.reduce((sum, f) => sum + f.tokens, 0);
   const totalStyleTokens = styleFiles.reduce((sum, f) => sum + f.tokens, 0);
@@ -141,7 +111,6 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
       tab === t ? "bg-accent text-white" : "text-text-muted hover:text-text"
     }`;
 
-  // ── Editor view ──
   if (selected) {
     return (
       <Overlay open={open} onClose={onClose} title={selected}>
@@ -194,11 +163,9 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
     );
   }
 
-  // ── List view ──
   return (
     <Overlay open={open} onClose={onClose} title="Prompts">
       <div className="flex flex-col gap-3">
-        {/* Tab switcher */}
         <div className="flex gap-2">
           <button onClick={() => setTab("assistant")} className={tabClass("assistant")}>
             Assistant
@@ -209,51 +176,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
           <button onClick={() => setTab("writing")} className={tabClass("writing")}>
             Writing Styles
           </button>
-          <button onClick={() => setTab("conductor")} className={tabClass("conductor")}>
-            Legacy Conductors
-          </button>
         </div>
-
-        {tab === "conductor" && (
-          <>
-            <div className="rounded-lg border border-border/60 bg-input-bg px-3 py-2 text-xs text-text-muted">
-              Migration-only reference content. Live routing is app-owned by mode rather than driven by conductor prompt text.
-            </div>
-            <div className="text-xs text-text-muted">
-              {conductorFiles.length} files · ~{Math.round(totalConductorTokens / 1000)}k tokens total
-            </div>
-            {conductorFiles.length === 0 ? (
-              <p className="text-sm text-text-muted">No legacy conductor files are seeded on fresh installs.</p>
-            ) : (
-              <>
-                {Object.entries(grouped).map(([dir, dirFiles]) => (
-                  <div key={dir}>
-                    <div className="text-xs font-medium text-text-muted uppercase tracking-wider mb-1">
-                      {dir}
-                    </div>
-                    <div className="flex flex-col">
-                      {dirFiles.map((f) => {
-                        const name = f.path.includes("/")
-                          ? f.path.split("/").slice(1).join("/")
-                          : f.path;
-                        return (
-                          <button
-                            key={f.path}
-                            onClick={() => handleSelectConductor(f.path)}
-                            className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-input-bg text-left transition-colors"
-                          >
-                            <span className="text-sm text-text">{name}</span>
-                            <span className="text-xs text-text-muted">~{f.tokens} tok</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </>
-        )}
 
         {tab === "assistant" && (
           <>

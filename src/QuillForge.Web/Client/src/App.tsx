@@ -31,6 +31,7 @@ import DiagnosticsPanel from "./components/DiagnosticsPanel";
 import TokenUsageBar from "./components/TokenUsageBar";
 import * as textTheme from "./textTheme";
 import type { TextTheme } from "./textTheme";
+import { publishDesktopShellBridge } from "./desktopBridge";
 
 /** uuid() requires a secure context (HTTPS); fall back for plain HTTP. */
 const uuid = (): string =>
@@ -150,6 +151,10 @@ function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamStatus]);
+
+  useEffect(() => {
+    publishDesktopShellBridge(status, layout, currentTextTheme);
+  }, [status, layout, currentTextTheme]);
 
   function addResponseMessage(
     content: string,

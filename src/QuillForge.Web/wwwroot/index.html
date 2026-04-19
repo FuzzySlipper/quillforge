@@ -6,21 +6,27 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Quill Forge</title>
-    <script type="module" crossorigin src="/assets/index-BQq2FlB6.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DtuTlr7C.css">
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <script type="module" crossorigin src="/assets/index-DDxBP0eX.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DWmMroSJ.css">
   </head>
   <body class="bg-bg text-text">
     <div id="root"></div>
     <script>
-      // Persistent version badge — survives React re-renders via fixed positioning
-      fetch('/api/status').then(r=>r.json()).then(d=>{
-        if(!d.version)return;
-        const badge=document.createElement('div');
-        badge.id='qf-version-badge';
-        badge.style.cssText='position:fixed;bottom:4px;left:8px;font-size:10px;opacity:0.4;z-index:9999;color:inherit;pointer-events:none;font-family:monospace;';
-        badge.textContent='v'+d.version+(d.build&&d.build!==d.version?' ('+d.build.split('+')[1]+')':'');
-        document.body.appendChild(badge);
-      }).catch(()=>{});
+      // Persistent version badge — survives React re-renders via fixed positioning.
+      // Suppress it when the web UI is embedded in the desktop shell, which now
+      // renders version/build info in the native chrome instead.
+      const shellParams = new URLSearchParams(window.location.search);
+      if (!shellParams.has('desktop-shell')) {
+        fetch('/api/status').then(r=>r.json()).then(d=>{
+          if(!d.version)return;
+          const badge=document.createElement('div');
+          badge.id='qf-version-badge';
+          badge.style.cssText='position:fixed;bottom:4px;left:8px;font-size:10px;opacity:0.4;z-index:9999;color:inherit;pointer-events:none;font-family:monospace;';
+          badge.textContent='v'+d.version+(d.build&&d.build!==d.version?' ('+d.build.split('+')[1]+')':'');
+          document.body.appendChild(badge);
+        }).catch(()=>{});
+      }
     </script>
   </body>
 </html>

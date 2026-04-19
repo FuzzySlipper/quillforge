@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use atomicwrites::{AtomicFile, OverwriteBehavior};
 use dirs::{document_dir, home_dir};
-use reqwest::StatusCode;
+use reqwest::{StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use tauri::async_runtime::{spawn, Mutex, Receiver};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
@@ -24,6 +24,8 @@ const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const BACKEND_START_ATTEMPTS: usize = 3;
 const BACKEND_START_RETRY_DELAY: Duration = Duration::from_millis(250);
 const SETTINGS_FILE_NAME: &str = "desktop-settings.json";
+const MAX_DIAGNOSTIC_ENTRIES: usize = 200;
+const TARGET_TRIPLE: &str = env!("TAURI_ENV_TARGET_TRIPLE");
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
@@ -51,6 +53,14 @@ struct DesktopShellSettings {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct DesktopDiagnosticEntry {
+    level: &'static str,
+    source: &'static str,
+    message: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DesktopShellStatus {
     phase: &'static str,
     message: Option<String>,
@@ -61,6 +71,7 @@ struct DesktopShellStatus {
     loopback_url: Option<String>,
     lan_url: Option<String>,
     restart_available: bool,
+    diagnostics: Vec<DesktopDiagnosticEntry>,
 }
 
 impl DesktopShellStatus {
@@ -177,6 +188,7 @@ impl DesktopShellStatus {
             loopback_url,
             lan_url,
             restart_available,
+            diagnostics: Vec::new(),
         }
     }
 }
@@ -193,6 +205,7 @@ impl Default for DesktopShellStatus {
             loopback_url: None,
             lan_url: None,
             restart_available: true,
+            diagnostics: Vec::new(),
         }
     }
 }
@@ -202,6 +215,7 @@ struct RuntimeState {
     child: Option<CommandChild>,
     status: DesktopShellStatus,
     settings: DesktopShellSettings,
+    diagnostics: Vec<DesktopDiagnosticEntry>,
     shutting_down: bool,
 }
 
@@ -212,6 +226,7 @@ impl Default for RuntimeState {
             child: None,
             status: DesktopShellStatus::default(),
             settings: DesktopShellSettings::default(),
+            diagnostics: Vec::new(),
             shutting_down: false,
         }
     }
@@ -264,6 +279,15 @@ async fn open_workspace(app: AppHandle) -> Result<(), String> {
     reveal_in_file_manager(Path::new(&workspace_path))
 }
 
+#[allow(deprecated)]
+#[tauri::command]
+async fn open_external_url(app: AppHandle, url: String) -> Result<(), String> {
+    validate_external_url(&url)?;
+    app.shell()
+        .open(url, None)
+        .map_err(|error| format!("Unable to open URL: {error}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -284,7 +308,8 @@ pub fn run() {
             get_shell_status,
             restart_backend,
             set_lan_access_enabled,
-            open_workspace
+            open_workspace,
+            open_external_url
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -314,6 +339,21 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
     let workspace_text = workspace_path.display().to_string();
     let generation = begin_backend_start(&app).await?;
     let bind_mode = current_bind_mode(&app).await;
+    let backend_payload_dir = match resolve_backend_payload_dir(&app) {
+        Ok(path) => path,
+        Err(error) => {
+            set_failed_status(
+                &app,
+                generation,
+                workspace_text.clone(),
+                None,
+                bind_mode,
+                error.clone(),
+            )
+            .await;
+            return Err(error);
+        }
+    };
 
     let desktop_instance_id = format!(
         "{}-{}",
@@ -346,8 +386,15 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
             .sidecar("quillforge-backend")
             .map_err(|error| error.to_string())?;
 
-        let args = build_backend_args(&workspace_text, port, &desktop_instance_id, bind_mode);
-        let (mut events, child) = match sidecar.args(args).spawn() {
+        let args = build_backend_args(
+            &workspace_text,
+            port,
+            &desktop_instance_id,
+            bind_mode,
+            &backend_payload_dir,
+        );
+        let (mut events, child) = match sidecar.current_dir(&backend_payload_dir).args(args).spawn()
+        {
             Ok(result) => result,
             Err(error) => {
                 let message = format!("Unable to launch the QuillForge backend sidecar: {error}");
@@ -368,7 +415,7 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
             return Ok(());
         }
 
-        match wait_for_backend_startup(&backend_url, &mut events).await {
+        match wait_for_backend_startup(&app, generation, &backend_url, &mut events).await {
             Ok(()) => {
                 set_ready_status(
                     &app,
@@ -384,18 +431,51 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
                 let workspace_for_exit = workspace_text.clone();
                 spawn(async move {
                     while let Some(event) = events.recv().await {
-                        if let CommandEvent::Terminated(terminated) = event {
-                            handle_backend_exit(
-                                app_for_exit.clone(),
-                                generation,
-                                workspace_for_exit.clone(),
-                                port,
-                                bind_mode,
-                                terminated.code,
-                                terminated.signal,
-                            )
-                            .await;
-                            break;
+                        match event {
+                            CommandEvent::Stdout(bytes) => {
+                                append_backend_output(
+                                    &app_for_exit,
+                                    generation,
+                                    "backend",
+                                    "info",
+                                    bytes,
+                                )
+                                .await;
+                            }
+                            CommandEvent::Stderr(bytes) => {
+                                append_backend_output(
+                                    &app_for_exit,
+                                    generation,
+                                    "backend",
+                                    "warning",
+                                    bytes,
+                                )
+                                .await;
+                            }
+                            CommandEvent::Error(error) => {
+                                append_diagnostic(
+                                    &app_for_exit,
+                                    Some(generation),
+                                    "error",
+                                    "shell",
+                                    format!("Backend stream error: {error}"),
+                                )
+                                .await;
+                            }
+                            CommandEvent::Terminated(terminated) => {
+                                handle_backend_exit(
+                                    app_for_exit.clone(),
+                                    generation,
+                                    workspace_for_exit.clone(),
+                                    port,
+                                    bind_mode,
+                                    terminated.code,
+                                    terminated.signal,
+                                )
+                                .await;
+                                break;
+                            }
+                            _ => {}
                         }
                     }
                 });
@@ -441,6 +521,8 @@ async fn start_backend(app: AppHandle, startup_message: &str) -> Result<(), Stri
 }
 
 async fn wait_for_backend_startup(
+    app: &AppHandle,
+    generation: u64,
     backend_url: &str,
     events: &mut Receiver<CommandEvent>,
 ) -> Result<(), String> {
@@ -461,6 +543,22 @@ async fn wait_for_backend_startup(
                     terminated.code,
                     terminated.signal,
                 ));
+            }
+            Ok(CommandEvent::Stdout(bytes)) => {
+                append_backend_output(app, generation, "backend", "info", bytes).await;
+            }
+            Ok(CommandEvent::Stderr(bytes)) => {
+                append_backend_output(app, generation, "backend", "warning", bytes).await;
+            }
+            Ok(CommandEvent::Error(error)) => {
+                append_diagnostic(
+                    app,
+                    Some(generation),
+                    "error",
+                    "shell",
+                    format!("Backend stream error: {error}"),
+                )
+                .await;
             }
             Ok(_) => {}
             Err(TryRecvError::Empty) => {}
@@ -508,7 +606,21 @@ async fn set_ready_status(
             return;
         }
 
-        state.status = DesktopShellStatus::ready(workspace_path, port, backend_url, bind_mode);
+        let status_message = if bind_mode == DesktopBindMode::Lan {
+            if resolve_lan_url(bind_mode, port).is_some() {
+                "LAN/mobile access is enabled for this run.".to_string()
+            } else {
+                "LAN/mobile access is enabled, but no non-loopback address was detected yet."
+                    .to_string()
+            }
+        } else {
+            "The local QuillForge backend is ready.".to_string()
+        };
+        push_diagnostic(&mut state.diagnostics, "info", "shell", status_message);
+        apply_status(
+            &mut state,
+            DesktopShellStatus::ready(workspace_path, port, backend_url, bind_mode),
+        );
         state.status.clone()
     };
 
@@ -534,7 +646,11 @@ async fn set_failed_status(
             let _ = child.kill();
         }
 
-        state.status = DesktopShellStatus::failed(workspace_path, port, bind_mode, message);
+        push_diagnostic(&mut state.diagnostics, "error", "shell", message.clone());
+        apply_status(
+            &mut state,
+            DesktopShellStatus::failed(workspace_path, port, bind_mode, message),
+        );
         state.status.clone()
     };
 
@@ -559,7 +675,16 @@ async fn handle_backend_exit(
 
         state.child = None;
         if state.shutting_down {
-            state.status = DesktopShellStatus::stopped(workspace_path, bind_mode);
+            push_diagnostic(
+                &mut state.diagnostics,
+                "info",
+                "shell",
+                "Shutting down the QuillForge backend.",
+            );
+            apply_status(
+                &mut state,
+                DesktopShellStatus::stopped(workspace_path, bind_mode),
+            );
         } else {
             let message = match (code, signal) {
                 (Some(exit_code), _) => {
@@ -570,8 +695,11 @@ async fn handle_backend_exit(
                 }
                 _ => "The backend stopped unexpectedly.".to_string(),
             };
-            state.status =
-                DesktopShellStatus::exited(workspace_path, Some(port), bind_mode, message);
+            push_diagnostic(&mut state.diagnostics, "error", "shell", message.clone());
+            apply_status(
+                &mut state,
+                DesktopShellStatus::exited(workspace_path, Some(port), bind_mode, message),
+            );
         }
         state.status.clone()
     };
@@ -584,14 +712,22 @@ async fn shutdown_backend(app: AppHandle) {
     let status = {
         let mut state = runtime.inner.lock().await;
         state.shutting_down = true;
+        let workspace_path = state.status.workspace_path.clone();
+        let bind_mode = state.settings.bind_mode;
 
         if let Some(child) = state.child.take() {
             let _ = child.kill();
         }
 
-        state.status = DesktopShellStatus::stopped(
-            state.status.workspace_path.clone(),
-            state.settings.bind_mode,
+        push_diagnostic(
+            &mut state.diagnostics,
+            "info",
+            "shell",
+            "Shutting down the QuillForge backend.",
+        );
+        apply_status(
+            &mut state,
+            DesktopShellStatus::stopped(workspace_path, bind_mode),
         );
         state.status.clone()
     };
@@ -601,6 +737,113 @@ async fn shutdown_backend(app: AppHandle) {
 
 fn emit_status(app: &AppHandle, status: &DesktopShellStatus) {
     let _ = app.emit(STATUS_EVENT, status.clone());
+}
+
+fn apply_status(state: &mut RuntimeState, mut status: DesktopShellStatus) {
+    status.diagnostics = state.diagnostics.clone();
+    state.status = status;
+}
+
+fn push_diagnostic(
+    diagnostics: &mut Vec<DesktopDiagnosticEntry>,
+    level: &'static str,
+    source: &'static str,
+    message: impl Into<String>,
+) {
+    let message = message.into();
+    if message.trim().is_empty() {
+        return;
+    }
+
+    diagnostics.push(DesktopDiagnosticEntry {
+        level,
+        source,
+        message,
+    });
+
+    if diagnostics.len() > MAX_DIAGNOSTIC_ENTRIES {
+        let overflow = diagnostics.len() - MAX_DIAGNOSTIC_ENTRIES;
+        diagnostics.drain(0..overflow);
+    }
+}
+
+fn apply_diagnostic_to_status(state: &mut RuntimeState) {
+    state.status.diagnostics = state.diagnostics.clone();
+}
+
+async fn append_diagnostic(
+    app: &AppHandle,
+    generation: Option<u64>,
+    level: &'static str,
+    source: &'static str,
+    message: impl Into<String>,
+) {
+    let runtime = app.state::<DesktopRuntime>();
+    let status = {
+        let mut state = runtime.inner.lock().await;
+        if let Some(expected_generation) = generation {
+            if expected_generation != state.generation {
+                return;
+            }
+        }
+
+        push_diagnostic(&mut state.diagnostics, level, source, message);
+        apply_diagnostic_to_status(&mut state);
+        state.status.clone()
+    };
+
+    emit_status(app, &status);
+}
+
+async fn append_backend_output(
+    app: &AppHandle,
+    generation: u64,
+    source: &'static str,
+    default_level: &'static str,
+    bytes: Vec<u8>,
+) {
+    let rendered = String::from_utf8_lossy(&bytes);
+    let lines = rendered
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+
+    if lines.is_empty() {
+        return;
+    }
+
+    let runtime = app.state::<DesktopRuntime>();
+    let status = {
+        let mut state = runtime.inner.lock().await;
+        if generation != state.generation {
+            return;
+        }
+
+        for line in lines {
+            let level = classify_diagnostic_level(default_level, &line);
+            push_diagnostic(&mut state.diagnostics, level, source, line);
+        }
+
+        apply_diagnostic_to_status(&mut state);
+        state.status.clone()
+    };
+
+    emit_status(app, &status);
+}
+
+fn classify_diagnostic_level(default_level: &'static str, line: &str) -> &'static str {
+    let trimmed = line.trim_start();
+    if trimmed.starts_with("error:") || trimmed.starts_with("fail:") {
+        return "error";
+    }
+
+    if trimmed.starts_with("warn:") {
+        return "warning";
+    }
+
+    default_level
 }
 
 async fn begin_backend_start(app: &AppHandle) -> Result<u64, String> {
@@ -635,7 +878,11 @@ async fn set_starting_status(
             return Err("QuillForge desktop is shutting down.".to_string());
         }
 
-        state.status = DesktopShellStatus::starting(workspace_path, port, bind_mode, message);
+        push_diagnostic(&mut state.diagnostics, "info", "shell", message.clone());
+        apply_status(
+            &mut state,
+            DesktopShellStatus::starting(workspace_path, port, bind_mode, message),
+        );
         state.status.clone()
     };
 
@@ -791,11 +1038,14 @@ fn build_backend_args(
     port: u16,
     desktop_instance_id: &str,
     bind_mode: DesktopBindMode,
+    runtime_root: &Path,
 ) -> Vec<String> {
     vec![
         "--desktop-mode".to_string(),
         "--content-root".to_string(),
         workspace_path.to_string(),
+        "--runtime-root".to_string(),
+        runtime_root.display().to_string(),
         "--bind-mode".to_string(),
         bind_mode.as_str().to_string(),
         "--port".to_string(),
@@ -827,6 +1077,46 @@ fn format_terminated_message(phase: &str, code: Option<i32>, signal: Option<i32>
 
 fn loopback_url_for_port(port: u16) -> String {
     format!("http://127.0.0.1:{port}")
+}
+
+fn resolve_backend_payload_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let mut candidates = Vec::new();
+
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        candidates.push(
+            resource_dir
+                .join("resources")
+                .join("backend-payload")
+                .join(TARGET_TRIPLE),
+        );
+        candidates.push(resource_dir.join("backend-payload").join(TARGET_TRIPLE));
+    }
+
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join("backend-payload")
+            .join(TARGET_TRIPLE),
+    );
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join(".sidecar-publish")
+            .join(TARGET_TRIPLE),
+    );
+
+    for candidate in &candidates {
+        if candidate.join("wwwroot").join("index.html").is_file() {
+            return Ok(candidate.clone());
+        }
+    }
+
+    let searched_paths = candidates
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(format!("Unable to locate the bundled QuillForge backend payload for target {TARGET_TRIPLE}. Expected a directory containing wwwroot/index.html. Looked in: {searched_paths}"))
 }
 
 fn resolve_lan_url(bind_mode: DesktopBindMode, port: u16) -> Option<String> {
@@ -865,6 +1155,21 @@ fn is_usable_lan_ip(ip: IpAddr) -> bool {
     }
 }
 
+fn validate_external_url(value: &str) -> Result<(), String> {
+    let url = Url::parse(value).map_err(|error| format!("Invalid URL '{value}': {error}"))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(
+            "Only http:// and https:// URLs can be opened from the desktop shell.".to_string(),
+        );
+    }
+
+    if url.host_str().is_none() {
+        return Err(format!("URL '{value}' is missing a host."));
+    }
+
+    Ok(())
+}
+
 fn reveal_in_file_manager(path: &Path) -> Result<(), String> {
     let program_and_args: (&str, Vec<String>) = if cfg!(target_os = "macos") {
         ("open", vec![path.display().to_string()])
@@ -880,4 +1185,43 @@ fn reveal_in_file_manager(path: &Path) -> Result<(), String> {
         .map_err(|error| format!("Unable to open workspace folder: {error}"))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn push_diagnostic_keeps_only_most_recent_entries() {
+        let mut diagnostics = Vec::new();
+        for index in 0..(MAX_DIAGNOSTIC_ENTRIES + 5) {
+            push_diagnostic(&mut diagnostics, "info", "shell", format!("entry {index}"));
+        }
+
+        assert_eq!(diagnostics.len(), MAX_DIAGNOSTIC_ENTRIES);
+        assert_eq!(
+            diagnostics.first().map(|entry| entry.message.as_str()),
+            Some("entry 5")
+        );
+        assert_eq!(
+            diagnostics.last().map(|entry| entry.message.clone()),
+            Some(format!("entry {}", MAX_DIAGNOSTIC_ENTRIES + 4))
+        );
+    }
+
+    #[test]
+    fn classify_diagnostic_level_prefers_known_log_prefixes() {
+        assert_eq!(
+            classify_diagnostic_level("info", "warn: static files unavailable"),
+            "warning"
+        );
+        assert_eq!(
+            classify_diagnostic_level("warning", "error: backend failed"),
+            "error"
+        );
+        assert_eq!(
+            classify_diagnostic_level("warning", "plain output"),
+            "warning"
+        );
+    }
 }

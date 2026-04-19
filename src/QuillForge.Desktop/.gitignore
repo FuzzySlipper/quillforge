@@ -4,3 +4,5 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 src-tauri/binaries/quillforge-backend-*
+src-tauri/resources/backend-payload/*
+!src-tauri/resources/backend-payload/.gitkeep

@@ -23,7 +23,19 @@ internal static class QuillForgeApplication
     public static async Task<WebApplication> BuildAsync(string[] args)
     {
         var parsedArgs = BackendLaunchArgumentParser.Parse(args);
-        var builder = WebApplication.CreateBuilder(parsedArgs.PassThroughArgs);
+        var builderOptions = parsedArgs.ConfigurationOverrides.TryGetValue("QuillForge:Startup:RuntimeRoot", out var runtimeRoot)
+            && !string.IsNullOrWhiteSpace(runtimeRoot)
+            ? new WebApplicationOptions
+            {
+                Args = parsedArgs.PassThroughArgs,
+                ContentRootPath = runtimeRoot,
+            }
+            : new WebApplicationOptions
+            {
+                Args = parsedArgs.PassThroughArgs,
+            };
+
+        var builder = WebApplication.CreateBuilder(builderOptions);
         if (parsedArgs.ConfigurationOverrides.Count > 0)
         {
             builder.Configuration.AddInMemoryCollection(parsedArgs.ConfigurationOverrides);
@@ -31,12 +43,18 @@ internal static class QuillForgeApplication
 
         var launchOptions = BackendLaunchOptions.FromConfiguration(builder.Configuration);
         BackendHostingConfiguration.ApplyOverrides(builder.Configuration, launchOptions);
+        var runtimeBaseDirectory = !string.IsNullOrWhiteSpace(launchOptions.RuntimeRoot)
+            ? launchOptions.RuntimeRoot
+            : AppContext.BaseDirectory;
+        var runtimeCurrentDirectory = !string.IsNullOrWhiteSpace(launchOptions.RuntimeRoot)
+            ? launchOptions.RuntimeRoot
+            : Directory.GetCurrentDirectory();
 
         using var startupLoggerFactory = LoggerFactory.Create(logging => logging.AddConsole());
         var startupPaths = StartupPathResolver.Resolve(
             builder.Configuration,
-            AppContext.BaseDirectory,
-            Directory.GetCurrentDirectory());
+            runtimeBaseDirectory,
+            runtimeCurrentDirectory);
         var startupMigration = DesktopWorkspaceMigrator.ImportIfNeeded(
             startupPaths.MigrationPlan,
             startupLoggerFactory.CreateLogger("QuillForge.Web.Hosting.DesktopWorkspaceMigrator"));

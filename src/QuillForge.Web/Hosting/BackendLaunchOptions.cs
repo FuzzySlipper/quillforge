@@ -13,6 +13,7 @@ internal sealed record BackendLaunchOptions(
     BackendBindMode? BindMode,
     int? Port,
     string? DesktopInstanceId,
+    string? RuntimeRoot,
     bool OpenBrowser)
 {
     public static BackendLaunchOptions FromConfiguration(IConfiguration configuration)
@@ -46,6 +47,7 @@ internal sealed record BackendLaunchOptions(
             bindMode,
             port,
             configuration["QuillForge:Startup:DesktopInstanceId"],
+            configuration["QuillForge:Startup:RuntimeRoot"],
             openBrowser);
     }
 

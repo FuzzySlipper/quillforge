@@ -77,3 +77,21 @@
 .prose-themed .dialogue {
   color: var(--prose-quote);
 }
+
+select,
+option,
+optgroup {
+  background-color: var(--color-input-bg);
+  color: var(--color-text);
+}
+
+select {
+  background-color: var(--color-input-bg);
+  color: var(--color-text);
+  border-color: var(--color-border);
+  color-scheme: dark;
+}
+
+optgroup {
+  color: var(--color-text-muted);
+}

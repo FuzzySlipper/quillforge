@@ -12,6 +12,7 @@ internal static class BackendLaunchArgumentParser
     {
         ["--desktop-mode"] = "QuillForge:Startup:DesktopMode",
         ["--content-root"] = "QuillForge:ContentRoot",
+        ["--runtime-root"] = "QuillForge:Startup:RuntimeRoot",
         ["--bind-mode"] = "QuillForge:Startup:BindMode",
         ["--port"] = "QuillForge:Startup:Port",
         ["--desktop-instance-id"] = "QuillForge:Startup:DesktopInstanceId",
