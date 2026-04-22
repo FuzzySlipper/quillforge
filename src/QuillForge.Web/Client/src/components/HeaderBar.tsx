@@ -1,4 +1,5 @@
 import type { Status, Mode } from "../types";
+import { MODE_ICON_PATHS, MODE_LABELS } from "../modePresentation";
 
 interface HeaderBarProps {
   status: Status | null;
@@ -40,18 +41,31 @@ function LabeledBtn({ label, onClick, title, children }: {
 
 export default function HeaderBar({ status, layoutName, mode, onOpenProfile, onOpenMode, onOpenContext, onOpenLore, onOpenPlots, onOpenPrompts, onOpenLayout, onOpenProviders, onOpenCouncilConfig, onOpenResearch, onNewSession, onOpenSessions, onOpenCharacters, onOpenTextTheme, textThemeName }: HeaderBarProps) {
   const ready = status?.status === "ready";
+  const tourHref = `/tour${window.location.search}`;
 
   return (
     <header className="flex items-center justify-between px-4 py-3 bg-surface border-b border-border shrink-0">
       <div className="flex items-center gap-3 min-w-0">
         {ready ? (
-          <button
-            onClick={onOpenMode}
-            className="text-xs px-2 py-1 rounded-md bg-surface-alt text-text-muted hover:text-text transition-colors"
-          >
-            {status.mode}
-            {status.project ? ` / ${status.project}` : ""}
-          </button>
+          <>
+            <button
+              onClick={onOpenMode}
+              className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded-md bg-surface-alt text-text-muted hover:text-text transition-colors"
+            >
+              <img src={MODE_ICON_PATHS[status.mode]} alt="" aria-hidden="true" className="h-4 w-4 shrink-0" />
+              {MODE_LABELS[status.mode]}
+              {status.project ? ` / ${status.project}` : ""}
+            </button>
+            {status.mode === "guide" && (
+              <a
+                href={tourHref}
+                title="Open the interactive QuillForge tour"
+                className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded-md bg-surface-alt text-text-muted hover:text-text transition-colors"
+              >
+                Tour
+              </a>
+            )}
+          </>
         ) : (
           <span className="text-xs text-text-muted">
             {status ? status.status : "connecting..."}

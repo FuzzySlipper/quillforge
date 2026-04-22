@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Overlay from "./Overlay";
 import { getMode, getProjects, setMode, listCharacterCards, listResearchProjects, type CharacterCardSummary } from "../api";
 import type { Mode, ModeInfo } from "../types";
+import { MODE_DESCRIPTIONS, MODE_ICON_PATHS, MODE_LABELS } from "../modePresentation";
 
 interface ModeSwitcherProps {
   open: boolean;
@@ -9,24 +10,6 @@ interface ModeSwitcherProps {
   onSwitched: (sessionId?: string | null, notice?: string | null) => void;
   sessionId?: string | null;
 }
-
-const MODE_LABELS: Record<Mode, string> = {
-  guide: "Guide",
-  writer: "Writer",
-  roleplay: "Roleplay",
-  forge: "Forge",
-  council: "Council",
-  research: "Research",
-};
-
-const MODE_DESCRIPTIONS: Record<Mode, string> = {
-  guide: "Onboarding and troubleshooting surface that explains modes and helps you pick the right workflow.",
-  writer: "Project-based writing with accept/reject/regenerate flow.",
-  roleplay: "Chat-based roleplay with a character card.",
-  forge: "Command-and-pipeline control surface for Forge projects, stage runs, and status checks.",
-  council: "Every message is routed through the council for multiple perspectives before synthesis.",
-  research: "Multi-agent web research with parallel topic investigation and organized markdown findings.",
-};
 
 export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: ModeSwitcherProps) {
   const [current, setCurrent] = useState<ModeInfo | null>(null);
@@ -107,7 +90,12 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
                     : "bg-input-bg text-text-muted hover:text-text border border-border"
                 }`}
               >
-                {MODE_LABELS[m]}
+                <span className="flex items-center justify-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/15 ring-1 ring-white/10">
+                    <img src={MODE_ICON_PATHS[m]} alt="" aria-hidden="true" className="h-5 w-5" />
+                  </span>
+                  <span>{MODE_LABELS[m]}</span>
+                </span>
               </button>
             ))}
           </div>

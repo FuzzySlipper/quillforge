@@ -110,6 +110,17 @@ const commands: Record<string, CommandDef> = {
     },
   },
 
+  tour: {
+    description: "Open the interactive QuillForge mode tour",
+    handler: () => {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.pathname = "/tour";
+      nextUrl.hash = "";
+      window.location.assign(nextUrl.toString());
+      return { output: null };
+    },
+  },
+
   new: {
     description: "Start a new session",
     handler: async (_, ctx) => {

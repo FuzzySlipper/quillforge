@@ -1,0 +1,28 @@
+import type { Mode } from "./types";
+
+export const MODE_LABELS: Record<Mode, string> = {
+  guide: "Guide",
+  writer: "Writer",
+  roleplay: "Roleplay",
+  forge: "Forge",
+  council: "Council",
+  research: "Research",
+};
+
+export const MODE_DESCRIPTIONS: Record<Mode, string> = {
+  guide: "Onboarding and troubleshooting surface that explains modes and helps you pick the right workflow.",
+  writer: "Project-based writing with accept/reject/regenerate flow.",
+  roleplay: "Chat-based roleplay with a character card.",
+  forge: "Command-and-pipeline control surface for Forge projects, stage runs, and status checks.",
+  council: "Every message is routed through the council for multiple perspectives before synthesis.",
+  research: "Multi-agent web research with parallel topic investigation and organized markdown findings.",
+};
+
+export const MODE_ICON_PATHS: Record<Mode, string> = {
+  guide: "/mode-icons/guide.svg",
+  writer: "/mode-icons/writer.svg",
+  roleplay: "/mode-icons/roleplay.svg",
+  forge: "/mode-icons/forge.svg",
+  council: "/mode-icons/council.svg",
+  research: "/mode-icons/research.svg",
+};

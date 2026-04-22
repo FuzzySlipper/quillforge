@@ -1,0 +1,24 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bronze" x1="20" y1="18" x2="107" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F2E7DB"/>
+      <stop offset="0.28" stop-color="#D8C0A8"/>
+      <stop offset="0.62" stop-color="#8D6C55"/>
+      <stop offset="1" stop-color="#E2C2A5"/>
+    </linearGradient>
+    <linearGradient id="ivory" x1="34" y1="30" x2="90" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFDF9"/>
+      <stop offset="1" stop-color="#E6DCD1"/>
+    </linearGradient>
+    <filter id="shadow" x="10" y="10" width="108" height="108" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M25 95C31 68 47 42 94 24" stroke="url(#bronze)" stroke-width="7" stroke-linecap="round"/>
+    <path d="M103 34C94 75 73 94 34 103" stroke="url(#bronze)" stroke-width="7" stroke-linecap="round"/>
+    <path d="M63 31L66.2 38.8L74 42L66.2 45.2L63 53L59.8 45.2L52 42L59.8 38.8L63 31Z" fill="url(#ivory)"/>
+    <path d="M22 53H43.5C47.4 57.2 52 59.4 57 59.4H60.5C65.7 59.4 69.9 57.4 73.4 53H96L89 64.5L74 71V80.5H92.5V92H68.5C63.8 87.1 58.8 84.8 53.6 84.8C48.4 84.8 43.6 87.1 38.7 92H17.5V80.5H35.5V71C28.7 68.7 23.9 65.2 21 60.2L22 53Z" fill="url(#bronze)"/>
+    <path d="M27 59H91" stroke="#F3ECE4" stroke-opacity="0.18" stroke-width="2"/>
+  </g>
+</svg>

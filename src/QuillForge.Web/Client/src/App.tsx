@@ -32,6 +32,7 @@ import TokenUsageBar from "./components/TokenUsageBar";
 import * as textTheme from "./textTheme";
 import type { TextTheme } from "./textTheme";
 import { publishDesktopShellBridge } from "./desktopBridge";
+import { MODE_ICON_PATHS, MODE_LABELS } from "./modePresentation";
 
 /** uuid() requires a secure context (HTTPS); fall back for plain HTTP. */
 const uuid = (): string =>
@@ -835,10 +836,17 @@ function App() {
         {messages.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-text-muted">
+              {status?.status === "ready" && (
+                <div className="mb-3 flex justify-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-alt/80 ring-1 ring-border/70 shadow-lg">
+                    <img src={MODE_ICON_PATHS[status.mode]} alt="" aria-hidden="true" className="h-9 w-9" />
+                  </div>
+                </div>
+              )}
               <p className="text-lg mb-2">Ready to go</p>
               <p className="text-sm">
                 {status?.status === "ready"
-                  ? `${status.mode} mode · ${status.loreFiles} lore files loaded`
+                  ? `${MODE_LABELS[status.mode]} mode · ${status.loreFiles} lore files loaded`
                   : "Connecting..."}
               </p>
             </div>
