@@ -8,8 +8,10 @@ import * as layoutManager from "./layout";
 import type { LayoutConfig } from "./layout";
 import * as artifactManager from "./artifacts";
 import type { Artifact } from "./artifacts";
-import LayoutShell from "./components/LayoutShell";
-import HeaderBar from "./components/HeaderBar";
+import AppShell from "./components/AppShell";
+import AppRail from "./components/AppRail";
+import AppInspector from "./components/AppInspector";
+import AppStatusFooter from "./components/AppStatusFooter";
 import MessageBubble from "./components/MessageBubble";
 import InputBar from "./components/InputBar";
 import ProfilePicker from "./components/ProfilePicker";
@@ -28,11 +30,11 @@ import TextThemePicker from "./components/TextThemePicker";
 import CouncilConfigPanel from "./components/CouncilConfigPanel";
 import ResearchPanel from "./components/ResearchPanel";
 import DiagnosticsPanel from "./components/DiagnosticsPanel";
-import TokenUsageBar from "./components/TokenUsageBar";
+import ShellReasoningOverlay from "./components/ShellReasoningOverlay";
 import * as textTheme from "./textTheme";
 import type { TextTheme } from "./textTheme";
 import { publishDesktopShellBridge } from "./desktopBridge";
-import { MODE_ICON_PATHS, MODE_LABELS } from "./modePresentation";
+import { MODE_DESCRIPTIONS, MODE_ICON_PATHS, MODE_LABELS } from "./modePresentation";
 
 /** uuid() requires a secure context (HTTPS); fall back for plain HTTP. */
 const uuid = (): string =>
@@ -44,6 +46,18 @@ const uuid = (): string =>
       });
 
 const RELEASES_URL = "https://github.com/FuzzySlipper/quillforge/releases";
+const INSPECTOR_STORAGE_KEY_PREFIX = "qf-shell-inspector:";
+
+function defaultInspectorOpen(mode: Mode): boolean {
+  return mode === "guide" || mode === "roleplay" || mode === "research";
+}
+
+function readInspectorOpen(mode: Mode): boolean {
+  const stored = window.localStorage.getItem(`${INSPECTOR_STORAGE_KEY_PREFIX}${mode}`);
+  if (stored === "open") return true;
+  if (stored === "closed") return false;
+  return defaultInspectorOpen(mode);
+}
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -60,6 +74,7 @@ function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
   const [loreOpen, setLoreOpen] = useState(false);
   const [plotOpen, setPlotOpen] = useState(false);
   const [promptsOpen, setPromptsOpen] = useState(false);
@@ -70,6 +85,7 @@ function App() {
   const [textThemeOpen, setTextThemeOpen] = useState(false);
   const [councilConfigOpen, setCouncilConfigOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(() => defaultInspectorOpen("guide"));
   const [portraits, setPortraits] = useState<{ filename: string; url: string }[]>([]);
   const [currentTextTheme, setCurrentTextTheme] = useState<TextTheme>(textTheme.getTheme());
   const abortRef = useRef<AbortController | null>(null);
@@ -107,7 +123,7 @@ function App() {
     } else {
       setSessionUsage(null);
     }
-  }, [currentSessionId]);
+  }, [applyModeInfo, currentSessionId]);
 
   const handleSessionScopedRefresh = useCallback((sessionId?: string | null) => {
     if (sessionId) {
@@ -116,6 +132,14 @@ function App() {
 
     refreshStatus(sessionId);
   }, [refreshStatus]);
+
+  const toggleInspector = useCallback(() => {
+    setInspectorOpen((previous) => {
+      const next = !previous;
+      window.localStorage.setItem(`${INSPECTOR_STORAGE_KEY_PREFIX}${mode}`, next ? "open" : "closed");
+      return next;
+    });
+  }, [mode]);
 
   useEffect(() => {
     tts.init();
@@ -156,6 +180,10 @@ function App() {
   useEffect(() => {
     publishDesktopShellBridge(status, layout, currentTextTheme);
   }, [status, layout, currentTextTheme]);
+
+  useEffect(() => {
+    setInspectorOpen(readInspectorOpen(mode));
+  }, [mode]);
 
   function addResponseMessage(
     content: string,
@@ -782,36 +810,35 @@ function App() {
   const hasAssistantMessages = messages.some((m) => m.role === "assistant");
   const updateVersion = status?.update?.version ?? "a newer version";
   const updateUrl = status?.update?.url ?? RELEASES_URL;
+  const workspaceTitle = status?.project ?? MODE_LABELS[mode];
+  const workspaceSubtitle = status?.file ?? MODE_DESCRIPTIONS[mode];
+  const modelSummary = status?.model ? status.model.split("-").slice(0, 2).join("-") : "loading";
 
   const chatContent = (
-    <div className="h-dvh flex flex-col bg-bg">
-      <HeaderBar
-        status={status}
-        layoutName={layout.name}
-        mode={mode}
-        onOpenProfile={() => setProfileOpen(true)}
-        onOpenMode={() => setModeOpen(true)}
-        onOpenContext={() => setContextOpen(true)}
-        onOpenLore={() => setLoreOpen(true)}
-        onOpenPlots={() => setPlotOpen(true)}
-        onOpenPrompts={() => setPromptsOpen(true)}
-        onOpenLayout={() => setLayoutOpen(true)}
-        onOpenProviders={() => setProviderOpen(true)}
-        onOpenCouncilConfig={() => setCouncilConfigOpen(true)}
-        onOpenResearch={() => setResearchOpen(true)}
-        onOpenSessions={() => setSessionsOpen(true)}
-        onOpenCharacters={() => setCharactersOpen(true)}
-        onOpenTextTheme={() => setTextThemeOpen(true)}
-        textThemeName={currentTextTheme.name}
-        onNewSession={async () => {
-          const result = await newSession();
-          setMessages([]);
-          setCurrentSessionId(result.sessionId);
-          setHasPending(false);
-          setSessionUsage(null);
-          refreshStatus(result.sessionId);
-        }}
-      />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-border/70 px-6 py-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="qf-shell-folio">
+              {MODE_LABELS[mode]} workspace
+            </div>
+            <h1 className="qf-shell-title mt-1">{workspaceTitle}</h1>
+            <p className="qf-shell-subtitle mt-2 max-w-3xl">{workspaceSubtitle}</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-muted">
+            <span className="qf-shell-card px-3 py-1.5">
+              profile · <span className="text-text">{status?.profile ?? "loading"}</span>
+            </span>
+            <span className="qf-shell-card px-3 py-1.5">
+              lore · <span className="text-text">{status?.loreFiles ?? 0}</span>
+            </span>
+            <span className="qf-shell-card px-3 py-1.5">
+              model · <span className="text-text">{modelSummary}</span>
+            </span>
+          </div>
+        </div>
+      </div>
 
       {status?.update?.available && (
         <div className="flex items-center justify-between gap-3 border-b border-accent/20 bg-accent/10 px-4 py-2 text-sm">
@@ -832,7 +859,7 @@ function App() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-0">
         {messages.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-text-muted">
@@ -910,7 +937,6 @@ function App() {
       )}
 
       <InputBar onSend={handleSend} disabled={sending} />
-      <TokenUsageBar usage={sessionUsage} />
 
       <ProfilePicker
         open={profileOpen}
@@ -934,6 +960,11 @@ function App() {
         onClose={() => setContextOpen(false)}
         status={status}
         sessionId={currentSessionId}
+      />
+      <ShellReasoningOverlay
+        open={reasoningOpen}
+        onClose={() => setReasoningOpen(false)}
+        messages={messages}
       />
       <LoreBrowser
         open={loreOpen}
@@ -995,7 +1026,66 @@ function App() {
   );
 
   return (
-    <LayoutShell layout={layout} chatContent={chatContent} artifact={artifact} backgroundImage={backgroundImage} />
+    <AppShell
+      backgroundImage={backgroundImage}
+      inspectorOpen={inspectorOpen}
+      onToggleInspector={toggleInspector}
+      rail={(
+        <AppRail
+          status={status}
+          mode={mode}
+          inspectorOpen={inspectorOpen}
+          onOpenMode={() => setModeOpen(true)}
+          onNewSession={async () => {
+            const result = await newSession();
+            setMessages([]);
+            setCurrentSessionId(result.sessionId);
+            setHasPending(false);
+            setSessionUsage(null);
+            refreshStatus(result.sessionId);
+          }}
+          onOpenSessions={() => setSessionsOpen(true)}
+          onToggleInspector={toggleInspector}
+          onOpenProfile={() => setProfileOpen(true)}
+          onOpenProviders={() => setProviderOpen(true)}
+          onOpenTextTheme={() => setTextThemeOpen(true)}
+        />
+      )}
+      inspector={(
+        <AppInspector
+          status={status}
+          mode={mode}
+          layoutName={layout.name}
+          textThemeName={currentTextTheme.name}
+          artifact={artifact}
+          onOpenSessions={() => setSessionsOpen(true)}
+          onOpenLore={() => setLoreOpen(true)}
+          onOpenPlots={() => setPlotOpen(true)}
+          onOpenPrompts={() => setPromptsOpen(true)}
+          onOpenCharacters={() => setCharactersOpen(true)}
+          onOpenContext={() => setContextOpen(true)}
+          onOpenProfile={() => setProfileOpen(true)}
+          onOpenProviders={() => setProviderOpen(true)}
+          onOpenTextTheme={() => setTextThemeOpen(true)}
+          onOpenLayout={() => setLayoutOpen(true)}
+          onOpenCouncilConfig={() => setCouncilConfigOpen(true)}
+          onOpenResearch={() => setResearchOpen(true)}
+        />
+      )}
+      footer={(
+        <AppStatusFooter
+          status={status}
+          usage={sessionUsage}
+          messages={messages}
+          inspectorOpen={inspectorOpen}
+          onToggleInspector={toggleInspector}
+          onOpenContext={() => setContextOpen(true)}
+          onOpenReasoning={() => setReasoningOpen(true)}
+        />
+      )}
+    >
+      {chatContent}
+    </AppShell>
   );
 }
 
