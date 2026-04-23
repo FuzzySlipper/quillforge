@@ -10,7 +10,7 @@ import * as artifactManager from "./artifacts";
 import type { Artifact } from "./artifacts";
 import AppShell from "./components/AppShell";
 import AppRail from "./components/AppRail";
-import AppInspector from "./components/AppInspector";
+import AppInspector, { type InspectorSection } from "./components/AppInspector";
 import AppStatusFooter from "./components/AppStatusFooter";
 import MessageBubble from "./components/MessageBubble";
 import InputBar from "./components/InputBar";
@@ -59,6 +59,14 @@ function readInspectorOpen(mode: Mode): boolean {
   return defaultInspectorOpen(mode);
 }
 
+function writeInspectorOpen(mode: Mode, open: boolean): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(`${INSPECTOR_STORAGE_KEY_PREFIX}${mode}`, open ? "open" : "closed");
+}
+
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -73,19 +81,13 @@ function App() {
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
-  const [contextOpen, setContextOpen] = useState(false);
   const [reasoningOpen, setReasoningOpen] = useState(false);
-  const [loreOpen, setLoreOpen] = useState(false);
-  const [plotOpen, setPlotOpen] = useState(false);
-  const [promptsOpen, setPromptsOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [providerOpen, setProviderOpen] = useState(false);
-  const [sessionsOpen, setSessionsOpen] = useState(false);
-  const [charactersOpen, setCharactersOpen] = useState(false);
   const [textThemeOpen, setTextThemeOpen] = useState(false);
   const [councilConfigOpen, setCouncilConfigOpen] = useState(false);
-  const [researchOpen, setResearchOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(() => defaultInspectorOpen("guide"));
+  const [inspectorSection, setInspectorSection] = useState<InspectorSection>("overview");
   const [portraits, setPortraits] = useState<{ filename: string; url: string }[]>([]);
   const [currentTextTheme, setCurrentTextTheme] = useState<TextTheme>(textTheme.getTheme());
   const abortRef = useRef<AbortController | null>(null);
@@ -136,9 +138,15 @@ function App() {
   const toggleInspector = useCallback(() => {
     setInspectorOpen((previous) => {
       const next = !previous;
-      window.localStorage.setItem(`${INSPECTOR_STORAGE_KEY_PREFIX}${mode}`, next ? "open" : "closed");
+      writeInspectorOpen(mode, next);
       return next;
     });
+  }, [mode]);
+
+  const openInspectorSection = useCallback((section: InspectorSection) => {
+    setInspectorSection(section);
+    setInspectorOpen(true);
+    writeInspectorOpen(mode, true);
   }, [mode]);
 
   useEffect(() => {
@@ -184,6 +192,12 @@ function App() {
   useEffect(() => {
     setInspectorOpen(readInspectorOpen(mode));
   }, [mode]);
+
+  useEffect(() => {
+    if (inspectorSection === "research" && mode !== "research") {
+      setInspectorSection("overview");
+    }
+  }, [inspectorSection, mode]);
 
   function addResponseMessage(
     content: string,
@@ -473,14 +487,15 @@ function App() {
         messages,
         openProfile: () => setProfileOpen(true),
         openMode: () => setModeOpen(true),
-        openLore: () => setLoreOpen(true),
-        openContext: () => setContextOpen(true),
+        openLore: () => openInspectorSection("lore"),
+        openContext: () => openInspectorSection("context"),
         newSession: async () => {
           const result = await newSession();
           setMessages([]);
           setCurrentSessionId(result.sessionId);
           setHasPending(false);
           setSessionUsage(null);
+          setInspectorSection("overview");
           refreshStatus(result.sessionId);
         },
         clearMessages: () => setMessages([]),
@@ -955,33 +970,10 @@ function App() {
         }}
         sessionId={currentSessionId}
       />
-      <ContextOverlay
-        open={contextOpen}
-        onClose={() => setContextOpen(false)}
-        status={status}
-        sessionId={currentSessionId}
-      />
       <ShellReasoningOverlay
         open={reasoningOpen}
         onClose={() => setReasoningOpen(false)}
         messages={messages}
-      />
-      <LoreBrowser
-        open={loreOpen}
-        onClose={() => setLoreOpen(false)}
-        onChanged={handleSessionScopedRefresh}
-        sessionId={currentSessionId}
-      />
-      <PlotBrowser
-        open={plotOpen}
-        onClose={() => setPlotOpen(false)}
-        onChanged={refreshStatus}
-        sessionId={currentSessionId}
-      />
-      <PromptBrowser
-        open={promptsOpen}
-        onClose={() => setPromptsOpen(false)}
-        onChanged={refreshStatus}
       />
       <LayoutPicker
         open={layoutOpen}
@@ -992,13 +984,6 @@ function App() {
         onClose={() => setProviderOpen(false)}
         onChanged={refreshStatus}
       />
-      <CharacterCards
-        open={charactersOpen}
-        onClose={() => setCharactersOpen(false)}
-        onChanged={handleSessionScopedRefresh}
-        sessionId={currentSessionId}
-        portraits={portraits}
-      />
       <TextThemePicker
         open={textThemeOpen}
         onClose={() => setTextThemeOpen(false)}
@@ -1008,22 +993,90 @@ function App() {
         open={councilConfigOpen}
         onClose={() => setCouncilConfigOpen(false)}
       />
-      <ResearchPanel
-        open={researchOpen}
-        onClose={() => setResearchOpen(false)}
-      />
-      <SessionBrowser
-        open={sessionsOpen}
-        onClose={() => setSessionsOpen(false)}
-        onLoad={(sessionId, msgs) => {
-          setMessages(mapLoadedMessages(msgs));
-          setCurrentSessionId(sessionId);
-          setHasPending(false);
-          refreshStatus(sessionId);
-        }}
-      />
     </div>
   );
+
+  const inspectorContent = (() => {
+    const handleInlineClose = () => setInspectorSection("overview");
+
+    switch (inspectorSection) {
+      case "sessions":
+        return (
+          <SessionBrowser
+            open
+            variant="inline"
+            onClose={handleInlineClose}
+            onLoad={(sessionId, msgs) => {
+              setMessages(mapLoadedMessages(msgs));
+              setCurrentSessionId(sessionId);
+              setHasPending(false);
+              refreshStatus(sessionId);
+            }}
+          />
+        );
+      case "lore":
+        return (
+          <LoreBrowser
+            open
+            variant="inline"
+            onClose={handleInlineClose}
+            onChanged={handleSessionScopedRefresh}
+            sessionId={currentSessionId}
+          />
+        );
+      case "plots":
+        return (
+          <PlotBrowser
+            open
+            variant="inline"
+            onClose={handleInlineClose}
+            onChanged={refreshStatus}
+            sessionId={currentSessionId}
+          />
+        );
+      case "prompts":
+        return (
+          <PromptBrowser
+            open
+            variant="inline"
+            onClose={handleInlineClose}
+            onChanged={refreshStatus}
+          />
+        );
+      case "characters":
+        return (
+          <CharacterCards
+            open
+            variant="inline"
+            onClose={handleInlineClose}
+            onChanged={handleSessionScopedRefresh}
+            sessionId={currentSessionId}
+            portraits={portraits}
+          />
+        );
+      case "context":
+        return (
+          <ContextOverlay
+            open
+            variant="inline"
+            onClose={handleInlineClose}
+            status={status}
+            sessionId={currentSessionId}
+          />
+        );
+      case "research":
+        return mode === "research" ? (
+          <ResearchPanel
+            open
+            variant="inline"
+            onClose={handleInlineClose}
+          />
+        ) : null;
+      case "overview":
+      default:
+        return null;
+    }
+  })();
 
   return (
     <AppShell
@@ -1042,9 +1095,10 @@ function App() {
             setCurrentSessionId(result.sessionId);
             setHasPending(false);
             setSessionUsage(null);
+            setInspectorSection("overview");
             refreshStatus(result.sessionId);
           }}
-          onOpenSessions={() => setSessionsOpen(true)}
+          onOpenSessions={() => openInspectorSection("sessions")}
           onToggleInspector={toggleInspector}
           onOpenProfile={() => setProfileOpen(true)}
           onOpenProviders={() => setProviderOpen(true)}
@@ -1058,19 +1112,13 @@ function App() {
           layoutName={layout.name}
           textThemeName={currentTextTheme.name}
           artifact={artifact}
-          onOpenSessions={() => setSessionsOpen(true)}
-          onOpenLore={() => setLoreOpen(true)}
-          onOpenPlots={() => setPlotOpen(true)}
-          onOpenPrompts={() => setPromptsOpen(true)}
-          onOpenCharacters={() => setCharactersOpen(true)}
-          onOpenContext={() => setContextOpen(true)}
-          onOpenProfile={() => setProfileOpen(true)}
-          onOpenProviders={() => setProviderOpen(true)}
-          onOpenTextTheme={() => setTextThemeOpen(true)}
+          section={inspectorSection}
+          onSelectSection={openInspectorSection}
           onOpenLayout={() => setLayoutOpen(true)}
           onOpenCouncilConfig={() => setCouncilConfigOpen(true)}
-          onOpenResearch={() => setResearchOpen(true)}
-        />
+        >
+          {inspectorContent}
+        </AppInspector>
       )}
       footer={(
         <AppStatusFooter
@@ -1079,7 +1127,7 @@ function App() {
           messages={messages}
           inspectorOpen={inspectorOpen}
           onToggleInspector={toggleInspector}
-          onOpenContext={() => setContextOpen(true)}
+          onOpenContext={() => openInspectorSection("context")}
           onOpenReasoning={() => setReasoningOpen(true)}
         />
       )}

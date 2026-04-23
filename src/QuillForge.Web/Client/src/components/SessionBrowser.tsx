@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import Overlay from "./Overlay";
 import { listSessions, loadSession, deleteSession, type SessionInfo } from "../api";
 import type { ReasoningArtifact } from "../types";
+import SurfaceFrame, { type SurfaceVariant } from "./SurfaceFrame";
 
 interface SessionBrowserProps {
   open: boolean;
   onClose: () => void;
+  variant?: SurfaceVariant;
   onLoad: (sessionId: string, messages: Array<{
     id: string;
     role: string;
@@ -30,7 +31,7 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-export default function SessionBrowser({ open, onClose, onLoad }: SessionBrowserProps) {
+export default function SessionBrowser({ open, onClose, onLoad, variant = "overlay" }: SessionBrowserProps) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +56,9 @@ export default function SessionBrowser({ open, onClose, onLoad }: SessionBrowser
     try {
       const data = await loadSession(id);
       onLoad(data.sessionId, data.messages);
-      onClose();
+      if (variant === "overlay") {
+        onClose();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load session");
     } finally {
@@ -73,7 +76,7 @@ export default function SessionBrowser({ open, onClose, onLoad }: SessionBrowser
   }
 
   return (
-    <Overlay open={open} onClose={onClose} title="Sessions">
+    <SurfaceFrame open={open} onClose={onClose} title="Sessions" variant={variant}>
       <div className="flex flex-col gap-2">
         {sessions.length === 0 ? (
           <p className="text-sm text-text-muted">No saved sessions.</p>
@@ -115,6 +118,6 @@ export default function SessionBrowser({ open, onClose, onLoad }: SessionBrowser
         )}
         {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
-    </Overlay>
+    </SurfaceFrame>
   );
 }

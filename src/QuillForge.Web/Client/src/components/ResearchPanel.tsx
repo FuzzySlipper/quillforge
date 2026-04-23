@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import Overlay from "./Overlay";
 import {
   listResearchProjects,
   listResearchFiles,
@@ -7,13 +6,15 @@ import {
   deleteResearchFile,
   deleteResearchProject,
 } from "../api";
+import SurfaceFrame, { type SurfaceVariant } from "./SurfaceFrame";
 
 interface ResearchPanelProps {
   open: boolean;
   onClose: () => void;
+  variant?: SurfaceVariant;
 }
 
-export default function ResearchPanel({ open, onClose }: ResearchPanelProps) {
+export default function ResearchPanel({ open, onClose, variant = "overlay" }: ResearchPanelProps) {
   const [projects, setProjects] = useState<string[]>([]);
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [files, setFiles] = useState<{ name: string; path: string }[]>([]);
@@ -88,7 +89,7 @@ export default function ResearchPanel({ open, onClose }: ResearchPanelProps) {
   // ── File content view ──
   if (viewingFile) {
     return (
-      <Overlay open={open} onClose={onClose} title={viewingFile.name}>
+      <SurfaceFrame open={open} onClose={onClose} title={viewingFile.name} variant={variant}>
         <div className="flex flex-col gap-3">
           <button
             onClick={() => setViewingFile(null)}
@@ -100,14 +101,14 @@ export default function ResearchPanel({ open, onClose }: ResearchPanelProps) {
             {viewingFile.content}
           </pre>
         </div>
-      </Overlay>
+      </SurfaceFrame>
     );
   }
 
   // ── Project files view ──
   if (activeProject) {
     return (
-      <Overlay open={open} onClose={onClose} title={`Research: ${activeProject}`}>
+      <SurfaceFrame open={open} onClose={onClose} title={`Research: ${activeProject}`} variant={variant}>
         <div className="flex flex-col gap-3">
           <button
             onClick={() => { setActiveProject(null); setFiles([]); }}
@@ -145,13 +146,13 @@ export default function ResearchPanel({ open, onClose }: ResearchPanelProps) {
 
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
-      </Overlay>
+      </SurfaceFrame>
     );
   }
 
   // ── Projects list view ──
   return (
-    <Overlay open={open} onClose={onClose} title="Research Projects">
+    <SurfaceFrame open={open} onClose={onClose} title="Research Projects" variant={variant}>
       <div className="flex flex-col gap-3">
         {projects.length === 0 ? (
           <p className="text-sm text-text-muted">
@@ -181,6 +182,6 @@ export default function ResearchPanel({ open, onClose }: ResearchPanelProps) {
 
         {error && <p className="text-xs text-red-400">{error}</p>}
       </div>
-    </Overlay>
+    </SurfaceFrame>
   );
 }

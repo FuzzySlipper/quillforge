@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import MDEditor from "@uiw/react-md-editor";
-import Overlay from "./Overlay";
 import {
   generatePlot,
   listPlots,
@@ -10,15 +9,23 @@ import {
   type PlotInfo,
   type PlotProgress,
 } from "../api";
+import SurfaceFrame, { type SurfaceVariant } from "./SurfaceFrame";
 
 interface PlotBrowserProps {
   open: boolean;
   onClose: () => void;
   onChanged: () => void;
   sessionId: string | null;
+  variant?: SurfaceVariant;
 }
 
-export default function PlotBrowser({ open, onClose, onChanged, sessionId }: PlotBrowserProps) {
+export default function PlotBrowser({
+  open,
+  onClose,
+  onChanged,
+  sessionId,
+  variant = "overlay",
+}: PlotBrowserProps) {
   const [files, setFiles] = useState<PlotInfo[]>([]);
   const [activePlotFile, setActivePlotFile] = useState<string | null>(null);
   const [plotProgress, setPlotProgress] = useState<PlotProgress | null>(null);
@@ -117,7 +124,7 @@ export default function PlotBrowser({ open, onClose, onChanged, sessionId }: Plo
 
   if (selected) {
     return (
-      <Overlay open={open} onClose={onClose} title={selected}>
+      <SurfaceFrame open={open} onClose={onClose} title={selected} variant={variant}>
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <button
@@ -147,12 +154,12 @@ export default function PlotBrowser({ open, onClose, onChanged, sessionId }: Plo
             </div>
           )}
         </div>
-      </Overlay>
+      </SurfaceFrame>
     );
   }
 
   return (
-    <Overlay open={open} onClose={onClose} title="Plots">
+    <SurfaceFrame open={open} onClose={onClose} title="Plots" variant={variant}>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2 rounded-lg bg-input-bg/70 p-3">
           <div className="text-xs uppercase tracking-wider text-text-muted">Generate Plot</div>
@@ -245,6 +252,6 @@ export default function PlotBrowser({ open, onClose, onChanged, sessionId }: Plo
           </div>
         )}
       </div>
-    </Overlay>
+    </SurfaceFrame>
   );
 }

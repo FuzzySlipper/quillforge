@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
-import Overlay from "./Overlay";
 import ContextMeter from "./ContextMeter";
 import type { Status, ReasoningArtifact } from "../types";
 import ReasoningDetails from "./ReasoningDetails";
+import SurfaceFrame, { type SurfaceVariant } from "./SurfaceFrame";
 
 interface ContextOverlayProps {
   open: boolean;
   onClose: () => void;
   status: Status | null;
   sessionId?: string | null;
+  variant?: SurfaceVariant;
 }
 
 type Tab = "overview" | "debug";
@@ -31,7 +32,13 @@ interface HistoryMessage {
   blocks?: HistoryBlock[];
 }
 
-export default function ContextOverlay({ open, onClose, status, sessionId }: ContextOverlayProps) {
+export default function ContextOverlay({
+  open,
+  onClose,
+  status,
+  sessionId,
+  variant = "overlay",
+}: ContextOverlayProps) {
   const [tab, setTab] = useState<Tab>("overview");
   const [history, setHistory] = useState<HistoryMessage[]>([]);
   const [historyCount, setHistoryCount] = useState(0);
@@ -57,7 +64,7 @@ export default function ContextOverlay({ open, onClose, status, sessionId }: Con
     }`;
 
   return (
-    <Overlay open={open} onClose={onClose} title="Context">
+    <SurfaceFrame open={open} onClose={onClose} title="Context" variant={variant}>
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">
           <button onClick={() => setTab("overview")} className={tabClass("overview")}>
@@ -179,6 +186,6 @@ export default function ContextOverlay({ open, onClose, status, sessionId }: Con
           </div>
         )}
       </div>
-    </Overlay>
+    </SurfaceFrame>
   );
 }

@@ -1,6 +1,17 @@
-import { MODE_DESCRIPTIONS, MODE_LABELS } from "../modePresentation";
+import type { ReactNode } from "react";
 import type { Artifact } from "../artifacts";
+import { MODE_DESCRIPTIONS, MODE_LABELS } from "../modePresentation";
 import type { Mode, Status } from "../types";
+
+export type InspectorSection =
+  | "overview"
+  | "sessions"
+  | "lore"
+  | "plots"
+  | "prompts"
+  | "characters"
+  | "context"
+  | "research";
 
 interface AppInspectorProps {
   status: Status | null;
@@ -8,18 +19,11 @@ interface AppInspectorProps {
   layoutName: string;
   textThemeName: string;
   artifact: Artifact | null;
-  onOpenSessions: () => void;
-  onOpenLore: () => void;
-  onOpenPlots: () => void;
-  onOpenPrompts: () => void;
-  onOpenCharacters: () => void;
-  onOpenContext: () => void;
-  onOpenProfile: () => void;
-  onOpenProviders: () => void;
-  onOpenTextTheme: () => void;
+  section: InspectorSection;
+  onSelectSection: (section: InspectorSection) => void;
   onOpenLayout: () => void;
   onOpenCouncilConfig: () => void;
-  onOpenResearch: () => void;
+  children?: ReactNode;
 }
 
 interface InspectorActionProps {
@@ -41,6 +45,30 @@ function InspectorAction({ label, meta, onClick }: InspectorActionProps) {
   );
 }
 
+function SectionButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`qf-shell-card px-3 py-2 text-left text-sm transition-colors ${
+        active
+          ? "border-accent/50 bg-accent/10 text-text"
+          : "hover:border-accent/40 hover:text-text"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-3 py-1">
@@ -58,86 +86,99 @@ export default function AppInspector({
   layoutName,
   textThemeName,
   artifact,
-  onOpenSessions,
-  onOpenLore,
-  onOpenPlots,
-  onOpenPrompts,
-  onOpenCharacters,
-  onOpenContext,
-  onOpenProfile,
-  onOpenProviders,
-  onOpenTextTheme,
+  section,
+  onSelectSection,
   onOpenLayout,
   onOpenCouncilConfig,
-  onOpenResearch,
+  children,
 }: AppInspectorProps) {
+  const sectionButtons: Array<{ id: InspectorSection; label: string }> = [
+    { id: "overview", label: "Overview" },
+    { id: "sessions", label: "Sessions" },
+    { id: "lore", label: "Lore" },
+    { id: "plots", label: "Plots" },
+    { id: "prompts", label: "Prompts" },
+    { id: "characters", label: "Characters" },
+    { id: "context", label: "Context" },
+  ];
+
+  if (mode === "research") {
+    sectionButtons.push({ id: "research", label: "Research" });
+  }
+
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto px-4 py-5">
-      <div>
-        <div className="qf-shell-folio">Workspace</div>
-        <h2 className="qf-shell-title mt-1">{MODE_LABELS[mode]}</h2>
-        <p className="qf-shell-subtitle mt-2">{MODE_DESCRIPTIONS[mode]}</p>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-border/50 px-4 py-5">
+        <div>
+          <div className="qf-shell-folio">Workspace</div>
+          <h2 className="qf-shell-title mt-1">{MODE_LABELS[mode]}</h2>
+          <p className="qf-shell-subtitle mt-2">{MODE_DESCRIPTIONS[mode]}</p>
+        </div>
+
+        <div className="mt-4">
+          <div className="qf-shell-folio mb-2">Library</div>
+          <div className="grid grid-cols-2 gap-2">
+            {sectionButtons.map((button) => (
+              <SectionButton
+                key={button.id}
+                active={section === button.id}
+                label={button.label}
+                onClick={() => onSelectSection(button.id)}
+              />
+            ))}
+          </div>
+        </div>
       </div>
 
-      <section className="qf-shell-card px-3 py-3">
-        <div className="qf-shell-folio mb-2">Current Session</div>
-        <div className="space-y-1">
-          <MetaRow label="Mode" value={MODE_LABELS[mode]} />
-          <MetaRow label="Profile" value={status?.profile ?? "loading"} />
-          <MetaRow label="Project" value={status?.project ?? "not set"} />
-          <MetaRow label="File" value={status?.file ?? "none"} />
-          <MetaRow label="Lore" value={status ? `${status.loreSet} (${status.loreFiles})` : "loading"} />
-          <MetaRow label="Model" value={status?.model ?? "loading"} />
-          <MetaRow label="Theme" value={textThemeName} />
-          <MetaRow label="Layout" value={layoutName} />
+      {section === "overview" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
+          <div className="flex flex-col gap-4">
+            <section className="qf-shell-card px-3 py-3">
+              <div className="qf-shell-folio mb-2">Current Session</div>
+              <div className="space-y-1">
+                <MetaRow label="Mode" value={MODE_LABELS[mode]} />
+                <MetaRow label="Profile" value={status?.profile ?? "loading"} />
+                <MetaRow label="Project" value={status?.project ?? "not set"} />
+                <MetaRow label="File" value={status?.file ?? "none"} />
+                <MetaRow label="Lore" value={status ? `${status.loreSet} (${status.loreFiles})` : "loading"} />
+                <MetaRow label="Model" value={status?.model ?? "loading"} />
+                <MetaRow label="Theme" value={textThemeName} />
+                <MetaRow label="Layout" value={layoutName} />
+              </div>
+            </section>
+
+            {artifact && (
+              <section className="qf-shell-card px-3 py-3">
+                <div className="qf-shell-folio mb-2">Artifact</div>
+                <div className="text-sm text-text">{artifact.format}</div>
+                <p className="mt-2 line-clamp-6 text-[13px] leading-5 text-text-muted">
+                  {artifact.content}
+                </p>
+              </section>
+            )}
+
+            <section className="space-y-2">
+              <div className="qf-shell-folio">Workspace Tools</div>
+              <InspectorAction
+                label="Layout & Background"
+                meta="Open appearance settings for shell layout and background"
+                onClick={onOpenLayout}
+              />
+              {mode === "council" && (
+                <InspectorAction
+                  label="Council Advisors"
+                  meta="Configure the active council roster"
+                  onClick={onOpenCouncilConfig}
+                />
+              )}
+            </section>
+          </div>
         </div>
-      </section>
-
-      <section className="space-y-2">
-        <div className="qf-shell-folio">Browse</div>
-        <InspectorAction label="Sessions" meta="Load, resume, or clean up saved work" onClick={onOpenSessions} />
-        <InspectorAction label="Lore" meta="Inspect lore files and active lore set" onClick={onOpenLore} />
-        <InspectorAction label="Plots" meta="Open plot arcs and story structure" onClick={onOpenPlots} />
-        <InspectorAction label="Prompts" meta="Browse assistant, rules, and style prompts" onClick={onOpenPrompts} />
-        <InspectorAction label="Character Cards" meta="Manage roleplay and story cast" onClick={onOpenCharacters} />
-        <InspectorAction
-          label="Context & Debug"
-          meta="Inspect context usage, runtime status, and conversation debug data"
-          onClick={onOpenContext}
-        />
-        {mode === "research" && (
-          <InspectorAction
-            label="Research Projects"
-            meta="Open the current research project browser"
-            onClick={onOpenResearch}
-          />
-        )}
-        {mode === "council" && (
-          <InspectorAction
-            label="Council Advisors"
-            meta="Configure the active council roster"
-            onClick={onOpenCouncilConfig}
-          />
-        )}
-      </section>
-
-      {artifact && (
-        <section className="qf-shell-card px-3 py-3">
-          <div className="qf-shell-folio mb-2">Artifact</div>
-          <div className="text-sm text-text">{artifact.format}</div>
-          <p className="mt-2 line-clamp-6 text-[13px] leading-5 text-text-muted">
-            {artifact.content}
-          </p>
-        </section>
+      ) : (
+        <div className="min-h-0 flex-1">
+          {children ?? <p className="px-4 py-5 text-sm text-text-muted">Select a library surface.</p>}
+        </div>
       )}
-
-      <section className="space-y-2">
-        <div className="qf-shell-folio">Settings</div>
-        <InspectorAction label="Profile" meta="Switch lore, rules, and writing defaults" onClick={onOpenProfile} />
-        <InspectorAction label="Providers" meta="Configure models and provider aliases" onClick={onOpenProviders} />
-        <InspectorAction label="Text Theme" meta="Adjust prose coloration in chat messages" onClick={onOpenTextTheme} />
-        <InspectorAction label="Legacy Layout & Background" meta="Open the existing layout/background tools" onClick={onOpenLayout} />
-      </section>
     </div>
   );
 }

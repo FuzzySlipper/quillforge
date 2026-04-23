@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import Overlay from "./Overlay";
 import {
   listCharacterCards,
   readCharacterCard,
@@ -12,6 +11,7 @@ import {
   type CharacterCardSummary,
   type CharacterCard,
 } from "../api";
+import SurfaceFrame, { type SurfaceVariant } from "./SurfaceFrame";
 
 interface CharacterCardsProps {
   open: boolean;
@@ -19,6 +19,7 @@ interface CharacterCardsProps {
   onChanged: (sessionId?: string | null) => void;
   sessionId?: string | null;
   portraits: { filename: string; url: string }[];
+  variant?: SurfaceVariant;
 }
 
 const EMPTY_CARD: CharacterCard = {
@@ -30,7 +31,14 @@ const EMPTY_CARD: CharacterCard = {
   greeting: "",
 };
 
-export default function CharacterCards({ open, onClose, onChanged, sessionId, portraits }: CharacterCardsProps) {
+export default function CharacterCards({
+  open,
+  onClose,
+  onChanged,
+  sessionId,
+  portraits,
+  variant = "overlay",
+}: CharacterCardsProps) {
   const [cards, setCards] = useState<CharacterCardSummary[]>([]);
   const [activeAi, setActiveAi] = useState<string | null>(null);
   const [activeUser, setActiveUser] = useState<string | null>(null);
@@ -115,7 +123,12 @@ export default function CharacterCards({ open, onClose, onChanged, sessionId, po
   if (editing) {
     const isNew = editing === "__new__";
     return (
-      <Overlay open={open} onClose={onClose} title={isNew ? "New Character" : `Edit: ${form.name || editing}`}>
+      <SurfaceFrame
+        open={open}
+        onClose={onClose}
+        title={isNew ? "New Character" : `Edit: ${form.name || editing}`}
+        variant={variant}
+      >
         <div className="flex flex-col gap-3">
           <button onClick={() => setEditing(null)} className="text-sm text-text-muted hover:text-text self-start">
             &larr; Back to list
@@ -226,13 +239,13 @@ export default function CharacterCards({ open, onClose, onChanged, sessionId, po
             </button>
           </div>
         </div>
-      </Overlay>
+      </SurfaceFrame>
     );
   }
 
   // ── Card list ──
   return (
-    <Overlay open={open} onClose={onClose} title="Character Cards">
+    <SurfaceFrame open={open} onClose={onClose} title="Character Cards" variant={variant}>
       <div className="flex flex-col gap-4">
         {/* Active character assignments */}
         <div className="flex flex-col gap-2">
@@ -407,6 +420,6 @@ export default function CharacterCards({ open, onClose, onChanged, sessionId, po
 
         {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
-    </Overlay>
+    </SurfaceFrame>
   );
 }

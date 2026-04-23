@@ -1,19 +1,25 @@
 import { useEffect, useState } from "react";
 import MDEditor from "@uiw/react-md-editor";
-import Overlay from "./Overlay";
 import { listAssistantPrompts, readAssistantPrompt, writeAssistantPrompt, type AssistantPromptInfo } from "../api";
 import { listNarrativeRules, readNarrativeRules, writeNarrativeRules, type NarrativeRulesInfo } from "../api";
 import { listWritingStyles, readWritingStyle, writeWritingStyle, type WritingStyleInfo } from "../api";
+import SurfaceFrame, { type SurfaceVariant } from "./SurfaceFrame";
 
 interface PromptBrowserProps {
   open: boolean;
   onClose: () => void;
   onChanged: () => void;
+  variant?: SurfaceVariant;
 }
 
 type Tab = "assistant" | "narrative" | "writing";
 
-export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowserProps) {
+export default function PromptBrowser({
+  open,
+  onClose,
+  onChanged,
+  variant = "overlay",
+}: PromptBrowserProps) {
   const [tab, setTab] = useState<Tab>("assistant");
   const [assistantFiles, setAssistantFiles] = useState<AssistantPromptInfo[]>([]);
   const [narrativeRulesFiles, setNarrativeRulesFiles] = useState<NarrativeRulesInfo[]>([]);
@@ -113,7 +119,7 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
 
   if (selected) {
     return (
-      <Overlay open={open} onClose={onClose} title={selected}>
+      <SurfaceFrame open={open} onClose={onClose} title={selected} variant={variant}>
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <button
@@ -159,12 +165,12 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
             </>
           )}
         </div>
-      </Overlay>
+      </SurfaceFrame>
     );
   }
 
   return (
-    <Overlay open={open} onClose={onClose} title="Prompts">
+    <SurfaceFrame open={open} onClose={onClose} title="Prompts" variant={variant}>
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">
           <button onClick={() => setTab("assistant")} className={tabClass("assistant")}>
@@ -250,6 +256,6 @@ export default function PromptBrowser({ open, onClose, onChanged }: PromptBrowse
           </>
         )}
       </div>
-    </Overlay>
+    </SurfaceFrame>
   );
 }
