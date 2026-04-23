@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import ShellIcon from "./ShellIcon";
 
 interface AppShellProps {
@@ -11,6 +11,28 @@ interface AppShellProps {
   backgroundImage?: string | null;
 }
 
+type ShellTheme = "dark" | "light";
+
+function getPreferredShellTheme(): ShellTheme {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function resolveBackgroundImage(backgroundImage?: string | null): string | null {
+  if (!backgroundImage || typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return new URL(backgroundImage, window.location.origin).href;
+  } catch {
+    return null;
+  }
+}
+
 export default function AppShell({
   rail,
   inspector,
@@ -20,20 +42,43 @@ export default function AppShell({
   onToggleInspector,
   backgroundImage,
 }: AppShellProps) {
-  const workspaceStyle = backgroundImage
+  const [theme, setTheme] = useState<ShellTheme>(getPreferredShellTheme);
+  const safeBackgroundImage = resolveBackgroundImage(backgroundImage);
+  const workspaceStyle = safeBackgroundImage
     ? {
-        backgroundImage: `linear-gradient(180deg, rgba(7, 7, 10, 0.74), rgba(17, 15, 20, 0.62)), url(${encodeURI(backgroundImage)})`,
+        backgroundImage: `linear-gradient(180deg, rgba(7, 7, 10, 0.74), rgba(17, 15, 20, 0.62)), url(${JSON.stringify(safeBackgroundImage)})`,
       }
     : undefined;
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const media = window.matchMedia("(prefers-color-scheme: light)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setTheme(event.matches ? "light" : "dark");
+    };
+
+    setTheme(media.matches ? "light" : "dark");
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", handleChange);
+      return () => media.removeEventListener("change", handleChange);
+    }
+
+    media.addListener(handleChange);
+    return () => media.removeListener(handleChange);
+  }, []);
+
   return (
-    <div className="qf-theme-shell qf-app-shell" data-theme="dark">
+    <div className="qf-theme-shell qf-app-shell" data-theme={theme}>
       {rail}
 
       <div className="qf-app-main">
         <div className="qf-shell-stage" data-inspector-open={inspectorOpen}>
           <main
-            className={`qf-shell-workspace${backgroundImage ? " has-background" : ""}`}
+            className={`qf-shell-workspace${safeBackgroundImage ? " has-background" : ""}`}
             style={workspaceStyle}
           >
             {children}
