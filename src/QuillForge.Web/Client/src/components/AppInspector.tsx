@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { Artifact } from "../artifacts";
 import { MODE_DESCRIPTIONS, MODE_LABELS } from "../modePresentation";
-import type { Mode, Status } from "../types";
+import type { Mode, ModeInfo, Status } from "../types";
 
 export type InspectorSection =
   | "overview"
@@ -16,6 +16,7 @@ export type InspectorSection =
 interface AppInspectorProps {
   status: Status | null;
   mode: Mode;
+  modeInfo: ModeInfo | null;
   layoutName: string;
   textThemeName: string;
   artifact: Artifact | null;
@@ -83,6 +84,7 @@ function MetaRow({ label, value }: { label: string; value: string }) {
 export default function AppInspector({
   status,
   mode,
+  modeInfo,
   layoutName,
   textThemeName,
   artifact,
@@ -105,6 +107,111 @@ export default function AppInspector({
   if (mode === "research") {
     sectionButtons.push({ id: "research", label: "Research" });
   }
+
+  const currentTarget =
+    status?.project && status.file ? `story/${status.project}/${status.file}` : null;
+  const pendingTarget =
+    modeInfo?.pendingProject && modeInfo.pendingFile
+      ? `story/${modeInfo.pendingProject}/${modeInfo.pendingFile}`
+      : null;
+
+  const modeSnapshot = (() => {
+    switch (mode) {
+      case "guide":
+        return (
+          <section className="qf-shell-card px-3 py-3">
+            <div className="qf-shell-folio mb-2">Guide Focus</div>
+            <p className="text-sm leading-6 text-text-muted">
+              Use the inspector to pull sessions, lore, and runtime context into view while
+              Guide helps you choose the right workflow.
+            </p>
+            <div className="mt-3 space-y-2">
+              <InspectorAction
+                label="Open saved sessions"
+                meta="Resume earlier branches or continue unfinished work"
+                onClick={() => onSelectSection("sessions")}
+              />
+              <InspectorAction
+                label="Inspect current context"
+                meta="See what profile, lore, and runtime state Guide can currently access"
+                onClick={() => onSelectSection("context")}
+              />
+              <InspectorAction
+                label="Browse loaded lore"
+                meta="Review world material without leaving the workspace"
+                onClick={() => onSelectSection("lore")}
+              />
+            </div>
+          </section>
+        );
+      case "writer":
+        return (
+          <section className="qf-shell-card px-3 py-3">
+            <div className="qf-shell-folio mb-2">Draft Focus</div>
+            <div className="space-y-1">
+              <MetaRow label="Current target" value={currentTarget ?? "not set"} />
+              <MetaRow
+                label="Pending review"
+                value={modeInfo?.pendingContent ? "awaiting decision" : "clear"}
+              />
+              <MetaRow label="Pending target" value={pendingTarget ?? "none"} />
+              <MetaRow
+                label="Writing style"
+                value={status?.writingStyle ?? "default"}
+              />
+            </div>
+            <div className="mt-3 space-y-2">
+              <InspectorAction
+                label="Open plots"
+                meta="Keep structure and outline material beside the manuscript"
+                onClick={() => onSelectSection("plots")}
+              />
+              <InspectorAction
+                label="Open prompts"
+                meta="Reference prompt material without leaving Writer"
+                onClick={() => onSelectSection("prompts")}
+              />
+              <InspectorAction
+                label="Inspect draft context"
+                meta="Check the current session, file, and token state"
+                onClick={() => onSelectSection("context")}
+              />
+            </div>
+          </section>
+        );
+      case "roleplay":
+        return (
+          <section className="qf-shell-card px-3 py-3">
+            <div className="qf-shell-folio mb-2">Scene Focus</div>
+            <div className="space-y-1">
+              <MetaRow label="Project" value={status?.project ?? "not set"} />
+              <MetaRow label="Scene" value={status?.file ?? "none"} />
+              <MetaRow label="AI plays" value={status?.aiCharacter || "unassigned"} />
+              <MetaRow label="You play" value={status?.userCharacter || "you"} />
+            </div>
+            <div className="mt-3 space-y-2">
+              <InspectorAction
+                label="Open characters"
+                meta="Keep cast information close while the scene stays in motion"
+                onClick={() => onSelectSection("characters")}
+              />
+              <InspectorAction
+                label="Open lore"
+                meta="Check world details and scene references"
+                onClick={() => onSelectSection("lore")}
+              />
+              <InspectorAction
+                label="Inspect runtime context"
+                meta="Review session state, tokens, and current roleplay bindings"
+                onClick={() => onSelectSection("context")}
+              />
+            </div>
+          </section>
+        );
+      default:
+        return null;
+    }
+  })();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -146,6 +253,15 @@ export default function AppInspector({
                 <MetaRow label="Layout" value={layoutName} />
               </div>
             </section>
+
+            {modeSnapshot}
+
+            {modeInfo?.notice && (
+              <section className="qf-shell-card px-3 py-3">
+                <div className="qf-shell-folio mb-2">Mode Notice</div>
+                <p className="text-sm leading-6 text-text-muted">{modeInfo.notice}</p>
+              </section>
+            )}
 
             {artifact && (
               <section className="qf-shell-card px-3 py-3">

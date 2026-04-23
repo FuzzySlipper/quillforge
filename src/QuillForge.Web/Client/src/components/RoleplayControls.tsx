@@ -9,18 +9,18 @@ export default function RoleplayControls({ hasMessages, onRegenerate, onDeleteLa
   if (!hasMessages) return null;
 
   return (
-    <div className="flex gap-2 px-3 py-2 bg-surface border-t border-border">
+    <div className="flex flex-wrap gap-2">
       <button
         onClick={onRegenerate}
         disabled={disabled}
-        className="flex-1 bg-surface-alt hover:bg-border text-text font-medium rounded-lg px-4 py-2 text-sm disabled:opacity-50 transition-colors"
+        className="rounded-lg bg-surface-alt px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-border disabled:opacity-50"
       >
         Regenerate
       </button>
       <button
         onClick={onDeleteLast}
         disabled={disabled}
-        className="flex-1 bg-surface-alt hover:bg-border text-text-muted font-medium rounded-lg px-4 py-2 text-sm disabled:opacity-50 transition-colors"
+        className="rounded-lg bg-surface-alt px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-border disabled:opacity-50"
       >
         Delete Last
       </button>

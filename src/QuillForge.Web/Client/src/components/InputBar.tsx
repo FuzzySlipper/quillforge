@@ -4,6 +4,7 @@ import { getCommandNames, getCommandUsage } from "../commands";
 interface InputBarProps {
   onSend: (text: string) => void;
   disabled: boolean;
+  placeholder?: string;
 }
 
 const MAX_HISTORY = 50;
@@ -21,7 +22,7 @@ function saveHistory(history: string[]) {
   localStorage.setItem("input-history", JSON.stringify(history.slice(-MAX_HISTORY)));
 }
 
-export default function InputBar({ onSend, disabled }: InputBarProps) {
+export default function InputBar({ onSend, disabled, placeholder }: InputBarProps) {
   const [text, setText] = useState("");
   const [history] = useState<string[]>(loadHistory);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -184,7 +185,7 @@ export default function InputBar({ onSend, disabled }: InputBarProps) {
           handleInput();
         }}
         onKeyDown={handleKeyDown}
-        placeholder={isCommand ? "Enter command... (Tab to complete)" : "Say something... (/ for commands, ↑ for history)"}
+        placeholder={isCommand ? "Enter command... (Tab to complete)" : (placeholder ?? "Say something... (/ for commands, ↑ for history)")}
         rows={1}
         autoFocus
         className={`flex-1 bg-input-bg text-text border rounded-lg px-3 py-2.5 text-[15px] resize-none min-h-[44px] max-h-[120px] leading-snug focus:outline-none ${

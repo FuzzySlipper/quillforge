@@ -12,13 +12,12 @@ import AppShell from "./components/AppShell";
 import AppRail from "./components/AppRail";
 import AppInspector, { type InspectorSection } from "./components/AppInspector";
 import AppStatusFooter from "./components/AppStatusFooter";
-import MessageBubble from "./components/MessageBubble";
+import ConversationPane from "./components/ConversationPane";
+import GuideWorkspace from "./components/GuideWorkspace";
 import InputBar from "./components/InputBar";
 import ProfilePicker from "./components/ProfilePicker";
 import ModeSwitcher from "./components/ModeSwitcher";
 import ContextOverlay from "./components/ContextOverlay";
-import WriterControls from "./components/WriterControls";
-import RoleplayControls from "./components/RoleplayControls";
 import LoreBrowser from "./components/LoreBrowser";
 import PlotBrowser from "./components/PlotBrowser";
 import PromptBrowser from "./components/PromptBrowser";
@@ -29,8 +28,9 @@ import CharacterCards from "./components/CharacterCards";
 import TextThemePicker from "./components/TextThemePicker";
 import CouncilConfigPanel from "./components/CouncilConfigPanel";
 import ResearchPanel from "./components/ResearchPanel";
-import DiagnosticsPanel from "./components/DiagnosticsPanel";
+import RoleplayWorkspace from "./components/RoleplayWorkspace";
 import ShellReasoningOverlay from "./components/ShellReasoningOverlay";
+import WriterWorkspace from "./components/WriterWorkspace";
 import * as textTheme from "./textTheme";
 import type { TextTheme } from "./textTheme";
 import { publishDesktopShellBridge } from "./desktopBridge";
@@ -133,6 +133,16 @@ function App() {
     }
 
     refreshStatus(sessionId);
+  }, [refreshStatus]);
+
+  const handleNewSession = useCallback(async () => {
+    const result = await newSession();
+    setMessages([]);
+    setCurrentSessionId(result.sessionId);
+    setHasPending(false);
+    setSessionUsage(null);
+    setInspectorSection("overview");
+    refreshStatus(result.sessionId);
   }, [refreshStatus]);
 
   const toggleInspector = useCallback(() => {
@@ -828,173 +838,210 @@ function App() {
   const workspaceTitle = status?.project ?? MODE_LABELS[mode];
   const workspaceSubtitle = status?.file ?? MODE_DESCRIPTIONS[mode];
   const modelSummary = status?.model ? status.model.split("-").slice(0, 2).join("-") : "loading";
-
-  const chatContent = (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-border/70 px-6 py-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="qf-shell-folio">
-              {MODE_LABELS[mode]} workspace
-            </div>
-            <h1 className="qf-shell-title mt-1">{workspaceTitle}</h1>
-            <p className="qf-shell-subtitle mt-2 max-w-3xl">{workspaceSubtitle}</p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-muted">
-            <span className="qf-shell-card px-3 py-1.5">
-              profile · <span className="text-text">{status?.profile ?? "loading"}</span>
-            </span>
-            <span className="qf-shell-card px-3 py-1.5">
-              lore · <span className="text-text">{status?.loreFiles ?? 0}</span>
-            </span>
-            <span className="qf-shell-card px-3 py-1.5">
-              model · <span className="text-text">{modelSummary}</span>
-            </span>
-          </div>
-        </div>
+  const updateBanner = status?.update?.available ? (
+    <div className="flex items-center justify-between gap-3 border-b border-accent/20 bg-accent/10 px-4 py-2 text-sm">
+      <div className="min-w-0">
+        <span className="font-medium text-accent">Update available.</span>{" "}
+        <span className="text-text-muted">
+          Download {updateVersion} from GitHub and replace the app binary. Your <code>user/</code> folder should stay as-is.
+        </span>
       </div>
-
-      {status?.update?.available && (
-        <div className="flex items-center justify-between gap-3 border-b border-accent/20 bg-accent/10 px-4 py-2 text-sm">
-          <div className="min-w-0">
-            <span className="font-medium text-accent">Update available.</span>{" "}
-            <span className="text-text-muted">
-              Download {updateVersion} from GitHub and replace the app binary. Your <code>user/</code> folder should stay as-is.
-            </span>
-          </div>
-          <a
-            href={updateUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 rounded-md bg-surface-alt px-3 py-1.5 text-xs text-text-muted transition-colors hover:text-text"
-          >
-            Download
-          </a>
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-0">
-        {messages.length === 0 && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center text-text-muted">
-              {status?.status === "ready" && (
-                <div className="mb-3 flex justify-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-alt/80 ring-1 ring-border/70 shadow-lg">
-                    <img src={MODE_ICON_PATHS[status.mode]} alt="" aria-hidden="true" className="h-9 w-9" />
-                  </div>
-                </div>
-              )}
-              <p className="text-lg mb-2">Ready to go</p>
-              <p className="text-sm">
-                {status?.status === "ready"
-                  ? `${MODE_LABELS[status.mode]} mode · ${status.loreFiles} lore files loaded`
-                  : "Connecting..."}
-              </p>
-            </div>
-          </div>
-        )}
-        {messages.map((msg, i) => {
-          // Compute index excluding system messages (matches backend history indices)
-          const msgIndex = msg.role === "system" ? 0 : messages.slice(0, i + 1).filter((m) => m.role !== "system").length;
-          return (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            index={msgIndex}
-            mode={mode}
-            onEdit={msg.role !== "system" ? handleEditMessage : undefined}
-            onRetry={msg.role !== "system" ? handleRetry : undefined}
-            onSwipe={msg.role === "assistant" ? handleSwipe : undefined}
-            onDelete={msg.role !== "system" ? handleDeleteMessage : undefined}
-            onFork={msg.role !== "system" ? handleForkMessage : undefined}
-          />
-          );
-        })}
-        <DiagnosticsPanel entries={diagnosticEntries} enabled={!!status?.diagnosticsLivePanel} />
-        {sending && (
-          <div className="flex items-center gap-2 text-text-muted italic text-sm px-4 py-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-accent animate-pulse" />
-            <span>{streamStatus || "Working..."}</span>
-            <span className="text-text-muted/40 text-xs font-mono tabular-nums">{elapsed}s</span>
-            <button
-              onClick={handleStop}
-              className="ml-auto text-xs bg-surface-alt hover:bg-border text-text-muted hover:text-text rounded px-2 py-1 transition-colors"
-            >
-              Stop
-            </button>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {mode === "writer" && (
-        <WriterControls
-          hasPending={hasPending}
-          currentProject={status?.project ?? null}
-          currentFile={status?.file ?? null}
-          pendingProject={modeInfo?.pendingProject ?? null}
-          pendingFile={modeInfo?.pendingFile ?? null}
-          onAccept={handleAccept}
-          onReject={handleReject}
-          onRegenerate={handleRegenerate}
-          disabled={sending}
-        />
-      )}
-
-      {mode === "roleplay" && (
-        <RoleplayControls
-          hasMessages={hasAssistantMessages}
-          onRegenerate={handleRegenerate}
-          onDeleteLast={handleDeleteLast}
-          disabled={sending}
-        />
-      )}
-
-      <InputBar onSend={handleSend} disabled={sending} />
-
-      <ProfilePicker
-        open={profileOpen}
-        onClose={() => setProfileOpen(false)}
-        onSwitched={handleSessionScopedRefresh}
-        sessionId={currentSessionId}
-      />
-      <ModeSwitcher
-        open={modeOpen}
-        onClose={() => setModeOpen(false)}
-        onSwitched={(sessionId, notice) => {
-          if (notice) {
-            addSystemMessage(notice);
-          }
-          handleSessionScopedRefresh(sessionId);
-        }}
-        sessionId={currentSessionId}
-      />
-      <ShellReasoningOverlay
-        open={reasoningOpen}
-        onClose={() => setReasoningOpen(false)}
-        messages={messages}
-      />
-      <LayoutPicker
-        open={layoutOpen}
-        onClose={() => setLayoutOpen(false)}
-      />
-      <ProviderManager
-        open={providerOpen}
-        onClose={() => setProviderOpen(false)}
-        onChanged={refreshStatus}
-      />
-      <TextThemePicker
-        open={textThemeOpen}
-        onClose={() => setTextThemeOpen(false)}
-        onChanged={() => setCurrentTextTheme(textTheme.getTheme())}
-      />
-      <CouncilConfigPanel
-        open={councilConfigOpen}
-        onClose={() => setCouncilConfigOpen(false)}
-      />
+      <a
+        href={updateUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="shrink-0 rounded-md bg-surface-alt px-3 py-1.5 text-xs text-text-muted transition-colors hover:text-text"
+      >
+        Download
+      </a>
     </div>
+  ) : null;
+
+  function buildEmptyState(activeMode: Mode, title: string, description: string) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-6 py-8">
+        <div className="max-w-xl text-center text-text-muted">
+          {status?.status === "ready" && (
+            <div className="mb-3 flex justify-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-alt/80 ring-1 ring-border/70 shadow-lg">
+                <img
+                  src={MODE_ICON_PATHS[activeMode]}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-9 w-9"
+                />
+              </div>
+            </div>
+          )}
+          <p className="mb-2 text-lg text-text">{title}</p>
+          <p className="text-sm leading-6">
+            {status?.status === "ready" ? description : "Connecting..."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const conversationPaneProps = {
+    messages,
+    diagnosticEntries,
+    diagnosticsEnabled: !!status?.diagnosticsLivePanel,
+    sending,
+    streamStatus,
+    elapsed,
+    messagesEndRef,
+    onStop: handleStop,
+    onEdit: handleEditMessage,
+    onRetry: handleRetry,
+    onSwipe: handleSwipe,
+    onDelete: handleDeleteMessage,
+    onFork: handleForkMessage,
+  };
+
+  const fallbackConversationPane = (
+    <ConversationPane
+      {...conversationPaneProps}
+      mode={mode}
+      emptyState={buildEmptyState(
+        mode,
+        "Ready to go",
+        `${MODE_LABELS[mode]} mode · ${status?.loreFiles ?? 0} lore files loaded`,
+      )}
+    />
   );
+
+  const workspaceContent = (() => {
+    switch (mode) {
+      case "guide":
+        return (
+          <GuideWorkspace
+            status={status}
+            updateBanner={updateBanner}
+            conversationPane={(
+              <ConversationPane
+                {...conversationPaneProps}
+                mode="guide"
+                emptyState={buildEmptyState(
+                  "guide",
+                  "Guide is ready",
+                  "Ask for setup help, workflow advice, or orientation before you dive into drafting and scene work.",
+                )}
+              />
+            )}
+            inputBar={(
+              <InputBar
+                onSend={handleSend}
+                disabled={sending}
+                placeholder="Ask Guide what to do next..."
+              />
+            )}
+            sending={sending}
+            onOpenMode={() => setModeOpen(true)}
+            onNewSession={() => {
+              void handleNewSession();
+            }}
+            onOpenSessions={() => openInspectorSection("sessions")}
+            onOpenSection={openInspectorSection}
+            onQuickPrompt={(prompt) => {
+              void handleSend(prompt);
+            }}
+          />
+        );
+      case "writer":
+        return (
+          <WriterWorkspace
+            status={status}
+            modeInfo={modeInfo}
+            messages={messages}
+            hasPending={hasPending}
+            sending={sending}
+            updateBanner={updateBanner}
+            conversationPane={(
+              <ConversationPane
+                {...conversationPaneProps}
+                mode="writer"
+                emptyState={buildEmptyState(
+                  "writer",
+                  "Quill support is ready",
+                  "Ask for a new passage, revision pass, or target-aware rewrite while your manuscript stays visible beside the chat.",
+                )}
+              />
+            )}
+            inputBar={(
+              <InputBar
+                onSend={handleSend}
+                disabled={sending}
+                placeholder="Ask Quill for a draft, revision, or save-target change..."
+              />
+            )}
+            onOpenSection={openInspectorSection}
+            onAccept={handleAccept}
+            onReject={handleReject}
+            onRegenerate={handleRegenerate}
+          />
+        );
+      case "roleplay":
+        return (
+          <RoleplayWorkspace
+            status={status}
+            hasMessages={hasAssistantMessages}
+            sending={sending}
+            updateBanner={updateBanner}
+            conversationPane={(
+              <ConversationPane
+                {...conversationPaneProps}
+                mode="roleplay"
+                emptyState={buildEmptyState(
+                  "roleplay",
+                  "Scene stage is ready",
+                  "Open a saved session or start the next turn to bring the cast, portraits, and scene transcript to life.",
+                )}
+              />
+            )}
+            inputBar={(
+              <InputBar
+                onSend={handleSend}
+                disabled={sending}
+                placeholder="Continue the scene..."
+              />
+            )}
+            onOpenSection={openInspectorSection}
+            onRegenerate={handleRegenerate}
+            onDeleteLast={handleDeleteLast}
+          />
+        );
+      default:
+        return (
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="border-b border-border/70 px-6 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="qf-shell-folio">{MODE_LABELS[mode]} workspace</div>
+                  <h1 className="qf-shell-title mt-1">{workspaceTitle}</h1>
+                  <p className="qf-shell-subtitle mt-2 max-w-3xl">{workspaceSubtitle}</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-muted">
+                  <span className="qf-shell-card px-3 py-1.5">
+                    profile · <span className="text-text">{status?.profile ?? "loading"}</span>
+                  </span>
+                  <span className="qf-shell-card px-3 py-1.5">
+                    lore · <span className="text-text">{status?.loreFiles ?? 0}</span>
+                  </span>
+                  <span className="qf-shell-card px-3 py-1.5">
+                    model · <span className="text-text">{modelSummary}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {updateBanner}
+            {fallbackConversationPane}
+            <InputBar onSend={handleSend} disabled={sending} />
+          </div>
+        );
+    }
+  })();
 
   const inspectorContent = (() => {
     const handleInlineClose = () => setInspectorSection("overview");
@@ -1079,61 +1126,97 @@ function App() {
   })();
 
   return (
-    <AppShell
-      backgroundImage={backgroundImage}
-      inspectorOpen={inspectorOpen}
-      onToggleInspector={toggleInspector}
-      rail={(
-        <AppRail
-          status={status}
-          mode={mode}
-          inspectorOpen={inspectorOpen}
-          onOpenMode={() => setModeOpen(true)}
-          onNewSession={async () => {
-            const result = await newSession();
-            setMessages([]);
-            setCurrentSessionId(result.sessionId);
-            setHasPending(false);
-            setSessionUsage(null);
-            setInspectorSection("overview");
-            refreshStatus(result.sessionId);
-          }}
-          onOpenSessions={() => openInspectorSection("sessions")}
-          onToggleInspector={toggleInspector}
-          onOpenProfile={() => setProfileOpen(true)}
-          onOpenProviders={() => setProviderOpen(true)}
-          onOpenTextTheme={() => setTextThemeOpen(true)}
-        />
-      )}
-      inspector={(
-        <AppInspector
-          status={status}
-          mode={mode}
-          layoutName={layout.name}
-          textThemeName={currentTextTheme.name}
-          artifact={artifact}
-          section={inspectorSection}
-          onSelectSection={openInspectorSection}
-          onOpenLayout={() => setLayoutOpen(true)}
-          onOpenCouncilConfig={() => setCouncilConfigOpen(true)}
-        >
-          {inspectorContent}
-        </AppInspector>
-      )}
-      footer={(
-        <AppStatusFooter
-          status={status}
-          usage={sessionUsage}
-          messages={messages}
-          inspectorOpen={inspectorOpen}
-          onToggleInspector={toggleInspector}
-          onOpenContext={() => openInspectorSection("context")}
-          onOpenReasoning={() => setReasoningOpen(true)}
-        />
-      )}
-    >
-      {chatContent}
-    </AppShell>
+    <>
+      <AppShell
+        backgroundImage={backgroundImage}
+        inspectorOpen={inspectorOpen}
+        onToggleInspector={toggleInspector}
+        rail={(
+          <AppRail
+            status={status}
+            mode={mode}
+            inspectorOpen={inspectorOpen}
+            onOpenMode={() => setModeOpen(true)}
+            onNewSession={handleNewSession}
+            onOpenSessions={() => openInspectorSection("sessions")}
+            onToggleInspector={toggleInspector}
+            onOpenProfile={() => setProfileOpen(true)}
+            onOpenProviders={() => setProviderOpen(true)}
+            onOpenTextTheme={() => setTextThemeOpen(true)}
+          />
+        )}
+        inspector={(
+          <AppInspector
+            status={status}
+            mode={mode}
+            modeInfo={modeInfo}
+            layoutName={layout.name}
+            textThemeName={currentTextTheme.name}
+            artifact={artifact}
+            section={inspectorSection}
+            onSelectSection={openInspectorSection}
+            onOpenLayout={() => setLayoutOpen(true)}
+            onOpenCouncilConfig={() => setCouncilConfigOpen(true)}
+          >
+            {inspectorContent}
+          </AppInspector>
+        )}
+        footer={(
+          <AppStatusFooter
+            status={status}
+            usage={sessionUsage}
+            messages={messages}
+            inspectorOpen={inspectorOpen}
+            onToggleInspector={toggleInspector}
+            onOpenContext={() => openInspectorSection("context")}
+            onOpenReasoning={() => setReasoningOpen(true)}
+          />
+        )}
+      >
+        {workspaceContent}
+      </AppShell>
+
+      <ProfilePicker
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        onSwitched={handleSessionScopedRefresh}
+        sessionId={currentSessionId}
+      />
+      <ModeSwitcher
+        open={modeOpen}
+        onClose={() => setModeOpen(false)}
+        onSwitched={(sessionId, notice) => {
+          if (notice) {
+            addSystemMessage(notice);
+          }
+          handleSessionScopedRefresh(sessionId);
+        }}
+        sessionId={currentSessionId}
+      />
+      <ShellReasoningOverlay
+        open={reasoningOpen}
+        onClose={() => setReasoningOpen(false)}
+        messages={messages}
+      />
+      <LayoutPicker
+        open={layoutOpen}
+        onClose={() => setLayoutOpen(false)}
+      />
+      <ProviderManager
+        open={providerOpen}
+        onClose={() => setProviderOpen(false)}
+        onChanged={refreshStatus}
+      />
+      <TextThemePicker
+        open={textThemeOpen}
+        onClose={() => setTextThemeOpen(false)}
+        onChanged={() => setCurrentTextTheme(textTheme.getTheme())}
+      />
+      <CouncilConfigPanel
+        open={councilConfigOpen}
+        onClose={() => setCouncilConfigOpen(false)}
+      />
+    </>
   );
 }
 
