@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Artifact } from "../artifacts";
 import { MODE_DESCRIPTIONS, MODE_LABELS } from "../modePresentation";
 import type { Mode, ModeInfo, Status } from "../types";
+import { formatStoryTarget } from "../workspaceSupport";
 
 export type InspectorSection =
   | "overview"
@@ -108,12 +109,8 @@ export default function AppInspector({
     sectionButtons.push({ id: "research", label: "Research" });
   }
 
-  const currentTarget =
-    status?.project && status.file ? `story/${status.project}/${status.file}` : null;
-  const pendingTarget =
-    modeInfo?.pendingProject && modeInfo.pendingFile
-      ? `story/${modeInfo.pendingProject}/${modeInfo.pendingFile}`
-      : null;
+  const currentTarget = formatStoryTarget(status?.project, status?.file);
+  const pendingTarget = formatStoryTarget(modeInfo?.pendingProject, modeInfo?.pendingFile);
 
   const modeSnapshot = (() => {
     switch (mode) {

@@ -40,7 +40,7 @@ export default function RoleplayWorkspace({
   onRegenerate,
   onDeleteLast,
 }: RoleplayWorkspaceProps) {
-  const sceneLabel = status?.file ?? "scene-01.md";
+  const sceneLabel = status?.file ?? "No scene loaded";
   const projectLabel = status?.project ?? "unset project";
   const aiCharacter = status?.aiCharacter || "unassigned";
   const userCharacter = status?.userCharacter || "you";

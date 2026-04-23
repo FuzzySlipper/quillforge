@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import type { ReactNode } from "react";
 import type { Message, ModeInfo, Status } from "../types";
+import { formatStoryTarget, getWriterProseSummary } from "../workspaceSupport";
 import type { InspectorSection } from "./AppInspector";
 import WriterControls from "./WriterControls";
 
@@ -47,23 +48,12 @@ export default function WriterWorkspace({
   onReject,
   onRegenerate,
 }: WriterWorkspaceProps) {
-  const latestProse = [...messages].reverse().find(
-    (message) =>
-      message.role === "assistant"
-      && (message.responseType === "prose" || message.responseType === "prose_pending"),
-  ) ?? null;
-  const currentTarget = status?.project && status.file ? `story/${status.project}/${status.file}` : null;
-  const pendingTarget = modeInfo?.pendingProject && modeInfo.pendingFile
-    ? `story/${modeInfo.pendingProject}/${modeInfo.pendingFile}`
-    : null;
+  const { latestProse, proseCount } = getWriterProseSummary(messages);
+  const currentTarget = formatStoryTarget(status?.project, status?.file);
+  const pendingTarget = formatStoryTarget(modeInfo?.pendingProject, modeInfo?.pendingFile);
   const previewContent = hasPending
     ? modeInfo?.pendingContent ?? latestProse?.content ?? ""
     : latestProse?.content ?? "";
-  const proseCount = messages.filter(
-    (message) =>
-      message.role === "assistant"
-      && (message.responseType === "prose" || message.responseType === "prose_pending"),
-  ).length;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
