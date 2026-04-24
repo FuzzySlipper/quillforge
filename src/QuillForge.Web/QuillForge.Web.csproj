@@ -29,7 +29,7 @@
 
   <!-- Rebuild React frontend when client source files change -->
   <Target Name="BuildClient" BeforeTargets="Build"
-          Inputs="Client/src/**;Client/package.json;Client/tsconfig.json;Client/vite.config.ts"
+          Inputs="Client/src/**;Client/public/**;Client/index.html;Client/package.json;Client/package-lock.json;Client/tsconfig.json;Client/vite.config.ts"
           Outputs="wwwroot/assets/.build-marker">
     <Exec Command="npm run build" WorkingDirectory="Client" />
     <Touch Files="wwwroot/assets/.build-marker" AlwaysCreate="true" />
