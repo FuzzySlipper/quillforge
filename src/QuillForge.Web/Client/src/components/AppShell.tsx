@@ -46,7 +46,7 @@ export default function AppShell({
   const safeBackgroundImage = resolveBackgroundImage(backgroundImage);
   const workspaceStyle = safeBackgroundImage
     ? {
-        backgroundImage: `linear-gradient(180deg, rgba(7, 7, 10, 0.74), rgba(17, 15, 20, 0.62)), url(${JSON.stringify(safeBackgroundImage)})`,
+        backgroundImage: `linear-gradient(180deg, color-mix(in srgb, var(--qf-surface-overlay) 86%, transparent), color-mix(in srgb, var(--qf-surface-overlay) 62%, transparent)), url(${JSON.stringify(safeBackgroundImage)})`,
       }
     : undefined;
 

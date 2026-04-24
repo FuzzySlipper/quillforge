@@ -1,0 +1,198 @@
+/* QuillForge shell tokens
+ * Shared by the browser client and Tauri desktop shell.
+ * Foundation --qf-* tokens hold the Atrium palette; semantic --color-* aliases
+ * keep Tailwind utilities and desktop chrome on the same vocabulary.
+ */
+:root,
+.qf-theme-shell,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Atrium foundation: surfaces */
+  --qf-rail: #232027;
+  --qf-rail-edge: #2b2832;
+  --qf-paper: #17151a;
+  --qf-paper-deep: #0f0e12;
+  --qf-paper-soft: #1e1c22;
+  --qf-rule: #33303a;
+  --qf-rule-soft: #28262e;
+
+  /* Atrium foundation: text */
+  --qf-ink: #ece3cf;
+  --qf-ink-2: #c9c0ac;
+  --qf-ink-3: #8f8876;
+  --qf-ink-4: #655f52;
+
+  /* Atrium foundation: accents and state */
+  --qf-ochre: #d4a469;
+  --qf-ochre-deep: #c9935a;
+  --qf-leaf: #98b07c;
+  --qf-claret: #d2806f;
+  --qf-sky: #8ca3bd;
+  --qf-warning: #e6c27a;
+  --qf-danger: var(--qf-claret);
+  --qf-success: var(--qf-leaf);
+  --qf-info: var(--qf-sky);
+
+  /* Typography */
+  --qf-font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
+  --qf-font-serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --qf-font-sans: "Inter Tight", "Segoe UI", system-ui, sans-serif;
+  --qf-font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --qf-type-display-lg: 32px;
+  --qf-type-display: 26px;
+  --qf-type-title: 22px;
+  --qf-type-heading: 17px;
+  --qf-type-read: 15.5px;
+  --qf-type-body: 14px;
+  --qf-type-ui: 13px;
+  --qf-type-folio: 10.5px;
+  --qf-type-mono: 10.5px;
+  --qf-lh-display: 1.1;
+  --qf-lh-read: 1.7;
+  --qf-lh-body: 1.55;
+  --qf-lh-ui: 1.4;
+
+  /* Spacing, radii, dimensions, and motion */
+  --qf-sp-1: 4px;
+  --qf-sp-2: 6px;
+  --qf-sp-3: 8px;
+  --qf-sp-4: 12px;
+  --qf-sp-5: 16px;
+  --qf-sp-6: 22px;
+  --qf-sp-7: 32px;
+  --qf-sp-8: 56px;
+  --qf-measure-writer: 640px;
+  --qf-measure-bubble: 560px;
+  --qf-radius-button: 6px;
+  --qf-radius-card: 8px;
+  --qf-radius-panel: 22px;
+  --qf-radius-modal: 18px;
+  --qf-radius-pill: 999px;
+  --qf-atelier-width: 56px;
+  --qf-compendium-width: 380px;
+  --qf-compendium-edge: 44px;
+  --qf-compendium-handle-open: 24px;
+  --qf-ease: cubic-bezier(.2, .7, .3, 1);
+  --qf-dur-fast: 160ms;
+  --qf-dur-default: 200ms;
+  --qf-dur-slow: 240ms;
+  --qf-disabled-opacity: 0.55;
+
+  /* Semantic surfaces */
+  --qf-surface-app: var(--qf-paper);
+  --qf-surface-workspace: var(--qf-paper);
+  --qf-surface-workspace-deep: var(--qf-paper-deep);
+  --qf-surface-chrome: var(--qf-rail);
+  --qf-surface-chrome-strong: var(--qf-rail-edge);
+  --qf-surface-card: var(--qf-paper-soft);
+  --qf-surface-card-muted: color-mix(in srgb, var(--qf-paper-soft) 82%, transparent);
+  --qf-surface-card-sunken: var(--qf-paper-deep);
+  --qf-surface-input: color-mix(in srgb, var(--qf-paper-deep) 88%, var(--qf-paper-soft));
+  --qf-surface-input-hover: color-mix(in srgb, var(--qf-paper-soft) 78%, var(--qf-paper-deep));
+  --qf-surface-overlay: rgba(7, 7, 10, 0.68);
+  --qf-surface-scrim-start: rgba(0, 0, 0, 0.18);
+  --qf-surface-scrim-end: rgba(0, 0, 0, 0.08);
+  --qf-surface-elevated: color-mix(in srgb, var(--qf-paper-soft) 90%, black);
+
+  /* Semantic text, borders, and focus */
+  --qf-text-primary: var(--qf-ink);
+  --qf-text-secondary: var(--qf-ink-2);
+  --qf-text-muted: var(--qf-ink-3);
+  --qf-text-disabled: var(--qf-ink-4);
+  --qf-border: var(--qf-rule);
+  --qf-border-muted: var(--qf-rule-soft);
+  --qf-border-strong: color-mix(in srgb, var(--qf-rule) 72%, var(--qf-ink-4));
+  --qf-focus-ring: color-mix(in srgb, var(--qf-ochre) 68%, white);
+  --qf-focus-shadow: 0 0 0 3px color-mix(in srgb, var(--qf-focus-ring) 26%, transparent);
+
+  /* Semantic action and status */
+  --qf-accent: var(--qf-ochre);
+  --qf-accent-hover: color-mix(in srgb, var(--qf-ochre) 84%, white);
+  --qf-accent-soft: color-mix(in srgb, var(--qf-ochre) 14%, transparent);
+  --qf-accent-border: color-mix(in srgb, var(--qf-ochre) 38%, var(--qf-rule));
+  --qf-accent-contrast: var(--qf-paper-deep);
+  --qf-action-primary-bg: var(--qf-accent);
+  --qf-action-primary-bg-hover: var(--qf-accent-hover);
+  --qf-action-primary-text: var(--qf-accent-contrast);
+  --qf-action-secondary-bg: var(--qf-surface-input);
+  --qf-action-secondary-bg-hover: var(--qf-surface-input-hover);
+  --qf-danger-soft: color-mix(in srgb, var(--qf-danger) 14%, transparent);
+  --qf-danger-border: color-mix(in srgb, var(--qf-danger) 38%, var(--qf-rule));
+  --qf-danger-text: color-mix(in srgb, var(--qf-danger) 76%, var(--qf-ink));
+  --qf-success-soft: color-mix(in srgb, var(--qf-success) 13%, transparent);
+  --qf-warning-soft: color-mix(in srgb, var(--qf-warning) 16%, transparent);
+
+  /* Shadows */
+  --qf-flyout-shadow: -8px 0 24px -18px rgba(0, 0, 0, 0.6);
+  --qf-panel-shadow: 0 28px 60px rgba(0, 0, 0, 0.28);
+  --qf-button-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  --qf-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* Tailwind / desktop semantic aliases */
+  --color-bg: var(--qf-surface-app);
+  --color-surface: var(--qf-surface-card);
+  --color-surface-alt: var(--qf-surface-card-sunken);
+  --color-text: var(--qf-text-primary);
+  --color-text-muted: var(--qf-text-muted);
+  --color-accent: var(--qf-accent);
+  --color-accent-hover: var(--qf-accent-hover);
+  --color-input-bg: var(--qf-surface-input);
+  --color-border: var(--qf-border);
+  --color-black: var(--qf-surface-overlay);
+  --color-red-200: var(--qf-danger-text);
+  --color-red-300: var(--qf-danger-text);
+  --color-red-400: var(--qf-danger);
+  --color-red-600: color-mix(in srgb, var(--qf-danger) 82%, black);
+  --color-red-700: color-mix(in srgb, var(--qf-danger) 68%, black);
+  --color-red-900: var(--qf-danger-border);
+  --color-red-950: var(--qf-danger-soft);
+  --color-green-400: var(--qf-success);
+  --color-green-600: color-mix(in srgb, var(--qf-success) 76%, black);
+  --color-green-700: color-mix(in srgb, var(--qf-success) 64%, black);
+  --color-yellow-400: var(--qf-warning);
+  --color-amber-200: var(--qf-warning);
+  --color-blue-400: var(--qf-info);
+  --color-blue-500: var(--qf-info);
+  --color-purple-400: color-mix(in srgb, var(--qf-info) 55%, var(--qf-accent));
+}
+
+:root[data-theme="light"],
+.qf-theme-shell[data-theme="light"],
+[data-theme="light"] {
+  color-scheme: light;
+
+  --qf-rail: #fbf7ec;
+  --qf-rail-edge: #efe7d3;
+  --qf-paper: #e8dfc8;
+  --qf-paper-deep: #dccfb0;
+  --qf-paper-soft: #f4ecd8;
+  --qf-rule: #cdbf9c;
+  --qf-rule-soft: #dccfb0;
+
+  --qf-ink: #1e1a14;
+  --qf-ink-2: #3a332a;
+  --qf-ink-3: #6a6154;
+  --qf-ink-4: #8f8472;
+
+  --qf-ochre: #b8864a;
+  --qf-ochre-deep: #8c5e2a;
+  --qf-leaf: #4f6b3a;
+  --qf-claret: #8a2e2e;
+  --qf-sky: #5a6f87;
+  --qf-warning: #9b6f25;
+
+  --qf-surface-input: color-mix(in srgb, var(--qf-paper-deep) 74%, white);
+  --qf-surface-input-hover: color-mix(in srgb, var(--qf-paper-soft) 82%, white);
+  --qf-surface-overlay: rgba(30, 26, 20, 0.54);
+  --qf-surface-scrim-start: rgba(30, 26, 20, 0.10);
+  --qf-surface-scrim-end: rgba(30, 26, 20, 0.04);
+  --qf-surface-elevated: color-mix(in srgb, var(--qf-paper-soft) 94%, white);
+  --qf-focus-ring: color-mix(in srgb, var(--qf-ochre) 72%, black);
+  --qf-accent-hover: color-mix(in srgb, var(--qf-ochre) 78%, white);
+  --qf-accent-contrast: var(--qf-paper-soft);
+  --qf-flyout-shadow: -8px 0 24px -18px rgba(0, 0, 0, 0.35);
+  --qf-panel-shadow: 0 28px 60px rgba(60, 46, 24, 0.18);
+  --qf-button-shadow: 0 12px 30px rgba(60, 46, 24, 0.14);
+  --qf-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.38);
+}

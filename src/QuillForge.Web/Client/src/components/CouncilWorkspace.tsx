@@ -149,7 +149,7 @@ export default function CouncilWorkspace({
                 )}
               </article>
 
-              <article className="qf-shell-card border-accent/10 bg-[color-mix(in_srgb,var(--qf-paper-soft)_96%,transparent)] px-5 py-5">
+              <article className="qf-shell-card border-accent/10 bg-[color-mix(in_srgb,var(--qf-surface-card)_96%,transparent)] px-5 py-5">
                 <div className="qf-shell-folio">Latest Synthesis</div>
                 {latestAssistantMessage ? (
                   <div className="prose prose-invert prose-sm prose-themed mt-3 max-w-none [&_p]:mb-3 [&_p:last-child]:mb-0">

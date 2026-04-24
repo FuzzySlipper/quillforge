@@ -1,15 +1,32 @@
+@import "../../../Shared/Styles/quillforge-tokens.css";
 @import "tailwindcss";
 
 @theme {
-  --color-bg: var(--qf-paper);
-  --color-surface: var(--qf-paper-soft);
-  --color-surface-alt: var(--qf-paper-deep);
-  --color-text: var(--qf-ink);
-  --color-text-muted: var(--qf-ink-3);
-  --color-accent: var(--qf-ochre);
-  --color-accent-hover: color-mix(in srgb, var(--qf-ochre) 84%, white);
-  --color-input-bg: color-mix(in srgb, var(--qf-paper-deep) 76%, black);
-  --color-border: var(--qf-rule);
+  --color-bg: var(--qf-surface-app);
+  --color-surface: var(--qf-surface-card);
+  --color-surface-alt: var(--qf-surface-card-sunken);
+  --color-text: var(--qf-text-primary);
+  --color-text-muted: var(--qf-text-muted);
+  --color-accent: var(--qf-accent);
+  --color-accent-hover: var(--qf-accent-hover);
+  --color-input-bg: var(--qf-surface-input);
+  --color-border: var(--qf-border);
+  --color-black: var(--qf-surface-overlay);
+  --color-red-200: var(--qf-danger-text);
+  --color-red-300: var(--qf-danger-text);
+  --color-red-400: var(--qf-danger);
+  --color-red-600: color-mix(in srgb, var(--qf-danger) 82%, black);
+  --color-red-700: color-mix(in srgb, var(--qf-danger) 68%, black);
+  --color-red-900: var(--qf-danger-border);
+  --color-red-950: var(--qf-danger-soft);
+  --color-green-400: var(--qf-success);
+  --color-green-600: color-mix(in srgb, var(--qf-success) 76%, black);
+  --color-green-700: color-mix(in srgb, var(--qf-success) 64%, black);
+  --color-yellow-400: var(--qf-warning);
+  --color-amber-200: var(--qf-warning);
+  --color-blue-400: var(--qf-info);
+  --color-blue-500: var(--qf-info);
+  --color-purple-400: color-mix(in srgb, var(--qf-info) 55%, var(--qf-accent));
 }
 
 html,
@@ -20,89 +37,9 @@ body,
 
 body {
   margin: 0;
-  background: #17151a;
-  color: #ece3cf;
-  font-family: "Source Serif 4", "Iowan Old Style", Georgia, serif;
-}
-
-.qf-theme-shell {
-  --qf-rail: #232027;
-  --qf-rail-edge: #2b2832;
-  --qf-paper: #17151a;
-  --qf-paper-deep: #0f0e12;
-  --qf-paper-soft: #1e1c22;
-  --qf-rule: #33303a;
-  --qf-rule-soft: #28262e;
-  --qf-ink: #ece3cf;
-  --qf-ink-2: #c9c0ac;
-  --qf-ink-3: #8f8876;
-  --qf-ink-4: #655f52;
-  --qf-ochre: #d4a469;
-  --qf-ochre-deep: #c9935a;
-  --qf-leaf: #98b07c;
-  --qf-claret: #d2806f;
-  --qf-sky: #8ca3bd;
-  --qf-flyout-shadow: -8px 0 24px -18px rgba(0, 0, 0, 0.6);
-  --qf-font-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
-  --qf-font-serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
-  --qf-font-sans: "Inter Tight", "Segoe UI", system-ui, sans-serif;
-  --qf-font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
-  --qf-type-display: 26px;
-  --qf-type-title: 22px;
-  --qf-type-heading: 17px;
-  --qf-type-read: 15.5px;
-  --qf-type-body: 14px;
-  --qf-type-ui: 13px;
-  --qf-type-folio: 10.5px;
-  --qf-type-mono: 10.5px;
-  --qf-lh-display: 1.1;
-  --qf-lh-read: 1.7;
-  --qf-lh-body: 1.55;
-  --qf-lh-ui: 1.4;
-  --qf-sp-1: 4px;
-  --qf-sp-2: 6px;
-  --qf-sp-3: 8px;
-  --qf-sp-4: 12px;
-  --qf-sp-5: 16px;
-  --qf-sp-6: 22px;
-  --qf-sp-7: 32px;
-  --qf-sp-8: 56px;
-  --qf-measure-writer: 640px;
-  --qf-measure-bubble: 560px;
-  --qf-radius-button: 6px;
-  --qf-radius-card: 8px;
-  --qf-radius-pill: 999px;
-  --qf-atelier-width: 56px;
-  --qf-compendium-width: 380px;
-  --qf-compendium-edge: 44px;
-  --qf-compendium-handle-open: 24px;
-  --qf-ease: cubic-bezier(.2, .7, .3, 1);
-  --qf-dur-fast: 160ms;
-  --qf-dur-default: 200ms;
-  --qf-dur-slow: 240ms;
-  color-scheme: dark;
-  color: var(--qf-ink);
-}
-
-.qf-theme-shell[data-theme="light"] {
-  --qf-rail: #fbf7ec;
-  --qf-rail-edge: #efe7d3;
-  --qf-paper: #e8dfc8;
-  --qf-paper-deep: #dccfb0;
-  --qf-paper-soft: #f4ecd8;
-  --qf-rule: #cdbf9c;
-  --qf-rule-soft: #dccfb0;
-  --qf-ink: #1e1a14;
-  --qf-ink-2: #3a332a;
-  --qf-ink-3: #6a6154;
-  --qf-ink-4: #8f8472;
-  --qf-ochre: #b8864a;
-  --qf-ochre-deep: #8c5e2a;
-  --qf-leaf: #4f6b3a;
-  --qf-claret: #8a2e2e;
-  --qf-sky: #5a6f87;
-  --qf-flyout-shadow: -8px 0 24px -18px rgba(0, 0, 0, 0.35);
-  color-scheme: light;
+  background: var(--qf-surface-app);
+  color: var(--qf-text-primary);
+  font-family: var(--qf-font-serif);
 }
 
 .qf-theme-shell code,
@@ -114,11 +51,30 @@ body {
   font-family: inherit;
 }
 
+.qf-theme-shell button:disabled,
+.qf-theme-shell input:disabled,
+.qf-theme-shell select:disabled,
+.qf-theme-shell textarea:disabled {
+  cursor: not-allowed;
+  opacity: var(--qf-disabled-opacity);
+}
+
+.qf-theme-shell button:focus-visible,
+.qf-theme-shell input:focus-visible,
+.qf-theme-shell select:focus-visible,
+.qf-theme-shell textarea:focus-visible,
+.qf-shell-inspector-handle:focus-visible,
+.qf-shell-quiet-button:focus-visible {
+  outline: 1px solid var(--qf-focus-ring);
+  outline-offset: 2px;
+  box-shadow: var(--qf-focus-shadow);
+}
+
 .qf-app-shell {
   display: grid;
   grid-template-columns: var(--qf-atelier-width) minmax(0, 1fr);
   min-height: 100dvh;
-  background: var(--qf-rail);
+  background: var(--qf-surface-chrome);
 }
 
 .qf-app-main {
@@ -141,8 +97,8 @@ body {
 }
 
 .qf-shell-rail {
-  border-right: 1px solid var(--qf-rail-edge);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--qf-rail) 92%, white), var(--qf-rail));
+  border-right: 1px solid var(--qf-border-muted);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--qf-surface-chrome) 92%, white), var(--qf-surface-chrome));
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -161,13 +117,13 @@ body {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--qf-ochre) 36%, var(--qf-rule));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--qf-paper-soft) 70%, var(--qf-rail)), var(--qf-paper-deep));
+  border: 1px solid var(--qf-accent-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--qf-surface-card) 70%, var(--qf-surface-chrome)), var(--qf-surface-card-sunken));
   display: grid;
   place-items: center;
   font-family: var(--qf-font-display);
   font-size: 18px;
-  color: var(--qf-ochre);
+  color: var(--qf-accent);
 }
 
 .qf-shell-rail-button {
@@ -177,7 +133,7 @@ body {
   border: 1px solid transparent;
   display: grid;
   place-items: center;
-  color: var(--qf-ink-3);
+  color: var(--qf-text-muted);
   background: transparent;
   transition:
     background-color var(--qf-dur-fast) var(--qf-ease),
@@ -186,15 +142,15 @@ body {
 }
 
 .qf-shell-rail-button:hover {
-  background: color-mix(in srgb, var(--qf-paper-soft) 58%, transparent);
-  color: var(--qf-ink);
-  border-color: var(--qf-rule);
+  background: color-mix(in srgb, var(--qf-surface-card) 58%, transparent);
+  color: var(--qf-text-primary);
+  border-color: var(--qf-border);
 }
 
 .qf-shell-rail-button.is-active {
-  background: var(--qf-paper-soft);
-  color: var(--qf-ochre);
-  border-color: color-mix(in srgb, var(--qf-ochre) 36%, var(--qf-rule));
+  background: var(--qf-surface-card);
+  color: var(--qf-accent);
+  border-color: var(--qf-accent-border);
 }
 
 .qf-shell-rail-button img {
@@ -206,8 +162,8 @@ body {
   min-width: 0;
   min-height: 0;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.08)),
-    linear-gradient(135deg, color-mix(in srgb, var(--qf-paper) 84%, black), var(--qf-paper));
+    linear-gradient(180deg, var(--qf-surface-scrim-start), var(--qf-surface-scrim-end)),
+    linear-gradient(135deg, color-mix(in srgb, var(--qf-surface-workspace) 84%, black), var(--qf-surface-workspace));
   display: flex;
   flex-direction: column;
 }
@@ -222,18 +178,18 @@ body {
   min-width: 0;
   display: flex;
   overflow: hidden;
-  border-left: 1px solid var(--qf-rail-edge);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--qf-rail) 95%, white), var(--qf-rail));
+  border-left: 1px solid var(--qf-border-muted);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--qf-surface-chrome) 95%, white), var(--qf-surface-chrome));
 }
 
 .qf-shell-inspector-handle {
   width: var(--qf-compendium-edge);
   border: 0;
-  border-right: 1px solid color-mix(in srgb, var(--qf-rail-edge) 72%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--qf-border-muted) 72%, transparent);
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--qf-paper-soft) 58%, transparent), transparent),
+    linear-gradient(180deg, color-mix(in srgb, var(--qf-surface-card) 58%, transparent), transparent),
     transparent;
-  color: var(--qf-ink-4);
+  color: var(--qf-text-disabled);
   flex: 0 0 var(--qf-compendium-edge);
   display: flex;
   flex-direction: column;
@@ -247,8 +203,8 @@ body {
 }
 
 .qf-shell-inspector-handle:hover {
-  color: var(--qf-ink-2);
-  background: color-mix(in srgb, var(--qf-paper-soft) 48%, transparent);
+  color: var(--qf-text-secondary);
+  background: color-mix(in srgb, var(--qf-surface-card) 48%, transparent);
 }
 
 .qf-shell-stage[data-inspector-open="true"] .qf-shell-inspector-handle {
@@ -258,7 +214,7 @@ body {
 }
 
 .qf-shell-stage[data-inspector-open="true"] .qf-shell-inspector-handle:hover {
-  background: color-mix(in srgb, var(--qf-paper-soft) 48%, transparent);
+  background: color-mix(in srgb, var(--qf-surface-card) 48%, transparent);
 }
 
 .qf-shell-inspector-handle-label {
@@ -293,21 +249,21 @@ body {
 }
 
 .qf-shell-footer {
-  border-top: 1px solid var(--qf-rule);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--qf-paper-deep) 82%, transparent), var(--qf-paper-deep));
+  border-top: 1px solid var(--qf-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--qf-surface-card-sunken) 82%, transparent), var(--qf-surface-card-sunken));
   padding: 0 var(--qf-sp-5);
 }
 
 .qf-shell-card {
-  border: 1px solid var(--qf-rule);
+  border: 1px solid var(--qf-border);
   border-radius: var(--qf-radius-card);
-  background: color-mix(in srgb, var(--qf-paper-soft) 92%, transparent);
-  box-shadow: 0 1px 0 var(--qf-rule-soft);
+  background: var(--qf-surface-card-muted);
+  box-shadow: 0 1px 0 var(--qf-border-muted);
 }
 
 .qf-shell-card--sunken {
-  background: color-mix(in srgb, var(--qf-paper-deep) 88%, transparent);
-  box-shadow: inset 0 0 0 1px var(--qf-rule);
+  background: color-mix(in srgb, var(--qf-surface-card-sunken) 88%, transparent);
+  box-shadow: inset 0 0 0 1px var(--qf-border);
 }
 
 .qf-shell-folio {
@@ -316,7 +272,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--qf-ink-3);
+  color: var(--qf-text-muted);
 }
 
 .qf-shell-title {
@@ -324,21 +280,21 @@ body {
   font-size: var(--qf-type-title);
   line-height: var(--qf-lh-display);
   letter-spacing: -0.01em;
-  color: var(--qf-ink);
+  color: var(--qf-text-primary);
 }
 
 .qf-shell-subtitle {
   font-family: var(--qf-font-serif);
   font-size: var(--qf-type-body);
   line-height: var(--qf-lh-body);
-  color: var(--qf-ink-3);
+  color: var(--qf-text-muted);
 }
 
 .qf-shell-quiet-button {
-  border: 1px solid var(--qf-rule);
+  border: 1px solid var(--qf-border);
   border-radius: var(--qf-radius-button);
-  background: color-mix(in srgb, var(--qf-paper-soft) 85%, transparent);
-  color: var(--qf-ink-2);
+  background: color-mix(in srgb, var(--qf-surface-card) 85%, transparent);
+  color: var(--qf-text-secondary);
   font-family: var(--qf-font-sans);
   font-size: var(--qf-type-ui);
   padding: 7px 12px;
@@ -349,24 +305,24 @@ body {
 }
 
 .qf-shell-quiet-button:hover {
-  color: var(--qf-ink);
-  border-color: color-mix(in srgb, var(--qf-ochre) 35%, var(--qf-rule));
+  color: var(--qf-text-primary);
+  border-color: var(--qf-accent-border);
 }
 
 /* MD editor theme overrides */
 .w-md-editor {
-  --color-fg-default: var(--qf-ink) !important;
-  --color-canvas-default: var(--qf-paper-deep) !important;
-  --color-canvas-subtle: var(--qf-paper) !important;
-  --color-border-default: var(--qf-rule) !important;
-  --color-border-muted: var(--qf-rule) !important;
-  border-color: var(--qf-rule) !important;
+  --color-fg-default: var(--qf-text-primary) !important;
+  --color-canvas-default: var(--qf-surface-card-sunken) !important;
+  --color-canvas-subtle: var(--qf-surface-workspace) !important;
+  --color-border-default: var(--qf-border) !important;
+  --color-border-muted: var(--qf-border) !important;
+  border-color: var(--qf-border) !important;
   border-radius: 0.5rem !important;
 }
 
 .w-md-editor-toolbar {
-  background-color: var(--qf-paper) !important;
-  border-bottom-color: var(--qf-rule) !important;
+  background-color: var(--qf-surface-workspace) !important;
+  border-bottom-color: var(--qf-border) !important;
 }
 
 .w-md-editor-text-pre,
@@ -376,8 +332,8 @@ body {
 }
 
 .wmde-markdown {
-  background-color: var(--qf-paper-deep) !important;
-  color: var(--qf-ink) !important;
+  background-color: var(--qf-surface-card-sunken) !important;
+  color: var(--qf-text-primary) !important;
 }
 
 /* Prose text theme overrides */
@@ -413,17 +369,20 @@ body {
 select,
 option,
 optgroup {
-  background-color: var(--color-input-bg);
-  color: var(--color-text);
+  background-color: var(--qf-surface-input);
+  color: var(--qf-text-primary);
 }
 
 select {
-  border-color: var(--color-border);
-  color-scheme: dark;
+  border-color: var(--qf-border);
+  color-scheme: inherit;
 }
 
-optgroup {
-  color: var(--color-text-muted);
+optgroup,
+select::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: var(--qf-text-muted);
 }
 
 @media (max-width: 1024px) {
