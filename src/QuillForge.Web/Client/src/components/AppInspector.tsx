@@ -205,6 +205,90 @@ export default function AppInspector({
             </div>
           </section>
         );
+      case "forge":
+        return (
+          <section className="qf-shell-card px-3 py-3">
+            <div className="qf-shell-folio mb-2">Forge Focus</div>
+            <div className="space-y-1">
+              <MetaRow label="Project" value={status?.project ?? "not set"} />
+              <MetaRow label="Current stage" value={status?.file ?? "pipeline-owned"} />
+              <MetaRow label="Lore set" value={status?.loreSet ?? "loading"} />
+              <MetaRow label="Model" value={status?.model ?? "loading"} />
+            </div>
+            <div className="mt-3 space-y-2">
+              <InspectorAction
+                label="Inspect runtime context"
+                meta="See tokens, session state, and the current Forge environment"
+                onClick={() => onSelectSection("context")}
+              />
+              <InspectorAction
+                label="Open saved sessions"
+                meta="Review earlier operator conversations and pipeline runs"
+                onClick={() => onSelectSection("sessions")}
+              />
+              <InspectorAction
+                label="Browse lore"
+                meta="Check the lore material that Forge can lean on for planning"
+                onClick={() => onSelectSection("lore")}
+              />
+            </div>
+          </section>
+        );
+      case "research":
+        return (
+          <section className="qf-shell-card px-3 py-3">
+            <div className="qf-shell-folio mb-2">Research Focus</div>
+            <div className="space-y-1">
+              <MetaRow label="Project" value={status?.project ?? "not set"} />
+              <MetaRow label="Profile" value={status?.profile ?? "loading"} />
+              <MetaRow label="Lore set" value={status?.loreSet ?? "loading"} />
+              <MetaRow label="Model" value={status?.model ?? "loading"} />
+            </div>
+            <div className="mt-3 space-y-2">
+              <InspectorAction
+                label="Open research browser"
+                meta="Browse saved findings and project markdown in the inspector"
+                onClick={() => onSelectSection("research")}
+              />
+              <InspectorAction
+                label="Inspect runtime context"
+                meta="Check token use and the current research-mode runtime state"
+                onClick={() => onSelectSection("context")}
+              />
+              <InspectorAction
+                label="Open saved sessions"
+                meta="Return to earlier research threads and branches"
+                onClick={() => onSelectSection("sessions")}
+              />
+            </div>
+          </section>
+        );
+      case "council":
+        return (
+          <section className="qf-shell-card px-3 py-3">
+            <div className="qf-shell-folio mb-2">Council Focus</div>
+            <p className="text-sm leading-6 text-text-muted">
+              Council mode routes substantive requests through the advisor roster first, then synthesizes the result for the user-facing response.
+            </p>
+            <div className="mt-3 space-y-2">
+              <InspectorAction
+                label="Configure advisors"
+                meta="Open the council roster editor and tune the active perspectives"
+                onClick={onOpenCouncilConfig}
+              />
+              <InspectorAction
+                label="Inspect runtime context"
+                meta="See tokens, session state, and current council-mode bindings"
+                onClick={() => onSelectSection("context")}
+              />
+              <InspectorAction
+                label="Open saved sessions"
+                meta="Review earlier council deliberations and forks"
+                onClick={() => onSelectSection("sessions")}
+              />
+            </div>
+          </section>
+        );
       default:
         return null;
     }

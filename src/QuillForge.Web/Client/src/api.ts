@@ -806,6 +806,64 @@ export async function updateAgentModels(
   });
 }
 
+// ── Forge project management ──
+
+export interface ForgeProjectInfo {
+  name: string;
+  stage: string;
+  chapterCount: number;
+  paused: boolean;
+}
+
+export interface ForgeChapterStatusInfo {
+  state: string;
+  revisionCount: number;
+  wordCount: number;
+}
+
+export interface ForgeStageTiming {
+  start: string;
+  end: string | null;
+}
+
+export interface ForgeStatsInfo {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  agentCalls: number;
+  chaptersRevised: number;
+  stageTiming: Record<string, ForgeStageTiming>;
+}
+
+export interface ForgeProjectStatus {
+  projectName: string;
+  stage: string;
+  chapterCount: number;
+  paused: boolean;
+  chapters: Record<string, ForgeChapterStatusInfo>;
+  stats: ForgeStatsInfo;
+}
+
+export async function listForgeProjects(): Promise<ForgeProjectInfo[]> {
+  return request("/api/forge/projects");
+}
+
+export async function getForgeProjectStatus(project: string): Promise<ForgeProjectStatus> {
+  return request(`/api/forge/${encodeURIComponent(project)}/status`);
+}
+
+export async function createForgeProject(name: string): Promise<{ status: string; name: string; created: boolean }> {
+  return request("/api/forge/create", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function pauseForgeProject(name: string): Promise<{ status: string; paused: string }> {
+  return request(`/api/forge/${encodeURIComponent(name)}/pause`, {
+    method: "POST",
+  });
+}
+
 // ── Research project management ──
 
 export async function listResearchProjects(): Promise<{ projects: string[] }> {

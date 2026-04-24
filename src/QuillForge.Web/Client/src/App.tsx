@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { acceptWriterPending, getMode, getStatus, getSessionUsage, loadSession, newSession, rejectWriterPending, sendChatStream, setMode as apiSetMode, conversationDeleteMessage, conversationFork } from "./api";
+import {
+  acceptWriterPending,
+  conversationDeleteMessage,
+  conversationFork,
+  createForgeProject,
+  getMode,
+  getStatus,
+  getSessionUsage,
+  loadSession,
+  newSession,
+  pauseForgeProject,
+  rejectWriterPending,
+  sendChatStream,
+  setMode as apiSetMode,
+  type StreamEvent,
+} from "./api";
 import type { Message, MessageVariant, Mode, ModeInfo, Status, DiagnosticEntry, SessionUsage, ReasoningArtifact } from "./types";
 import { parseCommand, executeCommand } from "./commands";
 import type { CommandContext } from "./commands";
@@ -13,6 +28,8 @@ import AppRail from "./components/AppRail";
 import AppInspector, { type InspectorSection } from "./components/AppInspector";
 import AppStatusFooter from "./components/AppStatusFooter";
 import ConversationPane from "./components/ConversationPane";
+import CouncilWorkspace from "./components/CouncilWorkspace";
+import ForgeWorkspace from "./components/ForgeWorkspace";
 import GuideWorkspace from "./components/GuideWorkspace";
 import InputBar from "./components/InputBar";
 import ProfilePicker from "./components/ProfilePicker";
@@ -28,6 +45,7 @@ import CharacterCards from "./components/CharacterCards";
 import TextThemePicker from "./components/TextThemePicker";
 import CouncilConfigPanel from "./components/CouncilConfigPanel";
 import ResearchPanel from "./components/ResearchPanel";
+import ResearchWorkspace from "./components/ResearchWorkspace";
 import RoleplayWorkspace from "./components/RoleplayWorkspace";
 import ShellReasoningOverlay from "./components/ShellReasoningOverlay";
 import WriterWorkspace from "./components/WriterWorkspace";
@@ -158,6 +176,22 @@ function App() {
     setInspectorOpen(true);
     writeInspectorOpen(mode, true);
   }, [mode]);
+
+  const applyModeSelection = useCallback(async (
+    nextMode: Mode,
+    project?: string,
+    file?: string,
+    character?: string,
+  ) => {
+    const result = await apiSetMode(nextMode, project, file, character, currentSessionId);
+    if (result.sessionId) {
+      setCurrentSessionId(result.sessionId);
+    }
+    if (result.notice) {
+      addSystemMessage(result.notice);
+    }
+    refreshStatus(result.sessionId ?? currentSessionId);
+  }, [currentSessionId, refreshStatus]);
 
   useEffect(() => {
     tts.init();
@@ -475,6 +509,84 @@ function App() {
     }
   }
 
+  async function runExternalStream(
+    fetcher: (
+      onEvent: (event: StreamEvent) => void,
+      signal: AbortSignal,
+    ) => Promise<void>,
+  ) {
+    setSending(true);
+    setStreamStatus("Connecting...");
+    setElapsed(0);
+    if (elapsedRef.current) clearInterval(elapsedRef.current);
+    elapsedRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
+    const abort = new AbortController();
+    abortRef.current = abort;
+
+    const reqStreamMsgId = uuid();
+    let reqStreamStarted = false;
+    let reqAccText = "";
+
+    try {
+      await fetcher(
+        (event) => {
+          if (event.type === "status") {
+            setStreamStatus(event.data.message as string);
+          } else if (event.type === "tool") {
+            setStreamStatus(`Using ${event.data.name}...`);
+          } else if (event.type === "text_delta") {
+            reqAccText += event.data.text as string;
+            if (!reqStreamStarted) {
+              reqStreamStarted = true;
+              setStreamStatus(null);
+              setMessages((prev) => [
+                ...prev,
+                { id: reqStreamMsgId, role: "assistant", content: reqAccText, responseType: "streaming", timestamp: Date.now() },
+              ]);
+            } else {
+              const text = reqAccText;
+              setMessages((prev) =>
+                prev.map((message) => message.id === reqStreamMsgId ? { ...message, content: text } : message),
+              );
+            }
+          } else if (event.type === "done") {
+            if (reqStreamStarted) {
+              setMessages((prev) => prev.filter((message) => message.id !== reqStreamMsgId));
+            }
+            addResponseMessage(
+              event.data.content as string,
+              event.data.responseType as string,
+              event.data.portrait as string | null | undefined,
+              (event.data.reasoning as string | null | undefined) ?? null,
+              (event.data.reasoningArtifacts as ReasoningArtifact[] | undefined) ?? undefined,
+            );
+            setStreamStatus(null);
+            refreshStatus();
+          } else if (event.type === "error") {
+            if (reqStreamStarted) {
+              setMessages((prev) => prev.filter((message) => message.id !== reqStreamMsgId));
+            }
+            addResponseMessage(`Error: ${event.data.message}`, "error");
+            setStreamStatus(null);
+          }
+        },
+        abort.signal,
+      );
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        addResponseMessage(
+          `Error: ${err instanceof Error ? err.message : "Connection failed"}`,
+          "error",
+        );
+      }
+      setStreamStatus(null);
+    } finally {
+      setSending(false);
+      abortRef.current = null;
+      if (elapsedRef.current) { clearInterval(elapsedRef.current); elapsedRef.current = null; }
+    }
+  }
+
   async function handleSend(text: string) {
     const parsed = parseCommand(text);
 
@@ -499,104 +611,15 @@ function App() {
         openMode: () => setModeOpen(true),
         openLore: () => openInspectorSection("lore"),
         openContext: () => openInspectorSection("context"),
-        newSession: async () => {
-          const result = await newSession();
-          setMessages([]);
-          setCurrentSessionId(result.sessionId);
-          setHasPending(false);
-          setSessionUsage(null);
-          setInspectorSection("overview");
-          refreshStatus(result.sessionId);
-        },
+        newSession: handleNewSession,
         clearMessages: () => setMessages([]),
         addChatMessage: (partial) => {
           const msg: Message = { ...partial, id: uuid(), timestamp: Date.now() };
           setMessages((prev) => [...prev, msg]);
         },
-        setMode: async (m: Mode, project?: string, file?: string, character?: string) => {
-          const result = await apiSetMode(m, project, file, character, currentSessionId);
-          if (result.sessionId) {
-            setCurrentSessionId(result.sessionId);
-          }
-          if (result.notice) {
-            addSystemMessage(result.notice);
-          }
-          refreshStatus(result.sessionId ?? currentSessionId);
-        },
+        setMode: applyModeSelection,
         refreshStatus,
-        streamRequest: async (fetcher) => {
-          // Reuse the same streaming UI as doSend, with text_delta support
-          setSending(true);
-          setStreamStatus("Connecting...");
-          setElapsed(0);
-          if (elapsedRef.current) clearInterval(elapsedRef.current);
-          elapsedRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-          const abort = new AbortController();
-          abortRef.current = abort;
-
-          const reqStreamMsgId = uuid();
-          let reqStreamStarted = false;
-          let reqAccText = "";
-
-          try {
-            await fetcher(
-              (event) => {
-                if (event.type === "status") {
-                  setStreamStatus(event.data.message as string);
-                } else if (event.type === "tool") {
-                  setStreamStatus(`Using ${event.data.name}...`);
-                } else if (event.type === "text_delta") {
-                  reqAccText += event.data.text as string;
-                  if (!reqStreamStarted) {
-                    reqStreamStarted = true;
-                    setStreamStatus(null);
-                    setMessages((prev) => [
-                      ...prev,
-                      { id: reqStreamMsgId, role: "assistant", content: reqAccText, responseType: "streaming", timestamp: Date.now() },
-                    ]);
-                  } else {
-                    const text = reqAccText;
-                    setMessages((prev) =>
-                      prev.map((m) => m.id === reqStreamMsgId ? { ...m, content: text } : m),
-                    );
-                  }
-                } else if (event.type === "done") {
-                  if (reqStreamStarted) {
-                    setMessages((prev) => prev.filter((m) => m.id !== reqStreamMsgId));
-                  }
-                  addResponseMessage(
-                    event.data.content as string,
-                    event.data.responseType as string,
-                    event.data.portrait as string | null | undefined,
-                    (event.data.reasoning as string | null | undefined) ?? null,
-                    (event.data.reasoningArtifacts as ReasoningArtifact[] | undefined) ?? undefined,
-                  );
-                  setStreamStatus(null);
-                  refreshStatus();
-                } else if (event.type === "error") {
-                  if (reqStreamStarted) {
-                    setMessages((prev) => prev.filter((m) => m.id !== reqStreamMsgId));
-                  }
-                  addResponseMessage(`Error: ${event.data.message}`, "error");
-                  setStreamStatus(null);
-                }
-              },
-              abort.signal,
-            );
-          } catch (err) {
-            if ((err as Error).name !== "AbortError") {
-              addResponseMessage(
-                `Error: ${err instanceof Error ? err.message : "Connection failed"}`,
-                "error",
-              );
-            }
-            setStreamStatus(null);
-          } finally {
-            setSending(false);
-            abortRef.current = null;
-            if (elapsedRef.current) { clearInterval(elapsedRef.current); elapsedRef.current = null; }
-          }
-        },
+        streamRequest: runExternalStream,
       };
 
       const result = await executeCommand(parsed.name, parsed.args, ctx);
@@ -832,6 +855,51 @@ function App() {
     }
   }
 
+  async function handleSelectForgeProject(project: string) {
+    await applyModeSelection("forge", project);
+  }
+
+  async function handleSelectResearchProject(project: string) {
+    await applyModeSelection("research", project);
+  }
+
+  async function handleCreateForgeProject(projectName: string) {
+    const normalized = projectName.trim().replace(/\s+/g, "-");
+    if (!normalized) {
+      return;
+    }
+
+    const result = await createForgeProject(normalized);
+    if (result.status !== "ok") {
+      throw new Error("Failed to create forge project");
+    }
+
+    await applyModeSelection("forge", result.name);
+  }
+
+  async function handleForgeDesign(project: string) {
+    const { sendForgeDesignStream } = await import("./forge");
+    await runExternalStream((onEvent, signal) => sendForgeDesignStream(project, onEvent, signal));
+  }
+
+  async function handleForgeStart(project: string) {
+    const { sendForgeStream } = await import("./forge");
+    await runExternalStream((onEvent, signal) => sendForgeStream(project, onEvent, signal));
+  }
+
+  async function handleForgeApprove(project: string) {
+    const { sendForgeApproveStream } = await import("./forge");
+    await runExternalStream((onEvent, signal) => sendForgeApproveStream(project, onEvent, signal));
+  }
+
+  async function handleForgePause(project: string) {
+    const result = await pauseForgeProject(project);
+    if (result.status !== "ok") {
+      throw new Error("Failed to pause forge pipeline");
+    }
+    refreshStatus();
+  }
+
   const hasAssistantMessages = messages.some((m) => m.role === "assistant");
   const updateVersion = status?.update?.version ?? "a newer version";
   const updateUrl = status?.update?.url ?? RELEASES_URL;
@@ -1008,6 +1076,102 @@ function App() {
             onOpenSection={openInspectorSection}
             onRegenerate={handleRegenerate}
             onDeleteLast={handleDeleteLast}
+          />
+        );
+      case "forge":
+        return (
+          <ForgeWorkspace
+            status={status}
+            sending={sending}
+            updateBanner={updateBanner}
+            conversationPane={(
+              <ConversationPane
+                {...conversationPaneProps}
+                mode="forge"
+                emptyState={buildEmptyState(
+                  "forge",
+                  "Forge console is ready",
+                  "Select a project, inspect the pipeline, or run the next explicit forge stage from the workspace controls.",
+                )}
+              />
+            )}
+            inputBar={(
+              <InputBar
+                onSend={handleSend}
+                disabled={sending}
+                placeholder="Ask Forge what command to run next, or inspect the current pipeline..."
+              />
+            )}
+            onOpenMode={() => setModeOpen(true)}
+            onOpenSection={openInspectorSection}
+            onSelectProject={handleSelectForgeProject}
+            onCreateProject={handleCreateForgeProject}
+            onRunDesign={handleForgeDesign}
+            onRunStart={handleForgeStart}
+            onRunApprove={handleForgeApprove}
+            onRunPause={handleForgePause}
+          />
+        );
+      case "research":
+        return (
+          <ResearchWorkspace
+            status={status}
+            updateBanner={updateBanner}
+            conversationPane={(
+              <ConversationPane
+                {...conversationPaneProps}
+                mode="research"
+                emptyState={buildEmptyState(
+                  "research",
+                  "Research briefing is ready",
+                  "Start a sourced investigation from the sidecar while saved findings stay visible in the main workspace.",
+                )}
+              />
+            )}
+            inputBar={(
+              <InputBar
+                onSend={handleSend}
+                disabled={sending}
+                placeholder="Ask a sourced question or refine the active research project..."
+              />
+            )}
+            onOpenMode={() => setModeOpen(true)}
+            onOpenSection={openInspectorSection}
+            onSelectProject={handleSelectResearchProject}
+            onQuickPrompt={(prompt) => {
+              void handleSend(prompt);
+            }}
+          />
+        );
+      case "council":
+        return (
+          <CouncilWorkspace
+            status={status}
+            messages={messages}
+            updateBanner={updateBanner}
+            conversationPane={(
+              <ConversationPane
+                {...conversationPaneProps}
+                mode="council"
+                emptyState={buildEmptyState(
+                  "council",
+                  "Council chamber is ready",
+                  "Ask a question that benefits from multiple perspectives and the latest synthesis will pin itself into the main workspace.",
+                )}
+              />
+            )}
+            inputBar={(
+              <InputBar
+                onSend={handleSend}
+                disabled={sending}
+                placeholder="Ask the council a question..."
+              />
+            )}
+            onOpenSection={openInspectorSection}
+            onOpenCouncilConfig={() => setCouncilConfigOpen(true)}
+            onQuickPrompt={(prompt) => {
+              void handleSend(prompt);
+            }}
           />
         );
       default:
