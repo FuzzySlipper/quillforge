@@ -109,7 +109,7 @@ export default function ProfilePicker({ open, onClose, onSwitched, sessionId }: 
           <button
             onClick={handleSave}
             disabled={saving}
-            className="mt-2 bg-accent hover:bg-accent-hover text-white font-semibold rounded-lg px-4 py-2.5 disabled:opacity-50 transition-colors"
+            className="mt-2 bg-accent hover:bg-accent-hover text-accent-contrast font-semibold rounded-lg px-4 py-2.5 disabled:opacity-50 transition-colors"
           >
             {saving ? "Switching..." : "Apply"}
           </button>

@@ -465,7 +465,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
           </div>
 
           {error && (
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-danger">{error}</p>
           )}
 
           <div className="flex gap-2 justify-end pt-2">
@@ -475,7 +475,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
             <button
               onClick={handleSave}
               disabled={saving || (isNew && (!form.alias || !form.defaultModel))}
-              className="text-sm bg-accent text-white rounded-lg px-4 py-1.5 disabled:opacity-50"
+              className="text-sm bg-accent text-accent-contrast rounded-lg px-4 py-1.5 disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save"}
             </button>
@@ -509,7 +509,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                       {p.type}
                     </span>
                     {p.apiKeySet === false && (
-                      <span className="text-[10px] uppercase tracking-wider text-red-400/80 bg-red-400/10 px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] uppercase tracking-wider text-danger/80 bg-danger-soft px-1.5 py-0.5 rounded">
                         No Key
                       </span>
                     )}
@@ -530,8 +530,8 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                     className={`text-xs px-2 py-1 rounded bg-surface-alt disabled:opacity-50 ${
                       testResult?.alias === p.alias
                         ? testResult.success
-                          ? "text-green-400"
-                          : "text-red-400"
+                          ? "text-success"
+                          : "text-danger"
                         : "text-text-muted hover:text-accent"
                     }`}
                     title={testResult?.alias === p.alias && !testResult.success ? testResult.error : undefined}
@@ -550,7 +550,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                   </button>
                   <button
                     onClick={() => handleDelete(p.alias)}
-                    className="text-xs text-text-muted hover:text-red-400 px-2 py-1 rounded bg-surface-alt"
+                    className="text-xs text-text-muted hover:text-danger px-2 py-1 rounded bg-surface-alt"
                   >
                     Del
                   </button>
@@ -561,7 +561,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
         )}
 
         {testResult && !testResult.success && (
-          <p className="text-xs text-red-400 px-1">
+          <p className="text-xs text-danger px-1">
             {testResult.alias}: {testResult.error || "Connection failed"}
           </p>
         )}
@@ -614,7 +614,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
       </div>
     </Overlay>
   );

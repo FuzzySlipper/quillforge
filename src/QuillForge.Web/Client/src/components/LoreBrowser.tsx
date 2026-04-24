@@ -190,7 +190,7 @@ export default function LoreBrowser({
               </span>
               <button
                 onClick={() => handleDelete(selected)}
-                className="text-xs text-text-muted/50 hover:text-red-400"
+                className="text-xs text-text-muted/50 hover:text-danger"
                 title="Delete file"
               >
                 delete
@@ -221,7 +221,7 @@ export default function LoreBrowser({
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="text-sm bg-accent text-white rounded-lg px-4 py-1.5 disabled:opacity-50"
+                    className="text-sm bg-accent text-accent-contrast rounded-lg px-4 py-1.5 disabled:opacity-50"
                   >
                     {saving ? "Saving..." : "Save"}
                   </button>
@@ -278,7 +278,7 @@ export default function LoreBrowser({
             <button
               onClick={handleCreateProject}
               disabled={creatingProject || !newProjectName.trim()}
-              className="text-xs bg-accent text-white rounded-lg px-3 py-1.5 disabled:opacity-50"
+              className="text-xs bg-accent text-accent-contrast rounded-lg px-3 py-1.5 disabled:opacity-50"
             >
               {creatingProject ? "..." : "Create"}
             </button>

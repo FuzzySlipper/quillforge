@@ -133,7 +133,7 @@ export default function ResearchPanel({ open, onClose, variant = "overlay" }: Re
               </button>
               <button
                 onClick={() => handleDeleteFile(f.name)}
-                className="text-xs text-text-muted hover:text-red-400 px-2 py-1 rounded bg-surface-alt shrink-0"
+                className="text-xs text-text-muted hover:text-danger px-2 py-1 rounded bg-surface-alt shrink-0"
               >
                 Del
               </button>
@@ -144,7 +144,7 @@ export default function ResearchPanel({ open, onClose, variant = "overlay" }: Re
             <p className="text-sm text-text-muted">No findings yet.</p>
           )}
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-danger">{error}</p>}
         </div>
       </SurfaceFrame>
     );
@@ -172,7 +172,7 @@ export default function ResearchPanel({ open, onClose, variant = "overlay" }: Re
               </button>
               <button
                 onClick={() => handleDeleteProject(p)}
-                className="text-xs text-text-muted hover:text-red-400 px-2 py-1 rounded bg-surface-alt shrink-0"
+                className="text-xs text-text-muted hover:text-danger px-2 py-1 rounded bg-surface-alt shrink-0"
               >
                 Del
               </button>
@@ -180,7 +180,7 @@ export default function ResearchPanel({ open, onClose, variant = "overlay" }: Re
           ))
         )}
 
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {error && <p className="text-xs text-danger">{error}</p>}
       </div>
     </SurfaceFrame>
   );

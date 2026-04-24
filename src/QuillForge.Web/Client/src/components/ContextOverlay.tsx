@@ -60,7 +60,7 @@ export default function ContextOverlay({
 
   const tabClass = (t: Tab) =>
     `text-sm px-3 py-1.5 rounded-lg transition-colors ${
-      tab === t ? "bg-accent text-white" : "text-text-muted hover:text-text"
+      tab === t ? "bg-accent text-accent-contrast" : "text-text-muted hover:text-text"
     }`;
 
   return (

@@ -128,7 +128,7 @@ export default function MessageBubble({ message, index, mode, onEdit, onRetry, o
         {!isSystem && onDelete && !editing && (
           <button
             onClick={() => onDelete(message.id)}
-            className="text-[10px] text-text-muted/40 hover:text-red-400 transition-colors select-none"
+            className="text-[10px] text-text-muted/40 hover:text-danger transition-colors select-none"
             title="Delete this message"
           >
             del
@@ -185,14 +185,14 @@ export default function MessageBubble({ message, index, mode, onEdit, onRetry, o
             </button>
             <button
               onClick={handleSave}
-              className="text-xs bg-accent text-white rounded px-3 py-1"
+              className="text-xs bg-accent text-accent-contrast rounded px-3 py-1"
             >
               Save
             </button>
             {onRetry && (
               <button
                 onClick={() => { handleSave(); onRetry(message.id); }}
-                className="text-xs bg-accent/70 hover:bg-accent text-white rounded px-3 py-1"
+                className="text-xs bg-accent/70 hover:bg-accent text-accent-contrast rounded px-3 py-1"
               >
                 Retry
               </button>

@@ -140,7 +140,7 @@ export default function PlotBrowser({
               <button
                 onClick={() => handleLoad(selected)}
                 disabled={working || !sessionId}
-                className="text-sm bg-accent text-white rounded-lg px-3 py-1.5 disabled:opacity-50"
+                className="text-sm bg-accent text-accent-contrast rounded-lg px-3 py-1.5 disabled:opacity-50"
               >
                 Load
               </button>
@@ -172,7 +172,7 @@ export default function PlotBrowser({
           <button
             onClick={handleGenerate}
             disabled={working}
-            className="self-end text-sm bg-accent text-white rounded-lg px-4 py-2 disabled:opacity-50"
+            className="self-end text-sm bg-accent text-accent-contrast rounded-lg px-4 py-2 disabled:opacity-50"
           >
             {working ? "Generating..." : "Generate"}
           </button>
@@ -209,7 +209,7 @@ export default function PlotBrowser({
         </div>
 
         {error && (
-          <div className="text-sm text-red-300 bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2">
+          <div className="text-sm text-danger-text bg-danger-soft border border-danger-border rounded-lg px-3 py-2">
             {error}
           </div>
         )}

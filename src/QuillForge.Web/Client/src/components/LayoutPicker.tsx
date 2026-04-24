@@ -125,7 +125,7 @@ export default function LayoutPicker({ open, onClose }: LayoutPickerProps) {
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
-                className="text-sm bg-accent text-white rounded-lg px-4 py-1.5 disabled:opacity-50"
+                className="text-sm bg-accent text-accent-contrast rounded-lg px-4 py-1.5 disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Save"}
               </button>
@@ -184,11 +184,11 @@ export default function LayoutPicker({ open, onClose }: LayoutPickerProps) {
                       alt={bg.filename}
                       className="w-full h-24 object-cover"
                     />
-                    <div className="absolute bottom-0 inset-x-0 bg-black/60 px-2 py-1">
-                      <span className="text-[10px] text-white truncate block">{bg.filename}</span>
+                    <div className="absolute bottom-0 inset-x-0 bg-overlay px-2 py-1">
+                      <span className="text-[10px] text-overlay-contrast truncate block">{bg.filename}</span>
                     </div>
                     {activeBg === bg.url && (
-                      <div className="absolute top-1 right-1 bg-accent text-white text-[9px] px-1.5 py-0.5 rounded">
+                      <div className="absolute top-1 right-1 bg-accent text-accent-contrast text-[9px] px-1.5 py-0.5 rounded">
                         active
                       </div>
                     )}

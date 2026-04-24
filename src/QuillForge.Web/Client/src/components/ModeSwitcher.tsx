@@ -86,12 +86,12 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
                 onClick={() => setSelectedMode(m)}
                 className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   selectedMode === m
-                    ? "bg-accent text-white"
+                    ? "bg-accent text-accent-contrast"
                     : "bg-input-bg text-text-muted hover:text-text border border-border"
                 }`}
               >
                 <span className="flex items-center justify-center gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/15 ring-1 ring-white/10">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-alt/60 ring-1 ring-border/40">
                     <img src={MODE_ICON_PATHS[m]} alt="" aria-hidden="true" className="h-5 w-5" />
                   </span>
                   <span>{MODE_LABELS[m]}</span>
@@ -185,7 +185,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
           <button
             onClick={handleApply}
             disabled={saving || !canApply}
-            className="mt-2 bg-accent hover:bg-accent-hover text-white font-semibold rounded-lg px-4 py-2.5 disabled:opacity-50 transition-colors"
+            className="mt-2 bg-accent hover:bg-accent-hover text-accent-contrast font-semibold rounded-lg px-4 py-2.5 disabled:opacity-50 transition-colors"
           >
             {saving ? "Switching..." : "Apply"}
           </button>

@@ -46,7 +46,7 @@ function ForgeActionButton({
 }) {
   const className =
     emphasis === "accent"
-      ? "rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+      ? "rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-hover disabled:opacity-50"
       : emphasis === "subtle"
         ? "rounded-lg bg-surface px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-50"
         : "rounded-lg bg-surface-alt px-4 py-2 text-sm font-medium text-text transition-colors hover:bg-border disabled:opacity-50";
@@ -454,7 +454,7 @@ export default function ForgeWorkspace({
             )}
 
             {error && (
-              <div className="mb-4 rounded-lg border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+              <div className="mb-4 rounded-lg border border-danger-border bg-danger-soft px-4 py-3 text-sm text-danger-text">
                 {error}
               </div>
             )}

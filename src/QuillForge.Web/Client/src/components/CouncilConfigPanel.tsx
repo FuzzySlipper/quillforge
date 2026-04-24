@@ -158,7 +158,7 @@ export default function CouncilConfigPanel({ open, onClose }: CouncilConfigPanel
             className="w-full rounded bg-bg border border-border px-3 py-2 text-sm text-text resize-y"
           />
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-danger">{error}</p>}
 
           <div className="flex gap-2 justify-end">
             <button onClick={handleBack} className="text-xs px-3 py-1.5 rounded bg-surface-alt text-text-muted hover:text-text">
@@ -167,7 +167,7 @@ export default function CouncilConfigPanel({ open, onClose }: CouncilConfigPanel
             <button
               onClick={handleSave}
               disabled={saving || !form.name || !form.systemPrompt}
-              className="text-xs px-3 py-1.5 rounded bg-accent text-white hover:bg-accent/80 disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded bg-accent text-accent-contrast hover:bg-accent/80 disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save"}
             </button>
@@ -205,7 +205,7 @@ export default function CouncilConfigPanel({ open, onClose }: CouncilConfigPanel
               </button>
               <button
                 onClick={() => handleDelete(m.name)}
-                className="text-xs text-text-muted hover:text-red-400 px-2 py-1 rounded bg-surface-alt"
+                className="text-xs text-text-muted hover:text-danger px-2 py-1 rounded bg-surface-alt"
               >
                 Del
               </button>

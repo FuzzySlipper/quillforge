@@ -91,6 +91,7 @@
   --qf-surface-input: color-mix(in srgb, var(--qf-paper-deep) 88%, var(--qf-paper-soft));
   --qf-surface-input-hover: color-mix(in srgb, var(--qf-paper-soft) 78%, var(--qf-paper-deep));
   --qf-surface-overlay: rgba(7, 7, 10, 0.68);
+  --qf-overlay-contrast: var(--qf-ink);
   --qf-surface-scrim-start: rgba(0, 0, 0, 0.18);
   --qf-surface-scrim-end: rgba(0, 0, 0, 0.08);
   --qf-surface-elevated: color-mix(in srgb, var(--qf-paper-soft) 90%, black);
@@ -122,6 +123,10 @@
   --qf-danger-text: color-mix(in srgb, var(--qf-danger) 76%, var(--qf-ink));
   --qf-success-soft: color-mix(in srgb, var(--qf-success) 13%, transparent);
   --qf-warning-soft: color-mix(in srgb, var(--qf-warning) 16%, transparent);
+  --qf-warning-text: color-mix(in srgb, var(--qf-warning) 78%, var(--qf-ink));
+  --qf-info-soft: color-mix(in srgb, var(--qf-info) 14%, transparent);
+  --qf-info-border: color-mix(in srgb, var(--qf-info) 38%, var(--qf-rule));
+  --qf-info-text: color-mix(in srgb, var(--qf-info) 80%, var(--qf-ink));
 
   /* Shadows */
   --qf-flyout-shadow: -8px 0 24px -18px rgba(0, 0, 0, 0.6);
@@ -137,24 +142,28 @@
   --color-text-muted: var(--qf-text-muted);
   --color-accent: var(--qf-accent);
   --color-accent-hover: var(--qf-accent-hover);
+  --color-accent-contrast: var(--qf-accent-contrast);
   --color-input-bg: var(--qf-surface-input);
   --color-border: var(--qf-border);
-  --color-black: var(--qf-surface-overlay);
-  --color-red-200: var(--qf-danger-text);
-  --color-red-300: var(--qf-danger-text);
-  --color-red-400: var(--qf-danger);
-  --color-red-600: color-mix(in srgb, var(--qf-danger) 82%, black);
-  --color-red-700: color-mix(in srgb, var(--qf-danger) 68%, black);
-  --color-red-900: var(--qf-danger-border);
-  --color-red-950: var(--qf-danger-soft);
-  --color-green-400: var(--qf-success);
-  --color-green-600: color-mix(in srgb, var(--qf-success) 76%, black);
-  --color-green-700: color-mix(in srgb, var(--qf-success) 64%, black);
-  --color-yellow-400: var(--qf-warning);
-  --color-amber-200: var(--qf-warning);
-  --color-blue-400: var(--qf-info);
-  --color-blue-500: var(--qf-info);
-  --color-purple-400: color-mix(in srgb, var(--qf-info) 55%, var(--qf-accent));
+  --color-overlay: var(--qf-surface-overlay);
+  --color-overlay-contrast: var(--qf-overlay-contrast);
+  --color-danger: var(--qf-danger);
+  --color-danger-soft: var(--qf-danger-soft);
+  --color-danger-border: var(--qf-danger-border);
+  --color-danger-text: var(--qf-danger-text);
+  --color-danger-strong: color-mix(in srgb, var(--qf-danger) 68%, black);
+  --color-danger-strong-hover: color-mix(in srgb, var(--qf-danger) 82%, black);
+  --color-success: var(--qf-success);
+  --color-success-soft: var(--qf-success-soft);
+  --color-success-strong: color-mix(in srgb, var(--qf-success) 64%, black);
+  --color-success-strong-hover: color-mix(in srgb, var(--qf-success) 76%, black);
+  --color-warning: var(--qf-warning);
+  --color-warning-soft: var(--qf-warning-soft);
+  --color-warning-text: var(--qf-warning-text);
+  --color-info: var(--qf-info);
+  --color-info-soft: var(--qf-info-soft);
+  --color-info-border: var(--qf-info-border);
+  --color-info-text: var(--qf-info-text);
 }
 
 :root[data-theme="light"],
@@ -185,6 +194,7 @@
   --qf-surface-input: color-mix(in srgb, var(--qf-paper-deep) 74%, white);
   --qf-surface-input-hover: color-mix(in srgb, var(--qf-paper-soft) 82%, white);
   --qf-surface-overlay: rgba(30, 26, 20, 0.54);
+  --qf-overlay-contrast: var(--qf-paper-soft);
   --qf-surface-scrim-start: rgba(30, 26, 20, 0.10);
   --qf-surface-scrim-end: rgba(30, 26, 20, 0.04);
   --qf-surface-elevated: color-mix(in srgb, var(--qf-paper-soft) 94%, white);

@@ -57,7 +57,7 @@ export default function WriterControls({
           </div>
         )}
         {targetChanged && currentTarget && (
-          <div className="text-amber-200">
+          <div className="text-warning">
             Pending content was captured for a different target than the one currently selected.
           </div>
         )}
@@ -69,14 +69,14 @@ export default function WriterControls({
             <button
               onClick={onAccept}
               disabled={disabled}
-              className="rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600 disabled:opacity-50"
+              className="rounded-lg bg-success-strong px-4 py-2 text-sm font-medium text-overlay-contrast transition-colors hover:bg-success-strong-hover disabled:opacity-50"
             >
               Accept
             </button>
             <button
               onClick={onReject}
               disabled={disabled}
-              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+              className="rounded-lg bg-danger-strong px-4 py-2 text-sm font-medium text-overlay-contrast transition-colors hover:bg-danger-strong-hover disabled:opacity-50"
             >
               Reject
             </button>

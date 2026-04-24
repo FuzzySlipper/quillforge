@@ -8,15 +8,15 @@ interface DiagnosticsPanelProps {
 
 const levelColors: Record<string, string> = {
   info: "text-text-muted",
-  warning: "text-yellow-400",
-  error: "text-red-400",
+  warning: "text-warning",
+  error: "text-danger",
 };
 
 const categoryColors: Record<string, string> = {
-  stream: "text-blue-400",
-  llm: "text-purple-400",
-  tool: "text-green-400",
-  warning: "text-yellow-400",
+  stream: "text-info",
+  llm: "text-accent",
+  tool: "text-success",
+  warning: "text-warning",
 };
 
 export default function DiagnosticsPanel({ entries, enabled }: DiagnosticsPanelProps) {
