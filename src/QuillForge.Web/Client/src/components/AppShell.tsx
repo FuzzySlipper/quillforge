@@ -89,12 +89,15 @@ export default function AppShell({
               type="button"
               className="qf-shell-inspector-handle"
               title={inspectorOpen ? "Collapse inspector" : "Open inspector"}
+              aria-label={inspectorOpen ? "Collapse inspector" : "Open inspector"}
+              aria-expanded={inspectorOpen}
               onClick={onToggleInspector}
             >
               <ShellIcon
                 name={inspectorOpen ? "chevron-right" : "chevron-left"}
                 className="h-4 w-4"
               />
+              <span className="qf-shell-inspector-handle-label">Inspector</span>
             </button>
 
             <div className="qf-shell-inspector-body">
