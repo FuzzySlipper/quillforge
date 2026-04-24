@@ -77,6 +77,10 @@ const paletteUtility = new RegExp(
 );
 const hardcodedColor = /#[0-9A-Fa-f]{3,8}\b|\brgba?\(|\bhsla?\(|\[(?:#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\()/g;
 
+// This audit catches direct UI color bypasses in app/desktop source. It intentionally
+// does not validate CSS variable allowlists or token-mirroring arrays; keep those
+// synchronized with Shared/Styles/quillforge-tokens.css when semantic aliases change.
+
 function extensionOf(filePath) {
   const index = filePath.lastIndexOf(".");
   return index >= 0 ? filePath.slice(index) : "";
