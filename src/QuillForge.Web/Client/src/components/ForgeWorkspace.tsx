@@ -8,6 +8,7 @@ import {
 } from "../api";
 import type { Status } from "../types";
 import type { InspectorSection } from "./AppInspector";
+import WorkspaceQuickButton from "./WorkspaceQuickButton";
 
 interface ForgeWorkspaceProps {
   status: Status | null;
@@ -31,20 +32,6 @@ interface ForgeDocumentLink {
 }
 
 const FORGE_STAGES = ["Planning", "Design", "Writing", "Review", "Assembly", "Done"] as const;
-
-function ForgeQuietButton({
-  label,
-  onClick,
-}: {
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick} className="qf-shell-quiet-button">
-      {label}
-    </button>
-  );
-}
 
 function ForgeActionButton({
   label,
@@ -302,10 +289,10 @@ export default function ForgeWorkspace({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <ForgeQuietButton label="Mode Menu" onClick={onOpenMode} />
-          <ForgeQuietButton label="Sessions" onClick={() => onOpenSection("sessions")} />
-          <ForgeQuietButton label="Context" onClick={() => onOpenSection("context")} />
-          <ForgeQuietButton label="Lore" onClick={() => onOpenSection("lore")} />
+          <WorkspaceQuickButton label="Mode Menu" onClick={onOpenMode} />
+          <WorkspaceQuickButton label="Sessions" onClick={() => onOpenSection("sessions")} />
+          <WorkspaceQuickButton label="Context" onClick={() => onOpenSection("context")} />
+          <WorkspaceQuickButton label="Lore" onClick={() => onOpenSection("lore")} />
         </div>
       </div>
 

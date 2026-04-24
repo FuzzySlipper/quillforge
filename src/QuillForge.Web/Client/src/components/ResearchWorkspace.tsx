@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ReactNode } from "react";
 import {
@@ -10,6 +10,7 @@ import {
 } from "../api";
 import type { Status } from "../types";
 import type { InspectorSection } from "./AppInspector";
+import WorkspaceQuickButton from "./WorkspaceQuickButton";
 
 interface ResearchWorkspaceProps {
   status: Status | null;
@@ -25,20 +26,6 @@ interface ResearchWorkspaceProps {
 interface ResearchFileEntry {
   name: string;
   path: string;
-}
-
-function ResearchQuickButton({
-  label,
-  onClick,
-}: {
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick} className="qf-shell-quiet-button">
-      {label}
-    </button>
-  );
 }
 
 export default function ResearchWorkspace({
@@ -60,6 +47,7 @@ export default function ResearchWorkspace({
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const preferredFileNameRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +97,7 @@ export default function ResearchWorkspace({
       if (!selectedProject) {
         setFiles([]);
         setViewingFile(null);
+        preferredFileNameRef.current = null;
         setLoadingFile(false);
         return;
       }
@@ -122,25 +111,30 @@ export default function ResearchWorkspace({
         }
 
         setFiles(data.files);
-        const preferredFile = viewingFile?.name && data.files.some((file) => file.name === viewingFile.name)
-          ? viewingFile.name
+        const preferredFileName = preferredFileNameRef.current;
+        const preferredFile = preferredFileName && data.files.some((file) => file.name === preferredFileName)
+          ? preferredFileName
           : data.files[0]?.name ?? null;
 
         if (preferredFile) {
           setLoadingFile(true);
           const fileData = await readResearchFile(selectedProject, preferredFile);
           if (!cancelled) {
+            preferredFileNameRef.current = preferredFile;
             setViewingFile({ name: preferredFile, content: fileData.content });
+            setLoadingFile(false);
           }
-          setLoadingFile(false);
         } else {
+          preferredFileNameRef.current = null;
           setViewingFile(null);
+          setLoadingFile(false);
         }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load research files");
           setFiles([]);
           setViewingFile(null);
+          preferredFileNameRef.current = null;
           setLoadingFile(false);
         }
       } finally {
@@ -166,6 +160,7 @@ export default function ResearchWorkspace({
     setError(null);
     try {
       const data = await readResearchFile(selectedProject, name);
+      preferredFileNameRef.current = name;
       setViewingFile({ name, content: data.content });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to read research file");
@@ -188,6 +183,7 @@ export default function ResearchWorkspace({
         if (nextFiles[0]) {
           await openFile(nextFiles[0].name);
         } else {
+          preferredFileNameRef.current = null;
           setViewingFile(null);
         }
       }
@@ -247,22 +243,22 @@ export default function ResearchWorkspace({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <ResearchQuickButton label="Mode Menu" onClick={onOpenMode} />
-          <ResearchQuickButton label="Sessions" onClick={() => onOpenSection("sessions")} />
-          <ResearchQuickButton label="Context" onClick={() => onOpenSection("context")} />
-          <ResearchQuickButton label="Project browser" onClick={() => onOpenSection("research")} />
+          <WorkspaceQuickButton label="Mode Menu" onClick={onOpenMode} />
+          <WorkspaceQuickButton label="Sessions" onClick={() => onOpenSection("sessions")} />
+          <WorkspaceQuickButton label="Context" onClick={() => onOpenSection("context")} />
+          <WorkspaceQuickButton label="Project browser" onClick={() => onOpenSection("research")} />
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <ResearchQuickButton
+          <WorkspaceQuickButton
             label="Break this topic into 3 research angles."
             onClick={() => onQuickPrompt("Break my next research question into three focused angles and tell me why each one matters.")}
           />
-          <ResearchQuickButton
+          <WorkspaceQuickButton
             label="Summarize the saved findings in this project."
             onClick={() => onQuickPrompt("Summarize the saved findings in the active research project and call out any open questions.")}
           />
-          <ResearchQuickButton
+          <WorkspaceQuickButton
             label="What should I research next?"
             onClick={() => onQuickPrompt("Based on the active research project, what should I investigate next?")}
           />

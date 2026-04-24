@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { listCouncilMembers, type CouncilMemberInfo } from "../api";
 import type { Message, Status } from "../types";
 import type { InspectorSection } from "./AppInspector";
+import WorkspaceQuickButton from "./WorkspaceQuickButton";
 
 interface CouncilWorkspaceProps {
   status: Status | null;
@@ -14,20 +15,6 @@ interface CouncilWorkspaceProps {
   onOpenSection: (section: InspectorSection) => void;
   onOpenCouncilConfig: () => void;
   onQuickPrompt: (prompt: string) => void;
-}
-
-function CouncilQuickButton({
-  label,
-  onClick,
-}: {
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick} className="qf-shell-quiet-button">
-      {label}
-    </button>
-  );
 }
 
 export default function CouncilWorkspace({
@@ -97,21 +84,21 @@ export default function CouncilWorkspace({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <CouncilQuickButton label="Advisor Settings" onClick={onOpenCouncilConfig} />
-          <CouncilQuickButton label="Sessions" onClick={() => onOpenSection("sessions")} />
-          <CouncilQuickButton label="Context" onClick={() => onOpenSection("context")} />
+          <WorkspaceQuickButton label="Advisor Settings" onClick={onOpenCouncilConfig} />
+          <WorkspaceQuickButton label="Sessions" onClick={() => onOpenSection("sessions")} />
+          <WorkspaceQuickButton label="Context" onClick={() => onOpenSection("context")} />
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <CouncilQuickButton
+          <WorkspaceQuickButton
             label="Stress-test this premise."
             onClick={() => onQuickPrompt("Stress-test this premise and tell me where the biggest creative risks are.")}
           />
-          <CouncilQuickButton
+          <WorkspaceQuickButton
             label="Argue both sides of this choice."
             onClick={() => onQuickPrompt("Argue both sides of this story choice and tell me what each side gains or loses.")}
           />
-          <CouncilQuickButton
+          <WorkspaceQuickButton
             label="Give me three contradictory options."
             onClick={() => onQuickPrompt("Give me three strong contradictory options for what to do next and explain why each one works.")}
           />

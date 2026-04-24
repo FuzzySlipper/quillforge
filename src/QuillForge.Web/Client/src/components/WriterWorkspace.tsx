@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { Message, ModeInfo, Status } from "../types";
 import { formatStoryTarget, getWriterProseSummary } from "../workspaceSupport";
 import type { InspectorSection } from "./AppInspector";
+import WorkspaceQuickButton from "./WorkspaceQuickButton";
 import WriterControls from "./WriterControls";
 
 interface WriterWorkspaceProps {
@@ -18,20 +19,6 @@ interface WriterWorkspaceProps {
   onAccept: () => void;
   onReject: () => void;
   onRegenerate: () => void;
-}
-
-function WriterQuickButton({
-  label,
-  onClick,
-}: {
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick} className="qf-shell-quiet-button">
-      {label}
-    </button>
-  );
 }
 
 export default function WriterWorkspace({
@@ -87,10 +74,10 @@ export default function WriterWorkspace({
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <WriterQuickButton label="Lore" onClick={() => onOpenSection("lore")} />
-              <WriterQuickButton label="Plots" onClick={() => onOpenSection("plots")} />
-              <WriterQuickButton label="Prompts" onClick={() => onOpenSection("prompts")} />
-              <WriterQuickButton label="Context" onClick={() => onOpenSection("context")} />
+              <WorkspaceQuickButton label="Lore" onClick={() => onOpenSection("lore")} />
+              <WorkspaceQuickButton label="Plots" onClick={() => onOpenSection("plots")} />
+              <WorkspaceQuickButton label="Prompts" onClick={() => onOpenSection("prompts")} />
+              <WorkspaceQuickButton label="Context" onClick={() => onOpenSection("context")} />
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Status } from "../types";
 import type { InspectorSection } from "./AppInspector";
+import WorkspaceQuickButton from "./WorkspaceQuickButton";
 import RoleplayControls from "./RoleplayControls";
 
 interface RoleplayWorkspaceProps {
@@ -13,20 +14,6 @@ interface RoleplayWorkspaceProps {
   onOpenSection: (section: InspectorSection) => void;
   onRegenerate: () => void;
   onDeleteLast: () => void;
-}
-
-function RoleplayQuickButton({
-  label,
-  onClick,
-}: {
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick} className="qf-shell-quiet-button">
-      {label}
-    </button>
-  );
 }
 
 export default function RoleplayWorkspace({
@@ -74,10 +61,10 @@ export default function RoleplayWorkspace({
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <RoleplayQuickButton label="Characters" onClick={() => onOpenSection("characters")} />
-          <RoleplayQuickButton label="Lore" onClick={() => onOpenSection("lore")} />
-          <RoleplayQuickButton label="Context" onClick={() => onOpenSection("context")} />
-          <RoleplayQuickButton label="Sessions" onClick={() => onOpenSection("sessions")} />
+          <WorkspaceQuickButton label="Characters" onClick={() => onOpenSection("characters")} />
+          <WorkspaceQuickButton label="Lore" onClick={() => onOpenSection("lore")} />
+          <WorkspaceQuickButton label="Context" onClick={() => onOpenSection("context")} />
+          <WorkspaceQuickButton label="Sessions" onClick={() => onOpenSection("sessions")} />
           <div className="ml-auto">
             <RoleplayControls
               hasMessages={hasMessages}
