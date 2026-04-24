@@ -447,7 +447,7 @@ export default function ResearchWorkspace({
             )}
 
             {!loadingFile && viewingFile && (
-              <article className="qf-shell-card border-accent/10 bg-[color-mix(in_srgb,var(--qf-paper-soft)_96%,transparent)] px-6 py-6">
+              <article className="qf-shell-card border-accent/10 bg-[color-mix(in_srgb,var(--qf-surface-card)_96%,transparent)] px-6 py-6">
                 <div className="prose prose-invert prose-sm prose-themed max-w-none [&_p]:mb-3 [&_p:last-child]:mb-0">
                   <ReactMarkdown>{viewingFile.content}</ReactMarkdown>
                 </div>

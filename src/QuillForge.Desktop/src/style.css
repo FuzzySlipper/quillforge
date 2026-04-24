@@ -1,16 +1,8 @@
+@import "../../Shared/Styles/quillforge-tokens.css";
+
 :root {
-  color-scheme: dark;
-  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
-  --color-bg: #1a1a2e;
-  --color-surface: #16213e;
-  --color-surface-alt: #0f3460;
-  --color-text: #e0e0e0;
-  --color-text-muted: #8d93ad;
-  --color-accent: #e94560;
-  --color-accent-hover: #ff6b81;
-  --color-input-bg: #222244;
-  --color-border: #333355;
-  --shell-shadow: 0 28px 60px rgba(0, 0, 0, 0.28);
+  font-family: var(--qf-font-sans);
+  --shell-shadow: var(--qf-panel-shadow);
 }
 
 * {
@@ -27,9 +19,9 @@ body {
   min-height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--color-accent) 38%, transparent) 0%, transparent 36%),
-    radial-gradient(circle at bottom left, color-mix(in srgb, var(--color-surface-alt) 70%, transparent) 0%, transparent 28%),
-    linear-gradient(180deg, var(--color-bg) 0%, var(--color-surface) 100%);
+    radial-gradient(circle at top right, color-mix(in srgb, var(--qf-accent) 24%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at bottom left, color-mix(in srgb, var(--qf-info) 18%, transparent) 0%, transparent 28%),
+    linear-gradient(180deg, var(--qf-surface-workspace) 0%, var(--qf-surface-chrome) 100%);
   color: var(--color-text);
 }
 
@@ -40,8 +32,15 @@ button {
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: var(--qf-disabled-opacity);
   transform: none;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 1px solid var(--qf-focus-ring);
+  outline-offset: 2px;
+  box-shadow: var(--qf-focus-shadow);
 }
 
 .app-shell {
@@ -57,8 +56,8 @@ button:disabled {
   gap: 1rem;
   padding: 0.56rem 0.9rem;
   border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-surface-alt) 100%);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  background: linear-gradient(180deg, var(--qf-surface-chrome) 0%, var(--qf-surface-chrome-strong) 100%);
+  box-shadow: var(--qf-button-shadow);
 }
 
 .toolbar-brand {
@@ -77,9 +76,9 @@ button:disabled {
   height: 2rem;
   border-radius: 0.75rem;
   object-fit: cover;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+  box-shadow: var(--qf-button-shadow);
+  background: color-mix(in srgb, var(--qf-surface-card) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--qf-border) 75%, transparent);
   flex: 0 0 auto;
 }
 
@@ -117,9 +116,9 @@ button:disabled {
   align-items: center;
   justify-content: center;
   min-height: 2rem;
-  border-radius: 999px;
+  border-radius: var(--qf-radius-pill);
   border: 1px solid var(--color-border);
-  background: var(--color-input-bg);
+  background: var(--qf-surface-input);
   color: var(--color-text);
   padding: 0.42rem 0.72rem;
   font-size: 0.78rem;
@@ -129,13 +128,13 @@ button:disabled {
 
 .meta-pill-muted {
   color: var(--color-text-muted);
-  background: var(--color-surface);
+  background: var(--qf-surface-card);
 }
 
 .primary,
 .secondary,
 .toggle-pill {
-  border-radius: 999px;
+  border-radius: var(--qf-radius-pill);
   border: 1px solid var(--color-border);
   padding: 0.72rem 1rem;
   transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, color 120ms ease;
@@ -148,24 +147,24 @@ button:disabled {
 }
 
 .primary {
-  background: var(--color-accent);
-  border-color: var(--color-accent-hover);
-  color: var(--color-bg);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  background: var(--qf-action-primary-bg);
+  border-color: var(--qf-action-primary-bg-hover);
+  color: var(--qf-action-primary-text);
+  box-shadow: var(--qf-button-shadow);
 }
 
 .secondary {
-  background: var(--color-input-bg);
+  background: var(--qf-surface-input);
   color: var(--color-text);
 }
 
 .toggle-pill {
-  background: var(--color-surface);
+  background: var(--qf-surface-card);
   color: var(--color-text);
 }
 
 .toggle-pill[aria-pressed="false"] {
-  background: var(--color-input-bg);
+  background: var(--qf-surface-input);
   color: var(--color-text-muted);
 }
 
@@ -191,7 +190,7 @@ button:disabled {
   width: min(100%, 760px);
   padding: 2rem;
   border-radius: 28px;
-  background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-input-bg) 100%);
+  background: linear-gradient(180deg, var(--qf-surface-card) 0%, var(--qf-surface-input) 100%);
   border: 1px solid var(--color-border);
   box-shadow: var(--shell-shadow);
 }
@@ -201,8 +200,8 @@ button:disabled {
   align-items: center;
   margin: 0 0 1rem;
   padding: 0.35rem 0.7rem;
-  border-radius: 999px;
-  background: var(--color-input-bg);
+  border-radius: var(--qf-radius-pill);
+  background: var(--qf-surface-input);
   border: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-size: 0.82rem;
@@ -232,7 +231,7 @@ button:disabled {
 .status-details div {
   padding: 1rem;
   border-radius: 20px;
-  background: var(--color-input-bg);
+  background: var(--qf-surface-input);
   border: 1px solid var(--color-border);
 }
 
@@ -255,10 +254,10 @@ button:disabled {
 .diagnostics-dock,
 .desktop-chrome-panel {
   border-radius: 22px;
-  background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-input-bg) 100%);
+  background: linear-gradient(180deg, var(--qf-surface-card) 0%, var(--qf-surface-input) 100%);
   color: var(--color-text);
   border: 1px solid var(--color-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: var(--qf-inset-highlight);
 }
 
 .diagnostics-block {
@@ -336,11 +335,11 @@ button:disabled {
 }
 
 .diagnostic-warning .diagnostic-message {
-  color: #f0cb8f;
+  color: var(--qf-warning);
 }
 
 .diagnostic-error .diagnostic-message {
-  color: #ffaaa2;
+  color: var(--qf-danger-text);
 }
 
 .diagnostics-empty {
@@ -396,7 +395,7 @@ button:disabled {
   gap: 0.2rem;
   padding: 0.65rem 0.85rem;
   border-radius: 18px;
-  background: var(--color-input-bg);
+  background: var(--qf-surface-input);
   border: 1px solid var(--color-border);
 }
 
@@ -427,7 +426,7 @@ button:disabled {
   height: auto;
   border: 0;
   display: block;
-  background: var(--color-bg);
+  background: var(--qf-surface-app);
 }
 
 .hidden {

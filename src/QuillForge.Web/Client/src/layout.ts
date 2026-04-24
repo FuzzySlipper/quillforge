@@ -13,8 +13,8 @@
  *   placeholder: Help text      (for panel type)
  *
  *   [style]
- *   --color-bg: #1a1a2e
- *   --color-accent: #e94560
+ *   --color-bg: var(--qf-surface-app)
+ *   --color-accent: var(--qf-accent)
  *   ...
  */
 
@@ -140,29 +140,33 @@ export function parseLayout(name: string, content: string): LayoutConfig {
  * Apply a layout's CSS variables to the document.
  */
 export function applyStyles(styles: Record<string, string>) {
-  const root = document.documentElement;
+  const shell = document.querySelector<HTMLElement>(".qf-theme-shell");
+  const targets = shell ? [document.documentElement, shell] : [document.documentElement];
 
-  // Reset to defaults first (clear any previously applied layout styles)
-  const defaults: Record<string, string> = {
-    "--color-bg": "#1a1a2e",
-    "--color-surface": "#16213e",
-    "--color-surface-alt": "#0f3460",
-    "--color-text": "#e0e0e0",
-    "--color-text-muted": "#888888",
-    "--color-accent": "#e94560",
-    "--color-accent-hover": "#ff6b81",
-    "--color-input-bg": "#222244",
-    "--color-border": "#333355",
-  };
+  // Reset to token defaults first (clear any previously applied layout styles).
+  // The shared QuillForge token stylesheet owns defaults; layouts may still
+  // override semantic aliases for custom backgrounds or accent experiments.
+  const resetVariables = [
+    "--color-bg",
+    "--color-surface",
+    "--color-surface-alt",
+    "--color-text",
+    "--color-text-muted",
+    "--color-accent",
+    "--color-accent-hover",
+    "--color-input-bg",
+    "--color-border",
+  ];
 
-  // Apply defaults
-  for (const [key, value] of Object.entries(defaults)) {
-    root.style.setProperty(key, value);
-  }
+  for (const target of targets) {
+    for (const key of resetVariables) {
+      target.style.removeProperty(key);
+    }
 
-  // Apply layout overrides
-  for (const [key, value] of Object.entries(styles)) {
-    root.style.setProperty(key, value);
+    // Apply layout overrides
+    for (const [key, value] of Object.entries(styles)) {
+      target.style.setProperty(key, value);
+    }
   }
 }
 
