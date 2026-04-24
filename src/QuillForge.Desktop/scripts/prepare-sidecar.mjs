@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -37,12 +37,16 @@ const bundledSidecar = join(binariesDir, targetExeName);
 const bundledPayloadDir = join(resourcesDir, hostTriple);
 const releaseObjDir = join(webProjectRoot, "obj", "Release", "net10.0");
 const releaseBinDir = join(webProjectRoot, "bin", "Release", "net10.0");
+const webWwwrootDir = join(webProjectRoot, "wwwroot");
+const webAssetsDir = join(webWwwrootDir, "assets");
+const webIndexHtml = join(webWwwrootDir, "index.html");
 
 mkdirSync(binariesDir, { recursive: true });
 mkdirSync(resourcesDir, { recursive: true });
 rmSync(publishDir, { recursive: true, force: true });
 rmSync(releaseObjDir, { recursive: true, force: true });
 rmSync(releaseBinDir, { recursive: true, force: true });
+cleanGeneratedWebAssets();
 mkdirSync(publishDir, { recursive: true });
 
 console.log(`Preparing QuillForge backend sidecar for ${hostTriple} (${runtimeIdentifier})...`);
@@ -94,6 +98,23 @@ if (!isWindows) {
 
 console.log(`Bundled sidecar ready at ${bundledSidecar}`);
 console.log(`Bundled backend payload ready at ${bundledPayloadDir}`);
+
+function cleanGeneratedWebAssets() {
+  rmSync(webIndexHtml, { force: true });
+  rmSync(join(webAssetsDir, ".build-marker"), { force: true });
+
+  if (!existsSync(webAssetsDir)) {
+    return;
+  }
+
+  for (const entry of readdirSync(webAssetsDir)) {
+    if (entry === ".gitkeep") {
+      continue;
+    }
+
+    rmSync(join(webAssetsDir, entry), { recursive: true, force: true });
+  }
+}
 
 function detectHostTriple() {
   const output = execFileSync("rustc", ["-vV"], { encoding: "utf8" });
