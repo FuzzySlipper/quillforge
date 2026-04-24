@@ -224,7 +224,7 @@ export default function CharacterCards({
             />
           </div>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
 
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setEditing(null)} className="text-sm text-text-muted hover:text-text px-3 py-1.5">
@@ -233,7 +233,7 @@ export default function CharacterCards({
             <button
               onClick={handleSave}
               disabled={saving}
-              className="text-sm bg-accent text-white rounded-lg px-4 py-1.5 disabled:opacity-50"
+              className="text-sm bg-accent text-accent-contrast rounded-lg px-4 py-1.5 disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save"}
             </button>
@@ -322,7 +322,7 @@ export default function CharacterCards({
                     </button>
                     <button
                       onClick={() => handleDelete(c.fileName)}
-                      className="text-xs text-text-muted hover:text-red-400 px-2 py-1 rounded bg-surface-alt"
+                      className="text-xs text-text-muted hover:text-danger px-2 py-1 rounded bg-surface-alt"
                     >
                       Del
                     </button>
@@ -406,7 +406,7 @@ export default function CharacterCards({
                 }
               }}
               disabled={importing || !bulkImportPath.trim()}
-              className="text-sm bg-accent text-white rounded-lg px-4 py-1.5 disabled:opacity-50 self-start"
+              className="text-sm bg-accent text-accent-contrast rounded-lg px-4 py-1.5 disabled:opacity-50 self-start"
             >
               {importing ? "Importing..." : "Import All Cards"}
             </button>
@@ -418,7 +418,7 @@ export default function CharacterCards({
           </div>
         )}
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
       </div>
     </SurfaceFrame>
   );

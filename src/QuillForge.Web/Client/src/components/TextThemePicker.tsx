@@ -14,7 +14,7 @@ function Swatch({ color, label }: { color: string; label: string }) {
     <div className="flex items-center gap-1.5">
       <span
         className="inline-block w-3 h-3 rounded-sm ring-1 ring-border/50"
-        style={{ backgroundColor: isInherit ? "#888" : color }}
+        style={{ backgroundColor: isInherit ? "var(--qf-text-muted)" : color }}
       />
       <span className="text-[10px] text-text-muted">{label}</span>
     </div>

@@ -114,7 +114,7 @@ export default function PromptBrowser({
 
   const tabClass = (t: Tab) =>
     `text-sm px-3 py-1.5 rounded-lg transition-colors ${
-      tab === t ? "bg-accent text-white" : "text-text-muted hover:text-text"
+      tab === t ? "bg-accent text-accent-contrast" : "text-text-muted hover:text-text"
     }`;
 
   if (selected) {
@@ -156,7 +156,7 @@ export default function PromptBrowser({
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="text-sm bg-accent text-white rounded-lg px-4 py-1.5 disabled:opacity-50"
+                    className="text-sm bg-accent text-accent-contrast rounded-lg px-4 py-1.5 disabled:opacity-50"
                   >
                     {saving ? "Saving..." : "Save"}
                   </button>

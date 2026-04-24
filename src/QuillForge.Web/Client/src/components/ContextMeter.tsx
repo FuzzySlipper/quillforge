@@ -33,7 +33,7 @@ export default function ContextMeter({ status }: ContextMeterProps) {
       <div className="h-3 rounded-full bg-input-bg overflow-hidden flex">
         {loreW > 0 && (
           <div
-            className="h-full bg-blue-500/80"
+            className="h-full bg-info/80"
             style={{ width: `${Math.max(loreW, 0.5)}%` }}
             title={`Lore: ${fmtTokens(lore)} tokens`}
           />
@@ -48,7 +48,7 @@ export default function ContextMeter({ status }: ContextMeterProps) {
       </div>
       <div className="flex gap-4 text-[10px] text-text-muted">
         <span className="flex items-center gap-1">
-          <span className="inline-block w-2 h-2 rounded-sm bg-blue-500/80" />
+          <span className="inline-block w-2 h-2 rounded-sm bg-info/80" />
           Lore {fmtTokens(lore)}
         </span>
         <span className="flex items-center gap-1">

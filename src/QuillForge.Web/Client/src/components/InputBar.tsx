@@ -199,8 +199,8 @@ export default function InputBar({ onSend, disabled, placeholder }: InputBarProp
         disabled={disabled || !text.trim()}
         className={`font-semibold rounded-lg px-4 min-h-[44px] text-[15px] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0 ${
           isCommand
-            ? "bg-accent/80 hover:bg-accent text-white"
-            : "bg-accent hover:bg-accent-hover text-white"
+            ? "bg-accent/80 hover:bg-accent text-accent-contrast"
+            : "bg-accent hover:bg-accent-hover text-accent-contrast"
         }`}
       >
         {isCommand ? "Run" : "Send"}
