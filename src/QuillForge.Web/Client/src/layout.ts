@@ -49,6 +49,48 @@ let currentBackground: string | null = null;
 
 const BG_STORAGE_KEY = "background-image";
 
+const semanticColorVariables = [
+  "--color-bg",
+  "--color-surface",
+  "--color-surface-alt",
+  "--color-text",
+  "--color-text-muted",
+  "--color-accent",
+  "--color-accent-hover",
+  "--color-accent-contrast",
+  "--color-input-bg",
+  "--color-border",
+  "--color-overlay",
+  "--color-overlay-contrast",
+  "--color-danger",
+  "--color-danger-soft",
+  "--color-danger-border",
+  "--color-danger-text",
+  "--color-danger-strong",
+  "--color-danger-strong-hover",
+  "--color-success",
+  "--color-success-soft",
+  "--color-success-strong",
+  "--color-success-strong-hover",
+  "--color-warning",
+  "--color-warning-soft",
+  "--color-warning-text",
+  "--color-info",
+  "--color-info-soft",
+  "--color-info-border",
+  "--color-info-text",
+] as const;
+
+const semanticColorVariableSet = new Set<string>(semanticColorVariables);
+
+function shouldApplyLayoutStyle(key: string, value: string): boolean {
+  if (!semanticColorVariableSet.has(key)) {
+    return true;
+  }
+
+  return value.includes("var(--qf-") || value.includes("var(--color-");
+}
+
 export function setOnLayoutChange(cb: (layout: LayoutConfig) => void) {
   onLayoutChange = cb;
 }
@@ -144,19 +186,10 @@ export function applyStyles(styles: Record<string, string>) {
   const targets = shell ? [document.documentElement, shell] : [document.documentElement];
 
   // Reset to token defaults first (clear any previously applied layout styles).
-  // The shared QuillForge token stylesheet owns defaults; layouts may still
-  // override semantic aliases for custom backgrounds or accent experiments.
-  const resetVariables = [
-    "--color-bg",
-    "--color-surface",
-    "--color-surface-alt",
-    "--color-text",
-    "--color-text-muted",
-    "--color-accent",
-    "--color-accent-hover",
-    "--color-input-bg",
-    "--color-border",
-  ];
+  // The shared QuillForge token stylesheet owns defaults. Pre-Atrium layouts
+  // may still carry hardcoded legacy colors, so only token-backed color
+  // overrides are applied below.
+  const resetVariables = semanticColorVariables;
 
   for (const target of targets) {
     for (const key of resetVariables) {
@@ -165,6 +198,10 @@ export function applyStyles(styles: Record<string, string>) {
 
     // Apply layout overrides
     for (const [key, value] of Object.entries(styles)) {
+      if (!shouldApplyLayoutStyle(key, value)) {
+        continue;
+      }
+
       target.style.setProperty(key, value);
     }
   }

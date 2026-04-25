@@ -1328,9 +1328,11 @@ function App() {
         footer={(
           <AppStatusFooter
             status={status}
+            mode={mode}
             usage={sessionUsage}
             messages={messages}
             inspectorOpen={inspectorOpen}
+            onOpenMode={() => setModeOpen(true)}
             onToggleInspector={toggleInspector}
             onOpenContext={() => openInspectorSection("context")}
             onOpenReasoning={() => setReasoningOpen(true)}

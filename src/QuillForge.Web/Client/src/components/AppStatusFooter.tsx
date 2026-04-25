@@ -1,11 +1,14 @@
-import type { Message, SessionUsage, Status } from "../types";
+import { MODE_ICON_PATHS, MODE_LABELS } from "../modePresentation";
+import type { Message, Mode, SessionUsage, Status } from "../types";
 import ShellIcon from "./ShellIcon";
 
 interface AppStatusFooterProps {
   status: Status | null;
+  mode: Mode;
   usage: SessionUsage | null;
   messages: Message[];
   inspectorOpen: boolean;
+  onOpenMode: () => void;
   onToggleInspector: () => void;
   onOpenContext: () => void;
   onOpenReasoning: () => void;
@@ -43,9 +46,11 @@ function FooterAction({
 
 export default function AppStatusFooter({
   status,
+  mode,
   usage,
   messages,
   inspectorOpen,
+  onOpenMode,
   onToggleInspector,
   onOpenContext,
   onOpenReasoning,
@@ -73,6 +78,12 @@ export default function AppStatusFooter({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <FooterAction
+          icon={<img src={MODE_ICON_PATHS[mode]} alt="" aria-hidden="true" className="h-4 w-4" />}
+          label="Mode"
+          value={MODE_LABELS[mode]}
+          onClick={onOpenMode}
+        />
         <FooterAction
           icon={<ShellIcon name="context" className="h-4 w-4" />}
           label="Context"

@@ -78,8 +78,9 @@ const paletteUtility = new RegExp(
 const hardcodedColor = /#[0-9A-Fa-f]{3,8}\b|\brgba?\(|\bhsla?\(|\[(?:#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\()/g;
 
 // This audit catches direct UI color bypasses in app/desktop source. It intentionally
-// does not validate CSS variable allowlists or token-mirroring arrays; keep those
-// synchronized with Shared/Styles/quillforge-tokens.css when semantic aliases change.
+// does not validate CSS variable allowlists against Shared/Styles/quillforge-tokens.css.
+// It does validate that the web bridge and desktop shell mirror the same variable
+// names so the host frame receives the same color vocabulary as the embedded app.
 
 function extensionOf(filePath) {
   const index = filePath.lastIndexOf(".");
@@ -132,14 +133,43 @@ for (const root of scanRoots) {
   }
 }
 
-if (findings.length > 0) {
+function readConstStringArray(relativePath, constName) {
+  const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
+  const match = source.match(new RegExp(`const\\s+${constName}\\s*=\\s*\\[([\\s\\S]*?)\\]\\s+as\\s+const`));
+  if (!match) {
+    throw new Error(`Could not find ${constName} in ${relativePath}`);
+  }
+
+  return [...match[1].matchAll(/"([^"]+)"/g)].map((entry) => entry[1]);
+}
+
+const mirroredVariables = readConstStringArray(
+  "src/QuillForge.Desktop/src/main.ts",
+  "MIRRORED_THEME_VARIABLES",
+);
+const bridgedVariables = readConstStringArray(
+  "src/QuillForge.Web/Client/src/desktopBridge.ts",
+  "THEME_VARIABLES",
+);
+const bridgedSet = new Set(bridgedVariables);
+const mirroredSet = new Set(mirroredVariables);
+const bridgeOnlyVariables = bridgedVariables.filter((name) => !mirroredSet.has(name));
+const desktopOnlyVariables = mirroredVariables.filter((name) => !bridgedSet.has(name));
+
+if (findings.length > 0 || bridgeOnlyVariables.length > 0 || desktopOnlyVariables.length > 0) {
   console.error("Found non-token color usages. Prefer --qf-* tokens or Tailwind semantic aliases such as bg-surface, text-danger, bg-info-soft, and text-accent-contrast.\n");
   for (const finding of findings) {
     console.error(`${finding.file}:${finding.line}: ${finding.matches.join(", ")}`);
     console.error(`  ${finding.text}`);
   }
+  if (bridgeOnlyVariables.length > 0) {
+    console.error(`\nTheme variables sent by the web app but not mirrored by desktop: ${bridgeOnlyVariables.join(", ")}`);
+  }
+  if (desktopOnlyVariables.length > 0) {
+    console.error(`\nTheme variables mirrored by desktop but not sent by the web app: ${desktopOnlyVariables.join(", ")}`);
+  }
   process.exit(1);
 }
 
-console.log("No non-token color usages found in audited app/desktop sources.");
+console.log("No non-token color usages found in audited app/desktop sources, and desktop theme mirroring is synchronized.");
 console.log("Allowed outside this audit: shared token definitions, public SVG artwork, textTheme.ts prose palettes, and story-tour art direction.");

@@ -39,7 +39,7 @@ function InspectorAction({ label, meta, onClick }: InspectorActionProps) {
     <button
       type="button"
       onClick={onClick}
-      className="qf-shell-card w-full px-3 py-2 text-left transition-colors hover:border-accent/40 hover:text-text"
+      className="qf-shell-card w-full px-3 py-2 text-left transition-[background-color,border-color,color,transform] hover:-translate-y-0.5 hover:border-accent/40 hover:bg-input-bg/50 hover:text-text active:translate-y-0"
     >
       <div className="text-sm text-text">{label}</div>
       {meta && <div className="mt-1 text-[11px] text-text-muted">{meta}</div>}
@@ -60,10 +60,10 @@ function SectionButton({
     <button
       type="button"
       onClick={onClick}
-      className={`qf-shell-card px-3 py-2 text-left text-sm transition-colors ${
+      className={`qf-shell-card px-3 py-2 text-left text-sm transition-[background-color,border-color,color,transform] active:translate-y-0 ${
         active
           ? "border-accent/50 bg-accent/10 text-text"
-          : "hover:border-accent/40 hover:text-text"
+          : "hover:-translate-y-0.5 hover:border-accent/40 hover:bg-input-bg/50 hover:text-text"
       }`}
     >
       {label}

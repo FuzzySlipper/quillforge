@@ -298,8 +298,8 @@ export default function ForgeWorkspace({
 
       {updateBanner}
 
-      <div className="grid min-h-0 flex-1 gap-4 p-4 xl:grid-cols-[minmax(260px,0.66fr)_minmax(0,1.15fr)_minmax(340px,0.88fr)]">
-        <aside className="qf-shell-card min-h-0 overflow-hidden">
+      <div className="grid min-h-0 flex-1 gap-4 overflow-hidden p-4 xl:grid-cols-[minmax(260px,0.66fr)_minmax(0,1.15fr)_minmax(340px,0.88fr)]">
+        <aside className="qf-shell-card flex min-h-0 flex-col overflow-hidden">
           <div className="border-b border-border/60 px-4 py-4">
             <div className="qf-shell-folio">Projects</div>
             <p className="mt-2 text-sm leading-6 text-text-muted">
@@ -327,7 +327,7 @@ export default function ForgeWorkspace({
             </div>
           </div>
 
-          <div className="min-h-0 overflow-y-auto px-4 py-4">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             <div className="flex flex-col gap-2">
               {loadingProjects && (
                 <div className="text-sm text-text-muted">Loading forge projects...</div>
@@ -369,7 +369,7 @@ export default function ForgeWorkspace({
           </div>
         </aside>
 
-        <section className="qf-shell-card qf-shell-card--sunken min-h-0 overflow-hidden">
+        <section className="qf-shell-card qf-shell-card--sunken flex min-h-0 flex-col overflow-hidden">
           <div className="border-b border-border/60 px-6 py-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
@@ -448,7 +448,7 @@ export default function ForgeWorkspace({
             </div>
           </div>
 
-          <div className="min-h-0 overflow-y-auto px-6 py-6">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
             {loadingStatus && activeProject && (
               <div className="mb-4 text-sm text-text-muted">Loading forge status...</div>
             )}
@@ -538,7 +538,7 @@ export default function ForgeWorkspace({
           </div>
         </section>
 
-        <aside className="qf-shell-card min-h-0 overflow-hidden">
+        <aside className="qf-shell-card flex min-h-0 flex-col overflow-hidden">
           <div className="border-b border-border/60 px-4 py-4">
             <div className="qf-shell-folio">Forge Console</div>
             <p className="mt-2 text-sm leading-6 text-text-muted">

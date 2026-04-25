@@ -373,13 +373,36 @@ body {
 select,
 option,
 optgroup {
-  background-color: var(--qf-surface-input);
-  color: var(--qf-text-primary);
+  background-color: var(--color-input-bg) !important;
+  color: var(--color-text) !important;
 }
 
 select {
-  border-color: var(--qf-border);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--qf-text-muted) 50%),
+    linear-gradient(135deg, var(--qf-text-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 12px) 50%;
+  background-repeat: no-repeat;
+  background-size: 6px 6px;
+  border-color: var(--color-border);
   color-scheme: inherit;
+  accent-color: var(--color-accent);
+  padding-right: 2rem;
+}
+
+select:not(:disabled):hover {
+  background-color: var(--qf-surface-input-hover) !important;
+  border-color: var(--qf-accent-border);
+}
+
+select option,
+select optgroup {
+  background-color: var(--qf-surface-input) !important;
+  color: var(--qf-text-primary) !important;
 }
 
 optgroup,

@@ -31,6 +31,7 @@ export default function RoleplayWorkspace({
   const projectLabel = status?.project ?? "unset project";
   const aiCharacter = status?.aiCharacter || "unassigned";
   const userCharacter = status?.userCharacter || "you";
+  const needsAiCharacter = !status?.aiCharacter;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -74,6 +75,12 @@ export default function RoleplayWorkspace({
             />
           </div>
         </div>
+
+        {needsAiCharacter && (
+          <div role="alert" className="mt-4 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning-text">
+            Choose an AI character in Characters before starting roleplay.
+          </div>
+        )}
       </div>
 
       {updateBanner}

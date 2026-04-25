@@ -71,6 +71,10 @@ export default function AppShell({
     return () => media.removeListener(handleChange);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
   return (
     <div className="qf-theme-shell qf-app-shell" data-theme={theme}>
       {rail}
