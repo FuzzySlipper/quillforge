@@ -43,6 +43,15 @@ public sealed class PlanningStage : IPipelineStage
 
         context.StatsTracker.RecordCompletion("forge-planner", response.Usage);
 
+        if (response.StopReason == StopReason.Error)
+        {
+            var error = response.Content.GetText();
+            _logger.LogWarning("Planning stage stopped after tool-loop error: {Error}", error);
+            context.Log($"Planning failed: {error}", "planning");
+            yield return new ForgeErrorEvent(error, StageName);
+            yield break;
+        }
+
         context.Log(
             $"Planning complete — {response.ToolRoundsUsed} rounds, " +
             $"{response.Usage.InputTokens + response.Usage.OutputTokens} total tokens",

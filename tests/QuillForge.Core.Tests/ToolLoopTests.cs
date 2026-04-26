@@ -261,6 +261,63 @@ public class ToolLoopTests
     }
 
     [Fact]
+    public async Task NonRetryableToolFailure_StopsWithoutAskingModelToRetry()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueToolCall("web_search", "call_1", """{"query":"recent news"}""");
+
+        var handler = new FakeToolHandler("web_search",
+            (_, _, _) => Task.FromResult(ToolResult.FailNonRetryable(
+                "Brave Search returned HTTP 429. Do not retry this same web_search during the current tool loop.")));
+
+        var loop = CreateLoop(fake);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("research recent news")),
+        };
+
+        var result = await loop.RunAsync(DefaultConfig, [handler], messages, DefaultContext);
+
+        Assert.Equal(StopReason.Error, result.StopReason);
+        Assert.Equal(1, result.ToolRoundsUsed);
+        Assert.Single(fake.ReceivedRequests);
+        Assert.Contains("non-retryable", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("HTTP 429", result.Content.GetText(), StringComparison.Ordinal);
+
+        var toolResult = messages
+            .SelectMany(m => m.Content.Blocks.OfType<ToolResultBlock>())
+            .Single();
+        Assert.True(toolResult.IsError);
+        Assert.Contains("Do not retry", toolResult.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NonRetryableWebSearchProviderException_StopsWithoutAskingModelToRetry()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueToolCall("web_search", "call_1", """{"query":"recent news"}""");
+
+        var handler = new FakeToolHandler("web_search",
+            (_, _, _) => throw new WebSearchProviderException(
+                "brave",
+                "Brave Search returned HTTP 422. Do not retry this same web_search during the current tool loop.",
+                statusCode: 422,
+                canRetrySameRequest: false));
+
+        var loop = CreateLoop(fake);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("research recent news")),
+        };
+
+        var result = await loop.RunAsync(DefaultConfig, [handler], messages, DefaultContext);
+
+        Assert.Equal(StopReason.Error, result.StopReason);
+        Assert.Single(fake.ReceivedRequests);
+        Assert.Contains("HTTP 422", result.Content.GetText(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InvalidToolPayload_FailsAtBoundary_BeforeHandlerRuns()
     {
         var fake = new FakeCompletionService();

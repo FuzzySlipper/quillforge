@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Pipeline;
+using QuillForge.Core.Services;
 using QuillForge.Core.Tests.Fakes;
 
 namespace QuillForge.Core.Tests;
@@ -14,7 +15,8 @@ public class ForgePipelineTests
     private static ForgeContext CreateContext(
         FakeContentFileService fileService,
         FakeCompletionService completionService,
-        ForgeManifest? manifest = null)
+        ForgeManifest? manifest = null,
+        IReadOnlyList<IToolHandler>? plannerTools = null)
     {
         var continuation = new ContinuationStrategy(LogFactory.CreateLogger<ContinuationStrategy>());
         var toolLoop = new ToolLoop(completionService, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
@@ -38,7 +40,7 @@ public class ForgePipelineTests
             Planner = new ForgePlannerAgent(toolLoop, new AppConfig(), LogFactory.CreateLogger<ForgePlannerAgent>()),
             Writer = new ForgeWriterAgent(toolLoop, new AppConfig(), LogFactory.CreateLogger<ForgeWriterAgent>()),
             Reviewer = new ForgeReviewerAgent(fakeCompletionForReviewer, new AppConfig(), LogFactory.CreateLogger<ForgeReviewerAgent>()),
-            PlannerTools = [],
+            PlannerTools = plannerTools ?? [],
             WriterTools = [],
             FileService = fileService,
             AgentContext = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = Mode.Forge },
@@ -64,6 +66,53 @@ public class ForgePipelineTests
 
         Assert.Contains(events, e => e is StageStartedEvent s && s.StageName == "Planning");
         Assert.Contains(events, e => e is StageCompletedEvent s && s.StageName == "Planning");
+    }
+
+    [Fact]
+    public async Task PlanningStage_ToolLoopError_EmitsForgeError()
+    {
+        var fileService = new FakeContentFileService();
+        var completion = new FakeCompletionService();
+        completion.EnqueueToolCall("web_search", "call_1", """{"query":"brave failure"}""");
+        var failingWebSearch = new FakeToolHandler("web_search",
+            (_, _, _) => Task.FromResult(ToolResult.FailNonRetryable(
+                "Brave Search returned HTTP 429. Do not retry this same web_search during the current tool loop.")));
+
+        var stage = new PlanningStage(LogFactory.CreateLogger<PlanningStage>());
+        var context = CreateContext(fileService, completion, plannerTools: [failingWebSearch]);
+
+        var events = new List<ForgeEvent>();
+        await foreach (var evt in stage.ExecuteAsync(context, CancellationToken.None))
+        {
+            events.Add(evt);
+        }
+
+        Assert.Contains(events, e => e is ForgeErrorEvent err && err.StageName == "Planning" && err.Message.Contains("HTTP 429", StringComparison.Ordinal));
+        Assert.DoesNotContain(events, e => e is StageCompletedEvent s && s.StageName == "Planning");
+    }
+
+    [Fact]
+    public async Task DesignStage_ToolLoopError_EmitsForgeError()
+    {
+        var fileService = new FakeContentFileService();
+        fileService.SeedFile("forge/test-project/plan/outline.md", "Existing outline.");
+        var completion = new FakeCompletionService();
+        completion.EnqueueToolCall("web_search", "call_1", """{"query":"brave failure"}""");
+        var failingWebSearch = new FakeToolHandler("web_search",
+            (_, _, _) => Task.FromResult(ToolResult.FailNonRetryable(
+                "Brave Search returned HTTP 429. Do not retry this same web_search during the current tool loop.")));
+
+        var stage = new DesignStage(LogFactory.CreateLogger<DesignStage>());
+        var context = CreateContext(fileService, completion, plannerTools: [failingWebSearch]);
+
+        var events = new List<ForgeEvent>();
+        await foreach (var evt in stage.ExecuteAsync(context, CancellationToken.None))
+        {
+            events.Add(evt);
+        }
+
+        Assert.Contains(events, e => e is ForgeErrorEvent err && err.StageName == "Design" && err.Message.Contains("HTTP 429", StringComparison.Ordinal));
+        Assert.DoesNotContain(events, e => e is StageCompletedEvent s && s.StageName == "Design");
     }
 
     [Fact]

@@ -205,6 +205,7 @@ public sealed class ToolLoop
 
             // Execute all tool calls and build results
             var resultBlocks = new List<ContentBlock>();
+            var nonRetryableFailures = new List<string>();
             foreach (var toolCall in toolCalls)
             {
                 progress?.Invoke($"Dispatching tool: {toolCall.Name}");
@@ -217,10 +218,29 @@ public sealed class ToolLoop
                     toolCall.Id,
                     result.Success ? result.Content : result.Error ?? "Unknown error",
                     isError: !result.Success));
+
+                TrackNonRetryableFailure(toolCall.Name, result, nonRetryableFailures);
             }
 
             // Append tool results as a user message
             messages.Add(new CompletionMessage("user", new MessageContent(resultBlocks)));
+
+            if (nonRetryableFailures.Count > 0)
+            {
+                var terminalContent = BuildNonRetryableFailureContent(nonRetryableFailures);
+                _logger.LogWarning(
+                    "ToolLoop stopping after non-retryable tool failure(s): {Failures}",
+                    string.Join(" | ", nonRetryableFailures));
+                progress?.Invoke("Stopping tool loop after a non-retryable tool failure; not asking the model to retry the same tool call.");
+                await CaptureReasoningArtifactAsync(config, context, response.Reasoning, response.ProviderReplay, ct);
+                return BuildResponse(
+                    terminalContent,
+                    StopReason.Error,
+                    totalUsage,
+                    round,
+                    response.Reasoning,
+                    response.ProviderReplay);
+            }
 
             _logger.LogDebug("ToolLoop round {Round}: dispatched {Count} tool calls", round, toolCalls.Count);
         }
@@ -465,6 +485,7 @@ public sealed class ToolLoop
 
             // Execute tools
             var resultBlocks = new List<ContentBlock>();
+            var nonRetryableFailures = new List<string>();
             foreach (var tc in collectedToolCalls)
             {
                 if (!string.IsNullOrWhiteSpace(tc.ParseError))
@@ -532,9 +553,41 @@ public sealed class ToolLoop
                     tc.ToolId,
                     result.Success ? result.Content : result.Error ?? "Unknown error",
                     isError: !result.Success));
+
+                TrackNonRetryableFailure(tc.ToolName, result, nonRetryableFailures);
             }
 
             messages.Add(new CompletionMessage("user", new MessageContent(resultBlocks)));
+
+            if (nonRetryableFailures.Count > 0)
+            {
+                var terminalContent = BuildNonRetryableFailureContent(nonRetryableFailures).GetText();
+                _logger.LogWarning(
+                    "ToolLoop (streaming) stopping after non-retryable tool failure(s): {Failures}",
+                    string.Join(" | ", nonRetryableFailures));
+
+                if (_diagnosticsEnabled)
+                {
+                    yield return new DiagnosticEvent(
+                        DiagnosticCategory.Tool,
+                        "Stopping tool loop after a non-retryable tool failure; not asking the model to retry the same tool call.",
+                        DiagnosticLevel.Error);
+                }
+
+                yield return new TextDeltaEvent(terminalContent);
+                await CaptureReasoningArtifactAsync(
+                    config,
+                    context,
+                    collectedReasoning.Length > 0 ? collectedReasoning.ToString() : null,
+                    providerReplay,
+                    ct);
+                yield return new DoneEvent(StopReason.Error, usage ?? new TokenUsage(0, 0))
+                {
+                    ProviderReplay = providerReplay,
+                };
+                yield break;
+            }
+
             collectedText.Clear();
             collectedToolCalls.Clear();
         }
@@ -639,6 +692,18 @@ public sealed class ToolLoop
                 DiagnosticLevel.Error));
             return ToolResult.Fail(message);
         }
+        catch (WebSearchProviderException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Tool {ToolName} received web-search provider failure: provider={Provider}, status={StatusCode}, canRetrySameRequest={CanRetrySameRequest}",
+                toolCall.Name,
+                ex.Provider,
+                ex.StatusCode,
+                ex.CanRetrySameRequest);
+            diagnosticSink?.Invoke(new DiagnosticEvent(DiagnosticCategory.Tool, ex.Message, DiagnosticLevel.Error));
+            return ToolResult.Fail(ex.Message, retryable: ex.CanRetrySameRequest);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Tool {ToolName} threw an exception", toolCall.Name);
@@ -671,6 +736,23 @@ public sealed class ToolLoop
         diagnosticSink?.Invoke(new DiagnosticEvent(DiagnosticCategory.Tool, message, DiagnosticLevel.Error));
         failure = ToolResult.Fail(message);
         return false;
+    }
+
+    private static void TrackNonRetryableFailure(string toolName, ToolResult result, List<string> failures)
+    {
+        if (result.Success || result.Retryable)
+        {
+            return;
+        }
+
+        failures.Add($"Tool '{toolName}' failed with a non-retryable error: {result.Error ?? "Unknown error"}");
+    }
+
+    private static MessageContent BuildNonRetryableFailureContent(IReadOnlyList<string> failures)
+    {
+        return new MessageContent(
+            "A required tool failed with a non-retryable error, so I stopped instead of retrying the same failed tool call.\n" +
+            string.Join('\n', failures));
     }
 
     private static Dictionary<string, IToolHandler> BuildToolMap(IReadOnlyList<IToolHandler> tools)

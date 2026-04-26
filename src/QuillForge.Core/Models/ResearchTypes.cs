@@ -13,6 +13,7 @@ public sealed record ResearchAgentResult
     public required IReadOnlyList<string> Sources { get; init; }
     public required string FilePath { get; init; }
     public string? Error { get; init; }
+    public bool Retryable { get; init; } = true;
 }
 
 public sealed record ResearchPoolResult

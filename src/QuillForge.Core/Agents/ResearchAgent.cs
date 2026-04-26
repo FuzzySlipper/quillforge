@@ -68,6 +68,24 @@ public sealed partial class ResearchAgent
             var response = await _toolLoop.RunAsync(config, _tools, messages, context, ct);
             var text = response.Content.GetText();
 
+            if (response.StopReason == StopReason.Error)
+            {
+                _logger.LogWarning(
+                    "ResearchAgent stopped for topic \"{Topic}\" after non-retryable tool failure: {Error}",
+                    topic,
+                    text);
+
+                return new ResearchAgentResult
+                {
+                    Topic = topic,
+                    Summary = string.Empty,
+                    Sources = [],
+                    FilePath = filePath,
+                    Error = text,
+                    Retryable = false,
+                };
+            }
+
             // Extract sources from the agent's response (lines starting with "- http" or "- [")
             var sources = ExtractSources(text);
 

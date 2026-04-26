@@ -112,6 +112,15 @@ public sealed class DesignStage : IPipelineStage
 
         context.StatsTracker.RecordCompletion("forge-planner", response.Usage);
 
+        if (response.StopReason == StopReason.Error)
+        {
+            var error = response.Content.GetText();
+            _logger.LogWarning("Design stage stopped after tool-loop error: {Error}", error);
+            context.Log($"Design refinement failed: {error}", "design");
+            yield return new ForgeErrorEvent(error, StageName);
+            yield break;
+        }
+
         context.Log(
             $"Design refinement complete — {response.ToolRoundsUsed} rounds, " +
             $"{response.Usage.InputTokens + response.Usage.OutputTokens} total tokens",
