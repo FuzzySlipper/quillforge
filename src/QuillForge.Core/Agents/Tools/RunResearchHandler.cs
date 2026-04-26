@@ -82,6 +82,14 @@ public sealed class RunResearchHandler : TypedToolHandler<RunResearchArgs>
         using var researchCts = new CancellationTokenSource(TimeSpan.FromMinutes(_timeoutMinutes));
         var result = await _pool.RunAsync(project, topics, context, researchCts.Token);
         var formatted = FormatResults(result);
+        if (result.Results.Any(r => r.Error is not null && !r.Retryable))
+        {
+            _logger.LogWarning(
+                "RunResearchHandler: stopping after non-retryable research failure for project \"{Project}\"",
+                project);
+            return ToolResult.FailNonRetryable(formatted);
+        }
+
         return ToolResult.Ok(formatted);
     }
 

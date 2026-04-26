@@ -12,6 +12,7 @@ public class ToolResultTests
         Assert.True(result.Success);
         Assert.Equal("some output", result.Content);
         Assert.Null(result.Error);
+        Assert.True(result.Retryable);
     }
 
     [Fact]
@@ -22,5 +23,16 @@ public class ToolResultTests
         Assert.False(result.Success);
         Assert.Equal(string.Empty, result.Content);
         Assert.Equal("something broke", result.Error);
+        Assert.True(result.Retryable);
+    }
+
+    [Fact]
+    public void FailNonRetryable_MarksFailureAsNotRetryable()
+    {
+        var result = ToolResult.FailNonRetryable("stop retrying");
+
+        Assert.False(result.Success);
+        Assert.Equal("stop retrying", result.Error);
+        Assert.False(result.Retryable);
     }
 }

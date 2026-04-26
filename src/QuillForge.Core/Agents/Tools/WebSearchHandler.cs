@@ -42,7 +42,21 @@ public sealed class WebSearchHandler : IToolHandler
         }
         _logger.LogDebug("WebSearchHandler: searching for \"{Query}\"", query);
 
-        var results = await _webSearch.SearchAsync(query, ct);
-        return ToolResult.Ok(JsonSerializer.Serialize(results));
+        try
+        {
+            var results = await _webSearch.SearchAsync(query, ct);
+            return ToolResult.Ok(JsonSerializer.Serialize(results));
+        }
+        catch (WebSearchProviderException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Web search provider {Provider} failed: status={StatusCode}, canRetrySameRequest={CanRetrySameRequest}",
+                ex.Provider,
+                ex.StatusCode,
+                ex.CanRetrySameRequest);
+
+            return ToolResult.Fail(ex.Message, retryable: ex.CanRetrySameRequest);
+        }
     }
 }
