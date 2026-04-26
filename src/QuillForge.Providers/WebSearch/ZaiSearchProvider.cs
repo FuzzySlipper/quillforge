@@ -602,6 +602,8 @@ public sealed class ZaiSearchProvider : IWebSearchService
                 }
 
                 if (TryAddResultsArrayProperty(element, "results", results)
+                    || TryAddResultsArrayProperty(element, "search_result", results)
+                    || TryAddResultsArrayProperty(element, "searchResult", results)
                     || TryAddResultsArrayProperty(element, "searchResults", results)
                     || TryAddResultsArrayProperty(element, "items", results)
                     || TryAddResultsArrayProperty(element, "organic_results", results)

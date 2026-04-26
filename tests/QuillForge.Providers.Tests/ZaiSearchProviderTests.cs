@@ -101,11 +101,11 @@ public class ZaiSearchProviderTests
                         type = "text",
                         text = JsonSerializer.Serialize(new
                         {
-                            results = new[]
+                            search_result = new[]
                             {
-                                new { title = "First", url = "https://example.test/1", content = "One" },
-                                new { title = "Second", url = "https://example.test/2", content = "Two" },
-                                new { title = "Third", url = "https://example.test/3", content = "Three" },
+                                new { title = "First", link = "https://example.test/1", content = "One" },
+                                new { title = "Second", link = "https://example.test/2", content = "Two" },
+                                new { title = "Third", link = "https://example.test/3", content = "Three" },
                             },
                         }),
                     },
@@ -124,7 +124,49 @@ public class ZaiSearchProviderTests
 
         Assert.Equal(2, results.Count);
         Assert.Equal("First", results[0].Title);
+        Assert.Equal("https://example.test/1", results[0].Url);
+        Assert.Equal("One", results[0].Snippet);
         Assert.Equal("Second", results[1].Title);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ParsesStructuredContentSearchResultShape()
+    {
+        var handler = new RecordingMcpHandler(
+            InitializeResponse("session-structured"),
+            AcceptedResponse(),
+            ToolsListResponse("search_query"),
+            JsonResponse(new
+            {
+                jsonrpc = "2.0",
+                id = 3,
+                result = new
+                {
+                    structuredContent = new
+                    {
+                        search_result = new[]
+                        {
+                            new
+                            {
+                                title = "Structured Result",
+                                link = "https://example.test/structured",
+                                content = "Structured summary",
+                                media = "example.test",
+                                icon = "https://example.test/favicon.ico",
+                            },
+                        },
+                    },
+                    content = Array.Empty<object>(),
+                    isError = false,
+                },
+            }));
+        var provider = CreateProvider(handler, maxResults: 5);
+
+        var result = Assert.Single(await provider.SearchAsync("structured response"));
+
+        Assert.Equal("Structured Result", result.Title);
+        Assert.Equal("https://example.test/structured", result.Url);
+        Assert.Equal("Structured summary", result.Snippet);
     }
 
     [Fact]
