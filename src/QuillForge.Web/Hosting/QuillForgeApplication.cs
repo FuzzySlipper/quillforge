@@ -92,6 +92,7 @@ internal static class QuillForgeApplication
         app.MapLoreCanonizationEndpoints();
         app.MapProviderEndpoints();
         app.MapProviderFetchModelsEndpoint();
+        app.MapAppSettingsEndpoints();
         app.MapForgeEndpoints();
         app.MapForgeManagementEndpoints();
         app.MapContentEndpoints(contentRoot);
@@ -264,13 +265,10 @@ internal static class QuillForgeApplication
                     sp.GetRequiredService<IContentFileService>(),
                     sp.GetRequiredService<ILogger<ListFilesHandler>>()),
             };
-            if (appConfig.WebSearch.Enabled)
-            {
-                var webSearch = new WebSearchHandler(
-                    sp.GetRequiredService<IWebSearchService>(),
-                    sp.GetRequiredService<ILogger<WebSearchHandler>>());
-                tools.Add(new ThrottledToolHandler(webSearch, TimeSpan.FromSeconds(1.5)));
-            }
+            var webSearch = new WebSearchHandler(
+                sp.GetRequiredService<IWebSearchService>(),
+                sp.GetRequiredService<ILogger<WebSearchHandler>>());
+            tools.Add(new ThrottledToolHandler(webSearch, TimeSpan.FromSeconds(1.5)));
 
             return new ResearchAgent(
                 sp.GetRequiredService<ToolLoop>(),
@@ -315,51 +313,7 @@ internal static class QuillForgeApplication
         builder.Services.AddSingleton<IPipelineStage, AssemblyStage>();
         builder.Services.AddSingleton<ForgePipeline>();
 
-        if (appConfig.WebSearch.Enabled)
-        {
-            builder.Services.AddSingleton<IWebSearchService>(sp =>
-            {
-                var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
-                var cfg = sp.GetRequiredService<AppConfig>().WebSearch;
-                var provider = cfg.Provider.ToLowerInvariant();
-
-                return provider switch
-                {
-                    "tavily" => new QuillForge.Providers.WebSearch.TavilySearchProvider(
-                        httpFactory.CreateClient("WebSearch"),
-                        cfg.TavilyApiKey ?? throw new InvalidOperationException("WebSearch provider 'tavily' requires TavilyApiKey"),
-                        cfg.MaxResults,
-                        sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.TavilySearchProvider>>()),
-
-                    "brave" => new QuillForge.Providers.WebSearch.BraveSearchProvider(
-                        httpFactory.CreateClient("WebSearch"),
-                        cfg.BraveApiKey ?? throw new InvalidOperationException("WebSearch provider 'brave' requires BraveApiKey"),
-                        cfg.MaxResults,
-                        sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.BraveSearchProvider>>()),
-
-                    "google" => new QuillForge.Providers.WebSearch.GoogleSearchProvider(
-                        httpFactory.CreateClient("WebSearch"),
-                        cfg.GoogleApiKey ?? throw new InvalidOperationException("WebSearch provider 'google' requires GoogleApiKey"),
-                        cfg.GoogleCxId ?? throw new InvalidOperationException("WebSearch provider 'google' requires GoogleCxId"),
-                        cfg.MaxResults,
-                        sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.GoogleSearchProvider>>()),
-
-                    "zai" or "z_ai" or "z.ai" or "z-ai" => new QuillForge.Providers.WebSearch.ZaiSearchProvider(
-                        httpFactory.CreateClient("WebSearch"),
-                        cfg.ZaiApiKey ?? throw new InvalidOperationException("WebSearch provider 'zai' requires ZaiApiKey"),
-                        cfg.ZaiMcpEndpoint,
-                        cfg.ZaiMcpToolName,
-                        cfg.MaxResults,
-                        sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.ZaiSearchProvider>>()),
-
-                    _ => new QuillForge.Providers.WebSearch.SearxngSearchProvider(
-                        httpFactory.CreateClient("WebSearch"),
-                        cfg.SearxngUrl ?? throw new InvalidOperationException("WebSearch provider 'searxng' requires SearxngUrl"),
-                        cfg.MaxResults,
-                        sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.SearxngSearchProvider>>()),
-                };
-            });
-        }
+        builder.Services.AddSingleton<IWebSearchService, ConfigBackedWebSearchService>();
 
         builder.Services.AddHttpClient();
         builder.Services.AddSingleton<AutoUpdateService>();

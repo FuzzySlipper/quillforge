@@ -128,10 +128,7 @@ public static class ServiceRegistration
         services.AddSingleton<IToolHandler, DelegateTechnicalHandler>();
         services.AddSingleton<IToolHandler, RequestCodeChangeHandler>();
         services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<QuillForge.Core.Agents.Tools.RunCouncilHandler>());
-        if (appConfig.WebSearch.Enabled)
-        {
-            services.AddSingleton<IToolHandler, WebSearchHandler>();
-        }
+        services.AddSingleton<IToolHandler, WebSearchHandler>();
         // Story state handlers resolve the active project/path from the prepared
         // interactive session context passed through AgentContext.
         services.AddSingleton<GetStoryStateHandler>();

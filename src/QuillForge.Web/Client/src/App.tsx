@@ -40,6 +40,7 @@ import PlotBrowser from "./components/PlotBrowser";
 import PromptBrowser from "./components/PromptBrowser";
 import LayoutPicker from "./components/LayoutPicker";
 import ProviderManager from "./components/ProviderManager";
+import AppSettingsPanel from "./components/AppSettingsPanel";
 import SessionBrowser from "./components/SessionBrowser";
 import CharacterCards from "./components/CharacterCards";
 import TextThemePicker from "./components/TextThemePicker";
@@ -102,6 +103,7 @@ function App() {
   const [reasoningOpen, setReasoningOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [providerOpen, setProviderOpen] = useState(false);
+  const [appSettingsOpen, setAppSettingsOpen] = useState(false);
   const [textThemeOpen, setTextThemeOpen] = useState(false);
   const [councilConfigOpen, setCouncilConfigOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(() => defaultInspectorOpen("guide"));
@@ -1418,6 +1420,7 @@ function App() {
             onToggleInspector={toggleInspector}
             onOpenProfile={() => setProfileOpen(true)}
             onOpenProviders={() => setProviderOpen(true)}
+            onOpenAppSettings={() => setAppSettingsOpen(true)}
             onOpenTextTheme={() => setTextThemeOpen(true)}
           />
         )}
@@ -1484,6 +1487,10 @@ function App() {
         open={providerOpen}
         onClose={() => setProviderOpen(false)}
         onChanged={refreshStatus}
+      />
+      <AppSettingsPanel
+        open={appSettingsOpen}
+        onClose={() => setAppSettingsOpen(false)}
       />
       <TextThemePicker
         open={textThemeOpen}
