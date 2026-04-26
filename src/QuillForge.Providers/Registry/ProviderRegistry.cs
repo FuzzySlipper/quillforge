@@ -36,6 +36,73 @@ public sealed class ProviderRegistry : IDiagnosticSource
     public string Category => "providers";
 
     /// <summary>
+    /// Resolves a configured provider alias to a registered provider alias.
+    /// Exact aliases win; otherwise common provider type names such as
+    /// "anthropic"/"claude" and exact default model names are accepted when
+    /// they identify exactly one registered provider.
+    /// </summary>
+    public ProviderAliasResolution ResolveProviderAlias(string requestedAlias)
+    {
+        if (string.IsNullOrWhiteSpace(requestedAlias))
+        {
+            return ProviderAliasResolution.Failed(
+                requestedAlias,
+                "Provider alias is required.");
+        }
+
+        lock (_lock)
+        {
+            if (_configs.Count == 0)
+            {
+                return ProviderAliasResolution.Failed(
+                    requestedAlias,
+                    "No LLM providers are configured. Add a provider in Provider settings or via POST /api/providers before running delegated agents.");
+            }
+
+            if (_configs.TryGetValue(requestedAlias, out var exactConfig))
+            {
+                return ProviderAliasResolution.Resolved(requestedAlias, exactConfig.Alias);
+            }
+
+            if (IsDefaultProviderAlias(requestedAlias))
+            {
+                var defaultConfig = _configs.Values.First();
+                return ProviderAliasResolution.Resolved(requestedAlias, defaultConfig.Alias);
+            }
+
+            var typeMatches = FindProviderTypeAliasMatches(requestedAlias);
+            if (typeMatches.Count == 1)
+            {
+                return ProviderAliasResolution.Resolved(requestedAlias, typeMatches[0].Alias);
+            }
+
+            if (typeMatches.Count > 1)
+            {
+                return ProviderAliasResolution.Failed(
+                    requestedAlias,
+                    $"Provider alias '{requestedAlias}' names provider type '{typeMatches[0].Type}', but multiple registered providers have that type: {FormatProviderAliases(typeMatches)}. Set the council member provider to one of these aliases.");
+            }
+
+            var modelMatches = FindDefaultModelMatches(requestedAlias);
+            if (modelMatches.Count == 1)
+            {
+                return ProviderAliasResolution.Resolved(requestedAlias, modelMatches[0].Alias);
+            }
+
+            if (modelMatches.Count > 1)
+            {
+                return ProviderAliasResolution.Failed(
+                    requestedAlias,
+                    $"Provider alias '{requestedAlias}' matches the default model for multiple registered providers: {FormatProviderAliases(modelMatches)}. Set the council member provider to one of these aliases.");
+            }
+
+            return ProviderAliasResolution.Failed(
+                requestedAlias,
+                $"No provider registered with alias '{requestedAlias}'. Registered aliases: {FormatProviderAliases(_configs.Values)}. If this value is a provider type or model name, configure exactly one matching provider or set the council member provider to a registered alias.");
+        }
+    }
+
+    /// <summary>
     /// Registers a provider configuration. Creates the client lazily on first use.
     /// </summary>
     public void Register(ProviderConfig config)
@@ -187,6 +254,70 @@ public sealed class ProviderRegistry : IDiagnosticSource
             };
             return Task.FromResult<IReadOnlyDictionary<string, object>>(diag);
         }
+    }
+
+    private List<ProviderConfig> FindProviderTypeAliasMatches(string requestedAlias)
+    {
+        var matches = new List<ProviderConfig>();
+        foreach (var config in _configs.Values)
+        {
+            if (IsProviderTypeAlias(requestedAlias, config.Type))
+            {
+                matches.Add(config);
+            }
+        }
+
+        return matches;
+    }
+
+    private List<ProviderConfig> FindDefaultModelMatches(string requestedAlias)
+    {
+        var matches = new List<ProviderConfig>();
+        foreach (var config in _configs.Values)
+        {
+            if (string.Equals(config.DefaultModel, requestedAlias, StringComparison.OrdinalIgnoreCase))
+            {
+                matches.Add(config);
+            }
+        }
+
+        return matches;
+    }
+
+    private static bool IsDefaultProviderAlias(string requestedAlias)
+        => string.Equals(requestedAlias, "default", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsProviderTypeAlias(string requestedAlias, ProviderType type)
+    {
+        var normalized = NormalizeProviderAlias(requestedAlias);
+        return type switch
+        {
+            ProviderType.Anthropic => normalized is "anthropic" or "claude",
+            ProviderType.OpenAI => normalized is "openai" or "gpt",
+            ProviderType.AzureOpenAI => normalized is "azure" or "azureopenai",
+            ProviderType.Ollama => normalized is "ollama" or "local",
+            ProviderType.OpenRouter => normalized is "openrouter",
+            ProviderType.Custom => normalized is "custom" or "openaicompatible",
+            _ => false,
+        };
+    }
+
+    private static string NormalizeProviderAlias(string value)
+        => value.Trim()
+            .Replace("-", "", StringComparison.Ordinal)
+            .Replace("_", "", StringComparison.Ordinal)
+            .Replace(" ", "", StringComparison.Ordinal)
+            .ToLowerInvariant();
+
+    private static string FormatProviderAliases(IEnumerable<ProviderConfig> configs)
+    {
+        var aliases = new List<string>();
+        foreach (var config in configs)
+        {
+            aliases.Add(config.Alias);
+        }
+
+        return aliases.Count > 0 ? string.Join(", ", aliases) : "(none)";
     }
 
     private IChatClient GetOrCreateClient(string alias)

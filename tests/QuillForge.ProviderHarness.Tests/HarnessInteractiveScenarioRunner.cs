@@ -298,6 +298,7 @@ public sealed class HarnessInteractiveScenarioRunner : IAsyncDisposable
             var registry = sp.GetRequiredService<ProviderRegistry>();
             return new DelegatePool(
                 alias => registry.GetCompletionService(alias),
+                registry.ResolveProviderAlias,
                 sp.GetRequiredService<ILogger<DelegatePool>>());
         });
         builder.Services.AddSingleton<ICouncilService, CouncilService>();
