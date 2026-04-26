@@ -214,6 +214,16 @@ public static class ForgeEndpoints
     private static readonly HashSet<string> ForgeWriterToolNames =
         ["query_lore"];
 
+    private sealed record ForgeProjectDocumentDefinition(string Kind, string Label, string RelativePath);
+
+    private static IEnumerable<ForgeProjectDocumentDefinition> EnumerateForgeProjectDocumentDefinitions()
+    {
+        yield return new ForgeProjectDocumentDefinition("outline", "Outline", "plan/outline.md");
+        yield return new ForgeProjectDocumentDefinition("styleSpec", "Style spec", "plan/style.md");
+        yield return new ForgeProjectDocumentDefinition("runLore", "Run lore", "run-lore.md");
+        yield return new ForgeProjectDocumentDefinition("outputStory", "Output story", "output/story.md");
+    }
+
     /// <summary>
     /// Build a ForgeContext from an existing manifest or create a fresh one.
     /// </summary>
@@ -383,9 +393,13 @@ public static class ForgeEndpoints
                 json,
                 new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-            return manifest is null
-                ? null
-                : ToStatusResponse(manifest);
+            if (manifest is null)
+            {
+                return null;
+            }
+
+            var documents = await ListAvailableForgeDocumentsAsync(projectName, fileService, ct);
+            return ToStatusResponse(manifest, documents);
         }
         catch (FileNotFoundException)
         {
@@ -393,7 +407,9 @@ public static class ForgeEndpoints
         }
     }
 
-    internal static ForgeStatusResponse ToStatusResponse(ForgeManifest manifest)
+    internal static ForgeStatusResponse ToStatusResponse(
+        ForgeManifest manifest,
+        IReadOnlyList<ForgeProjectDocumentDto>? documents = null)
     {
         return new ForgeStatusResponse
         {
@@ -410,7 +426,43 @@ public static class ForgeEndpoints
                     WordCount = kvp.Value.WordCount,
                 }),
             Stats = manifest.Stats,
+            Documents = documents ?? [],
         };
+    }
+
+    internal static async Task<IReadOnlyList<ForgeProjectDocumentDto>> ListAvailableForgeDocumentsAsync(
+        string projectName,
+        IContentFileService fileService,
+        CancellationToken ct)
+    {
+        var documents = new List<ForgeProjectDocumentDto>();
+
+        foreach (var definition in EnumerateForgeProjectDocumentDefinitions())
+        {
+            var relativePath = $"forge/{projectName}/{definition.RelativePath}";
+            if (!await fileService.ExistsAsync(relativePath, ct))
+            {
+                continue;
+            }
+
+            documents.Add(new ForgeProjectDocumentDto
+            {
+                Kind = definition.Kind,
+                Label = definition.Label,
+                RelativePath = relativePath,
+                Href = ToContentHref(relativePath),
+            });
+        }
+
+        return documents;
+    }
+
+    private static string ToContentHref(string relativePath)
+    {
+        var encodedSegments = relativePath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Select(Uri.EscapeDataString);
+        return "/content/" + string.Join('/', encodedSegments);
     }
 
     /// <summary>

@@ -15,6 +15,15 @@ public sealed record ForgeStatusResponse
     public required bool Paused { get; init; }
     public required IReadOnlyDictionary<string, ForgeChapterStatusDto> Chapters { get; init; }
     public required ForgeStats Stats { get; init; }
+    public required IReadOnlyList<ForgeProjectDocumentDto> Documents { get; init; }
+}
+
+public sealed record ForgeProjectDocumentDto
+{
+    public required string Kind { get; init; }
+    public required string Label { get; init; }
+    public required string RelativePath { get; init; }
+    public required string Href { get; init; }
 }
 
 public sealed record ForgeProjectListItem

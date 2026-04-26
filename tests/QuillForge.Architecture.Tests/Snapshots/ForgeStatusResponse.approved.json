@@ -1,0 +1,39 @@
+{
+  "projectName": "ember-archive",
+  "stage": "Writing",
+  "chapterCount": 2,
+  "paused": false,
+  "chapters": {
+    "ch-01": {
+      "state": "Done",
+      "revisionCount": 1,
+      "wordCount": 2500
+    },
+    "ch-02": {
+      "state": "Writing",
+      "revisionCount": 0,
+      "wordCount": 800
+    }
+  },
+  "stats": {
+    "totalInputTokens": 3000,
+    "totalOutputTokens": 1200,
+    "agentCalls": 4,
+    "chaptersRevised": 1,
+    "stageTiming": {}
+  },
+  "documents": [
+    {
+      "kind": "outline",
+      "label": "Outline",
+      "relativePath": "forge/ember-archive/plan/outline.md",
+      "href": "/content/forge/ember-archive/plan/outline.md"
+    },
+    {
+      "kind": "outputStory",
+      "label": "Output story",
+      "relativePath": "forge/ember-archive/output/story.md",
+      "href": "/content/forge/ember-archive/output/story.md"
+    }
+  ]
+}

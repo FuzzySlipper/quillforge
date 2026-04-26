@@ -26,11 +26,6 @@ interface ForgeWorkspaceProps {
   onRunPause: (project: string) => Promise<void>;
 }
 
-interface ForgeDocumentLink {
-  label: string;
-  href: string;
-}
-
 const FORGE_STAGES = ["Planning", "Design", "Writing", "Review", "Assembly", "Done"] as const;
 
 function ForgeActionButton({
@@ -73,26 +68,6 @@ function StatCard({
   );
 }
 
-async function fileExists(href: string): Promise<boolean> {
-  try {
-    const response = await fetch(href, { method: "HEAD" });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-function buildForgeDocumentCandidates(project: string): ForgeDocumentLink[] {
-  const base = `/content/forge/${encodeURIComponent(project)}`;
-
-  return [
-    { label: "Outline", href: `${base}/plan/outline.md` },
-    { label: "Style spec", href: `${base}/plan/style.md` },
-    { label: "Run lore", href: `${base}/run-lore.md` },
-    { label: "Output story", href: `${base}/output/story.md` },
-  ];
-}
-
 export default function ForgeWorkspace({
   status,
   sending,
@@ -111,7 +86,6 @@ export default function ForgeWorkspace({
   const activeProject = status?.project ?? null;
   const [projects, setProjects] = useState<ForgeProjectInfo[]>([]);
   const [forgeStatus, setForgeStatus] = useState<ForgeProjectStatus | null>(null);
-  const [documents, setDocuments] = useState<ForgeDocumentLink[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
@@ -151,29 +125,20 @@ export default function ForgeWorkspace({
     async function refreshSelectedProject() {
       if (!activeProject) {
         setForgeStatus(null);
-        setDocuments([]);
         return;
       }
 
       setLoadingStatus(true);
       setError(null);
       try {
-        const [projectStatus, availableDocuments] = await Promise.all([
-          getForgeProjectStatus(activeProject),
-          Promise.all(
-            buildForgeDocumentCandidates(activeProject).map(async (document) =>
-              (await fileExists(document.href)) ? document : null),
-          ),
-        ]);
+        const projectStatus = await getForgeProjectStatus(activeProject);
 
         if (!cancelled) {
           setForgeStatus(projectStatus);
-          setDocuments(availableDocuments.filter((item): item is ForgeDocumentLink => item !== null));
         }
       } catch (err) {
         if (!cancelled) {
           setForgeStatus(null);
-          setDocuments([]);
           setError(err instanceof Error ? err.message : "Failed to load forge status");
         }
       } finally {
@@ -190,6 +155,7 @@ export default function ForgeWorkspace({
     };
   }, [activeProject]);
 
+  const documents = forgeStatus?.documents ?? [];
   const chapterEntries = Object.entries(forgeStatus?.chapters ?? {}).sort(([left], [right]) =>
     left.localeCompare(right),
   );
@@ -206,15 +172,8 @@ export default function ForgeWorkspace({
       const items = await listForgeProjects();
       setProjects(items);
       if (projectName) {
-        const [projectStatus, availableDocuments] = await Promise.all([
-          getForgeProjectStatus(projectName),
-          Promise.all(
-            buildForgeDocumentCandidates(projectName).map(async (document) =>
-              (await fileExists(document.href)) ? document : null),
-          ),
-        ]);
+        const projectStatus = await getForgeProjectStatus(projectName);
         setForgeStatus(projectStatus);
-        setDocuments(availableDocuments.filter((item): item is ForgeDocumentLink => item !== null));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Refresh failed");

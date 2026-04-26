@@ -630,6 +630,7 @@ public static class DebugBridgeEndpoints
 
             if (!context.Manifest.Paused)
             {
+                var documents = await ForgeEndpoints.ListAvailableForgeDocumentsAsync(name, fileService, ct);
                 return Results.BadRequest(new DebugBridgeForgeRunResponse
                 {
                     ProjectName = name,
@@ -643,7 +644,7 @@ public static class DebugBridgeEndpoints
                         },
                     ],
                     FinalEventType = "error",
-                    Status = ForgeEndpoints.ToStatusResponse(context.Manifest),
+                    Status = ForgeEndpoints.ToStatusResponse(context.Manifest, documents),
                 });
             }
 
