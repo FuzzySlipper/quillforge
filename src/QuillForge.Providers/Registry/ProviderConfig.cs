@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace QuillForge.Providers.Registry;
 
 /// <summary>
@@ -33,6 +35,10 @@ public sealed record ProviderOptions
     public int? TopK { get; init; }
     public float? FrequencyPenalty { get; init; }
     public float? PresencePenalty { get; init; }
+    public float? RepetitionPenalty { get; init; }
+    public float? MinP { get; init; }
+    public int? Seed { get; init; }
+    public IReadOnlyDictionary<string, JsonElement>? Additional { get; init; }
 }
 
 public enum ProviderType

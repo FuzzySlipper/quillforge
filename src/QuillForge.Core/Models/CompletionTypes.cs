@@ -76,6 +76,14 @@ public sealed record CompletionRequest
     public required IReadOnlyList<CompletionMessage> Messages { get; init; }
     public IReadOnlyList<ToolDefinition>? Tools { get; init; }
     public double? Temperature { get; init; }
+    public double? TopP { get; init; }
+    public int? TopK { get; init; }
+    public double? FrequencyPenalty { get; init; }
+    public double? PresencePenalty { get; init; }
+    public double? RepetitionPenalty { get; init; }
+    public double? MinP { get; init; }
+    public int? Seed { get; init; }
+    public IReadOnlyDictionary<string, JsonElement>? AdditionalOptions { get; init; }
 
     /// <summary>
     /// When true, signals that the system prompt should be cached for repeated use

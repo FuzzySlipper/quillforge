@@ -143,7 +143,7 @@ public sealed class FrontendContractTests
     {
         var modeValues = GetTypeScriptUnionValues("Mode");
 
-        var expectedModes = new[] { "guide", "writer", "roleplay", "forge", "council", "research" }
+        var expectedModes = new[] { "guide", "writer", "roleplay", "lore", "forge", "council", "research" }
             .OrderBy(value => value)
             .ToList();
 

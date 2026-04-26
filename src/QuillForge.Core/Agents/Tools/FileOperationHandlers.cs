@@ -83,7 +83,7 @@ public sealed class WriteFileHandler : IToolHandler
         if (TargetsLore(dir))
         {
             _logger.LogWarning("WriteFileHandler blocked lore write attempt: directory={Directory} path={Path}", dir, path);
-            return ToolResult.Fail("Direct write_file access to lore/ is blocked. Use the app-owned lore endpoints or /canonize instead.");
+            return ToolResult.Fail("Direct write_file access to lore/ is blocked. Use Lore Builder, save_lore_file, or the app-owned lore endpoints instead.");
         }
 
         _logger.LogDebug("WriteFileHandler: writing {Dir}/{Path} ({Length} chars)", dir, path, content.Length);

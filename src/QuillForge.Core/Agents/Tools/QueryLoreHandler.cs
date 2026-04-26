@@ -35,14 +35,14 @@ public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
     public override string Name => "query_lore";
 
     public override ToolDefinition Definition => new(Name,
-        "Query the Librarian for lore details about characters, locations, events, or world-building.",
+        "Query the Librarian for facts from the active lore document corpus only. This does not search character cards, session canon, plot state, chat history, or web results.",
         JsonDocument.Parse("""
             {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The lore question to research"
+                        "description": "Question to answer from lore documents in the active lore set"
                     }
                 },
                 "required": ["query"]

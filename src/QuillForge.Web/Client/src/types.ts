@@ -1,4 +1,4 @@
-export type Mode = "guide" | "writer" | "roleplay" | "forge" | "council" | "research";
+export type Mode = "guide" | "writer" | "roleplay" | "lore" | "forge" | "council" | "research";
 
 export interface ReasoningArtifact {
   agentId: string;

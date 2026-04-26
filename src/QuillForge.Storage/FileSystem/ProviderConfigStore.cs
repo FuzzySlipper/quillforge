@@ -33,6 +33,12 @@ public sealed class ProviderOptionsDto
     public int? TopK { get; init; }
     public float? FrequencyPenalty { get; init; }
     public float? PresencePenalty { get; init; }
+    public float? RepetitionPenalty { get; init; }
+    public float? MinP { get; init; }
+    public int? Seed { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Additional { get; init; }
 }
 
 /// <summary>

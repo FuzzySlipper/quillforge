@@ -8,6 +8,7 @@ public enum Mode
     Guide,
     Writer,
     Roleplay,
+    Lore,
     Forge,
     Council,
     Research

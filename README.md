@@ -9,7 +9,7 @@ QuillForge is under active development. Releases are built from Git tags and are
 ## Features
 
 - Conversational orchestrator with specialized agents behind the scenes
-- Six working modes: Guide, Writer, Roleplay, Forge, Council, and Research
+- Seven working modes: Guide, Writer, Roleplay, Lore Builder, Forge, Council, and Research
 - Branching conversation history with retry, fork, delete, and variants
 - Lore-backed responses and writing assistance
 - Autonomous Forge pipeline for long-form story generation
@@ -24,6 +24,7 @@ QuillForge is under active development. Releases are built from Git tags and are
 | Guide | Onboarding, troubleshooting, and mode selection |
 | Writer | Long-form project writing with pending-content accept/reject workflow |
 | Roleplay | Interactive narrative with character context and roleplay state |
+| Lore Builder | Guided creation and maintenance of lore documents for the Librarian |
 | Forge | Command-and-pipeline control for autonomous story production |
 | Council | Multi-advisor synthesis for brainstorming and critique |
 | Research | Parallel research workflows and research project output |

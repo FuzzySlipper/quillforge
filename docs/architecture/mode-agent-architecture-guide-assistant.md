@@ -140,7 +140,11 @@ The target flow is:
 
 Ownership split:
 
-- `Librarian` owns lore retrieval and canon lookup
+- `Librarian` owns semantic retrieval from the active lore document corpus only
+- `query_context` owns broad source-aware lookup across character cards,
+  session canon, plot/story state, recent conversation, and lore-document
+  snippets
+- Lore Builder owns creation and maintenance of durable lore files
 - `NarrativeDirector` owns grounding, planning, and narrative-state updates
 - `ProseWriter` owns prose rendering and voice execution
 

@@ -13,6 +13,7 @@ public sealed class SessionLoreCanonizationServiceTests
         new GuideMode(),
         new WriterMode(),
         new RoleplayMode(),
+        new LoreBuilderMode(),
         new ForgeMode(),
         new CouncilMode(),
     ];

@@ -131,6 +131,66 @@ public sealed class StoryStateHandlerTests
     }
 
     [Fact]
+    public async Task WriteProseHandler_PassesCharacterContextToProseWriter()
+    {
+        var completion = new FakeCompletionService();
+        completion.EnqueueText("Nadia keeps one hand on the moon key.");
+        var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
+        var toolLoop = new ToolLoop(completion, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore(new Dictionary<string, string>
+        {
+            ["canon.md"] = "The city of Veyr has seven moon gates.",
+        });
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
+        var proseWriter = new ProseWriterAgent(
+            toolLoop,
+            new StubToolHandler("query_lore"),
+            guard,
+            new AppConfig(),
+            NullLogger<ProseWriterAgent>.Instance);
+        var storyState = new TrackingStoryStateService();
+        var handler = new WriteProseHandler(
+            proseWriter,
+            new FakeInteractiveSessionContextService(),
+            storyState,
+            NullLogger<WriteProseHandler>.Instance);
+        var context = new AgentContext
+        {
+            SessionId = SessionA,
+            ActiveMode = Mode.Roleplay,
+            ActiveLoreSet = "default",
+            ActiveWritingStyle = "default",
+            SessionContext = new InteractiveSessionContext
+            {
+                ActiveMode = Mode.Roleplay,
+                ProjectName = "my-novel",
+                StoryStatePath = "my-novel/.state.yaml",
+                CurrentFile = "scene-01.md",
+                Character = "nadia",
+                CharacterSection = "Nadia is a careful archivist who carries the moon key.",
+                StickySessionCanon = "- Nadia promised not to open the gate before dawn.",
+            },
+        };
+        var input = new ToolInput(JsonDocument.Parse("""{"scene_description": "Nadia studies the sealed gate."}""").RootElement);
+
+        var result = await handler.HandleAsync(input, context);
+
+        Assert.True(result.Success);
+        var request = completion.ReceivedRequests.Single();
+        Assert.Contains("## Character Context", request.SystemPrompt!);
+        Assert.Contains("Nadia is a careful archivist", request.SystemPrompt!);
+        Assert.Contains("## Sticky Session Canon", request.SystemPrompt!);
+        Assert.Contains("promised not to open the gate", request.SystemPrompt!);
+        Assert.Contains("Use query_lore only for facts that should come from the active lore documents", request.SystemPrompt!);
+    }
+
+    [Fact]
     public async Task WriteProseHandler_ReturnsFailure_WhenWritingStyleIsMissing()
     {
         var completion = new FakeCompletionService();

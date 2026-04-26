@@ -329,6 +329,11 @@ public sealed class ChatClientCompletionService : ICompletionService
             ModelId = string.Equals(request.Model, "default", StringComparison.OrdinalIgnoreCase) ? null : request.Model,
             MaxOutputTokens = request.MaxTokens,
             Temperature = request.Temperature is not null ? (float)request.Temperature.Value : null,
+            TopP = request.TopP is not null ? (float)request.TopP.Value : null,
+            TopK = request.TopK,
+            FrequencyPenalty = request.FrequencyPenalty is not null ? (float)request.FrequencyPenalty.Value : null,
+            PresencePenalty = request.PresencePenalty is not null ? (float)request.PresencePenalty.Value : null,
+            Seed = request.Seed,
         };
 
         if (request.Tools is { Count: > 0 })

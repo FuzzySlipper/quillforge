@@ -9,6 +9,7 @@ interface OverlayProps {
 
 export default function Overlay({ open, onClose, title, children }: OverlayProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
+  const pointerStartedOnBackdropRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -25,8 +26,14 @@ export default function Overlay({ open, onClose, title, children }: OverlayProps
     <div
       ref={backdropRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+      onPointerDown={(e) => {
+        pointerStartedOnBackdropRef.current = e.target === backdropRef.current;
+      }}
       onClick={(e) => {
-        if (e.target === backdropRef.current) onClose();
+        if (pointerStartedOnBackdropRef.current && e.target === backdropRef.current) {
+          onClose();
+        }
+        pointerStartedOnBackdropRef.current = false;
       }}
     >
       <div className="w-full max-w-md rounded-xl bg-surface border border-border shadow-2xl max-h-[80vh] flex flex-col">

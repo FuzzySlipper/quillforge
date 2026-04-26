@@ -14,6 +14,7 @@ public sealed class NarrativeDirectorAgent
 {
     private readonly ToolLoop _toolLoop;
     private readonly QueryLoreHandler _queryLoreHandler;
+    private readonly QueryContextHandler? _queryContextHandler;
     private readonly UpdateStoryStateHandler _updateStoryStateHandler;
     private readonly UpdateNarrativeStateHandler _updateNarrativeStateHandler;
     private readonly WriteProseHandler _writeProseHandler;
@@ -32,10 +33,12 @@ public sealed class NarrativeDirectorAgent
         CanonPrerequisiteGuard canonGuard,
         INarrativeRulesStore narrativeRulesStore,
         AppConfig appConfig,
-        ILogger<NarrativeDirectorAgent> logger)
+        ILogger<NarrativeDirectorAgent> logger,
+        QueryContextHandler? queryContextHandler = null)
     {
         _toolLoop = toolLoop;
         _queryLoreHandler = queryLoreHandler;
+        _queryContextHandler = queryContextHandler;
         _updateStoryStateHandler = updateStoryStateHandler;
         _updateNarrativeStateHandler = updateNarrativeStateHandler;
         _writeProseHandler = writeProseHandler;
@@ -80,9 +83,20 @@ public sealed class NarrativeDirectorAgent
             AgentName = "narrative-director",
         };
 
+        var tools = new List<IToolHandler>();
+        if (_queryContextHandler is not null)
+        {
+            tools.Add(_queryContextHandler);
+        }
+
+        tools.Add(_queryLoreHandler);
+        tools.Add(_updateStoryStateHandler);
+        tools.Add(_updateNarrativeStateHandler);
+        tools.Add(_writeProseHandler);
+
         var response = await _toolLoop.RunAsync(
             config,
-            [_queryLoreHandler, _updateStoryStateHandler, _updateNarrativeStateHandler, _writeProseHandler],
+            tools,
             messages,
             context,
             ct);
@@ -207,7 +221,8 @@ public sealed class NarrativeDirectorAgent
             Responsibilities:
             - Decide the next beat of the scene based on the user's action.
             - Control NPC reactions, pacing, and immediate consequences.
-            - Use `query_lore` before making specific world claims when established lore matters.
+            - Use `query_context` for broad canon checks across character cards, session canon, plot/story state, recent conversation, and lore-document snippets.
+            - Use `query_lore` before making specific claims that should come from the active lore documents.
             - Use `update_story_state` when the turn changes relationships, conditions, plot pressure, or scene facts.
             - Use `update_narrative_state` to save concise running director notes and sticky session canon for the next turn.
             - If an active plot is loaded, treat it as a reusable plan and track this session's progress or deviations separately.
@@ -223,7 +238,7 @@ public sealed class NarrativeDirectorAgent
             - Treat non-conflicting facts established in the current chat as authoritative local canon for this session unless explicit lore, character context, or user correction contradicts them.
             - Keep `sticky_session_canon` current as a concise bullet list of session-established facts, promises, suspicions, objects, alliances, and scene truths that later turns must preserve.
             - When an active plot materially advances or is bypassed, update plot progress in `update_narrative_state`.
-            - If the user corrects characterization, relationships, gifts, promises, timeline facts, or prior scene details, treat that as a signal to re-ground against canon before continuing. Re-check the relevant lore and character context instead of patching only the quoted mistake.
+            - If the user corrects characterization, relationships, gifts, promises, timeline facts, or prior scene details, treat that as a signal to re-ground against canon before continuing. Re-check the relevant supplied context and lore documents instead of patching only the quoted mistake.
 
             ## Narrative Rules
 
@@ -246,14 +261,15 @@ public sealed class NarrativeDirectorAgent
 
         var loreSection = string.IsNullOrWhiteSpace(context.ActiveLoreSet)
             ? ""
-            : $"\n\n## Active Lore Set\n\nThe active lore set is \"{context.ActiveLoreSet}\". Use `query_lore` when world details matter.";
+            : $"\n\n## Active Lore Set\n\nThe active lore set is \"{context.ActiveLoreSet}\". Use `query_lore` only for facts from these lore documents.";
 
         return $"""
             You are the Narrative Director preparing a reusable plot arc document for an interactive fiction session.
 
             Responsibilities:
             - Create a markdown plot plan that can guide multiple future sessions.
-            - Use `query_lore` before making specific world claims when established lore matters.
+            - Use `query_context` for broad checks across character cards, session canon, plot/story state, recent conversation, and lore-document snippets.
+            - Use `query_lore` before making specific claims that should come from the active lore documents.
             - Produce structure that is useful to the future director: premise, beats, character arcs, and tension curve.
 
             Rules:

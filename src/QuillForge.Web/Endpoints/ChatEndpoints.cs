@@ -131,46 +131,61 @@ public static class ChatEndpoints
             ProviderReplayEnvelope? providerReplay = null;
 
             var tools = toolHandlers.ToList();
-            await foreach (var evt in orchestrator.HandleStreamAsync(
-                sessionState, model, maxTokens, tools, messages, context, ct: ct))
+            try
             {
-                switch (evt)
+                await foreach (var evt in orchestrator.HandleStreamAsync(
+                    sessionState, model, maxTokens, tools, messages, context, ct: ct))
                 {
-                    case TextDeltaEvent text:
-                        assistantText.Append(text.Text);
-                        break;
-                    case ToolCallValidatedEvent:
-                        assistantText.Clear();
-                        assistantReasoning.Clear();
-                        break;
-                    case ReasoningDeltaEvent reasoning:
-                        assistantReasoning.Append(reasoning.Text);
-                        break;
-                    case DoneEvent done:
-                        stopReason = done.StopReason;
-                        inputTokens = done.Usage.InputTokens;
-                        outputTokens = done.Usage.OutputTokens;
-                        providerReplay = done.ProviderReplay;
-                        break;
-                }
+                    switch (evt)
+                    {
+                        case TextDeltaEvent text:
+                            assistantText.Append(text.Text);
+                            break;
+                        case ToolCallValidatedEvent:
+                            assistantText.Clear();
+                            assistantReasoning.Clear();
+                            break;
+                        case ReasoningDeltaEvent reasoning:
+                            assistantReasoning.Append(reasoning.Text);
+                            break;
+                        case DoneEvent done:
+                            stopReason = done.StopReason;
+                            inputTokens = done.Usage.InputTokens;
+                            outputTokens = done.Usage.OutputTokens;
+                            providerReplay = done.ProviderReplay;
+                            break;
+                    }
 
-                var eventReasoning = GetReasoningForDisplay(reasoningCollector, assistantReasoning, providerReplay);
-                var eventReasoningArtifacts = reasoningCollector.Snapshot();
-                var eventData = evt switch
-                {
-                    TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new ChatTextDeltaDto { Text = text.Text }, s_jsonOptions)}\n\n",
-                    ToolCallValidatedEvent tool => $"data: {JsonSerializer.Serialize(new ChatToolDto { Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
-                    DoneEvent done => FormatDoneEvent(done, sessionId, appendParentId, assistantText.ToString(), eventReasoning, eventReasoningArtifacts, prepared, usageTracker),
-                    ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new ChatReasoningDeltaDto { Text = reasoning.Text }, s_jsonOptions)}\n\n",
-                    DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new ChatDiagnosticDto { Category = diag.Category.ToString().ToLowerInvariant(), Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
-                    _ => null,
-                };
+                    var eventReasoning = GetReasoningForDisplay(reasoningCollector, assistantReasoning, providerReplay);
+                    var eventReasoningArtifacts = reasoningCollector.Snapshot();
+                    var eventData = evt switch
+                    {
+                        TextDeltaEvent text => $"data: {JsonSerializer.Serialize(new ChatTextDeltaDto { Text = text.Text }, s_jsonOptions)}\n\n",
+                        ToolCallValidatedEvent tool => $"data: {JsonSerializer.Serialize(new ChatToolDto { Name = tool.ToolName, Id = tool.ToolId }, s_jsonOptions)}\n\n",
+                        DoneEvent done => FormatDoneEvent(done, sessionId, appendParentId, assistantText.ToString(), eventReasoning, eventReasoningArtifacts, prepared, usageTracker),
+                        ReasoningDeltaEvent reasoning => $"data: {JsonSerializer.Serialize(new ChatReasoningDeltaDto { Text = reasoning.Text }, s_jsonOptions)}\n\n",
+                        DiagnosticEvent diag => $"data: {JsonSerializer.Serialize(new ChatDiagnosticDto { Category = diag.Category.ToString().ToLowerInvariant(), Message = diag.Message, Level = diag.Level.ToString().ToLowerInvariant() }, s_jsonOptions)}\n\n",
+                        _ => null,
+                    };
 
-                if (eventData is not null)
-                {
-                    await httpContext.Response.WriteAsync(eventData, ct);
-                    await httpContext.Response.Body.FlushAsync(ct);
+                    if (eventData is not null)
+                    {
+                        await httpContext.Response.WriteAsync(eventData, ct);
+                        await httpContext.Response.Body.FlushAsync(ct);
+                    }
                 }
+            }
+            catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
+            {
+                logger.LogWarning(ex, "Chat stream provider/tool operation timed out or was canceled: session={SessionId}, model={Model}", sessionId, model);
+                await WriteChatErrorAsync(httpContext.Response, $"Provider/tool operation timed out or was canceled while using {model}: {ex.Message}", ct);
+                return;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Chat stream failed: session={SessionId}, model={Model}", sessionId, model);
+                await WriteChatErrorAsync(httpContext.Response, $"Chat stream failed while using {model}: {ex.GetBaseException().Message}", ct);
+                return;
             }
 
             // Guard: if stream completed with no visible text, surface a fallback
@@ -346,6 +361,13 @@ public static class ChatEndpoints
             await httpContext.Response.WriteAsync($"data: {done}\n\n", ct);
             await httpContext.Response.Body.FlushAsync(ct);
         });
+    }
+
+    private static async Task WriteChatErrorAsync(HttpResponse response, string message, CancellationToken ct)
+    {
+        var eventData = $"data: {JsonSerializer.Serialize(new ChatErrorDto { Message = message }, s_jsonOptions)}\n\n";
+        await response.WriteAsync(eventData, ct);
+        await response.Body.FlushAsync(ct);
     }
 
     private static string FormatDoneEvent(

@@ -104,7 +104,7 @@ export default function GuideWorkspace({
           <GuideActionCard
             eyebrow="Mode"
             title="Choose the right workflow"
-            body="Open the mode menu to switch between Guide, Writer, Roleplay, Forge, Council, and Research."
+            body="Open the mode menu to switch between Guide, Writer, Roleplay, Lore Builder, Forge, Council, and Research."
             onClick={onOpenMode}
           />
           <GuideActionCard

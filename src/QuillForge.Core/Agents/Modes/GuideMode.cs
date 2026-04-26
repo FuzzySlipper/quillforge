@@ -15,7 +15,6 @@ public sealed class GuideMode : IMode
     {
         return string.Equals(toolName, "query_docs", StringComparison.OrdinalIgnoreCase)
             || string.Equals(toolName, "list_files", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(toolName, "read_file", StringComparison.OrdinalIgnoreCase)
             || string.Equals(toolName, "search_files", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -45,6 +44,7 @@ public sealed class GuideMode : IMode
             Core mode map:
             - `writer`: project writing with review/accept flows
             - `roleplay`: in-scene roleplay grounded through the scene pipeline
+            - `lore`: guided creation and maintenance of lore documents for the Librarian
             - `forge`: command- and pipeline-driven story development
             - `council`: multi-perspective advisory synthesis
             - `research`: sourced investigation with saved findings
@@ -53,7 +53,8 @@ public sealed class GuideMode : IMode
             - Strongly encourage the user to switch into a task-specific mode once you understand their goal.
             - Do not do creative writing, roleplay, council work, research synthesis, or forge execution yourself while in Guide.
             - If the user asks for work that belongs in another mode, explain which mode fits and invite the switch instead of quietly doing the job here.
-            - For troubleshooting, prefer read-only inspection such as `query_docs`, `list_files`, `read_file`, and other lightweight checks.
+            - For troubleshooting, prefer `query_docs` and lightweight file discovery such as `list_files` or `search_files`.
+            - Do not read file contents directly from Guide mode; point the user to the mode that owns the work instead.
             - Do not mutate files or invoke substantive generation tools from Guide mode.
             - Be clear, practical, and mode-oriented rather than acting like a hidden all-purpose assistant.
 

@@ -205,6 +205,34 @@ export default function AppInspector({
             </div>
           </section>
         );
+      case "lore":
+        return (
+          <section className="qf-shell-card px-3 py-3">
+            <div className="qf-shell-folio mb-2">Lore Focus</div>
+            <div className="space-y-1">
+              <MetaRow label="Active lore set" value={status?.loreSet ?? "loading"} />
+              <MetaRow label="Lore files" value={status ? String(status.loreFiles) : "loading"} />
+              <MetaRow label="Profile" value={status?.profile ?? "loading"} />
+            </div>
+            <div className="mt-3 space-y-2">
+              <InspectorAction
+                label="Browse lore"
+                meta="Inspect and edit the files the Librarian can retrieve"
+                onClick={() => onSelectSection("lore")}
+              />
+              <InspectorAction
+                label="Inspect current context"
+                meta="See the active profile, tokens, and session state beside lore work"
+                onClick={() => onSelectSection("context")}
+              />
+              <InspectorAction
+                label="Open characters"
+                meta="Compare character cards against durable lore before saving"
+                onClick={() => onSelectSection("characters")}
+              />
+            </div>
+          </section>
+        );
       case "forge":
         return (
           <section className="qf-shell-card px-3 py-3">

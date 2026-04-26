@@ -67,7 +67,7 @@ const RELEASES_URL = "https://github.com/FuzzySlipper/quillforge/releases";
 const INSPECTOR_STORAGE_KEY_PREFIX = "qf-shell-inspector:";
 
 function defaultInspectorOpen(mode: Mode): boolean {
-  return mode === "guide" || mode === "roleplay" || mode === "research";
+  return mode === "guide" || mode === "roleplay" || mode === "lore" || mode === "research";
 }
 
 function readInspectorOpen(mode: Mode): boolean {
@@ -110,6 +110,9 @@ function App() {
   const [currentTextTheme, setCurrentTextTheme] = useState<TextTheme>(textTheme.getTheme());
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const autoScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoScrollFrameRef = useRef<number | null>(null);
+  const autoScrollTargetRef = useRef<number | null>(null);
   // When true, the next response will be added as a variant to the last assistant message
   const addAsVariantRef = useRef(false);
   const [elapsed, setElapsed] = useState(0);
@@ -225,9 +228,65 @@ function App() {
       .catch(() => {});
   }, [applyModeInfo]);
 
+  const scheduleAutoScroll = useCallback(() => {
+    if (autoScrollTimerRef.current !== null) {
+      return;
+    }
+
+    autoScrollTimerRef.current = setTimeout(() => {
+      autoScrollTimerRef.current = null;
+
+      const content = messagesEndRef.current?.parentElement;
+      const scrollContainer = content?.parentElement;
+      if (!scrollContainer) {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+        return;
+      }
+
+      const target = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+      autoScrollTargetRef.current = target;
+      if (autoScrollFrameRef.current !== null) {
+        return;
+      }
+
+      const start = scrollContainer.scrollTop;
+      const startedAt = performance.now();
+      const durationMs = 110;
+      const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+
+      const step = (now: number) => {
+        const latestTarget = autoScrollTargetRef.current ?? target;
+        const progress = Math.min(1, (now - startedAt) / durationMs);
+        scrollContainer.scrollTop = start + (latestTarget - start) * easeOut(progress);
+
+        if (progress < 1 && Math.abs(scrollContainer.scrollTop - latestTarget) > 1) {
+          autoScrollFrameRef.current = requestAnimationFrame(step);
+          return;
+        }
+
+        scrollContainer.scrollTop = latestTarget;
+        autoScrollFrameRef.current = null;
+      };
+
+      autoScrollFrameRef.current = requestAnimationFrame(step);
+    }, 35);
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamStatus]);
+    scheduleAutoScroll();
+  }, [messages, streamStatus, scheduleAutoScroll]);
+
+  useEffect(() => {
+    return () => {
+      if (autoScrollTimerRef.current !== null) {
+        clearTimeout(autoScrollTimerRef.current);
+      }
+
+      if (autoScrollFrameRef.current !== null) {
+        cancelAnimationFrame(autoScrollFrameRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     publishDesktopShellBridge(status, layout, currentTextTheme);
@@ -483,7 +542,13 @@ function App() {
             if (streamingStarted) {
               setMessages((prev) => prev.filter((m) => m.id !== streamMsgId));
             }
-            addResponseMessage(`Error: ${event.data.message}`, "error");
+            const message = String(event.data.message ?? "Unknown stream error");
+            setDiagnosticEntries((prev) => [...prev, {
+              category: "stream",
+              message,
+              level: "error",
+            }]);
+            addResponseMessage(`Error: ${message}`, "error");
             setStreamStatus(null);
           }
         },
@@ -566,7 +631,13 @@ function App() {
             if (reqStreamStarted) {
               setMessages((prev) => prev.filter((message) => message.id !== reqStreamMsgId));
             }
-            addResponseMessage(`Error: ${event.data.message}`, "error");
+            const message = String(event.data.message ?? "Unknown stream error");
+            setDiagnosticEntries((prev) => [...prev, {
+              category: "stream",
+              message,
+              level: "error",
+            }]);
+            addResponseMessage(`Error: ${message}`, "error");
             setStreamStatus(null);
           }
         },
@@ -1077,6 +1148,47 @@ function App() {
             onRegenerate={handleRegenerate}
             onDeleteLast={handleDeleteLast}
           />
+        );
+      case "lore":
+        return (
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="border-b border-border/70 px-6 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="qf-shell-folio">Lore Builder workspace</div>
+                  <h1 className="qf-shell-title mt-1">{status?.loreSet ?? "Lore Builder"}</h1>
+                  <p className="qf-shell-subtitle mt-2 max-w-3xl">
+                    Build durable lore files for the active lore set while keeping character cards,
+                    session canon, web research, and lore documents clearly separated.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openInspectorSection("lore")}
+                  className="qf-shell-card px-3 py-2 text-sm text-text-muted transition-colors hover:border-accent/40 hover:bg-input-bg/50 hover:text-text"
+                >
+                  Browse lore
+                </button>
+              </div>
+            </div>
+
+            {updateBanner}
+            <ConversationPane
+              {...conversationPaneProps}
+              mode="lore"
+              emptyState={buildEmptyState(
+                "lore",
+                "Lore Builder is ready",
+                "Ask it to draft, compare, research, or save lore entries for the active lore set.",
+              )}
+            />
+            <InputBar
+              onSend={handleSend}
+              disabled={sending}
+              placeholder="Build or revise lore for the active lore set..."
+            />
+          </div>
         );
       case "forge":
         return (

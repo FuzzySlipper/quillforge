@@ -6,7 +6,7 @@ namespace QuillForge.Core.Agents;
 
 /// <summary>
 /// The Forge Writer drafts a single chapter based on its brief.
-/// Has access to query_lore for world-building verification.
+/// Has access to query_lore for lore-document verification.
 /// Deliberately limited cognition: only sees its chapter brief + previous chapter tail.
 /// </summary>
 public sealed class ForgeWriterAgent
@@ -103,7 +103,7 @@ public sealed class ForgeWriterAgent
 
         Rules:
         1. Follow the chapter brief faithfully — include all required plot beats.
-        2. Use the query_lore tool to verify character details before writing.
+        2. Use the query_lore tool to verify facts that should come from the active lore documents.
         3. Maintain continuity with the previous chapter's ending.
         4. Do NOT reveal future plot points or spoil later chapters.
         5. Write prose only — no metadata, no scene headings unless the brief specifies them.

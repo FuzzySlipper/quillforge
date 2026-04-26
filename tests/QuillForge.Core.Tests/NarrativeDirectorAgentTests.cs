@@ -117,7 +117,7 @@ public sealed class NarrativeDirectorAgentTests
             new InMemorySessionMutationGate(NullLogger<InMemorySessionMutationGate>.Instance),
             new FakeProfileConfigService(),
             new InMemoryStoryStore(),
-            [new GuideMode(), new WriterMode(), new RoleplayMode(), new ForgeMode(), new CouncilMode()],
+            [new GuideMode(), new WriterMode(), new RoleplayMode(), new LoreBuilderMode(), new ForgeMode(), new CouncilMode()],
             NullLogger<SessionRuntimeService>.Instance);
 
         var sessionStore = new InMemoryInteractiveSessionStore();

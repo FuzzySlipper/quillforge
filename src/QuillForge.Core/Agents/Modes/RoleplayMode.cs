@@ -17,7 +17,8 @@ public sealed class RoleplayMode : IMode
     {
         return !string.Equals(toolName, "write_prose", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(toolName, "update_story_state", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(toolName, "update_narrative_state", StringComparison.OrdinalIgnoreCase);
+            && !string.Equals(toolName, "update_narrative_state", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(toolName, "save_lore_file", StringComparison.OrdinalIgnoreCase);
     }
 
     public string BuildSystemPromptSection(ModeContext context)
@@ -50,8 +51,9 @@ public sealed class RoleplayMode : IMode
             Treat non-conflicting facts established in this session's chat as authoritative local canon unless explicit lore,
             character context, or user correction contradicts them.
             Do not call write_prose, update_story_state, or update_narrative_state directly from the top level in Roleplay mode.
-            If the user corrects canon or characterization, re-ground against the relevant lore and character context before continuing.
+            If the user corrects canon or characterization, re-ground with `query_context` and any relevant lore documents before continuing.
             Do not patch only the quoted mistake and keep improvising from the old assumption.
+            Do not save lore files from Roleplay mode; switch to Lore Builder for durable lore editing.
 
             {context.FileContext ?? ""}
 

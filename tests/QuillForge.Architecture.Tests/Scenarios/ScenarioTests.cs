@@ -104,6 +104,7 @@ public sealed class ScenarioTests : IDisposable
         {
             new GuideMode(),
             new WriterMode(),
+            new LoreBuilderMode(),
         };
 
         var assistantPromptStore = new FakeAssistantPromptStore();

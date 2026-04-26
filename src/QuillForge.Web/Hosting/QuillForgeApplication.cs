@@ -211,9 +211,21 @@ internal static class QuillForgeApplication
                 queryLore,
                 sp.GetRequiredService<CanonPrerequisiteGuard>(),
                 config,
-                sp.GetRequiredService<ILogger<ProseWriterAgent>>());
+                sp.GetRequiredService<ILogger<ProseWriterAgent>>(),
+                sp.GetRequiredService<QueryContextHandler>());
         });
-        builder.Services.AddSingleton<NarrativeDirectorAgent>();
+        builder.Services.AddSingleton<NarrativeDirectorAgent>(sp =>
+            new NarrativeDirectorAgent(
+                sp.GetRequiredService<ToolLoop>(),
+                sp.GetRequiredService<QueryLoreHandler>(),
+                sp.GetRequiredService<UpdateStoryStateHandler>(),
+                sp.GetRequiredService<UpdateNarrativeStateHandler>(),
+                sp.GetRequiredService<WriteProseHandler>(),
+                sp.GetRequiredService<CanonPrerequisiteGuard>(),
+                sp.GetRequiredService<INarrativeRulesStore>(),
+                sp.GetRequiredService<AppConfig>(),
+                sp.GetRequiredService<ILogger<NarrativeDirectorAgent>>(),
+                sp.GetRequiredService<QueryContextHandler>()));
 
         builder.Services.AddSingleton<DelegatePool>(sp =>
         {
@@ -273,6 +285,7 @@ internal static class QuillForgeApplication
         builder.Services.AddSingleton<IMode, GuideMode>();
         builder.Services.AddSingleton<IMode, WriterMode>();
         builder.Services.AddSingleton<IMode, RoleplayMode>();
+        builder.Services.AddSingleton<IMode, LoreBuilderMode>();
         builder.Services.AddSingleton<IMode, ForgeMode>();
         builder.Services.AddSingleton<IMode, CouncilMode>();
         builder.Services.AddSingleton<IMode, ResearchMode>();
@@ -388,6 +401,10 @@ internal static class QuillForgeApplication
                     TopK = dto.Options.TopK,
                     FrequencyPenalty = dto.Options.FrequencyPenalty,
                     PresencePenalty = dto.Options.PresencePenalty,
+                    RepetitionPenalty = dto.Options.RepetitionPenalty,
+                    MinP = dto.Options.MinP,
+                    Seed = dto.Options.Seed,
+                    Additional = dto.Options.Additional,
                 } : null,
             });
         }

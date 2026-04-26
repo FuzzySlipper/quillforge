@@ -58,7 +58,7 @@ type ProviderRoleGuide = {
   why: string;
 };
 
-const MODE_ORDER: Mode[] = ["guide", "writer", "roleplay", "council", "research", "forge"];
+const MODE_ORDER: Mode[] = ["guide", "writer", "roleplay", "lore", "council", "research", "forge"];
 
 const TOUR_MODES: Record<Mode, TourModeSpec> = {
   guide: {
@@ -78,7 +78,7 @@ const TOUR_MODES: Record<Mode, TourModeSpec> = {
     backstageCopy:
       "Guide is app-owned onboarding. It can consult docs and inspect lightweight context, but it is deliberately not a catch-all creative surface.",
     backstageNotes: [
-      "Explains the difference between the six modes",
+      "Explains the difference between the app modes",
       "Uses docs and light inspection for troubleshooting",
       "Strongly nudges the user toward a task-specific mode",
     ],
@@ -180,6 +180,48 @@ const TOUR_MODES: Record<Mode, TourModeSpec> = {
     ],
     sampleOutput:
       "The gate screamed open by a finger's breadth. Cold water breathed through the seam, and somewhere in the black below, a young man's laugh broke apart into the first syllable of your name.",
+  },
+  lore: {
+    id: "lore",
+    label: "Lore Builder",
+    badge: "Canon Workshop",
+    family: "World Engine",
+    accent: "#8ae7c1",
+    promise: "Turns rough world-building into durable lore files the Librarian can retrieve later.",
+    feelsLike: "A reference desk that can draft the encyclopedia entry with you.",
+    whenToUse: "When you want to create, research, compare, or revise canon material before it becomes a source of truth.",
+    returns: "Drafted or saved markdown lore entries with clear source boundaries.",
+    userPrompt: "Help me create a faction file for the Silverwatch and save it in the active lore set.",
+    visibleTitle: "Lore draft or saved file",
+    visibleResult:
+      "Lore Builder checks existing context, separates character cards and session facts from lore documents, and saves approved markdown where the Librarian can use it.",
+    backstageCopy:
+      "Lore Builder exists so Guide does not become a hidden all-purpose editor. It owns the conversation-to-lore-file workflow directly.",
+    backstageNotes: [
+      "query_context labels where facts came from",
+      "query_lore searches existing lore documents",
+      "web_search can gather real-world reference",
+      "save_lore_file writes approved markdown into the active lore set",
+    ],
+    guardrails: [
+      "Does not treat web search as fictional canon by itself",
+      "Does not write story prose or roleplay turns",
+      "Does not save uncertain facts without user approval",
+    ],
+    flow: [
+      { label: "World-Building Goal", detail: "Bring a faction, place, rule, timeline, or open canon question." },
+      {
+        label: "Source Check",
+        detail: "Separate lore docs from character cards, session canon, and real-world reference.",
+        kind: "cluster",
+        items: ["Lore docs", "Context", "Web reference"],
+      },
+      { label: "Lore Draft", detail: "Shape the material into compact markdown." },
+      { label: "User Approval", detail: "Confirm canon before saving uncertain or researched facts." },
+      { label: "Saved Lore File", detail: "Write to the active lore set for future retrieval.", kind: "terminal" },
+    ],
+    sampleOutput:
+      "Silverwatch is now drafted as a lore entry: oath, territory, public face, private fractures, and open hooks. Once approved, it saves under the active lore set for the Librarian.",
   },
   council: {
     id: "council",
@@ -492,7 +534,7 @@ export default function StoryTourPage() {
                 <article className="tour-lifecycle-node is-mode">
                   <span className="tour-lifecycle-label">Mode</span>
                   <strong>Choose the room</strong>
-                  <p>Guide, Writer, Roleplay, Council, Research, or Forge frames the job.</p>
+                  <p>Guide, Writer, Roleplay, Lore Builder, Council, Research, or Forge frames the job.</p>
                 </article>
 
                 <div className="tour-lifecycle-link is-forward is-dispatch">

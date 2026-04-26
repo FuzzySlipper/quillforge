@@ -308,9 +308,13 @@ public sealed class ReasoningCompletionService : ICompletionService
 
     private string BuildRequestJson(CompletionRequest request, bool stream = false)
     {
+        var effectiveModel = request.Model == "default" ? _model : request.Model;
+        var addReasoningContent = ShouldAddReasoningContent(request.AdditionalOptions, effectiveModel);
+        var stripEmptyRequired = ShouldStripEmptyRequired(request.AdditionalOptions, effectiveModel);
+
         var root = new JsonObject
         {
-            ["model"] = request.Model == "default" ? _model : request.Model,
+            ["model"] = effectiveModel,
             ["max_tokens"] = request.MaxTokens,
             ["stream"] = stream,
         };
@@ -318,6 +322,34 @@ public sealed class ReasoningCompletionService : ICompletionService
         if (request.Temperature is not null)
         {
             root["temperature"] = (decimal)request.Temperature.Value;
+        }
+        if (request.TopP is not null)
+        {
+            root["top_p"] = (decimal)request.TopP.Value;
+        }
+        if (request.TopK is not null)
+        {
+            root["top_k"] = request.TopK.Value;
+        }
+        if (request.FrequencyPenalty is not null)
+        {
+            root["frequency_penalty"] = (decimal)request.FrequencyPenalty.Value;
+        }
+        if (request.PresencePenalty is not null)
+        {
+            root["presence_penalty"] = (decimal)request.PresencePenalty.Value;
+        }
+        if (request.RepetitionPenalty is not null)
+        {
+            root["repetition_penalty"] = (decimal)request.RepetitionPenalty.Value;
+        }
+        if (request.MinP is not null)
+        {
+            root["min_p"] = (decimal)request.MinP.Value;
+        }
+        if (request.Seed is not null)
+        {
+            root["seed"] = request.Seed.Value;
         }
 
         // Build messages array
@@ -350,7 +382,7 @@ public sealed class ReasoningCompletionService : ICompletionService
             }
             else
             {
-                var msgObj = BuildMessageJson(msg);
+                var msgObj = BuildMessageJson(msg, addReasoningContent);
                 messages.Add(msgObj);
             }
         }
@@ -370,7 +402,7 @@ public sealed class ReasoningCompletionService : ICompletionService
                     {
                         ["name"] = tool.Name,
                         ["description"] = tool.Description,
-                        ["parameters"] = JsonNode.Parse(tool.InputSchema.GetRawText()),
+                        ["parameters"] = BuildToolParametersJson(tool.InputSchema, stripEmptyRequired),
                     },
                 });
             }
@@ -382,10 +414,26 @@ public sealed class ReasoningCompletionService : ICompletionService
             root["stream_options"] = new JsonObject { ["include_usage"] = true };
         }
 
+        ApplyAdditionalRequestOptions(root, request.AdditionalOptions);
+
         return root.ToJsonString();
     }
 
-    private static JsonObject BuildMessageJson(CompletionMessage msg)
+    private static JsonNode? BuildToolParametersJson(JsonElement schema, bool stripEmptyRequired)
+    {
+        var node = JsonNode.Parse(schema.GetRawText());
+        if (stripEmptyRequired
+            && node is JsonObject obj
+            && obj["required"] is JsonArray required
+            && required.Count == 0)
+        {
+            obj.Remove("required");
+        }
+
+        return node;
+    }
+
+    private static JsonObject BuildMessageJson(CompletionMessage msg, bool addReasoningContent)
     {
         // If we have a typed replay envelope from a previous response, rebuild the
         // provider-shaped JSON locally inside the adapter.
@@ -430,7 +478,10 @@ public sealed class ReasoningCompletionService : ICompletionService
             msgObj["tool_calls"] = toolCalls;
 
             // Inject empty reasoning_content for reasoning providers
-            msgObj["reasoning_content"] = "";
+            if (addReasoningContent)
+            {
+                msgObj["reasoning_content"] = "";
+            }
         }
         else
         {
@@ -439,6 +490,100 @@ public sealed class ReasoningCompletionService : ICompletionService
         }
 
         return msgObj;
+    }
+
+    private static void ApplyAdditionalRequestOptions(
+        JsonObject root,
+        IReadOnlyDictionary<string, JsonElement>? additionalOptions)
+    {
+        if (additionalOptions is null)
+        {
+            return;
+        }
+
+        TryApplyRawOption(root, additionalOptions, "top_p");
+        TryApplyRawOption(root, additionalOptions, "top_k");
+        TryApplyRawOption(root, additionalOptions, "frequency_penalty");
+        TryApplyRawOption(root, additionalOptions, "presence_penalty");
+        TryApplyRawOption(root, additionalOptions, "repetition_penalty");
+        TryApplyRawOption(root, additionalOptions, "min_p");
+        TryApplyRawOption(root, additionalOptions, "seed");
+        TryApplyRawOption(root, additionalOptions, "num_ctx");
+
+        if (TryGetOption(additionalOptions, "extra_body", out var extraBody)
+            && extraBody.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in extraBody.EnumerateObject())
+            {
+                root[property.Name] = CloneJsonNode(property.Value);
+            }
+        }
+    }
+
+    private static void TryApplyRawOption(
+        JsonObject root,
+        IReadOnlyDictionary<string, JsonElement> additionalOptions,
+        string key)
+    {
+        if (root.ContainsKey(key) || !TryGetOption(additionalOptions, key, out var value))
+        {
+            return;
+        }
+
+        root[key] = CloneJsonNode(value);
+    }
+
+    private static JsonNode? CloneJsonNode(JsonElement value)
+    {
+        return JsonNode.Parse(value.GetRawText());
+    }
+
+    private static bool ShouldAddReasoningContent(
+        IReadOnlyDictionary<string, JsonElement>? additionalOptions,
+        string model)
+    {
+        if (additionalOptions is null || !TryGetOption(additionalOptions, "reasoning_content", out var option))
+        {
+            return true;
+        }
+
+        if (option.ValueKind == JsonValueKind.True) return true;
+        if (option.ValueKind == JsonValueKind.False) return false;
+        if (option.ValueKind == JsonValueKind.String
+            && string.Equals(option.GetString(), "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return model.Contains("-reasoner", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return true;
+    }
+
+    private static bool ShouldStripEmptyRequired(
+        IReadOnlyDictionary<string, JsonElement>? additionalOptions,
+        string model)
+    {
+        if (additionalOptions is null || !TryGetOption(additionalOptions, "strip_empty_required", out var option))
+        {
+            return false;
+        }
+
+        if (option.ValueKind == JsonValueKind.True) return true;
+        if (option.ValueKind == JsonValueKind.False) return false;
+        if (option.ValueKind == JsonValueKind.String
+            && string.Equals(option.GetString(), "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return model.Contains("deepseek", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
+    private static bool TryGetOption(
+        IReadOnlyDictionary<string, JsonElement> additionalOptions,
+        string key,
+        out JsonElement value)
+    {
+        return additionalOptions.TryGetValue(key, out value);
     }
 
     private CompletionResponse ParseResponse(string responseBody)

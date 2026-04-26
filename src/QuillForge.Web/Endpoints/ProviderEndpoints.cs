@@ -26,17 +26,11 @@ public static class ProviderEndpoints
                         BaseUrl = config?.BaseUrl,
                         ModelsUrl = config?.ModelsUrl ?? DefaultModelsUrl(config),
                         ContextLimit = config?.ContextLimit,
-                        RequiresReasoning = config?.RequiresReasoning ?? ProviderFactory.IsReasoningModel(config?.DefaultModel ?? ""),
+                        RequiresReasoning = config?.RequiresReasoning,
+                        RequiresReasoningEffective = config?.RequiresReasoning ?? ProviderFactory.IsReasoningModel(config?.DefaultModel ?? ""),
                         ApiKeySet = !string.IsNullOrEmpty(config?.ApiKey),
                         UsedBy = Array.Empty<string>(),
-                        Options = config?.Options is not null ? new
-                        {
-                            config.Options.Temperature,
-                            config.Options.TopP,
-                            config.Options.TopK,
-                            config.Options.FrequencyPenalty,
-                            config.Options.PresencePenalty,
-                        } : null,
+                        Options = config?.Options is not null ? ToProviderOptionsDictionary(config.Options) : null,
                     };
                 });
             return Results.Ok(new { Providers = providers });
@@ -72,11 +66,9 @@ public static class ProviderEndpoints
 
             var options = ParseProviderOptions(root);
 
-            var requiresReasoning = root.TryGetProperty("requiresReasoning", out var rrEl) && rrEl.ValueKind == JsonValueKind.True
-                ? true
-                : root.TryGetProperty("requiresReasoning", out var rrEl2) && rrEl2.ValueKind == JsonValueKind.False
-                    ? false
-                    : (bool?)null;
+            var requiresReasoning = root.TryGetProperty("requiresReasoning", out var rrEl)
+                ? ReadNullableBool(rrEl)
+                : null;
 
             var config = new ProviderConfig
             {
@@ -117,7 +109,7 @@ public static class ProviderEndpoints
             var newOptions = root.TryGetProperty("options", out _) ? ParseProviderOptions(root) : existing.Options;
 
             var newRequiresReasoning = root.TryGetProperty("requiresReasoning", out var rrEl3)
-                ? rrEl3.ValueKind == JsonValueKind.True ? true : rrEl3.ValueKind == JsonValueKind.False ? false : existing.RequiresReasoning
+                ? ReadNullableBool(rrEl3)
                 : existing.RequiresReasoning;
 
             var config = existing with
@@ -281,9 +273,26 @@ public static class ProviderEndpoints
                 TopK = c.Options.TopK,
                 FrequencyPenalty = c.Options.FrequencyPenalty,
                 PresencePenalty = c.Options.PresencePenalty,
+                RepetitionPenalty = c.Options.RepetitionPenalty,
+                MinP = c.Options.MinP,
+                Seed = c.Options.Seed,
+                Additional = c.Options.Additional is not null
+                    ? c.Options.Additional.ToDictionary(pair => pair.Key, pair => pair.Value.Clone())
+                    : null,
             } : null,
         }).ToList();
         await store.SaveAsync(dtos);
+    }
+
+    private static bool? ReadNullableBool(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            _ => null,
+        };
     }
 
     private static ProviderOptions? ParseProviderOptions(JsonElement root)
@@ -291,15 +300,36 @@ public static class ProviderEndpoints
         if (!root.TryGetProperty("options", out var optEl) || optEl.ValueKind != JsonValueKind.Object)
             return null;
 
-        float? temperature = optEl.TryGetProperty("temperature", out var tEl) && tEl.ValueKind == JsonValueKind.Number ? tEl.GetSingle() : null;
-        float? topP = optEl.TryGetProperty("topP", out var tpEl) && tpEl.ValueKind == JsonValueKind.Number ? tpEl.GetSingle() : null;
-        int? topK = optEl.TryGetProperty("topK", out var tkEl) && tkEl.ValueKind == JsonValueKind.Number ? tkEl.GetInt32() : null;
-        float? frequencyPenalty = optEl.TryGetProperty("frequencyPenalty", out var fpEl) && fpEl.ValueKind == JsonValueKind.Number ? fpEl.GetSingle() : null;
-        float? presencePenalty = optEl.TryGetProperty("presencePenalty", out var ppEl) && ppEl.ValueKind == JsonValueKind.Number ? ppEl.GetSingle() : null;
+        float? temperature = TryGetSingle(optEl, "temperature");
+        float? topP = TryGetSingle(optEl, "topP", "top_p");
+        int? topK = TryGetInt(optEl, "topK", "top_k");
+        float? frequencyPenalty = TryGetSingle(optEl, "frequencyPenalty", "frequency_penalty");
+        float? presencePenalty = TryGetSingle(optEl, "presencePenalty", "presence_penalty");
+        float? repetitionPenalty = TryGetSingle(optEl, "repetitionPenalty", "repetition_penalty");
+        float? minP = TryGetSingle(optEl, "minP", "min_p");
+        int? seed = TryGetInt(optEl, "seed");
+        var additional = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var property in optEl.EnumerateObject())
+        {
+            if (!IsKnownOptionProperty(property.Name))
+            {
+                additional[property.Name] = property.Value.Clone();
+            }
+        }
 
         // Return null if all values are null (no options provided)
-        if (temperature is null && topP is null && topK is null && frequencyPenalty is null && presencePenalty is null)
+        if (temperature is null
+            && topP is null
+            && topK is null
+            && frequencyPenalty is null
+            && presencePenalty is null
+            && repetitionPenalty is null
+            && minP is null
+            && seed is null
+            && additional.Count == 0)
+        {
             return null;
+        }
 
         return new ProviderOptions
         {
@@ -308,7 +338,78 @@ public static class ProviderEndpoints
             TopK = topK,
             FrequencyPenalty = frequencyPenalty,
             PresencePenalty = presencePenalty,
+            RepetitionPenalty = repetitionPenalty,
+            MinP = minP,
+            Seed = seed,
+            Additional = additional.Count > 0 ? additional : null,
         };
+    }
+
+    private static Dictionary<string, object?> ToProviderOptionsDictionary(ProviderOptions options)
+    {
+        var values = new Dictionary<string, object?>(StringComparer.Ordinal);
+        if (options.Temperature is not null) values["temperature"] = options.Temperature;
+        if (options.TopP is not null) values["topP"] = options.TopP;
+        if (options.TopK is not null) values["topK"] = options.TopK;
+        if (options.FrequencyPenalty is not null) values["frequencyPenalty"] = options.FrequencyPenalty;
+        if (options.PresencePenalty is not null) values["presencePenalty"] = options.PresencePenalty;
+        if (options.RepetitionPenalty is not null) values["repetitionPenalty"] = options.RepetitionPenalty;
+        if (options.MinP is not null) values["minP"] = options.MinP;
+        if (options.Seed is not null) values["seed"] = options.Seed;
+
+        if (options.Additional is not null)
+        {
+            foreach (var (key, value) in options.Additional)
+            {
+                values[key] = value.Clone();
+            }
+        }
+
+        return values;
+    }
+
+    private static float? TryGetSingle(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.Number)
+            {
+                return property.GetSingle();
+            }
+        }
+
+        return null;
+    }
+
+    private static int? TryGetInt(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.Number)
+            {
+                return property.GetInt32();
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsKnownOptionProperty(string name)
+    {
+        return name is "temperature"
+            or "topP"
+            or "top_p"
+            or "topK"
+            or "top_k"
+            or "frequencyPenalty"
+            or "frequency_penalty"
+            or "presencePenalty"
+            or "presence_penalty"
+            or "repetitionPenalty"
+            or "repetition_penalty"
+            or "minP"
+            or "min_p"
+            or "seed";
     }
 
     private static string? DefaultModelsUrl(ProviderConfig? config)

@@ -158,8 +158,8 @@ public sealed class OrchestratorAgent
         var loreSection = string.IsNullOrWhiteSpace(modeContext.ActiveLoreSet)
             ? ""
             : $"\n\n## Active Lore Set\n\nThe current lore set is \"{modeContext.ActiveLoreSet}\". "
-              + "When using `query_lore`, results come from this lore set. "
-              + "Ground your lore references and world-building in this set's content.";
+              + "`query_lore` returns facts from this lore document set only; it does not search character cards, session canon, plot state, chat history, or web results. "
+              + "Ground lore-document references and world-building in this set's content.";
 
         var fallbackGuidance = """
 
@@ -231,6 +231,9 @@ public sealed class OrchestratorAgent
                 """,
             "roleplay" => """
                 In Roleplay mode, treat `direct_scene` and Narrative Director as the mandatory in-scene grounding path before any visible prose is rendered.
+                """,
+            "lore" => """
+                In Lore Builder mode, keep the work focused on durable lore document creation and use the app-owned lore save tool rather than generic file writes.
                 """,
             "forge" => """
                 In Forge mode, keep ownership with the explicit command and pipeline workflow rather than inventing a free-form narrator persona.

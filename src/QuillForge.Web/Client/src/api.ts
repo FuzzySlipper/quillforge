@@ -706,6 +706,8 @@ export interface ProviderInfo {
   modelsUrl: string | null;
   defaultModel: string;
   contextLimit?: number;
+  requiresReasoning?: boolean | null;
+  requiresReasoningEffective?: boolean;
   apiKeySet?: boolean;
   usedBy?: string[];
   options?: Record<string, unknown> | null;
@@ -724,6 +726,7 @@ export async function createProvider(provider: {
   apiKey?: string;
   defaultModel: string;
   contextLimit?: number;
+  requiresReasoning?: boolean | null;
   options?: Record<string, unknown>;
 }): Promise<unknown> {
   return request("/api/providers", {
@@ -738,8 +741,12 @@ export async function updateProvider(
     name?: string;
     type?: string;
     baseUrl?: string | null;
+    modelsUrl?: string | null;
     apiKey?: string;
     defaultModel?: string;
+    contextLimit?: number;
+    requiresReasoning?: boolean | null;
+    options?: Record<string, unknown>;
   },
 ): Promise<unknown> {
   return request(`/api/providers/${encodeURIComponent(alias)}`, {

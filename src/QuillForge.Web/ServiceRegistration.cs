@@ -114,8 +114,12 @@ public static class ServiceRegistration
             sp.GetRequiredService<CanonPrerequisiteGuard>(),
             sp.GetRequiredService<ILogger<QueryLoreHandler>>()));
         services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<QueryLoreHandler>());
+        services.AddSingleton<QueryContextHandler>();
+        services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<QueryContextHandler>());
         services.AddSingleton<WriteProseHandler>();
         services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<WriteProseHandler>());
+        services.AddSingleton<SaveLoreFileHandler>();
+        services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<SaveLoreFileHandler>());
         services.AddSingleton<IToolHandler, RollDiceHandler>();
         services.AddSingleton<IToolHandler, ReadFileHandler>();
         services.AddSingleton<IToolHandler, WriteFileHandler>();

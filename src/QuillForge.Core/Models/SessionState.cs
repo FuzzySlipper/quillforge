@@ -10,6 +10,7 @@ public static class ModeExtensions
         Mode.Guide => "guide",
         Mode.Writer => "writer",
         Mode.Roleplay => "roleplay",
+        Mode.Lore => "lore",
         Mode.Forge => "forge",
         Mode.Council => "council",
         Mode.Research => "research",
@@ -29,6 +30,12 @@ public static class ModeExtensions
         if (string.Equals(value, "guide", StringComparison.OrdinalIgnoreCase))
         {
             return Mode.Guide;
+        }
+
+        if (string.Equals(value, "lore-builder", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "lore_builder", StringComparison.OrdinalIgnoreCase))
+        {
+            return Mode.Lore;
         }
 
         return Enum.TryParse<Mode>(value, ignoreCase: true, out var mode) ? mode : null;

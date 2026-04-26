@@ -26,8 +26,8 @@ QuillForge is a ground-up C#/.NET rewrite of an older Python/FastAPI application
 ## Current User-Facing Capabilities
 
 The current build centers on:
-- Guide, Writer, Roleplay, Forge, Council, and Research modes
-- lore browsing and lore-backed answering
+- Guide, Writer, Roleplay, Lore Builder, Forge, Council, and Research modes
+- lore browsing, lore-document creation, and lore-backed answering
 - branching conversation history
 - profile-driven runtime behavior
 - writer pending-content review flows

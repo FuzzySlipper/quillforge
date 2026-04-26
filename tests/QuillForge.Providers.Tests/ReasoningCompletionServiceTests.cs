@@ -124,6 +124,90 @@ public sealed class ReasoningCompletionServiceTests
     }
 
     [Fact]
+    public async Task CompleteAsync_AppliesRequestOptionsAndProviderQuirks()
+    {
+        var handler = new RecordingHandler(
+            """
+            {
+              "choices": [
+                {
+                  "message": {
+                    "role": "assistant",
+                    "content": "done"
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 2,
+                "completion_tokens": 1
+              }
+            }
+            """);
+
+        var service = CreateService(handler);
+
+        await service.CompleteAsync(new CompletionRequest
+        {
+            Model = "default",
+            MaxTokens = 100,
+            Messages =
+            [
+                new CompletionMessage("user", new MessageContent("Use the tool.")),
+                new CompletionMessage(
+                    "assistant",
+                    new MessageContent(
+                    [
+                        new ToolUseBlock(
+                            "call_1",
+                            "query_lore",
+                            new ToolInput(Json("""{"query":"silver sea"}""")))
+                    ])),
+            ],
+            Tools =
+            [
+                new ToolDefinition(
+                    "query_lore",
+                    "Query lore",
+                    Json("""{"type":"object","properties":{},"required":[]}"""))
+            ],
+            TopP = 0.91,
+            TopK = 42,
+            FrequencyPenalty = 0.12,
+            PresencePenalty = 0.34,
+            RepetitionPenalty = 1.05,
+            MinP = 0.03,
+            Seed = 5678,
+            AdditionalOptions = new Dictionary<string, JsonElement>
+            {
+                ["strip_empty_required"] = Json("true"),
+                ["reasoning_content"] = Json("false"),
+                ["num_ctx"] = Json("4096"),
+                ["extra_body"] = Json("""{"reasoning":{"effort":"high"}}"""),
+            },
+        });
+
+        using var doc = JsonDocument.Parse(handler.RequestBodies[0]);
+        var root = doc.RootElement;
+
+        Assert.Equal(0.91m, root.GetProperty("top_p").GetDecimal());
+        Assert.Equal(42, root.GetProperty("top_k").GetInt32());
+        Assert.Equal(0.12m, root.GetProperty("frequency_penalty").GetDecimal());
+        Assert.Equal(0.34m, root.GetProperty("presence_penalty").GetDecimal());
+        Assert.Equal(1.05m, root.GetProperty("repetition_penalty").GetDecimal());
+        Assert.Equal(0.03m, root.GetProperty("min_p").GetDecimal());
+        Assert.Equal(5678, root.GetProperty("seed").GetInt32());
+        Assert.Equal(4096, root.GetProperty("num_ctx").GetInt32());
+        Assert.Equal("high", root.GetProperty("reasoning").GetProperty("effort").GetString());
+
+        var parameters = root.GetProperty("tools")[0].GetProperty("function").GetProperty("parameters");
+        Assert.False(parameters.TryGetProperty("required", out _));
+
+        var assistantMessage = root.GetProperty("messages")[1];
+        Assert.False(assistantMessage.TryGetProperty("reasoning_content", out _));
+    }
+
+    [Fact]
     public async Task StreamAsync_EmitsDoneEventWithTypedReplayEnvelope()
     {
         var handler = new RecordingHandler(
@@ -201,6 +285,12 @@ public sealed class ReasoningCompletionServiceTests
 
         var done = Assert.IsType<DoneEvent>(events[^1]);
         Assert.Equal(StopReason.ToolUse, done.StopReason);
+    }
+
+    private static JsonElement Json(string raw)
+    {
+        using var doc = JsonDocument.Parse(raw);
+        return doc.RootElement.Clone();
     }
 
     private static ReasoningCompletionService CreateService(RecordingHandler handler)

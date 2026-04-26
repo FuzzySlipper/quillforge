@@ -14,7 +14,8 @@ public sealed class WriterMode : IMode
     {
         return !string.Equals(toolName, "write_prose", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(toolName, "update_story_state", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(toolName, "update_narrative_state", StringComparison.OrdinalIgnoreCase);
+            && !string.Equals(toolName, "update_narrative_state", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(toolName, "save_lore_file", StringComparison.OrdinalIgnoreCase);
     }
 
     public string BuildSystemPromptSection(ModeContext context)
@@ -40,9 +41,10 @@ public sealed class WriterMode : IMode
             Rules:
             - Do not call write_prose directly from the top level in Writer mode.
             - Do not use write_file for the standard Writer draft acceptance flow.
+            - Do not save lore files from Writer mode; switch to Lore Builder for durable lore editing.
             - Do not bypass the grounding layer for scene writing, chapter drafting, or canon-sensitive revision.
             - The visible prose should come back through direct_scene, then enter the normal review workflow.
-            - If the user corrects canon, characterization, chronology, or relationship details, re-ground against the relevant lore/profile context before generating a revision. Do not patch only the single sentence they flagged.
+            - If the user corrects canon, characterization, chronology, or relationship details, re-ground with `query_context` and any relevant lore documents before generating a revision. Do not patch only the single sentence they flagged.
 
             {context.FileContext ?? ""}{pendingNote}
 

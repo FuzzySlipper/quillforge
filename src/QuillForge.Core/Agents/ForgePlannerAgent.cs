@@ -83,7 +83,7 @@ public sealed class ForgePlannerAgent
         to implement without access to the full outline.
 
         IMPORTANT: Do NOT embed file paths or file references in any planning document. All documents
-        should be self-contained prose. The writing pipeline retrieves lore and character details at
+        should be self-contained prose. The writing pipeline retrieves lore-document details at
         runtime via query_lore — it does not follow file path references embedded in documents.
 
         IMPORTANT: The "Available Lore" section in the user message already contains the FULL

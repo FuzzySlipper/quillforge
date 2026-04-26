@@ -74,6 +74,12 @@ public sealed record ChatDiagnosticDto
     public required string Level { get; init; }
 }
 
+public sealed record ChatErrorDto
+{
+    public string Type { get; init; } = "error";
+    public required string Message { get; init; }
+}
+
 public sealed record ChatPersistedDto
 {
     public string Type { get; init; } = "persisted";

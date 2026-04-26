@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+using System.Text.Json;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.Providers.Registry;
@@ -41,11 +41,11 @@ public sealed class DefaultCompletionService : ICompletionService
         // If model is a registered provider alias, use that provider
         // and normalize the model to "default" so the provider uses its configured model
         // instead of passing the alias as a literal model name to the API.
-        if (_registry.GetConfig(model) is not null)
+        if (_registry.GetConfig(model) is { } providerConfig)
         {
             _logger.LogDebug("Resolving completion service for provider alias: {Model}", model);
             var service = _registry.GetCompletionService(model);
-            return (service, request with { Model = "default" });
+            return (service, ApplyProviderOptions(request with { Model = "default" }, providerConfig?.Options));
         }
 
         // Otherwise, use the first registered provider
@@ -58,6 +58,57 @@ public sealed class DefaultCompletionService : ICompletionService
 
         var defaultAlias = providers[0].Alias;
         _logger.LogDebug("Resolving completion service via default provider: {Alias}", defaultAlias);
-        return (_registry.GetCompletionService(defaultAlias), request);
+        var defaultConfig = _registry.GetConfig(defaultAlias);
+        return (_registry.GetCompletionService(defaultAlias), ApplyProviderOptions(request, defaultConfig?.Options));
+    }
+
+    private static CompletionRequest ApplyProviderOptions(CompletionRequest request, ProviderOptions? options)
+    {
+        if (options is null)
+        {
+            return request;
+        }
+
+        return request with
+        {
+            Temperature = request.Temperature ?? options.Temperature,
+            TopP = request.TopP ?? options.TopP,
+            TopK = request.TopK ?? options.TopK,
+            FrequencyPenalty = request.FrequencyPenalty ?? options.FrequencyPenalty,
+            PresencePenalty = request.PresencePenalty ?? options.PresencePenalty,
+            RepetitionPenalty = request.RepetitionPenalty ?? options.RepetitionPenalty,
+            MinP = request.MinP ?? options.MinP,
+            Seed = request.Seed ?? options.Seed,
+            AdditionalOptions = MergeAdditionalOptions(options.Additional, request.AdditionalOptions),
+        };
+    }
+
+    private static IReadOnlyDictionary<string, JsonElement>? MergeAdditionalOptions(
+        IReadOnlyDictionary<string, JsonElement>? providerOptions,
+        IReadOnlyDictionary<string, JsonElement>? requestOptions)
+    {
+        if (providerOptions is null && requestOptions is null)
+        {
+            return null;
+        }
+
+        var merged = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        if (providerOptions is not null)
+        {
+            foreach (var (key, value) in providerOptions)
+            {
+                merged[key] = value.Clone();
+            }
+        }
+
+        if (requestOptions is not null)
+        {
+            foreach (var (key, value) in requestOptions)
+            {
+                merged[key] = value.Clone();
+            }
+        }
+
+        return merged;
     }
 }

@@ -118,6 +118,38 @@ public class MessageConversionTests
     }
 
     [Fact]
+    public async Task SamplingOptions_SentAsChatOptions()
+    {
+        var fakeClient = new FakeChatClient(MakeResponse("ok", ChatFinishReason.Stop));
+
+        var service = new ChatClientCompletionService(fakeClient,
+            NullLoggerFactory.Instance.CreateLogger<ChatClientCompletionService>());
+
+        var request = new CompletionRequest
+        {
+            Model = "test",
+            MaxTokens = 100,
+            Messages = [new CompletionMessage("user", new MessageContent("Hello"))],
+            Temperature = 0.8,
+            TopP = 0.9,
+            TopK = 40,
+            FrequencyPenalty = 0.2,
+            PresencePenalty = 0.3,
+            Seed = 1234,
+        };
+
+        await service.CompleteAsync(request);
+
+        var options = Assert.IsType<ChatOptions>(fakeClient.LastOptions);
+        Assert.Equal(0.8f, options.Temperature);
+        Assert.Equal(0.9f, options.TopP);
+        Assert.Equal(40, options.TopK);
+        Assert.Equal(0.2f, options.FrequencyPenalty);
+        Assert.Equal(0.3f, options.PresencePenalty);
+        Assert.Equal(1234, options.Seed);
+    }
+
+    [Fact]
     public async Task ToolResultMessage_ConvertedToFunctionResult()
     {
         var fakeClient = new FakeChatClient(MakeResponse("The weather is sunny.", ChatFinishReason.Stop));

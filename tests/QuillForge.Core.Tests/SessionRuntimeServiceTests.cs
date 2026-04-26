@@ -12,6 +12,7 @@ public sealed class SessionRuntimeServiceTests
         new GuideMode(),
         new WriterMode(),
         new RoleplayMode(),
+        new LoreBuilderMode(),
         new ForgeMode(),
         new CouncilMode(),
     ];

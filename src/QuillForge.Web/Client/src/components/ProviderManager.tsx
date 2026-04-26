@@ -20,6 +20,36 @@ interface ProviderManagerProps {
   onChanged: () => void;
 }
 
+type ReasoningOverride = "auto" | "on" | "off";
+type TriStateOptionValue = "unset" | "auto" | "on" | "off";
+
+interface NumberOptionConfig {
+  key: string;
+  aliases?: string[];
+  label: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  integer?: boolean;
+}
+
+const NUMBER_OPTION_CONFIGS: NumberOptionConfig[] = [
+  { key: "temperature", label: "Temperature", min: 0, max: 2, step: 0.1 },
+  { key: "topP", aliases: ["top_p"], label: "Top P", min: 0, max: 1, step: 0.05 },
+  { key: "topK", aliases: ["top_k"], label: "Top K", min: 0, step: 1, integer: true },
+  { key: "frequencyPenalty", aliases: ["frequency_penalty"], label: "Frequency Penalty", min: -2, max: 2, step: 0.1 },
+  { key: "presencePenalty", aliases: ["presence_penalty"], label: "Presence Penalty", min: -2, max: 2, step: 0.1 },
+  { key: "repetitionPenalty", aliases: ["repetition_penalty"], label: "Repetition Penalty", min: 0, step: 0.05 },
+  { key: "minP", aliases: ["min_p"], label: "Min P", min: 0, max: 1, step: 0.01 },
+  { key: "seed", label: "Seed", step: 1, integer: true },
+  { key: "num_ctx", label: "Ollama Context", min: 0, step: 1024, integer: true },
+];
+
+const TRI_STATE_OPTION_CONFIGS = [
+  { key: "reasoning_content", label: "Reasoning Content" },
+  { key: "strip_empty_required", label: "Strip Empty Required" },
+] as const;
+
 interface FormState {
   alias: string;
   name: string;
@@ -29,6 +59,7 @@ interface FormState {
   apiKey: string;
   defaultModel: string;
   contextLimit: number;
+  requiresReasoning: ReasoningOverride;
 }
 
 const EMPTY_FORM: FormState = {
@@ -40,31 +71,20 @@ const EMPTY_FORM: FormState = {
   apiKey: "",
   defaultModel: "",
   contextLimit: 128000,
+  requiresReasoning: "auto",
 };
 
-const OPTIONS_REFERENCE = `Available options (all optional):
+const OPTIONS_REFERENCE = `Advanced JSON is preserved for provider-specific settings.
+Most common fields above are written here automatically.
 
-Sampling:
-  temperature      — Randomness (0.0–2.0)
-  top_p            — Nucleus sampling
-  top_k            — Top-k sampling (not all providers)
-  frequency_penalty — Penalize repeated tokens
-  presence_penalty  — Penalize tokens already present
-  repetition_penalty — Combined repetition penalty
-  min_p            — Minimum probability cutoff
-  seed             — Deterministic sampling seed
-
-Provider quirks:
-  reasoning_content   — "auto", true, false
-    Add reasoning_content field (DeepSeek reasoner)
-  strip_empty_required — "auto", true, false
-    Remove empty required arrays from tool schemas
-  extra_body          — {...} arbitrary extra request fields
+Common advanced keys:
+  extra_body           — object
+  provider-specific keys not listed above
 
 Example:
 {
   "temperature": 0.8,
-  "reasoning_content": true,
+  "strip_empty_required": true,
   "extra_body": {"reasoning": {"effort": "high"}}
 }`;
 
@@ -100,11 +120,97 @@ function suggestOptions(model: string, providerType: string): Record<string, unk
   return Object.keys(opts).length > 0 ? opts : null;
 }
 
+function reasoningOverrideFromProvider(provider: ProviderInfo): ReasoningOverride {
+  if (provider.requiresReasoning === true) return "on";
+  if (provider.requiresReasoning === false) return "off";
+  return "auto";
+}
+
+function serializeReasoningOverride(value: ReasoningOverride): boolean | null {
+  if (value === "on") return true;
+  if (value === "off") return false;
+  return null;
+}
+
+function parseOptionsObject(text: string): Record<string, unknown> | null {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed === "{}") return {};
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function formatOptionsObject(options: Record<string, unknown>): string {
+  return Object.keys(options).length > 0 ? JSON.stringify(options, null, 2) : "{}";
+}
+
+function optionKeys(config: NumberOptionConfig): string[] {
+  return [config.key, ...(config.aliases ?? [])];
+}
+
+function optionNumberText(options: Record<string, unknown> | null, config: NumberOptionConfig): string {
+  for (const key of optionKeys(config)) {
+    const value = options?.[key];
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "";
+}
+
+function optionTriStateValue(options: Record<string, unknown> | null, key: string): TriStateOptionValue {
+  const value = options?.[key];
+  if (value === true) return "on";
+  if (value === false) return "off";
+  if (value === "auto") return "auto";
+  return "unset";
+}
+
 const TEMPLATES = [
   { label: "Anthropic", type: "anthropic", baseUrl: "", modelsUrl: "https://api.anthropic.com/v1/models" },
   { label: "OpenAI", type: "openai", baseUrl: "https://api.openai.com/v1", modelsUrl: "https://api.openai.com/v1/models" },
   { label: "Custom (OpenAI-compatible)", type: "openai", baseUrl: "", modelsUrl: "" },
 ];
+
+function KnownNumberInput({
+  label,
+  value,
+  min,
+  max,
+  step,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] text-text-muted">{label}</span>
+      <input
+        type="number"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="unset"
+        className="w-full rounded-lg border border-border bg-input-bg px-2.5 py-1.5 text-sm text-text focus:border-accent focus:outline-none disabled:opacity-50"
+      />
+    </label>
+  );
+}
 
 export default function ProviderManager({ open, onClose, onChanged }: ProviderManagerProps) {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
@@ -172,6 +278,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
       apiKey: "",
       defaultModel: p.defaultModel,
       contextLimit: p.contextLimit ?? 128000,
+      requiresReasoning: reasoningOverrideFromProvider(p),
     });
     setModels([]);
     setError(null);
@@ -217,31 +324,57 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
   }
 
   function parseOptions(): Record<string, unknown> | undefined {
-    const trimmed = optionsText.trim();
-    if (!trimmed || trimmed === "{}") return undefined;
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return undefined;
+    const options = parseOptionsObject(optionsText);
+    if (!options || Object.keys(options).length === 0) return undefined;
+    return options;
+  }
+
+  function setKnownNumberOption(config: NumberOptionConfig, raw: string) {
+    const options = parseOptionsObject(optionsText) ?? {};
+    const trimmed = raw.trim();
+    for (const key of optionKeys(config)) {
+      delete options[key];
     }
+
+    if (!trimmed) {
+      setOptionsText(formatOptionsObject(options));
+      return;
+    }
+
+    const value = config.integer ? Number.parseInt(trimmed, 10) : Number.parseFloat(trimmed);
+    if (!Number.isFinite(value)) {
+      return;
+    }
+
+    options[config.key] = value;
+    setOptionsText(formatOptionsObject(options));
+  }
+
+  function setTriStateOption(key: string, value: TriStateOptionValue) {
+    const options = parseOptionsObject(optionsText) ?? {};
+    if (value === "unset") {
+      delete options[key];
+    } else if (value === "auto") {
+      options[key] = "auto";
+    } else {
+      options[key] = value === "on";
+    }
+    setOptionsText(formatOptionsObject(options));
   }
 
   async function handleSave() {
     // Validate options JSON before saving
-    const trimmed = optionsText.trim();
-    if (trimmed && trimmed !== "{}") {
-      try {
-        JSON.parse(trimmed);
-      } catch {
-        setError("Invalid JSON in options");
-        return;
-      }
+    const parsedOptions = parseOptionsObject(optionsText);
+    if (parsedOptions === null) {
+      setError("Invalid JSON in options");
+      return;
     }
 
     setSaving(true);
     setError(null);
     try {
       const opts = parseOptions();
+      const requiresReasoning = serializeReasoningOverride(form.requiresReasoning);
       if (editing === "__new__") {
         await createProvider({
           alias: form.alias,
@@ -252,6 +385,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
           apiKey: form.apiKey || undefined,
           defaultModel: form.defaultModel,
           contextLimit: form.contextLimit,
+          requiresReasoning,
           options: opts,
         });
       } else if (editing) {
@@ -262,7 +396,8 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
         if (form.baseUrl !== undefined) updates.baseUrl = form.baseUrl || null;
         if (form.modelsUrl !== undefined) updates.modelsUrl = form.modelsUrl || null;
         updates.contextLimit = form.contextLimit;
-        if (opts) updates.options = opts;
+        updates.requiresReasoning = requiresReasoning;
+        updates.options = opts ?? {};
         await updateProvider(editing, updates);
       }
       await refresh();
@@ -304,6 +439,8 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
   // ── Edit / New form ───────────────────────────────────────────────
   if (editing) {
     const isNew = editing === "__new__";
+    const parsedOptions = parseOptionsObject(optionsText);
+    const optionsInvalid = parsedOptions === null;
     return (
       <Overlay open={open} onClose={onClose} title={isNew ? "Add Provider" : `Edit: ${editing}`}>
         <div className="flex flex-col gap-3">
@@ -431,6 +568,22 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
           </div>
 
           <div>
+            <label className="text-xs text-text-muted uppercase tracking-wider">Reasoning Transport</label>
+            <select
+              value={form.requiresReasoning}
+              onChange={(e) => setForm({ ...form, requiresReasoning: e.target.value as ReasoningOverride })}
+              className={inputClass}
+            >
+              <option value="auto">Auto-detect from model name</option>
+              <option value="on">On: preserve reasoning/tool replay fields</option>
+              <option value="off">Off: standard chat transport</option>
+            </select>
+            <p className="text-[11px] text-text-muted mt-1">
+              Turn this on for providers that need reasoning/tool-call replay even when the model name is not recognized.
+            </p>
+          </div>
+
+          <div>
             <button
               onClick={() => {
                 const opening = !optionsOpen;
@@ -450,6 +603,44 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
             </button>
             {optionsOpen && (
               <div className="mt-2 flex flex-col gap-2">
+                <div className="rounded-lg border border-border/70 bg-input-bg/30 px-3 py-3">
+                  <div className="text-xs text-text-muted uppercase tracking-wider mb-2">Known Options</div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {NUMBER_OPTION_CONFIGS.map((config) => (
+                      <KnownNumberInput
+                        key={config.key}
+                        label={config.label}
+                        value={optionNumberText(parsedOptions, config)}
+                        min={config.min}
+                        max={config.max}
+                        step={config.step}
+                        disabled={optionsInvalid}
+                        onChange={(value) => setKnownNumberOption(config, value)}
+                      />
+                    ))}
+                    {TRI_STATE_OPTION_CONFIGS.map((config) => (
+                      <label key={config.key} className="flex flex-col gap-1">
+                        <span className="text-[11px] text-text-muted">{config.label}</span>
+                        <select
+                          value={optionTriStateValue(parsedOptions, config.key)}
+                          disabled={optionsInvalid}
+                          onChange={(e) => setTriStateOption(config.key, e.target.value as TriStateOptionValue)}
+                          className="w-full rounded-lg border border-border bg-input-bg px-2.5 py-1.5 text-sm text-text focus:border-accent focus:outline-none disabled:opacity-50"
+                        >
+                          <option value="unset">unset</option>
+                          <option value="auto">auto</option>
+                          <option value="on">on</option>
+                          <option value="off">off</option>
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                  {optionsInvalid && (
+                    <p className="mt-2 text-[11px] text-warning-text">
+                      Fix the JSON below before using the structured controls.
+                    </p>
+                  )}
+                </div>
                 <pre className="text-[10px] text-text-muted bg-surface-alt/50 rounded-lg px-3 py-2 max-h-40 overflow-y-auto whitespace-pre-wrap">
                   {OPTIONS_REFERENCE}
                 </pre>
@@ -508,6 +699,11 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                     <span className="text-[10px] uppercase tracking-wider text-accent/70 bg-accent/10 px-1.5 py-0.5 rounded">
                       {p.type}
                     </span>
+                    {p.requiresReasoningEffective && (
+                      <span className="text-[10px] uppercase tracking-wider text-info/80 bg-info-soft px-1.5 py-0.5 rounded">
+                        reasoning{p.requiresReasoning === true ? "" : " auto"}
+                      </span>
+                    )}
                     {p.apiKeySet === false && (
                       <span className="text-[10px] uppercase tracking-wider text-danger/80 bg-danger-soft px-1.5 py-0.5 rounded">
                         No Key

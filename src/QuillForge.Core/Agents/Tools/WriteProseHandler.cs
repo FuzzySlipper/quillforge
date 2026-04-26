@@ -60,7 +60,7 @@ public sealed class WriteProseHandler : TypedToolHandler<WriteProseArgs>
 
         var sessionContext = context.SessionContext ?? await _sessionContextService.LoadAsync(context.SessionId, ct);
         var storyStateData = await _storyState.LoadAsync(sessionContext.StoryStatePath, ct);
-        var storyContext = storyStateData.Count > 0 ? JsonSerializer.Serialize(storyStateData) : "";
+        var storyContext = BuildStoryContext(sessionContext, storyStateData);
 
         _logger.LogDebug("WriteProseHandler: generating prose with style \"{Style}\" for project \"{Project}\"",
             context.ActiveWritingStyle, sessionContext.ProjectName);
@@ -85,6 +85,40 @@ public sealed class WriteProseHandler : TypedToolHandler<WriteProseArgs>
                 context.SessionId);
             return ToolResult.Fail(ex.Message);
         }
+    }
+
+    private static string BuildStoryContext(
+        InteractiveSessionContext sessionContext,
+        IReadOnlyDictionary<string, object> storyStateData)
+    {
+        var sections = new List<string>();
+
+        AddSection(sections, "Character Context", sessionContext.CharacterSection);
+        AddSection(sections, "Current Story State", sessionContext.StoryStateSummary);
+
+        if (string.IsNullOrWhiteSpace(sessionContext.StoryStateSummary) && storyStateData.Count > 0)
+        {
+            AddSection(sections, "Current Story State", JsonSerializer.Serialize(storyStateData));
+        }
+
+        AddSection(sections, "Sticky Session Canon", sessionContext.StickySessionCanon);
+        AddSection(sections, "Director Notes From Prior Turns", sessionContext.DirectorNotes);
+        AddSection(sections, "Recent Session Conversation", sessionContext.RecentConversationSummary);
+        AddSection(sections, "Active Plot Content", sessionContext.ActivePlotContent);
+        AddSection(sections, "Plot Progress In This Session", sessionContext.PlotProgressSummary);
+        AddSection(sections, "Recent File Context", sessionContext.FileContext);
+
+        return string.Join("\n\n", sections);
+    }
+
+    private static void AddSection(List<string> sections, string title, string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return;
+        }
+
+        sections.Add($"## {title}\n\n{content}");
     }
 }
 

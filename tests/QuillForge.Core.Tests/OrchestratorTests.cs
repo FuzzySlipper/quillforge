@@ -22,6 +22,7 @@ public class OrchestratorTests
             new GuideMode(),
             new WriterMode(),
             new RoleplayMode(),
+            new LoreBuilderMode(),
             new ForgeMode(),
             new CouncilMode(),
             new ResearchMode(),
@@ -97,7 +98,7 @@ public class OrchestratorTests
         var toolLoop = new ToolLoop(fake, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
         var orchestrator = new OrchestratorAgent(
             toolLoop,
-            [new GuideMode(), new WriterMode(), new RoleplayMode(), new ForgeMode(), new CouncilMode()],
+            [new GuideMode(), new WriterMode(), new RoleplayMode(), new LoreBuilderMode(), new ForgeMode(), new CouncilMode()],
             new FakeAssistantPromptStore(),
             new FakeInteractiveSessionContextService(),
             new AppConfig(),
@@ -123,7 +124,7 @@ public class OrchestratorTests
         var toolLoop = new ToolLoop(fake, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
         var orchestrator = new OrchestratorAgent(
             toolLoop,
-            [new GuideMode(), new WriterMode(), new RoleplayMode(), new ForgeMode(), new CouncilMode(), new ResearchMode()],
+            [new GuideMode(), new WriterMode(), new RoleplayMode(), new LoreBuilderMode(), new ForgeMode(), new CouncilMode(), new ResearchMode()],
             assistantStore,
             new FakeInteractiveSessionContextService(),
             new AppConfig(),
@@ -154,7 +155,7 @@ public class OrchestratorTests
         var toolLoop = new ToolLoop(fake, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
         var orchestrator = new OrchestratorAgent(
             toolLoop,
-            [new GuideMode(), new WriterMode(), new RoleplayMode(), new ForgeMode(), new CouncilMode(), new ResearchMode()],
+            [new GuideMode(), new WriterMode(), new RoleplayMode(), new LoreBuilderMode(), new ForgeMode(), new CouncilMode(), new ResearchMode()],
             assistantStore,
             new FakeInteractiveSessionContextService(),
             new AppConfig(),
@@ -231,6 +232,22 @@ public class OrchestratorTests
     }
 
     [Fact]
+    public void LoreBuilderMode_Prompt_IsLoreDocumentFocused()
+    {
+        var mode = new LoreBuilderMode();
+        var prompt = mode.BuildSystemPromptSection(new ModeContext
+        {
+            ActiveLoreSet = "builder",
+        });
+
+        Assert.Contains("Current Mode: Lore Builder", prompt);
+        Assert.Contains("lore/builder/", prompt);
+        Assert.Contains("save_lore_file", prompt);
+        Assert.Contains("web_search", prompt);
+        Assert.Contains("Do not write story prose", prompt);
+    }
+
+    [Fact]
     public void ForgeMode_Prompt_IsCommandAndPipelineOwned()
     {
         var mode = new ForgeMode();
@@ -264,6 +281,8 @@ public class OrchestratorTests
             new StubToolHandler("update_story_state"),
             new StubToolHandler("update_narrative_state"),
             new StubToolHandler("query_lore"),
+            new StubToolHandler("query_context"),
+            new StubToolHandler("save_lore_file"),
         };
 
         await orchestrator.HandleAsync(
@@ -277,9 +296,11 @@ public class OrchestratorTests
         var toolNames = fake.ReceivedRequests[0].Tools!.Select(t => t.Name).ToList();
         Assert.Contains("direct_scene", toolNames);
         Assert.Contains("query_lore", toolNames);
+        Assert.Contains("query_context", toolNames);
         Assert.DoesNotContain("write_prose", toolNames);
         Assert.DoesNotContain("update_story_state", toolNames);
         Assert.DoesNotContain("update_narrative_state", toolNames);
+        Assert.DoesNotContain("save_lore_file", toolNames);
     }
 
     [Fact]
@@ -300,6 +321,8 @@ public class OrchestratorTests
             new StubToolHandler("update_story_state"),
             new StubToolHandler("update_narrative_state"),
             new StubToolHandler("roll_dice"),
+            new StubToolHandler("query_context"),
+            new StubToolHandler("save_lore_file"),
         };
 
         await orchestrator.HandleAsync(
@@ -313,9 +336,51 @@ public class OrchestratorTests
         var toolNames = fake.ReceivedRequests[0].Tools!.Select(t => t.Name).ToList();
         Assert.Contains("direct_scene", toolNames);
         Assert.Contains("roll_dice", toolNames);
+        Assert.Contains("query_context", toolNames);
         Assert.DoesNotContain("write_prose", toolNames);
         Assert.DoesNotContain("update_story_state", toolNames);
         Assert.DoesNotContain("update_narrative_state", toolNames);
+        Assert.DoesNotContain("save_lore_file", toolNames);
+    }
+
+    [Fact]
+    public async Task HandleAsync_LoreBuilderMode_FiltersToLoreBuildingTools()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueText("Lore helper reply");
+        var orchestrator = CreateOrchestrator(fake);
+        var state = new SessionState
+        {
+            Mode = new ModeSelectionState { ActiveMode = Mode.Lore },
+        };
+        var context = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = Mode.Lore };
+        var tools = new IToolHandler[]
+        {
+            new StubToolHandler("query_docs"),
+            new StubToolHandler("query_context"),
+            new StubToolHandler("query_lore"),
+            new StubToolHandler("list_files"),
+            new StubToolHandler("read_file"),
+            new StubToolHandler("search_files"),
+            new StubToolHandler("web_search"),
+            new StubToolHandler("save_lore_file"),
+            new StubToolHandler("direct_scene"),
+            new StubToolHandler("write_prose"),
+            new StubToolHandler("run_council"),
+        };
+
+        await orchestrator.HandleAsync(
+            state,
+            "test-model",
+            1024,
+            tools,
+            [new CompletionMessage("user", new MessageContent("Help me create lore for Silverwatch"))],
+            context);
+
+        var toolNames = fake.ReceivedRequests[0].Tools!.Select(t => t.Name).ToList();
+        Assert.Equal(
+            ["query_docs", "query_context", "query_lore", "list_files", "read_file", "search_files", "web_search", "save_lore_file"],
+            toolNames);
     }
 
     [Fact]
@@ -418,7 +483,7 @@ public class OrchestratorTests
     }
 
     [Fact]
-    public async Task HandleAsync_GuideMode_FiltersToDocsAndReadOnlyInspectionTools()
+    public async Task HandleAsync_GuideMode_FiltersOutReadFileAndKeepsDocsAndDiscoveryTools()
     {
         var fake = new FakeCompletionService();
         fake.EnqueueText("Guide helper reply");
@@ -449,7 +514,7 @@ public class OrchestratorTests
             context);
 
         var toolNames = fake.ReceivedRequests[0].Tools!.Select(t => t.Name).ToList();
-        Assert.Equal(["query_docs", "list_files", "read_file", "search_files"], toolNames);
+        Assert.Equal(["query_docs", "list_files", "search_files"], toolNames);
     }
 }
 

@@ -10,6 +10,8 @@ Primary references:
 - `src/QuillForge.Core/Services/IToolHandler.cs`
 - `src/QuillForge.Core/Services/TypedToolHandler.cs`
 - `src/QuillForge.Core/Agents/Tools/QueryLoreHandler.cs`
+- `src/QuillForge.Core/Agents/Tools/QueryContextHandler.cs`
+- `src/QuillForge.Core/Agents/Tools/SaveLoreFileHandler.cs`
 
 Current preferred pattern:
 - define a named handler type
@@ -71,6 +73,7 @@ Primary references:
 - `src/QuillForge.Core/Agents/Modes/GuideMode.cs`
 - `src/QuillForge.Core/Agents/Modes/WriterMode.cs`
 - `src/QuillForge.Core/Agents/Modes/RoleplayMode.cs`
+- `src/QuillForge.Core/Agents/Modes/LoreBuilderMode.cs`
 - `src/QuillForge.Core/Agents/Modes/ForgeMode.cs`
 - `src/QuillForge.Core/Agents/Modes/CouncilMode.cs`
 - `src/QuillForge.Core/Agents/Modes/ResearchMode.cs`
