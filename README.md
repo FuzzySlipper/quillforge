@@ -150,7 +150,7 @@ forge:
   stage_timeout_minutes: 120
 ```
 
-Web search providers currently include `searxng`, `tavily`, `brave`, `google`, and `zai`. The Z.AI option is for users who already have a GLM/Z.AI Coding Plan subscription and want QuillForge to call Z.AI's hosted Web Search MCP endpoint directly as a web-search provider:
+Web search can be configured from the in-app App Settings panel next to Provider Manager. If you prefer editing YAML directly, web search providers currently include `searxng`, `tavily`, `brave`, `google`, and `zai`. The Z.AI option is for users who already have a GLM/Z.AI Coding Plan subscription and want QuillForge to call Z.AI's hosted Web Search MCP endpoint directly as a web-search provider:
 
 ```yaml
 web_search:

@@ -12,6 +12,7 @@ interface AppRailProps {
   onToggleInspector: () => void;
   onOpenProfile: () => void;
   onOpenProviders: () => void;
+  onOpenAppSettings: () => void;
   onOpenTextTheme: () => void;
 }
 
@@ -45,6 +46,7 @@ export default function AppRail({
   onToggleInspector,
   onOpenProfile,
   onOpenProviders,
+  onOpenAppSettings,
   onOpenTextTheme,
 }: AppRailProps) {
   const modeLabel = MODE_LABELS[mode];
@@ -88,6 +90,10 @@ export default function AppRail({
 
         <RailButton title="Providers" onClick={onOpenProviders}>
           <ShellIcon name="settings" />
+        </RailButton>
+
+        <RailButton title="App settings" onClick={onOpenAppSettings}>
+          <ShellIcon name="sliders" />
         </RailButton>
 
         <RailButton title="Text theme" onClick={onOpenTextTheme}>

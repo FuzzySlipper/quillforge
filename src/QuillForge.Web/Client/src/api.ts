@@ -696,6 +696,56 @@ export async function importCharacterCard(file: File): Promise<{ status: string;
   return res.json();
 }
 
+// ── App settings ──
+
+export interface WebSearchSettings {
+  enabled: boolean;
+  provider: string;
+  searxngUrl: string | null;
+  tavilyApiKeySet: boolean;
+  braveApiKeySet: boolean;
+  googleApiKeySet: boolean;
+  googleCxId: string | null;
+  zaiApiKeySet: boolean;
+  zaiMcpEndpoint: string | null;
+  zaiMcpToolName: string | null;
+  maxResults: number;
+  supportedProviders: string[];
+}
+
+export interface AppSettings {
+  webSearch: WebSearchSettings;
+}
+
+export interface WebSearchSettingsUpdate {
+  enabled?: boolean;
+  provider?: string;
+  searxngUrl?: string | null;
+  tavilyApiKey?: string;
+  clearTavilyApiKey?: boolean;
+  braveApiKey?: string;
+  clearBraveApiKey?: boolean;
+  googleApiKey?: string;
+  clearGoogleApiKey?: boolean;
+  googleCxId?: string | null;
+  zaiApiKey?: string;
+  clearZaiApiKey?: boolean;
+  zaiMcpEndpoint?: string | null;
+  zaiMcpToolName?: string | null;
+  maxResults?: number;
+}
+
+export async function getAppSettings(): Promise<AppSettings> {
+  return request("/api/app-settings");
+}
+
+export async function updateWebSearchSettings(settings: WebSearchSettingsUpdate): Promise<AppSettings> {
+  return request("/api/app-settings/web-search", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
 // ── Provider management ──
 
 export interface ProviderInfo {

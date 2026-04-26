@@ -140,6 +140,61 @@ public sealed class FrontendContractTests
     }
 
     [Fact]
+    public void AppSettingsResponse_StaysInSyncWith_ApiInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("api.ts", "AppSettings");
+        var jsonKeys = SerializeTopLevelKeys(new AppSettingsResponse
+        {
+            WebSearch = new WebSearchSettingsResponse
+            {
+                Enabled = true,
+                Provider = "zai",
+                SearxngUrl = "http://localhost:8080",
+                TavilyApiKeySet = true,
+                BraveApiKeySet = false,
+                GoogleApiKeySet = false,
+                GoogleCxId = "cx-123",
+                ZaiApiKeySet = true,
+                ZaiMcpEndpoint = "https://api.z.ai/api/mcp/web_search_prime/mcp",
+                ZaiMcpToolName = "webSearchPrime",
+                MaxResults = 10,
+                SupportedProviders = ["searxng", "tavily", "brave", "google", "zai"],
+            },
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("WebSearchSettings", shape["webSearch"]);
+    }
+
+    [Fact]
+    public void WebSearchSettingsResponse_StaysInSyncWith_ApiInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("api.ts", "WebSearchSettings");
+        var jsonKeys = SerializeTopLevelKeys(new WebSearchSettingsResponse
+        {
+            Enabled = true,
+            Provider = "zai",
+            SearxngUrl = "http://localhost:8080",
+            TavilyApiKeySet = true,
+            BraveApiKeySet = false,
+            GoogleApiKeySet = false,
+            GoogleCxId = "cx-123",
+            ZaiApiKeySet = true,
+            ZaiMcpEndpoint = "https://api.z.ai/api/mcp/web_search_prime/mcp",
+            ZaiMcpToolName = "webSearchPrime",
+            MaxResults = 10,
+            SupportedProviders = ["searxng", "tavily", "brave", "google", "zai"],
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("boolean", shape["enabled"]);
+        Assert.Equal("string", shape["provider"]);
+        Assert.Equal("string | null", shape["searxngUrl"]);
+        Assert.Equal("number", shape["maxResults"]);
+        Assert.Equal("string[]", shape["supportedProviders"]);
+    }
+
+    [Fact]
     public void ForgeProjectStatusResponse_StaysInSyncWith_ApiInterface()
     {
         var shape = GetTypeScriptInterfaceShape("api.ts", "ForgeProjectStatus");
@@ -211,6 +266,16 @@ public sealed class FrontendContractTests
         Assert.DoesNotContain("method: 'HEAD'", source, StringComparison.Ordinal);
         Assert.DoesNotContain("/content/forge/", source, StringComparison.Ordinal);
         Assert.Contains("forgeStatus?.documents", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppRail_ExposesAppSettingsBesideProviders()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("components", "AppRail.tsx"));
+
+        Assert.Contains("onOpenProviders", source, StringComparison.Ordinal);
+        Assert.Contains("onOpenAppSettings", source, StringComparison.Ordinal);
+        Assert.Contains("title=\"App settings\"", source, StringComparison.Ordinal);
     }
 
     [Fact]

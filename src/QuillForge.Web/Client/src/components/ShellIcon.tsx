@@ -5,6 +5,7 @@ interface ShellIconProps {
     | "panel"
     | "user"
     | "settings"
+    | "sliders"
     | "palette"
     | "context"
     | "spark"
@@ -61,6 +62,16 @@ export default function ShellIcon({ name, className }: ShellIconProps) {
           <path d="m16.2 16.2 1.5 1.5" />
           <path d="m16.2 7.8 1.5-1.5" />
           <path d="m6.3 17.7 1.5-1.5" />
+        </>
+      )}
+      {name === "sliders" && (
+        <>
+          <path d="M5 7h14" />
+          <path d="M5 12h14" />
+          <path d="M5 17h14" />
+          <circle cx="9" cy="7" r="1.8" />
+          <circle cx="15" cy="12" r="1.8" />
+          <circle cx="11" cy="17" r="1.8" />
         </>
       )}
       {name === "palette" && (
