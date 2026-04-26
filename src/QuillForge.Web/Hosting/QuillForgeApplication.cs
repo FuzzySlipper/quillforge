@@ -231,7 +231,10 @@ internal static class QuillForgeApplication
         {
             var registry = sp.GetRequiredService<ProviderRegistry>();
             var logger = sp.GetRequiredService<ILogger<DelegatePool>>();
-            return new DelegatePool(alias => registry.GetCompletionService(alias), logger);
+            return new DelegatePool(
+                alias => registry.GetCompletionService(alias),
+                registry.ResolveProviderAlias,
+                logger);
         });
 
         builder.Services.AddSingleton<ICouncilService, CouncilService>();

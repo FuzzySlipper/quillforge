@@ -120,6 +120,95 @@ public class ProviderRegistryTests
     }
 
     [Fact]
+    public void ResolveProviderAlias_MapsProviderTypeAliasToSingleRegisteredProvider()
+    {
+        var registry = CreateRegistry();
+        registry.Register(new ProviderConfig
+        {
+            Alias = "sonnet",
+            Type = ProviderType.Anthropic,
+            ApiKey = "sk-ant-test",
+            DefaultModel = "claude-sonnet-4-20250514",
+        });
+
+        var resolution = registry.ResolveProviderAlias("anthropic");
+
+        Assert.True(resolution.IsResolved, resolution.Error);
+        Assert.Equal("sonnet", resolution.ResolvedAlias);
+    }
+
+    [Fact]
+    public void ResolveProviderAlias_MapsDefaultModelNameToRegisteredProvider()
+    {
+        var registry = CreateRegistry();
+        registry.Register(new ProviderConfig
+        {
+            Alias = "haiku",
+            Type = ProviderType.Anthropic,
+            ApiKey = "sk-ant-test",
+            DefaultModel = "claude-haiku-4-5-20251001",
+        });
+
+        var resolution = registry.ResolveProviderAlias("claude-haiku-4-5-20251001");
+
+        Assert.True(resolution.IsResolved, resolution.Error);
+        Assert.Equal("haiku", resolution.ResolvedAlias);
+    }
+
+    [Fact]
+    public void ResolveProviderAlias_FailsProviderTypeAliasWhenAmbiguous()
+    {
+        var registry = CreateRegistry();
+        registry.Register(new ProviderConfig
+        {
+            Alias = "sonnet",
+            Type = ProviderType.Anthropic,
+            ApiKey = "sk-ant-test",
+        });
+        registry.Register(new ProviderConfig
+        {
+            Alias = "haiku",
+            Type = ProviderType.Anthropic,
+            ApiKey = "sk-ant-test",
+        });
+
+        var resolution = registry.ResolveProviderAlias("anthropic");
+
+        Assert.False(resolution.IsResolved);
+        Assert.NotNull(resolution.Error);
+        Assert.Contains("multiple registered providers", resolution.Error);
+        Assert.Contains("sonnet", resolution.Error);
+        Assert.Contains("haiku", resolution.Error);
+    }
+
+    [Fact]
+    public void DefaultCouncilProviderAliasesResolveWithDocumentedAnthropicProviderSetup()
+    {
+        var registry = CreateRegistry();
+        registry.Register(new ProviderConfig
+        {
+            Alias = "claude",
+            Type = ProviderType.Anthropic,
+            ApiKey = "sk-ant-test",
+            DefaultModel = "claude-sonnet-4-20250514",
+        });
+
+        var defaultsCouncilPath = GetDefaultsCouncilPath();
+        var providerAliases = Directory.EnumerateFiles(defaultsCouncilPath, "*.md")
+            .Select(ReadProviderAlias)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        Assert.NotEmpty(providerAliases);
+        foreach (var providerAlias in providerAliases)
+        {
+            var resolution = registry.ResolveProviderAlias(providerAlias);
+            Assert.True(resolution.IsResolved, $"Default council provider '{providerAlias}' should resolve: {resolution.Error}");
+            Assert.Equal("claude", resolution.ResolvedAlias);
+        }
+    }
+
+    [Fact]
     public async Task Diagnostics_ReportsState()
     {
         var registry = CreateRegistry();
@@ -133,5 +222,44 @@ public class ProviderRegistryTests
         var diag = await registry.GetDiagnosticsAsync();
         Assert.Equal("providers", registry.Category);
         Assert.Equal(1, (int)diag["registered_count"]);
+    }
+
+    private static string GetDefaultsCouncilPath()
+    {
+        var searchPaths = new[]
+        {
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", "..", "dev", "defaults", "council"),
+            Path.Combine(Directory.GetCurrentDirectory(), "dev", "defaults", "council"),
+        };
+
+        foreach (var searchPath in searchPaths)
+        {
+            var fullPath = Path.GetFullPath(searchPath);
+            if (Directory.Exists(fullPath))
+            {
+                return fullPath;
+            }
+        }
+
+        throw new InvalidOperationException("Could not find dev/defaults/council for default council provider regression test.");
+    }
+
+    private static string ReadProviderAlias(string path)
+    {
+        foreach (var line in File.ReadLines(path))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0)
+            {
+                break;
+            }
+
+            if (trimmed.StartsWith("provider:", StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed["provider:".Length..].Trim();
+            }
+        }
+
+        throw new InvalidOperationException($"Council member default '{path}' does not declare a provider alias.");
     }
 }

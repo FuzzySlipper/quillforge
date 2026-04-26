@@ -81,6 +81,18 @@ public sealed class CouncilService : ICouncilService
 
     public string FormatForOrchestrator(CouncilResult result)
     {
+        var providerSetupError = GetSharedProviderSetupError(result);
+        if (providerSetupError is not null)
+        {
+            return string.Join("\n", [
+                "Council could not run because provider setup is incomplete.",
+                "",
+                providerSetupError,
+                "",
+                "No council member delegates were invoked. Configure a matching provider alias in Provider settings or update the provider field in the council member markdown files.",
+            ]);
+        }
+
         var parts = new List<string>
         {
             $"The user asked for a council review of the following query:\n\n\"{result.Query}\"\n",
@@ -101,6 +113,37 @@ public sealed class CouncilService : ICouncilService
         }
 
         return string.Join("\n", parts);
+    }
+
+    private static string? GetSharedProviderSetupError(CouncilResult result)
+    {
+        if (result.Members.Count == 0)
+        {
+            return null;
+        }
+
+        string? sharedError = null;
+        foreach (var member in result.Members)
+        {
+            if (member.Error is null
+                || !member.Error.StartsWith("Provider setup error:", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            if (sharedError is null)
+            {
+                sharedError = member.Error;
+                continue;
+            }
+
+            if (!string.Equals(sharedError, member.Error, StringComparison.Ordinal))
+            {
+                return null;
+            }
+        }
+
+        return sharedError;
     }
 
     private static CouncilMember ParseMemberFile(string name, string content)

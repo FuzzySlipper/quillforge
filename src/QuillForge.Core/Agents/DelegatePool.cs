@@ -39,11 +39,21 @@ public sealed record DelegateResult
 public sealed class DelegatePool
 {
     private readonly Func<string, ICompletionService> _serviceFactory;
+    private readonly Func<string, ProviderAliasResolution> _aliasResolver;
     private readonly ILogger<DelegatePool> _logger;
 
     public DelegatePool(Func<string, ICompletionService> serviceFactory, ILogger<DelegatePool> logger)
+        : this(serviceFactory, alias => ProviderAliasResolution.Resolved(alias, alias), logger)
+    {
+    }
+
+    public DelegatePool(
+        Func<string, ICompletionService> serviceFactory,
+        Func<string, ProviderAliasResolution> aliasResolver,
+        ILogger<DelegatePool> logger)
     {
         _serviceFactory = serviceFactory;
+        _aliasResolver = aliasResolver;
         _logger = logger;
     }
 
@@ -59,18 +69,24 @@ public sealed class DelegatePool
         if (taskList.Count == 0)
             return new Dictionary<string, DelegateResult>();
 
-        // Single task — skip semaphore overhead
-        if (taskList.Count == 1)
+        if (!TryResolveProviderAliases(taskList, out var resolvedTasks, out var providerSetupError))
         {
-            var result = await ExecuteOneAsync(taskList[0], ct);
+            _logger.LogWarning("Delegate provider setup invalid: {Error}", providerSetupError);
+            return CreateProviderSetupFailureResults(taskList, providerSetupError!);
+        }
+
+        // Single task — skip semaphore overhead
+        if (resolvedTasks.Count == 1)
+        {
+            var result = await ExecuteOneAsync(resolvedTasks[0], ct);
             return new Dictionary<string, DelegateResult> { [result.Id] = result };
         }
 
-        var semaphore = new SemaphoreSlim(Math.Min(maxConcurrency, taskList.Count));
+        var semaphore = new SemaphoreSlim(Math.Min(maxConcurrency, resolvedTasks.Count));
         var results = new Dictionary<string, DelegateResult>();
         var resultLock = new Lock();
 
-        var running = taskList.Select(async task =>
+        var running = resolvedTasks.Select(async task =>
         {
             await semaphore.WaitAsync(ct);
             try
@@ -94,8 +110,92 @@ public sealed class DelegatePool
     /// <summary>
     /// Execute a single task synchronously (convenience wrapper).
     /// </summary>
-    public Task<DelegateResult> RunSingleAsync(DelegateTask task, CancellationToken ct = default)
-        => ExecuteOneAsync(task, ct);
+    public async Task<DelegateResult> RunSingleAsync(DelegateTask task, CancellationToken ct = default)
+    {
+        var results = await RunAsync([task], maxConcurrency: 1, ct);
+        return results[task.Id];
+    }
+
+    private bool TryResolveProviderAliases(
+        IReadOnlyList<DelegateTask> tasks,
+        out List<DelegateTask> resolvedTasks,
+        out string? error)
+    {
+        var resolutions = new Dictionary<string, ProviderAliasResolution>(StringComparer.OrdinalIgnoreCase);
+        var failureMessages = new List<string>();
+
+        foreach (var task in tasks)
+        {
+            if (resolutions.ContainsKey(task.ProviderAlias))
+            {
+                continue;
+            }
+
+            ProviderAliasResolution resolution;
+            try
+            {
+                resolution = _aliasResolver(task.ProviderAlias);
+            }
+            catch (Exception ex)
+            {
+                resolution = ProviderAliasResolution.Failed(task.ProviderAlias, ex.Message);
+            }
+
+            resolutions[task.ProviderAlias] = resolution;
+            if (!resolution.IsResolved)
+            {
+                failureMessages.Add(
+                    resolution.Error
+                    ?? $"Provider alias '{task.ProviderAlias}' did not resolve to a registered provider.");
+            }
+        }
+
+        if (failureMessages.Count > 0)
+        {
+            resolvedTasks = [];
+            error = $"Provider setup error: {string.Join(" ", failureMessages)} No delegated tasks were invoked.";
+            return false;
+        }
+
+        resolvedTasks = new List<DelegateTask>(tasks.Count);
+        foreach (var task in tasks)
+        {
+            var resolvedAlias = resolutions[task.ProviderAlias].ResolvedAlias!;
+            if (!string.Equals(task.ProviderAlias, resolvedAlias, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogDebug(
+                    "Resolved delegate provider alias {RequestedAlias} to registered provider {ResolvedAlias}",
+                    task.ProviderAlias,
+                    resolvedAlias);
+            }
+
+            resolvedTasks.Add(task with { ProviderAlias = resolvedAlias });
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static IReadOnlyDictionary<string, DelegateResult> CreateProviderSetupFailureResults(
+        IReadOnlyList<DelegateTask> tasks,
+        string error)
+    {
+        var results = new Dictionary<string, DelegateResult>();
+        foreach (var task in tasks)
+        {
+            results[task.Id] = new DelegateResult
+            {
+                Id = task.Id,
+                Content = "",
+                Model = task.ModelOverride ?? "default",
+                ProviderAlias = task.ProviderAlias,
+                Metadata = task.Metadata,
+                Error = error,
+            };
+        }
+
+        return results;
+    }
 
     private async Task<DelegateResult> ExecuteOneAsync(DelegateTask task, CancellationToken ct)
     {
