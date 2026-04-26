@@ -79,9 +79,21 @@ public sealed class ConfigurationLoader
         }
 
         if (config.WebSearch.Enabled && string.IsNullOrEmpty(config.WebSearch.SearxngUrl)
-            && config.WebSearch.Provider == "searxng")
+            && string.Equals(config.WebSearch.Provider, "searxng", StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning("web_search is enabled with searxng provider but searxng_url is not set");
+        }
+
+        if (config.WebSearch.Enabled && string.IsNullOrEmpty(config.WebSearch.ZaiApiKey)
+            && IsZaiProvider(config.WebSearch.Provider))
+        {
+            _logger.LogWarning("web_search is enabled with Z.AI provider but zai_api_key is not set");
+        }
+
+        if (!string.IsNullOrWhiteSpace(config.WebSearch.ZaiMcpEndpoint)
+            && !Uri.TryCreate(config.WebSearch.ZaiMcpEndpoint, UriKind.Absolute, out _))
+        {
+            _logger.LogWarning("web_search.zai_mcp_endpoint should be an absolute URI");
         }
 
         if (config.Persona.MaxTokens < 100)
@@ -119,6 +131,14 @@ public sealed class ConfigurationLoader
             _logger.LogWarning("timeouts.completion_timeout_seconds ({Value}) seems too low for LLM completion calls", timeouts.CompletionTimeoutSeconds);
         if (timeouts.UpdateCheckHours < 1)
             _logger.LogWarning("timeouts.update_check_hours ({Value}) must be at least 1", timeouts.UpdateCheckHours);
+    }
+
+    private static bool IsZaiProvider(string provider)
+    {
+        return string.Equals(provider, "zai", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(provider, "z_ai", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(provider, "z.ai", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(provider, "z-ai", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

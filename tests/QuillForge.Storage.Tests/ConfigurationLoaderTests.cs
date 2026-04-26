@@ -263,6 +263,9 @@ public class ConfigurationLoaderTests : IDisposable
                 BraveApiKey = "brave-xyz",
                 GoogleApiKey = "goog-key",
                 GoogleCxId = "cx-123",
+                ZaiApiKey = "zai-key",
+                ZaiMcpEndpoint = "https://api.z.ai/api/mcp/web_search_prime/mcp",
+                ZaiMcpToolName = "webSearchPrime",
                 MaxResults = 25,
             }
         };
@@ -276,6 +279,9 @@ public class ConfigurationLoaderTests : IDisposable
         Assert.Equal("brave-xyz", loaded.WebSearch.BraveApiKey);
         Assert.Equal("goog-key", loaded.WebSearch.GoogleApiKey);
         Assert.Equal("cx-123", loaded.WebSearch.GoogleCxId);
+        Assert.Equal("zai-key", loaded.WebSearch.ZaiApiKey);
+        Assert.Equal("https://api.z.ai/api/mcp/web_search_prime/mcp", loaded.WebSearch.ZaiMcpEndpoint);
+        Assert.Equal("webSearchPrime", loaded.WebSearch.ZaiMcpToolName);
         Assert.Equal(25, loaded.WebSearch.MaxResults);
     }
 

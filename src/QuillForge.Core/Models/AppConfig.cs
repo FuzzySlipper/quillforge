@@ -95,6 +95,9 @@ public sealed record WebSearchConfig
     public string? BraveApiKey { get; set; }
     public string? GoogleApiKey { get; set; }
     public string? GoogleCxId { get; set; }
+    public string? ZaiApiKey { get; set; }
+    public string? ZaiMcpEndpoint { get; set; }
+    public string? ZaiMcpToolName { get; set; }
     public int MaxResults { get; set; } = 50;
 }
 

@@ -150,6 +150,21 @@ forge:
   stage_timeout_minutes: 120
 ```
 
+Web search providers currently include `searxng`, `tavily`, `brave`, `google`, and `zai`. The Z.AI option is for users who already have a GLM/Z.AI Coding Plan subscription and want QuillForge to call Z.AI's hosted Web Search MCP endpoint directly as a web-search provider:
+
+```yaml
+web_search:
+  enabled: true
+  provider: zai
+  zai_api_key: your_zai_api_key
+  # Optional; defaults to Z.AI's documented Web Search MCP endpoint/tool.
+  zai_mcp_endpoint: https://api.z.ai/api/mcp/web_search_prime/mcp
+  zai_mcp_tool_name: webSearchPrime
+  max_results: 10
+```
+
+Although Z.AI documents this as an MCP server for coding clients, QuillForge does not expose it as a general MCP client. It formats the standard Streamable HTTP MCP `initialize`, `tools/list`, and `tools/call` requests internally and maps the `webSearchPrime` result back into the existing `web_search` tool.
+
 Naming note: `persona.active` is still a compatibility field from earlier versions. Live interactive routing is now app-owned by mode rather than driven by a user-editable conductor prompt.
 
 ## Content Directory

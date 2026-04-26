@@ -344,6 +344,14 @@ internal static class QuillForgeApplication
                         cfg.MaxResults,
                         sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.GoogleSearchProvider>>()),
 
+                    "zai" or "z_ai" or "z.ai" or "z-ai" => new QuillForge.Providers.WebSearch.ZaiSearchProvider(
+                        httpFactory.CreateClient("WebSearch"),
+                        cfg.ZaiApiKey ?? throw new InvalidOperationException("WebSearch provider 'zai' requires ZaiApiKey"),
+                        cfg.ZaiMcpEndpoint,
+                        cfg.ZaiMcpToolName,
+                        cfg.MaxResults,
+                        sp.GetRequiredService<ILogger<QuillForge.Providers.WebSearch.ZaiSearchProvider>>()),
+
                     _ => new QuillForge.Providers.WebSearch.SearxngSearchProvider(
                         httpFactory.CreateClient("WebSearch"),
                         cfg.SearxngUrl ?? throw new InvalidOperationException("WebSearch provider 'searxng' requires SearxngUrl"),
