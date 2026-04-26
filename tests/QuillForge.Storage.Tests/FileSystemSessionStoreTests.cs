@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using QuillForge.Core;
 using QuillForge.Core.Models;
+using QuillForge.Core.Services;
 using QuillForge.Storage.FileSystem;
 using QuillForge.Storage.Utilities;
 
@@ -40,6 +42,7 @@ public class FileSystemSessionStoreTests : IDisposable
             new MessageContent("Hi there!"),
             new MessageMetadata
             {
+                ConversationMode = Mode.Roleplay,
                 StopReason = StopReason.EndTurn,
                 Reasoning = "Keep the greeting brief.",
                 ReasoningArtifacts =
@@ -66,6 +69,9 @@ public class FileSystemSessionStoreTests : IDisposable
             });
 
         await _store.SaveAsync(tree);
+        var json = await File.ReadAllTextAsync(Path.Combine(_tempDir, $"{tree.SessionId}.json"));
+        Assert.Contains("\"conversationMode\": \"roleplay\"", json);
+
         var loaded = await _store.LoadAsync(tree.SessionId);
 
         Assert.Equal(tree.SessionId, loaded.SessionId);
@@ -76,6 +82,7 @@ public class FileSystemSessionStoreTests : IDisposable
         Assert.Equal(2, thread.Count);
         Assert.Equal("Hello!", thread[0].Content.GetText());
         Assert.Equal("Hi there!", thread[1].Content.GetText());
+        Assert.Equal(Mode.Roleplay, thread[1].Metadata?.ConversationMode);
         Assert.Equal("Keep the greeting brief.", thread[1].Metadata?.Reasoning);
         var artifacts = thread[1].Metadata?.ReasoningArtifacts;
         Assert.NotNull(artifacts);
@@ -105,6 +112,63 @@ public class FileSystemSessionStoreTests : IDisposable
         var node = loaded.GetNode(msg1.Id);
         Assert.NotNull(node);
         Assert.Equal(2, node.ChildIds.Count);
+    }
+
+    [Fact]
+    public async Task SyncRoleplayTranscriptAsync_AfterPersistedSessionReload_UsesConversationModeMetadata()
+    {
+        var sessionId = Guid.CreateVersion7();
+        var tree = new ConversationTree(sessionId, "Roleplay Session",
+            _loggerFactory.CreateLogger<ConversationTree>());
+        var user = tree.Append(tree.RootId, "user", new MessageContent("I knock twice."));
+        tree.Append(
+            user.Id,
+            "assistant",
+            new MessageContent("Nadia opens the peephole and lowers her voice."),
+            new MessageMetadata
+            {
+                ConversationMode = Mode.Roleplay,
+            });
+        await _store.SaveAsync(tree);
+
+        var reloaded = await _store.LoadAsync(sessionId);
+        var reloadedThread = reloaded.ToFlatThread();
+        Assert.Equal(Mode.Roleplay, reloadedThread[1].Metadata?.ConversationMode);
+
+        var writer = new AtomicFileWriter(_loggerFactory.CreateLogger<AtomicFileWriter>());
+        var runtimeStore = new FileSystemSessionRuntimeStore(
+            _tempDir,
+            writer,
+            _loggerFactory.CreateLogger<FileSystemSessionRuntimeStore>());
+        await runtimeStore.SaveAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Roleplay,
+                ProjectName = "demo-campaign",
+                CurrentFile = "scene-01.md",
+                Character = "nadia",
+            },
+        });
+
+        var storyStore = new FileSystemStoryStore(
+            Path.Combine(_tempDir, ContentPaths.Story),
+            writer,
+            _loggerFactory.CreateLogger<FileSystemStoryStore>());
+        var transcriptService = new SessionTranscriptService(
+            _store,
+            runtimeStore,
+            new InMemorySessionMutationGate(_loggerFactory.CreateLogger<InMemorySessionMutationGate>()),
+            storyStore,
+            _loggerFactory.CreateLogger<SessionTranscriptService>());
+
+        await transcriptService.SyncRoleplayTranscriptAsync(sessionId);
+
+        var savedTranscript = await storyStore.ReadAsync("demo-campaign", "scene-01.md");
+        Assert.Contains("## Turn 1 - User\n\nI knock twice.", savedTranscript);
+        Assert.Contains("## Turn 1 - Nadia\n\nNadia opens the peephole and lowers her voice.", savedTranscript);
+        Assert.DoesNotContain("_No roleplay turns have been synced yet._", savedTranscript);
     }
 
     [Fact]

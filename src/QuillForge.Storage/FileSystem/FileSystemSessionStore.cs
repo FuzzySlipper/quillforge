@@ -147,6 +147,7 @@ public sealed class FileSystemSessionStore : ISessionStore
                 ChildIds = nodeDto.ChildIds ?? [],
                 Metadata = nodeDto.Metadata is not null ? new MessageMetadata
                 {
+                    ConversationMode = DeserializeConversationMode(nodeDto.Metadata.ConversationMode),
                     Model = nodeDto.Metadata.Model,
                     InputTokens = nodeDto.Metadata.InputTokens,
                     OutputTokens = nodeDto.Metadata.OutputTokens,
@@ -191,6 +192,7 @@ public sealed class FileSystemSessionStore : ISessionStore
             ChildIds = n.ChildIds.ToList(),
             Metadata = n.Metadata is not null ? new MetadataDto
             {
+                ConversationMode = n.Metadata.ConversationMode?.ToWireString(),
                 Model = n.Metadata.Model,
                 InputTokens = n.Metadata.InputTokens,
                 OutputTokens = n.Metadata.OutputTokens,
@@ -245,6 +247,23 @@ public sealed class FileSystemSessionStore : ISessionStore
             sessionId, dto.Messages?.Count ?? 0);
 
         return tree;
+    }
+
+    private Mode? DeserializeConversationMode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var parsed = ModeExtensions.TryParseMode(value);
+        if (parsed.HasValue)
+        {
+            return parsed.Value;
+        }
+
+        _logger.LogWarning("Skipping unknown persisted conversation mode '{Mode}'", value);
+        return null;
     }
 
     private ProviderReplayEnvelope? DeserializeProviderReplay(ProviderReplayDto? dto)
@@ -325,6 +344,7 @@ internal sealed class NodeDto
 
 internal sealed class MetadataDto
 {
+    public string? ConversationMode { get; set; }
     public string? Model { get; set; }
     public int? InputTokens { get; set; }
     public int? OutputTokens { get; set; }
