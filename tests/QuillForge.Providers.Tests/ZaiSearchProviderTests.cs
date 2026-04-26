@@ -86,6 +86,61 @@ public class ZaiSearchProviderTests
     }
 
     [Fact]
+    public async Task SearchAsync_UsesEquivalentToolNameFromToolsList()
+    {
+        var handler = new RecordingMcpHandler(
+            InitializeResponse("session-alias"),
+            AcceptedResponse(),
+            ToolsListResponse("search_query", toolName: "web_search_prime"),
+            ToolCallResponse(JsonSerializer.Serialize(new[]
+            {
+                new { title = "Alias Result", link = "https://example.test/alias", snippet = "Alias summary" },
+            })));
+        var provider = CreateProvider(handler, maxResults: 5);
+
+        await provider.SearchAsync("alias schema");
+
+        using var toolsCall = JsonDocument.Parse(handler.Requests[3].Body);
+        Assert.Equal("web_search_prime", toolsCall.RootElement.GetProperty("params").GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task SearchAsync_UsesSingleExposedToolWhenDefaultToolNameRequested()
+    {
+        var handler = new RecordingMcpHandler(
+            InitializeResponse("session-single"),
+            AcceptedResponse(),
+            ToolsListResponse("search_query", toolName: "zaiSearch"),
+            ToolCallResponse(JsonSerializer.Serialize(new[]
+            {
+                new { title = "Single Result", link = "https://example.test/single", snippet = "Single summary" },
+            })));
+        var provider = CreateProvider(handler, maxResults: 5, toolName: "webSearchPrime");
+
+        await provider.SearchAsync("single schema");
+
+        using var toolsCall = JsonDocument.Parse(handler.Requests[3].Body);
+        Assert.Equal("zaiSearch", toolsCall.RootElement.GetProperty("params").GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task SearchAsync_ThrowsActionableExceptionWithExposedToolsForInvalidCustomToolName()
+    {
+        var handler = new RecordingMcpHandler(
+            InitializeResponse("session-custom"),
+            AcceptedResponse(),
+            ToolsListResponse("search_query", toolName: "web_search_prime"));
+        var provider = CreateProvider(handler, maxResults: 5, toolName: "notRealTool");
+
+        var ex = await Assert.ThrowsAsync<WebSearchProviderException>(() => provider.SearchAsync("custom schema"));
+
+        Assert.False(ex.CanRetrySameRequest);
+        Assert.Contains("notRealTool", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("web_search_prime", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(3, handler.Requests.Count);
+    }
+
+    [Fact]
     public async Task SearchAsync_ParsesSseToolResponseAndLimitsResults()
     {
         var toolCallPayload = new
@@ -218,13 +273,13 @@ public class ZaiSearchProviderTests
         Assert.Contains("invalid api key", ex.Message, StringComparison.Ordinal);
     }
 
-    private static ZaiSearchProvider CreateProvider(RecordingMcpHandler handler, int maxResults)
+    private static ZaiSearchProvider CreateProvider(RecordingMcpHandler handler, int maxResults, string? toolName = null)
     {
         return new ZaiSearchProvider(
             new HttpClient(handler),
             "test-zai-key",
             endpoint: null,
-            toolName: null,
+            toolName,
             maxResults,
             NullLogger<ZaiSearchProvider>.Instance);
     }
@@ -252,7 +307,7 @@ public class ZaiSearchProviderTests
         };
     }
 
-    private static HttpResponseMessage ToolsListResponse(string argumentName)
+    private static HttpResponseMessage ToolsListResponse(string argumentName, string toolName = "webSearchPrime")
     {
         return JsonResponse(new
         {
@@ -264,7 +319,7 @@ public class ZaiSearchProviderTests
                 {
                     new
                     {
-                        name = "webSearchPrime",
+                        name = toolName,
                         inputSchema = new
                         {
                             type = "object",

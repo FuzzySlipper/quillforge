@@ -25,6 +25,7 @@ public sealed class ZaiSearchProvider : IWebSearchService
     private readonly string _apiKey;
     private readonly Uri _endpoint;
     private readonly string _toolName;
+    private readonly bool _isDefaultToolNameRequested;
     private readonly int _maxResults;
     private readonly ILogger<ZaiSearchProvider> _logger;
 
@@ -45,6 +46,7 @@ public sealed class ZaiSearchProvider : IWebSearchService
         _apiKey = apiKey;
         _endpoint = new Uri(string.IsNullOrWhiteSpace(endpoint) ? DefaultEndpoint : endpoint, UriKind.Absolute);
         _toolName = string.IsNullOrWhiteSpace(toolName) ? DefaultToolName : toolName.Trim();
+        _isDefaultToolNameRequested = AreEquivalentToolNames(_toolName, DefaultToolName);
         _maxResults = Math.Max(1, maxResults);
         _logger = logger;
     }
@@ -120,27 +122,25 @@ public sealed class ZaiSearchProvider : IWebSearchService
                 canRetrySameRequest: false);
         }
 
-        JsonElement? selected = null;
-        foreach (var tool in tools.EnumerateArray())
-        {
-            if (!tool.TryGetProperty("name", out var nameElement))
-            {
-                continue;
-            }
+        var availableTools = ReadToolElements(tools);
+        var selected = SelectConfiguredTool(availableTools);
 
-            var name = nameElement.GetString();
-            if (string.Equals(name, _toolName, StringComparison.OrdinalIgnoreCase))
-            {
-                selected = tool;
-                break;
-            }
+        if (selected is null && _isDefaultToolNameRequested && availableTools.Count == 1)
+        {
+            selected = availableTools[0];
+            var fallbackName = selected.Value.GetProperty("name").GetString() ?? "<unnamed>";
+            _logger.LogInformation(
+                "Z.AI Web Search MCP endpoint exposed a single tool named {ToolName}; using it for the default tool {DefaultToolName}",
+                fallbackName,
+                DefaultToolName);
         }
 
         if (selected is null)
         {
             throw new WebSearchProviderException(
                 ProviderName,
-                $"Z.AI Web Search MCP endpoint did not expose the configured tool '{_toolName}'. Check zai_mcp_tool_name or the endpoint URL.",
+                $"Z.AI Web Search MCP endpoint did not expose the configured tool '{_toolName}'. " +
+                $"Exposed tools: {BuildAvailableToolNames(availableTools)}. Check zai_mcp_tool_name or the endpoint URL.",
                 canRetrySameRequest: false);
         }
 
@@ -149,6 +149,87 @@ public sealed class ZaiSearchProvider : IWebSearchService
         var queryArgumentName = InferQueryArgumentName(selectedTool);
 
         return new McpToolMetadata(toolName, queryArgumentName);
+    }
+
+    private static List<JsonElement> ReadToolElements(JsonElement tools)
+    {
+        var availableTools = new List<JsonElement>();
+        foreach (var tool in tools.EnumerateArray())
+        {
+            if (!tool.TryGetProperty("name", out var nameElement) || nameElement.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(nameElement.GetString()))
+            {
+                continue;
+            }
+
+            availableTools.Add(tool);
+        }
+
+        return availableTools;
+    }
+
+    private JsonElement? SelectConfiguredTool(IReadOnlyList<JsonElement> availableTools)
+    {
+        foreach (var tool in availableTools)
+        {
+            var name = tool.GetProperty("name").GetString();
+            if (string.Equals(name, _toolName, StringComparison.OrdinalIgnoreCase))
+            {
+                return tool;
+            }
+        }
+
+        foreach (var tool in availableTools)
+        {
+            var name = tool.GetProperty("name").GetString();
+            if (AreEquivalentToolNames(name, _toolName))
+            {
+                return tool;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool AreEquivalentToolNames(string? left, string? right)
+    {
+        return string.Equals(
+            NormalizeToolName(left),
+            NormalizeToolName(right),
+            StringComparison.Ordinal);
+    }
+
+    private static string NormalizeToolName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            if (char.IsLetterOrDigit(ch))
+            {
+                builder.Append(char.ToLowerInvariant(ch));
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildAvailableToolNames(IReadOnlyList<JsonElement> availableTools)
+    {
+        if (availableTools.Count == 0)
+        {
+            return "<none>";
+        }
+
+        return string.Join(", ", availableTools.Select(tool => $"'{tool.GetProperty("name").GetString()}'"));
     }
 
     private async Task<IReadOnlyList<WebSearchResult>> CallToolAsync(
