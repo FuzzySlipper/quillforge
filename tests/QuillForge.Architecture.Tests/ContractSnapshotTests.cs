@@ -258,6 +258,58 @@ public sealed class ContractSnapshotTests
     }
 
     [Fact]
+    public void ForgeStatusResponse_MatchesApprovedSnapshot()
+    {
+        var dto = new ForgeStatusResponse
+        {
+            ProjectName = "ember-archive",
+            Stage = "Writing",
+            ChapterCount = 2,
+            Paused = false,
+            Chapters = new Dictionary<string, ForgeChapterStatusDto>
+            {
+                ["ch-01"] = new()
+                {
+                    State = "Done",
+                    RevisionCount = 1,
+                    WordCount = 2500,
+                },
+                ["ch-02"] = new()
+                {
+                    State = "Writing",
+                    RevisionCount = 0,
+                    WordCount = 800,
+                },
+            },
+            Stats = new ForgeStats
+            {
+                TotalInputTokens = 3000,
+                TotalOutputTokens = 1200,
+                AgentCalls = 4,
+                ChaptersRevised = 1,
+            },
+            Documents =
+            [
+                new ForgeProjectDocumentDto
+                {
+                    Kind = "outline",
+                    Label = "Outline",
+                    RelativePath = "forge/ember-archive/plan/outline.md",
+                    Href = "/content/forge/ember-archive/plan/outline.md",
+                },
+                new ForgeProjectDocumentDto
+                {
+                    Kind = "outputStory",
+                    Label = "Output story",
+                    RelativePath = "forge/ember-archive/output/story.md",
+                    Href = "/content/forge/ember-archive/output/story.md",
+                },
+            ],
+        };
+        AssertJsonSnapshot("ForgeStatusResponse", dto, DebugBridgeJsonOptions);
+    }
+
+    [Fact]
     public void DebugBridgeStreamResponse_MatchesApprovedSnapshot()
     {
         var dto = new DebugBridgeStreamResponse

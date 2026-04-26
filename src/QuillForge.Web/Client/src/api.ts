@@ -822,6 +822,13 @@ export interface ForgeProjectInfo {
   paused: boolean;
 }
 
+export interface ForgeProjectDocumentInfo {
+  kind: string;
+  label: string;
+  relativePath: string;
+  href: string;
+}
+
 export interface ForgeChapterStatusInfo {
   state: string;
   revisionCount: number;
@@ -848,6 +855,7 @@ export interface ForgeProjectStatus {
   paused: boolean;
   chapters: Record<string, ForgeChapterStatusInfo>;
   stats: ForgeStatsInfo;
+  documents: ForgeProjectDocumentInfo[];
 }
 
 export async function listForgeProjects(): Promise<ForgeProjectInfo[]> {

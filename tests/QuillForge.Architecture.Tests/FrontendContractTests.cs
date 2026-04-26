@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuillForge.Core.Models;
 using QuillForge.Web.Contracts;
 
 namespace QuillForge.Architecture.Tests;
@@ -136,6 +137,80 @@ public sealed class FrontendContractTests
         Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
         Assert.Equal("number", shape["loreFiles"]);
         Assert.Equal("string", shape["status"]);
+    }
+
+    [Fact]
+    public void ForgeProjectStatusResponse_StaysInSyncWith_ApiInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("api.ts", "ForgeProjectStatus");
+        var jsonKeys = SerializeTopLevelKeys(new ForgeStatusResponse
+        {
+            ProjectName = "ember-archive",
+            Stage = "Writing",
+            ChapterCount = 2,
+            Paused = false,
+            Chapters = new Dictionary<string, ForgeChapterStatusDto>
+            {
+                ["ch-01"] = new()
+                {
+                    State = "Done",
+                    RevisionCount = 1,
+                    WordCount = 2500,
+                },
+            },
+            Stats = new ForgeStats
+            {
+                TotalInputTokens = 100,
+                TotalOutputTokens = 200,
+                AgentCalls = 3,
+                ChaptersRevised = 1,
+            },
+            Documents =
+            [
+                new ForgeProjectDocumentDto
+                {
+                    Kind = "outline",
+                    Label = "Outline",
+                    RelativePath = "forge/ember-archive/plan/outline.md",
+                    Href = "/content/forge/ember-archive/plan/outline.md",
+                },
+            ],
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("ForgeProjectDocumentInfo[]", shape["documents"]);
+        Assert.Equal("Record<string, ForgeChapterStatusInfo>", shape["chapters"]);
+        Assert.Equal("ForgeStatsInfo", shape["stats"]);
+    }
+
+    [Fact]
+    public void ForgeProjectDocumentDto_StaysInSyncWith_ApiInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("api.ts", "ForgeProjectDocumentInfo");
+        var jsonKeys = SerializeTopLevelKeys(new ForgeProjectDocumentDto
+        {
+            Kind = "outputStory",
+            Label = "Output story",
+            RelativePath = "forge/ember-archive/output/story.md",
+            Href = "/content/forge/ember-archive/output/story.md",
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("string", shape["kind"]);
+        Assert.Equal("string", shape["label"]);
+        Assert.Equal("string", shape["relativePath"]);
+        Assert.Equal("string", shape["href"]);
+    }
+
+    [Fact]
+    public void ForgeWorkspace_UsesStatusDocumentContractInsteadOfHeadProbes()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("components", "ForgeWorkspace.tsx"));
+
+        Assert.DoesNotContain("method: \"HEAD\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("method: 'HEAD'", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("/content/forge/", source, StringComparison.Ordinal);
+        Assert.Contains("forgeStatus?.documents", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -286,10 +361,15 @@ public sealed class FrontendContractTests
 
     private static Dictionary<string, string> GetTypeScriptInterfaceShape(string interfaceName)
     {
-        var source = File.ReadAllText(GetFrontendFilePath("types.ts"));
+        return GetTypeScriptInterfaceShape("types.ts", interfaceName);
+    }
+
+    private static Dictionary<string, string> GetTypeScriptInterfaceShape(string fileName, string interfaceName)
+    {
+        var source = File.ReadAllText(GetFrontendFilePath(fileName));
         var marker = $"export interface {interfaceName}";
         var start = source.IndexOf(marker, StringComparison.Ordinal);
-        Assert.True(start >= 0, $"Could not find interface {interfaceName} in types.ts");
+        Assert.True(start >= 0, $"Could not find interface {interfaceName} in {fileName}");
 
         var bodyStart = source.IndexOf('{', start);
         var bodyEnd = FindMatchingBrace(source, bodyStart);
@@ -364,21 +444,24 @@ public sealed class FrontendContractTests
             .ToList();
     }
 
-    private static string GetFrontendFilePath(string fileName)
+    private static string GetFrontendFilePath(params string[] pathSegments)
     {
-        return Path.GetFullPath(
-            Path.Combine(
-                AppContext.BaseDirectory,
-                "..",
-                "..",
-                "..",
-                "..",
-                "..",
-                "src",
-                "QuillForge.Web",
-                "Client",
-                "src",
-                fileName));
+        var pathParts = new List<string>
+        {
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "src",
+            "QuillForge.Web",
+            "Client",
+            "src",
+        };
+        pathParts.AddRange(pathSegments);
+
+        return Path.GetFullPath(Path.Combine(pathParts.ToArray()));
     }
 
     private static int FindMatchingBrace(string source, int openingBraceIndex)
