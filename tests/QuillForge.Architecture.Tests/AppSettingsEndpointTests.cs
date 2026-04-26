@@ -67,6 +67,8 @@ public sealed class AppSettingsEndpointTests
                 Provider = "searxng",
                 TavilyApiKey = "keep-tavily",
                 BraveApiKey = "clear-brave",
+                GoogleCxId = "clear-cx",
+                ZaiMcpToolName = "clear-tool",
                 MaxResults = 50,
             }
         };
@@ -84,9 +86,10 @@ public sealed class AppSettingsEndpointTests
               "maxResults": 12,
               "tavilyApiKey": "",
               "clearBraveApiKey": true,
+              "googleCxId": "",
               "zaiApiKey": "new-zai-key",
               "zaiMcpEndpoint": " https://custom.example/mcp ",
-              "zaiMcpToolName": " webSearchPrime "
+              "zaiMcpToolName": ""
             }
             """);
 
@@ -98,8 +101,9 @@ public sealed class AppSettingsEndpointTests
         Assert.Equal("keep-tavily", store.Config.WebSearch.TavilyApiKey);
         Assert.Null(store.Config.WebSearch.BraveApiKey);
         Assert.Equal("new-zai-key", store.Config.WebSearch.ZaiApiKey);
+        Assert.Null(store.Config.WebSearch.GoogleCxId);
         Assert.Equal("https://custom.example/mcp", store.Config.WebSearch.ZaiMcpEndpoint);
-        Assert.Equal("webSearchPrime", store.Config.WebSearch.ZaiMcpToolName);
+        Assert.Null(store.Config.WebSearch.ZaiMcpToolName);
         Assert.Equal("zai", runtimeConfig.WebSearch.Provider);
         Assert.Equal(12, runtimeConfig.WebSearch.MaxResults);
 

@@ -1,0 +1,3 @@
+# Frontend build artifacts can contain dependency-generated whitespace inside bundled strings.
+src/QuillForge.Web/wwwroot/assets/*.js -whitespace
+src/QuillForge.Web/wwwroot/assets/*.css -whitespace

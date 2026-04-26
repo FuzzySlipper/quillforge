@@ -60,9 +60,8 @@ function formFromSettings(settings: WebSearchSettings): WebSearchFormState {
   };
 }
 
-function optionalText(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? null : trimmed;
+function normalizedText(value: string): string {
+  return value.trim();
 }
 
 function secretPlaceholder(isSet: boolean, label: string): string {
@@ -128,10 +127,10 @@ export default function AppSettingsPanel({ open, onClose }: AppSettingsPanelProp
     const payload: WebSearchSettingsUpdate = {
       enabled: form.enabled,
       provider: form.provider,
-      searxngUrl: optionalText(form.searxngUrl),
-      googleCxId: optionalText(form.googleCxId),
-      zaiMcpEndpoint: optionalText(form.zaiMcpEndpoint),
-      zaiMcpToolName: optionalText(form.zaiMcpToolName),
+      searxngUrl: normalizedText(form.searxngUrl),
+      googleCxId: normalizedText(form.googleCxId),
+      zaiMcpEndpoint: normalizedText(form.zaiMcpEndpoint),
+      zaiMcpToolName: normalizedText(form.zaiMcpToolName),
       maxResults,
       clearTavilyApiKey: form.clearTavilyApiKey,
       clearBraveApiKey: form.clearBraveApiKey,
