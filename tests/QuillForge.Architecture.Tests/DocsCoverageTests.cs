@@ -37,4 +37,32 @@ public sealed class DocsCoverageTests
 
         Assert.Contains(results, result => result.Slug == "profile-session-conversation-ownership");
     }
+
+    [Fact]
+    public async Task ArchitectureDocs_IncludeSocialGamesFrameworkSpec()
+    {
+        var specPath = Path.Combine(
+            RepoRoot,
+            "docs",
+            "architecture",
+            "social-games-framework-architecture.md");
+
+        var content = await File.ReadAllTextAsync(specPath);
+
+        Assert.Contains("RulesEngineService", content, StringComparison.Ordinal);
+        Assert.Contains("AgentVisibleEvents", content, StringComparison.Ordinal);
+        Assert.Contains("GameRuntimeState", content, StringComparison.Ordinal);
+        Assert.Contains("GameIntentTranslationAgent", content, StringComparison.Ordinal);
+        Assert.Contains("IRulesEngineObserver", content, StringComparison.Ordinal);
+        Assert.Contains("GameEventJournal", content, StringComparison.Ordinal);
+        Assert.Contains("GameTemplateStore", content, StringComparison.Ordinal);
+        Assert.Contains("private-to-player", content, StringComparison.Ordinal);
+        Assert.Contains("private-to-set", content, StringComparison.Ordinal);
+        Assert.Contains("hidden/system-only", content, StringComparison.Ordinal);
+        Assert.Contains("prompt envelopes", content, StringComparison.Ordinal);
+        Assert.Contains("mode switch is rejected during an active game", content, StringComparison.Ordinal);
+        Assert.Contains("baseline Werewolf", content, StringComparison.Ordinal);
+        Assert.Contains("RuleWeaver Architecture Survey", content, StringComparison.Ordinal);
+        Assert.Contains("Assumptions Not To Copy", content, StringComparison.Ordinal);
+    }
 }
