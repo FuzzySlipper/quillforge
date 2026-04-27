@@ -12,4 +12,6 @@ public static class WerewolfModuleAssemblyMarker
     public static GameModuleId ModuleId { get; } = new("werewolf");
 
     public static GameModuleVersion ModuleVersion { get; } = new("0.1.0");
+
+    public static IGameModule CreateModule() => new WerewolfModule();
 }

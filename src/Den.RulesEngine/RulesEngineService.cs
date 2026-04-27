@@ -74,7 +74,13 @@ public sealed class RulesEngineService
         };
 
         var started = GameStartedEvent.Create(command.GameInstanceId, command.ModuleId, command.ModuleVersion, command.Seed);
-        return AcceptWithEvents(working, [started]);
+        var serviceResult = AcceptWithEvents(working, [started]);
+        var moduleResult = ApplyModulePhases(serviceResult.State, module, command, []);
+
+        return moduleResult with
+        {
+            Events = serviceResult.Events.Concat(moduleResult.Events).ToArray()
+        };
     }
 
     private RulesEngineApplyResult ApplyRequestPendingInput(

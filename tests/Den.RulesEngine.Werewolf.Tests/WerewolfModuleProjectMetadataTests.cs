@@ -13,6 +13,7 @@ public sealed class WerewolfModuleProjectMetadataTests
         Assert.Equal("Den.RulesEngine.Werewolf", global::Den.RulesEngine.Werewolf.WerewolfModuleAssemblyMarker.ProjectName);
         Assert.Equal(new global::Den.RulesEngine.GameModuleId("werewolf"), global::Den.RulesEngine.Werewolf.WerewolfModuleAssemblyMarker.ModuleId);
         Assert.Equal(new global::Den.RulesEngine.GameModuleVersion("0.1.0"), global::Den.RulesEngine.Werewolf.WerewolfModuleAssemblyMarker.ModuleVersion);
+        Assert.IsType<global::Den.RulesEngine.Werewolf.WerewolfModule>(global::Den.RulesEngine.Werewolf.WerewolfModuleAssemblyMarker.CreateModule());
     }
 
     [Fact]
