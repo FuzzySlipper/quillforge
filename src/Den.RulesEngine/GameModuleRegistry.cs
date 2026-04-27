@@ -40,6 +40,38 @@ public sealed class GameModuleRegistry
             : ValidationResult.Valid;
     }
 
+    public ValidationResult CanLoad(GameModuleLoadRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var matchingModules = _modules
+            .Where(module => module.Descriptor.ModuleId == request.ModuleId)
+            .ToArray();
+        if (matchingModules.Length == 0)
+        {
+            return ValidationResult.Invalid(new ValidationIssue(
+                "unknown_module_id",
+                $"Module '{request.ModuleId}' is not registered."));
+        }
+
+        return matchingModules.Any(module => request.VersionRange.Contains(module.Descriptor.ModuleVersion))
+            ? ValidationResult.Valid
+            : ValidationResult.Invalid(new ValidationIssue(
+                "module_version_mismatch",
+                $"Module '{request.ModuleId}' has no registered version compatible with range '{request.VersionRange.MinimumVersion}'-'{request.VersionRange.MaximumVersion}'."));
+    }
+
+    public IGameModule? FindLoadable(GameModuleLoadRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return _modules
+            .Where(module => module.Descriptor.ModuleId == request.ModuleId)
+            .Where(module => request.VersionRange.Contains(module.Descriptor.ModuleVersion))
+            .OrderByDescending(module => module.Descriptor.ModuleVersion, new GameModuleVersionComparer())
+            .FirstOrDefault();
+    }
+
     private static bool HasSameIdentity(IGameModule first, IGameModule second) =>
         first.Descriptor.ModuleId == second.Descriptor.ModuleId
         && first.Descriptor.ModuleVersion == second.Descriptor.ModuleVersion;
@@ -66,6 +98,41 @@ public sealed class GameModuleRegistryFactory
 public sealed record GameModuleRegistryBuildResult(
     GameModuleRegistry Registry,
     ValidationResult ValidationResult);
+
+public sealed record GameModuleLoadRequest(
+    GameModuleId ModuleId,
+    GameModuleVersionRange VersionRange,
+    GameTemplateVersion TemplateVersion);
+
+public sealed record GameModuleVersionRange(
+    GameModuleVersion MinimumVersion,
+    GameModuleVersion MaximumVersion)
+{
+    public bool Contains(GameModuleVersion version)
+    {
+        var comparer = new GameModuleVersionComparer();
+        if (comparer.Compare(MinimumVersion, MaximumVersion) > 0)
+        {
+            return false;
+        }
+
+        return comparer.Compare(version, MinimumVersion) >= 0
+            && comparer.Compare(version, MaximumVersion) <= 0;
+    }
+}
+
+internal sealed class GameModuleVersionComparer : IComparer<GameModuleVersion>
+{
+    public int Compare(GameModuleVersion x, GameModuleVersion y)
+    {
+        if (Version.TryParse(x.Value, out var xVersion) && Version.TryParse(y.Value, out var yVersion))
+        {
+            return xVersion.CompareTo(yVersion);
+        }
+
+        return string.CompareOrdinal(x.Value, y.Value);
+    }
+}
 
 public sealed class GameSetupValidationService
 {
@@ -170,6 +237,16 @@ public sealed class GameSetupValidationService
     private static IReadOnlyList<ValidationIssue> ValidateSetupFields(GameModuleDescriptor descriptor, GameSetup setup)
     {
         var issues = new List<ValidationIssue>();
+        foreach (var value in setup.Values)
+        {
+            if (!descriptor.SetupFields.Any(field => string.Equals(field.Name, value.Name, StringComparison.Ordinal)))
+            {
+                issues.Add(new ValidationIssue(
+                    "unsupported_setup_option",
+                    $"Setup option '{value.Name}' is not supported by module '{descriptor.ModuleId}' version '{descriptor.ModuleVersion}'."));
+            }
+        }
+
         foreach (var field in descriptor.SetupFields)
         {
             var value = setup.FindValue(field.Name);

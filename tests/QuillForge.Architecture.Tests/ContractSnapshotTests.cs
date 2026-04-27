@@ -539,6 +539,96 @@ public sealed class ContractSnapshotTests
     }
 
     // =======================================================================
+    // Game Template API Shape
+    // =======================================================================
+
+    [Fact]
+    public void GameTemplateResponse_MatchesApprovedSnapshot()
+    {
+        var dto = new GameTemplateResponse
+        {
+            Template = new GameTemplate
+            {
+                TemplateId = "village",
+                DisplayName = "Village Werewolf",
+                Description = "Baseline behavior-focused Werewolf setup.",
+                Module = new GameTemplateModuleSelection
+                {
+                    ModuleId = "werewolf",
+                    MinimumVersion = "1.0.0",
+                    MaximumVersion = "1.0.0",
+                },
+                TemplateVersion = "1.0.0",
+                RulesOptions = new GameTemplateRulesOptions
+                {
+                    Values =
+                    [
+                        new GameTemplateRuleOptionValue { Name = "werewolf_count", Kind = GameTemplateRuleOptionValueKind.Int, IntValue = 1 },
+                        new GameTemplateRuleOptionValue { Name = "seer_enabled", Kind = GameTemplateRuleOptionValueKind.Bool, BoolValue = false },
+                    ],
+                },
+                Roster = new GameTemplateRosterSettings
+                {
+                    RosterSize = 4,
+                    UserSeatParticipantId = "user",
+                    AgentPlayers =
+                    [
+                        new GameTemplateAgentPlayerConfig
+                        {
+                            ParticipantId = "agent-1",
+                            ProviderAlias = "local",
+                            ModelOverride = "llama3.2",
+                            CharacterPrompt = "Keep claims concise.",
+                            Personality = "skeptical villager",
+                            FixedName = "Bob",
+                            RandomNameBehavior = GameTemplateRandomNameBehavior.UseFixedNameWhenProvided,
+                        },
+                        new GameTemplateAgentPlayerConfig
+                        {
+                            ParticipantId = "agent-2",
+                            ProviderAlias = "local",
+                            FixedName = "Carol",
+                        },
+                        new GameTemplateAgentPlayerConfig
+                        {
+                            ParticipantId = "agent-3",
+                            ProviderAlias = "local",
+                            FixedName = "Drew",
+                        },
+                    ],
+                },
+                Memory = new GameTemplateMemorySettings { TokenBudget = 512 },
+                Communication = new GameTemplateCommunicationSettings
+                {
+                    PublicChannelEnabled = true,
+                    DirectMessagesEnabled = true,
+                    HostMessagesEnabled = true,
+                },
+                Naming = new GameTemplateNamingSettings
+                {
+                    RandomizeAgentNames = true,
+                    RandomNameSet = "village",
+                    RandomSeed = 17,
+                },
+            },
+            Validation = new GameTemplateValidationResult
+            {
+                Issues =
+                [
+                    new GameTemplateValidationIssue
+                    {
+                        Code = "unknown_provider_alias",
+                        Field = "roster.agentPlayers[0].providerAlias",
+                        Message = "Provider alias 'local' is not configured.",
+                        Source = GameTemplateValidationSources.Provider,
+                    },
+                ],
+            },
+        };
+        AssertJsonSnapshot("GameTemplateResponse", dto, DebugBridgeJsonOptions);
+    }
+
+    // =======================================================================
     // Profile Config YAML Shape
     // =======================================================================
 

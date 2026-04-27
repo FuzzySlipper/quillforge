@@ -43,6 +43,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Den.Persistence\Den.Persistence.csproj" />
+    <ProjectReference Include="..\Den.RulesEngine\Den.RulesEngine.csproj" />
+    <ProjectReference Include="..\Den.RulesEngine.Werewolf\Den.RulesEngine.Werewolf.csproj" />
     <ProjectReference Include="..\QuillForge.Core\QuillForge.Core.csproj" />
     <ProjectReference Include="..\QuillForge.Providers\QuillForge.Providers.csproj" />
     <ProjectReference Include="..\QuillForge.Storage\QuillForge.Storage.csproj" />

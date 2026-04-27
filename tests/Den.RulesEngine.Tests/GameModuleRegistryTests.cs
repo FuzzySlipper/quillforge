@@ -221,6 +221,65 @@ public sealed class GameModuleRegistryTests
     }
 
     [Fact]
+    public void CanLoad_AcceptsRegisteredModuleWithinVersionRange()
+    {
+        var registry = new GameModuleRegistry();
+        var older = CreateModule(CreateDescriptor(new GameModuleVersion("1.0.0")));
+        var newer = CreateModule(CreateDescriptor(new GameModuleVersion("1.2.0")));
+        registry.Register(older);
+        registry.Register(newer);
+
+        var request = new GameModuleLoadRequest(
+            older.Descriptor.ModuleId,
+            new GameModuleVersionRange(new GameModuleVersion("1.1.0"), new GameModuleVersion("1.3.0")),
+            new GameTemplateVersion("1.0.0"));
+
+        var result = registry.CanLoad(request);
+        var module = registry.FindLoadable(request);
+
+        Assert.True(result.IsValid);
+        Assert.Same(newer, module);
+    }
+
+    [Fact]
+    public void CanLoad_RejectsModuleVersionMismatches()
+    {
+        var registry = new GameModuleRegistry();
+        var module = CreateModule(CreateDescriptor(new GameModuleVersion("1.0.0")));
+        registry.Register(module);
+
+        var result = registry.CanLoad(new GameModuleLoadRequest(
+            module.Descriptor.ModuleId,
+            new GameModuleVersionRange(new GameModuleVersion("2.0.0"), new GameModuleVersion("3.0.0")),
+            new GameTemplateVersion("1.0.0")));
+
+        Assert.False(result.IsValid);
+        Assert.Equal("module_version_mismatch", Assert.Single(result.Issues).Code);
+    }
+
+    [Fact]
+    public void GameSetupValidation_RejectsUnsupportedSetupOptions()
+    {
+        var registry = new GameModuleRegistry();
+        var module = new TestGameModule();
+        registry.Register(module);
+        var service = new GameSetupValidationService(registry);
+
+        var result = service.Validate(
+            module.Descriptor.ModuleId,
+            module.Descriptor.ModuleVersion,
+            new GameTemplateVersion("1.0.0"),
+            new GameSetup([
+                new StringGameSetupValue("scenario", "baseline"),
+                new BoolGameSetupValue("unsupported", true)
+            ]),
+            CreateParticipants());
+
+        Assert.False(result.IsValid);
+        Assert.Equal("unsupported_setup_option", Assert.Single(result.Issues).Code);
+    }
+
+    [Fact]
     public void Descriptor_ExposesVersioningCapabilitiesMemoryAndPromptAssets()
     {
         var descriptor = TestGameModule.CreateDescriptor();

@@ -1,3 +1,5 @@
+using Den.RulesEngine;
+using Den.RulesEngine.Werewolf;
 using QuillForge.Core;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Agents.Modes;
@@ -97,6 +99,7 @@ internal static class QuillForgeApplication
         app.MapForgeManagementEndpoints();
         app.MapContentEndpoints(contentRoot);
         app.MapProfileEndpoints(contentRoot);
+        app.MapGameTemplateEndpoints();
         app.MapPlotEndpoints();
         app.MapCharacterCardEndpoints(contentRoot);
         app.MapCouncilEndpoints();
@@ -186,6 +189,23 @@ internal static class QuillForgeApplication
         builder.Services.AddSingleton<ProviderFactory>();
         builder.Services.AddSingleton<ProviderRegistry>();
         builder.Services.AddSingleton<ITokenUsageTracker, InMemoryTokenUsageTracker>();
+
+        builder.Services.AddSingleton(sp =>
+        {
+            var result = new GameModuleRegistryFactory().Create([new WerewolfModule()]);
+            if (!result.ValidationResult.IsValid)
+            {
+                throw new InvalidOperationException(
+                    $"Game module registry failed to build: {string.Join(", ", result.ValidationResult.Issues.Select(issue => issue.Message))}");
+            }
+
+            return result.Registry;
+        });
+        builder.Services.AddSingleton<GameSetupValidationService>();
+        builder.Services.AddSingleton<IGameTemplateProviderCatalog, GameTemplateProviderCatalog>();
+        builder.Services.AddSingleton<IGameTemplateModuleValidator, GameTemplateModuleValidator>();
+        builder.Services.AddSingleton<IGameTemplateService, GameTemplateService>();
+
         builder.Services.AddSingleton<DefaultCompletionService>();
         builder.Services.AddSingleton<ICompletionService>(sp =>
             new UsageTrackingCompletionService(

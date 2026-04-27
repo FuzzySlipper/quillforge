@@ -1,0 +1,92 @@
+{
+  "template": {
+    "templateId": "village",
+    "displayName": "Village Werewolf",
+    "description": "Baseline behavior-focused Werewolf setup.",
+    "module": {
+      "moduleId": "werewolf",
+      "minimumVersion": "1.0.0",
+      "maximumVersion": "1.0.0"
+    },
+    "templateVersion": "1.0.0",
+    "rulesOptions": {
+      "values": [
+        {
+          "name": "werewolf_count",
+          "kind": "Int",
+          "stringValue": null,
+          "intValue": 1,
+          "boolValue": null,
+          "participantIdValue": null,
+          "participantSetValue": []
+        },
+        {
+          "name": "seer_enabled",
+          "kind": "Bool",
+          "stringValue": null,
+          "intValue": null,
+          "boolValue": false,
+          "participantIdValue": null,
+          "participantSetValue": []
+        }
+      ]
+    },
+    "roster": {
+      "rosterSize": 4,
+      "userSeatParticipantId": "user",
+      "agentPlayers": [
+        {
+          "participantId": "agent-1",
+          "providerAlias": "local",
+          "modelOverride": "llama3.2",
+          "characterPrompt": "Keep claims concise.",
+          "personality": "skeptical villager",
+          "fixedName": "Bob",
+          "randomNameBehavior": "UseFixedNameWhenProvided"
+        },
+        {
+          "participantId": "agent-2",
+          "providerAlias": "local",
+          "modelOverride": null,
+          "characterPrompt": null,
+          "personality": null,
+          "fixedName": "Carol",
+          "randomNameBehavior": "UseFixedNameWhenProvided"
+        },
+        {
+          "participantId": "agent-3",
+          "providerAlias": "local",
+          "modelOverride": null,
+          "characterPrompt": null,
+          "personality": null,
+          "fixedName": "Drew",
+          "randomNameBehavior": "UseFixedNameWhenProvided"
+        }
+      ]
+    },
+    "memory": {
+      "tokenBudget": 512
+    },
+    "communication": {
+      "publicChannelEnabled": true,
+      "directMessagesEnabled": true,
+      "hostMessagesEnabled": true
+    },
+    "naming": {
+      "randomizeAgentNames": true,
+      "randomNameSet": "village",
+      "randomSeed": 17
+    }
+  },
+  "validation": {
+    "issues": [
+      {
+        "code": "unknown_provider_alias",
+        "message": "Provider alias \u0027local\u0027 is not configured.",
+        "field": "roster.agentPlayers[0].providerAlias",
+        "source": "provider"
+      }
+    ],
+    "isValid": false
+  }
+}
