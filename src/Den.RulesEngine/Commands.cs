@@ -28,6 +28,24 @@ public sealed record AdvanceDeterministicEffectsIntentCommand(
     GameInstanceId GameInstanceId,
     string EffectName) : IGameIntentCommand;
 
+public sealed record RequestPendingInputIntentCommand(
+    GameIntentCommandId CommandId,
+    GameInstanceId GameInstanceId,
+    GameStageId StageId,
+    string IntentName,
+    IReadOnlyList<LegalIntentOption> LegalOptions,
+    PendingInputAudience Audience) : IGameIntentCommand;
+
+public sealed record AdvanceStageIntentCommand(
+    GameIntentCommandId CommandId,
+    GameInstanceId GameInstanceId,
+    GameStageState NextStage) : IGameIntentCommand;
+
+public sealed record EndRoundIntentCommand(
+    GameIntentCommandId CommandId,
+    GameInstanceId GameInstanceId,
+    string ReasonCode) : IGameIntentCommand;
+
 public sealed record EndGameIntentCommand(
     GameIntentCommandId CommandId,
     GameInstanceId GameInstanceId,
@@ -37,6 +55,28 @@ public sealed record AbortGameIntentCommand(
     GameIntentCommandId CommandId,
     GameInstanceId GameInstanceId,
     string ReasonCode) : IGameIntentCommand;
+
+public sealed record PendingInputAudience(
+    PendingInputAudienceKind Kind,
+    ParticipantId? ParticipantId,
+    IReadOnlyList<ParticipantId> ParticipantIds)
+{
+    public static PendingInputAudience One(ParticipantId participantId) =>
+        new(PendingInputAudienceKind.OneParticipant, participantId, []);
+
+    public static PendingInputAudience Many(IReadOnlyList<ParticipantId> participantIds) =>
+        new(PendingInputAudienceKind.ManyParticipants, null, participantIds.ToArray());
+
+    public static PendingInputAudience AllActiveParticipants { get; } =
+        new(PendingInputAudienceKind.AllActiveParticipants, null, []);
+}
+
+public enum PendingInputAudienceKind
+{
+    OneParticipant,
+    ManyParticipants,
+    AllActiveParticipants
+}
 
 public sealed record ParticipantSetup(
     ParticipantId ParticipantId,

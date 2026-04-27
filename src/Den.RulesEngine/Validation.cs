@@ -47,6 +47,9 @@ public static class GameIntentCommandValidationService
                 ? IntentCommandValidationResult.Accepted
                 : IntentCommandValidationResult.Rejected(new ValidationIssue("game_already_started", "The game has already started.")),
             AdvanceDeterministicEffectsIntentCommand => IntentCommandValidationResult.Accepted,
+            RequestPendingInputIntentCommand request => ValidateRequestPendingInput(state, request),
+            AdvanceStageIntentCommand => IntentCommandValidationResult.Accepted,
+            EndRoundIntentCommand => IntentCommandValidationResult.Accepted,
             EndGameIntentCommand => IntentCommandValidationResult.Accepted,
             AbortGameIntentCommand => IntentCommandValidationResult.Accepted,
             _ => IntentCommandValidationResult.Rejected(new ValidationIssue("unknown_intent_command", "Intent command type is not recognized."))
@@ -94,11 +97,62 @@ public static class GameIntentCommandValidationService
                 "Pending input is not waiting for this participant."));
         }
 
+        if (pendingInput.StageId != state.Stage.StageId)
+        {
+            return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "out_of_stage",
+                "Pending input belongs to a previous or future stage."));
+        }
+
         if (!pendingInput.LegalOptions.Any(option => string.Equals(option.IntentName, command.ChoiceName, StringComparison.Ordinal)))
         {
             return IntentCommandValidationResult.Rejected(new ValidationIssue(
                 "illegal_choice",
                 "Choice is not legal for the pending input."));
+        }
+
+        return IntentCommandValidationResult.Accepted;
+    }
+
+    private static IntentCommandValidationResult ValidateRequestPendingInput(
+        RulesGameState state,
+        RequestPendingInputIntentCommand command)
+    {
+        if (command.LegalOptions.Count == 0)
+        {
+            return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "missing_legal_options",
+                "Pending input requests must provide at least one legal option."));
+        }
+
+        var targets = command.Audience.Kind switch
+        {
+            PendingInputAudienceKind.OneParticipant => command.Audience.ParticipantId is null
+                ? []
+                : [command.Audience.ParticipantId.Value],
+            PendingInputAudienceKind.ManyParticipants => command.Audience.ParticipantIds,
+            PendingInputAudienceKind.AllActiveParticipants => state.Participants
+                .Where(participant => participant.IsActive && participant.Kind != ParticipantKind.System)
+                .Select(participant => participant.ParticipantId)
+                .ToArray(),
+            _ => []
+        };
+
+        if (targets.Count == 0)
+        {
+            return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "missing_pending_input_targets",
+                "Pending input requests must target at least one participant."));
+        }
+
+        foreach (var participantId in targets)
+        {
+            if (state.FindParticipant(participantId) is null)
+            {
+                return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                    "unknown_participant",
+                    "Pending input request targets a participant that is not registered in this game."));
+            }
         }
 
         return IntentCommandValidationResult.Accepted;

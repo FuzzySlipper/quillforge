@@ -117,6 +117,88 @@ public sealed record NoActionTakenEvent(
         this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
 }
 
+public sealed record PendingInputRequestedEvent(
+    GameEventId EventId,
+    long Sequence,
+    GameInstanceId GameInstanceId,
+    DateTimeOffset OccurredAt,
+    GameEventVisibility Visibility,
+    PendingInputId PendingInputId,
+    ParticipantId ParticipantId,
+    GameStageId StageId,
+    string IntentName) : GameEventBase(EventId, Sequence, GameInstanceId, OccurredAt, Visibility)
+{
+    public static PendingInputRequestedEvent Create(
+        GameInstanceId gameInstanceId,
+        PendingInputId pendingInputId,
+        ParticipantId participantId,
+        GameStageId stageId,
+        string intentName) =>
+        new(
+            default,
+            0,
+            gameInstanceId,
+            default,
+            GameEventVisibility.PrivateToParticipant(participantId),
+            pendingInputId,
+            participantId,
+            stageId,
+            intentName);
+
+    public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
+        this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
+}
+
+public sealed record StageAdvancedEvent(
+    GameEventId EventId,
+    long Sequence,
+    GameInstanceId GameInstanceId,
+    DateTimeOffset OccurredAt,
+    GameEventVisibility Visibility,
+    GameStageId PreviousStageId,
+    GameStageId NextStageId) : GameEventBase(EventId, Sequence, GameInstanceId, OccurredAt, Visibility)
+{
+    public static StageAdvancedEvent Create(
+        GameInstanceId gameInstanceId,
+        GameStageId previousStageId,
+        GameStageId nextStageId) =>
+        new(default, 0, gameInstanceId, default, GameEventVisibility.Public, previousStageId, nextStageId);
+
+    public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
+        this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
+}
+
+public sealed record RoundEndedEvent(
+    GameEventId EventId,
+    long Sequence,
+    GameInstanceId GameInstanceId,
+    DateTimeOffset OccurredAt,
+    GameEventVisibility Visibility,
+    int RoundNumber,
+    string ReasonCode) : GameEventBase(EventId, Sequence, GameInstanceId, OccurredAt, Visibility)
+{
+    public static RoundEndedEvent Create(GameInstanceId gameInstanceId, int roundNumber, string reasonCode) =>
+        new(default, 0, gameInstanceId, default, GameEventVisibility.Public, roundNumber, reasonCode);
+
+    public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
+        this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
+}
+
+public sealed record RoundStartedEvent(
+    GameEventId EventId,
+    long Sequence,
+    GameInstanceId GameInstanceId,
+    DateTimeOffset OccurredAt,
+    GameEventVisibility Visibility,
+    int RoundNumber) : GameEventBase(EventId, Sequence, GameInstanceId, OccurredAt, Visibility)
+{
+    public static RoundStartedEvent Create(GameInstanceId gameInstanceId, int roundNumber) =>
+        new(default, 0, gameInstanceId, default, GameEventVisibility.Public, roundNumber);
+
+    public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
+        this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
+}
+
 public sealed record GameEndedEvent(
     GameEventId EventId,
     long Sequence,
