@@ -48,6 +48,12 @@ This spec builds on:
 | First Werewolf scope | Baseline Werewolf with One Night-compatible hooks | Baseline Werewolf proves social and hidden-info plumbing. One Night can follow without reshaping the module contract. |
 | Narration | Deterministic templates for v1 | Snapshot-testable and display-only. Optional LLM-styled narration is a later traced adapter. |
 
+Implementation of the `games` wire name must add `Mode.Games` to
+`src/QuillForge.Core/Models/Mode.cs`. `ModeExtensions.ToWireString()` must map
+it to `games`, and `ModeExtensions.TryParseMode()` must accept `games`
+case-insensitively while preserving existing legacy aliases such as `general`
+and `lore-builder`.
+
 ## Architecture Overview
 
 The system has four major boundaries.
@@ -74,6 +80,20 @@ metadata, setup validation, role assignment rules, legal actions, phase
 transitions, visibility rules, deterministic narrator templates, and prompt/rules
 assets. It must prove the module contract without becoming the framework.
 
+### Project Layout
+
+The portable engine projects live in this repository and in the main solution,
+not in a separate repository for v1:
+
+- `src/Den.RulesEngine/`
+- `src/Den.RulesEngine.Werewolf/`
+- `tests/Den.RulesEngine.Tests/`
+- `tests/Den.RulesEngine.Werewolf.Tests/`
+
+The `Den.` prefix is intentional. These assemblies are reusable outside
+QuillForge and must not take a dependency on QuillForge host, storage, provider,
+or UI types. QuillForge references them as a host integration layer.
+
 ## RuleWeaver Architecture Survey
 
 ### Patterns To Copy
@@ -82,8 +102,8 @@ RuleWeaver's most important portable pattern is a central rules service that
 resolves typed payloads through ordered rule handlers. Its
 `RulesEngineService` registers handlers explicitly, resolves a payload through
 discrete phases, records trace entries, and exposes one clear service boundary
-for new rules. See
-`../../../ruleweaver/src/RuleWeaver.Core/Rules/RulesEngineService.cs`.
+for new rules. In the sibling RuleWeaver repository, see
+`src/RuleWeaver.Core/Rules/RulesEngineService.cs`.
 
 `Den.RulesEngine` should copy that shape at the architectural level:
 
@@ -96,33 +116,35 @@ for new rules. See
 
 RuleWeaver's `TurnService` is also useful as a model for a service-owned
 coordination state with a shaped read model. It owns initiative order, current
-actor, round number, start/end transitions, and round-end facts. See
-`../../../ruleweaver/src/RuleWeaver.Core/Scheduling/TurnService.cs`.
+actor, round number, start/end transitions, and round-end facts. In the
+sibling RuleWeaver repository, see
+`src/RuleWeaver.Core/Scheduling/TurnService.cs`.
 `Den.RulesEngine` should copy the idea of authoritative turn/round/stage
 services, not the combat-specific initiative algorithm.
 
 RuleWeaver separates live typed events from historical projections. Its
 `EventJournalRecorder` subscribes to typed events and records a stable journal
-projection. See
-`../../../ruleweaver/src/RuleWeaver.Core/Logging/EventJournalRecorder.cs`.
+projection. In the sibling RuleWeaver repository, see
+`src/RuleWeaver.Core/Logging/EventJournalRecorder.cs`.
 `Den.RulesEngine` should go one step further: the event journal is not only a
 log projection, it is the replay authority for committed gameplay facts.
 
 RuleWeaver's `RuleTraceEntry` and null/in-memory trace sinks are a good
-observability pattern. See
-`../../../ruleweaver/src/RuleWeaver.Core/Rules/Trace/RuleTraceEntry.cs`.
+observability pattern. In the sibling RuleWeaver repository, see
+`src/RuleWeaver.Core/Rules/Trace/RuleTraceEntry.cs`.
 `Den.RulesEngine` should expose a portable engine observability surface such as
 `IRulesEngineObserver` receiving typed `EngineTraceRecord` values, with a
 default no-op implementation.
 
-RuleWeaver's `GameBootstrap` keeps runtime composition explicit. See
-`../../../ruleweaver/src/RuleWeaver.App/Runtime/GameBootstrap.cs`.
+RuleWeaver's `GameBootstrap` keeps runtime composition explicit. In the sibling
+RuleWeaver repository, see `src/RuleWeaver.App/Runtime/GameBootstrap.cs`.
 QuillForge should copy this explicit registration style in `Program.cs` or a
 nearby service registration module. No reflection or scanning should discover
 game modules.
 
 RuleWeaver's architecture test locks its core away from rendering dependencies.
-See `../../../ruleweaver/tests/Architecture.Tests/CoreBoundaryTests.cs`.
+In the sibling RuleWeaver repository, see
+`tests/Architecture.Tests/CoreBoundaryTests.cs`.
 Task #830 should add equivalent tests proving `Den.RulesEngine` has no
 QuillForge, provider, ASP.NET, UI, or storage dependency.
 
@@ -152,10 +174,12 @@ know D&D, 4e, tactical grids, or Werewolf.
 | Concern | Owner | Type family |
 | --- | --- | --- |
 | Authoritative gameplay state | `Den.RulesEngine` | `RulesGameState` |
+| Persisted engine snapshot | QuillForge session runtime | `RulesGameStateSnapshot` inside `GameRuntimeState` |
 | Rules resolution | `Den.RulesEngine` | `RulesEngineService` |
 | Rule handlers | Game module projects | named `IRuleHandler<TPayload>` implementations |
-| Module metadata and validation | `Den.RulesEngine` plus module projects | `GameModuleDescriptor`, `GameModuleRegistry` |
+| Module metadata and validation | `Den.RulesEngine` plus module projects | `GameModuleDescriptor`, `GameModuleRegistry`, `GameSetupValidationService` |
 | Engine replay history | `Den.RulesEngine` | `GameEventJournal` |
+| Engine visibility projection | `Den.RulesEngine` | `GameVisibilityProjector` |
 | Engine tracing | `Den.RulesEngine` | `EngineTraceRecord`, `IRulesEngineObserver` |
 | Running QuillForge binding | QuillForge session runtime | `GameRuntimeState` under `SessionState` |
 | Durable game templates | QuillForge store/service | `GameTemplate`, `GameTemplateStore`, `GameTemplateService` |
@@ -171,6 +195,12 @@ Services are behavior owners, not hidden state bags. Durable writes go through
 the owning store or session service. Adapters parse input, call services, and
 format output.
 
+`RulesGameState` is the live authoritative engine aggregate used while
+`RulesEngineService` resolves commands. `RulesGameStateSnapshot` is a serialized
+copy of that aggregate stored under QuillForge `GameRuntimeState`. QuillForge
+persists and forks snapshots; only `Den.RulesEngine` mutates live
+`RulesGameState` values.
+
 ## Den.RulesEngine Boundary
 
 `Den.RulesEngine` should expose a small portable API:
@@ -178,13 +208,15 @@ format output.
 - `RulesEngineService` applies one typed intent command or engine system
   transition to a `RulesGameState`.
 - `GameModuleRegistry` holds explicitly registered modules.
-- `GameSetupValidator` validates templates and module setup inputs against the
-  registered module set.
+- `GameSetupValidationService` validates templates and module setup inputs
+  against the registered module set.
 - `GameEventJournal` records committed typed gameplay facts with stable event
   IDs and monotonic sequence numbers.
 - `GameReplayService` rebuilds engine state from seed plus committed input and
   event history.
-- `GameVisibilityProjector` produces player-visible engine event projections.
+- `GameVisibilityProjector` filters engine journal entries by participant
+  visibility. It produces engine-event projections only; it never reads
+  QuillForge channel, DM, memory, or prompt cursor state.
 - `IRulesEngineObserver` receives `EngineTraceRecord` values.
 
 The service must be deterministic. Given the same module set, initial setup,
@@ -209,9 +241,15 @@ A module may define typed resolution payloads such as:
   or `ResolveSkillCheckPayload`
 
 Each payload resolves through deterministic phases. The initial phase names can
-follow RuleWeaver's proven vocabulary, `CanStart`, `OnRun`, and `OnEnd`, unless
-task #831 finds a clearer module-neutral naming set. The critical requirement is that
-the phases are discrete, ordered, traced, and typed.
+follow RuleWeaver's proven vocabulary, `CanStart`, `OnRun`, and `OnEnd`.
+`CanStart` gates whether the payload may resolve, `OnRun` performs the primary
+transition, and `OnEnd` reacts to accepted facts or schedules follow-up work.
+Those names are worth carrying forward because they describe rule lifecycle
+semantics instead of implementation mechanics. Avoid names such as
+`Validate`/`Execute`/`Cleanup`, which conflate lifecycle phases with handler
+roles and make layered rules harder to reason about. Task #831 owns the final
+naming choice and must document its rationale if it changes these names. The
+critical requirement is that phases are discrete, ordered, traced, and typed.
 
 Every handler invocation produces an `EngineTraceRecord` containing at least:
 
@@ -276,6 +314,14 @@ The mode does not own:
 - memory summaries;
 - channel/DM persistence.
 
+`GamesMode` should not be implemented as a normal broad `IMode` that feeds the
+existing `OrchestratorAgent` with active-game context. If the current mode
+registry requires an `IMode` instance for display metadata, inactive setup
+guidance, or mode picker compatibility, use a thin `GamesMode` adapter for that
+shell only. Once a game is active, human free-form input routes through the game
+bridge and `GameIntentTranslationAgent`; agent-player turns bypass the
+`OrchestratorAgent` entirely.
+
 Active game messages should route through game endpoints and bridge services,
 not through the general-purpose Orchestrator as an improvised rules controller.
 The existing `OrchestratorAgent` may remain an implementation shell where
@@ -295,6 +341,13 @@ The rejection should be typed, for example:
 
 This follows the session-as-execution-lane model. It avoids orphaned agent turns
 and avoids mode-owned state being mutated outside the game boundary.
+
+The enforcement point is the existing mode mutation path:
+`SessionRuntimeService.SetModeAsync()` handling `SetSessionModeCommand`. Before
+it mutates `SessionModeState`, it must check `GameRuntimeState`. If the game
+substate is null or inactive, the switch is allowed. If the game substate is
+active, the service returns a `GameModeSwitchRejectedEvent` with a stable reason
+code and leaves the active mode unchanged.
 
 ## GameRuntimeState
 
@@ -319,16 +372,25 @@ public sealed class GameRuntimeState
 The exact C# shape belongs to #838 and #841. The ownership rules are settled
 here:
 
+- `EngineSnapshot` is a serialized `RulesGameStateSnapshot`, copied from a live
+  `RulesGameState` after `Den.RulesEngine` accepts a transition;
 - engine snapshot and journal are copied from `Den.RulesEngine` results;
 - QuillForge session services are the only writers;
 - endpoints never mutate this state directly;
-- v1 stores the event journal embedded in session-state JSON;
-- split to a sibling artifact only if journal or prompt envelope size makes
-  normal session-state load/save measurably expensive.
+- v1 stores the event journal embedded in session-state JSON.
 
-The v1 split trigger should be operational, not aesthetic: large real sessions,
-slow loads, or a need to stream inspector data independently. Until then,
-embedding keeps fork/delete/replay behavior straightforward.
+The v1 split trigger is concrete. Move the event journal or prompt envelopes to
+sibling artifacts when any one of these is true:
+
+- the serialized `GameEventJournalSnapshot` exceeds 50 KiB for a saved session;
+- retained `AgentPromptEnvelope` data exceeds 100 KiB for a saved session;
+- session-state load or save for game sessions exceeds 200 ms p95 over the most
+  recent 50 measured game-state operations;
+- the inspector needs paging or independent streaming of journal or prompt
+  envelope data.
+
+Until one of those thresholds is crossed, embedding keeps fork/delete/replay
+behavior straightforward.
 
 ## Durable Game Templates
 
@@ -351,8 +413,8 @@ Template validation has two layers:
 - `GameTemplateService` validates QuillForge concerns such as transport shape,
   provider alias existence, model selection, duplicate participant names, and
   memory budget bounds.
-- `GameModuleRegistry.CanLoad(template)` validates module compatibility and
-  module-specific game rules.
+- `GameSetupValidationService` uses the registered module set to validate module
+  compatibility and module-specific setup rules.
 
 Templates should be stored through a `GameTemplateStore` with atomic writes.
 The concrete path is finalized in #837. The default should be a user-editable
@@ -422,6 +484,13 @@ It is constructed by `AgentVisibleEventsService`, a trusted QuillForge boundary.
 Prompt builders must not accept raw engine journal entries or raw channel/DM
 state.
 
+`AgentVisibleEventsService` wraps `Den.RulesEngine.GameVisibilityProjector`.
+The engine projector filters engine events for one participant. The QuillForge
+service then combines that engine-only projection with visible channel messages,
+direct messages, memory metadata, and cursor metadata. These are not competing
+projection APIs: the engine owns gameplay visibility; QuillForge owns the final
+agent prompt feed.
+
 The projection is the union of:
 
 - engine events visible to the agent participant;
@@ -463,6 +532,26 @@ the game master and never gameplay authority.
 `GameIntentTranslationAgent` is a narrowly scoped translator. It converts fuzzy
 human text or bounded repair text into typed game intent commands. It is
 prompted for translation fidelity, not helpfulness.
+
+Invocation path:
+
+1. When a session has an active game, game chat/free-form input routes to the
+   QuillForge game bridge service instead of directly to `OrchestratorAgent`.
+2. If the input is already typed, the bridge bypasses the translator and sends it
+   to deterministic validation.
+3. If the input is fuzzy text, the bridge invokes `GameIntentTranslationAgent`.
+4. The translator returns a typed intent command candidate plus parse confidence
+   and rejection details.
+5. The bridge validates that candidate against pending input facts and submits
+   the accepted command to `RulesEngineService`.
+
+`GameIntentTranslationAgent` is a separate named agent/service boundary, not a
+mode-specific system prompt on `OrchestratorAgent`. V1 gives it no tools and no
+authority to commit gameplay facts. It may share lower-level completion
+transport with other agents, but it must use its own translator prompt, schema,
+logging, retry policy, and typed result. Bounded repair/normalization for an
+agent player's almost-valid output is called inline by the bridge as part of the
+same pending input; it is not a separate participant turn.
 
 Use the translator only for:
 
@@ -542,6 +631,14 @@ Task #841 must also store the last N prompt envelopes per agent. Each
 - parsed structured output, if any;
 - resulting intent command or rejection record.
 
+The retention count is configuration, not "store everything". Task #841 must
+define the retention policy; the v1 default should be last 10 prompt envelopes
+per agent, capped by a configurable total byte budget. If the prompt envelope
+budget is exceeded, keep envelope metadata and content hashes in
+`GameRuntimeState` and externalize full prompt/response text to sibling
+artifacts. Prompt envelopes may need externalization before the event journal
+does because prompts are larger than typed gameplay facts.
+
 ## Agent Failure Surface
 
 Every failure category below must map to a typed event or record so debugging is
@@ -579,9 +676,13 @@ Concurrent games are allowed across different sessions. Each session owns its
 own `GameRuntimeState` and its own mutation gate. Same-session game mutations
 must not interleave.
 
-Forking a session with an active game is allowed only at a stable service
-boundary: no provider call is currently in flight and the session mutation gate
-can be acquired. If a turn is in flight, fork returns busy.
+Forking a session with an active game is allowed when the session mutation gate
+can be acquired. Fork does not require global detection of every provider call
+in flight. If the source session is actively applying a game mutation, the gate
+is busy and fork returns busy. If a provider call returns after the fork, the
+response still targets the source session and original pending-input identifier;
+it never applies to the forked session. If that pending input is no longer
+current, the response is recorded as late/stale and ignored.
 
 At a stable active-game fork, the new session receives deep copies of:
 
@@ -652,9 +753,10 @@ The inspector is a typed projection. It is not a second gameplay authority.
 
 ## Implementation Task Map
 
-- #830 scaffolds portable `Den.RulesEngine` projects and boundary tests.
+- #830 scaffolds portable `src/Den.RulesEngine/` and
+  `src/Den.RulesEngine.Werewolf/` projects plus boundary tests.
 - #831 defines core engine state, events, intent commands, resolution payloads,
-  and module contracts.
+  resolution phase names, and module contracts.
 - #832 implements `RulesEngineService`, deterministic transitions, event
   journal, replay, seeded RNG enforcement, and trace records.
 - #833 implements explicit module registry and setup validation.
