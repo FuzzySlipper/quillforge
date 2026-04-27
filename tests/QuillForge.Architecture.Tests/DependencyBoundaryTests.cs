@@ -136,6 +136,19 @@ public class DependencyBoundaryTests
     }
 
     [Fact]
+    public void RulesEngine_Source_DoesNotUseAdapterJsonOrUntypedDictionaryBehavior()
+    {
+        var sourceFiles = Directory.GetFiles(Path.Combine(RepoRoot, "src", "Den.RulesEngine"), "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .ToArray();
+        var sourceText = string.Join(Environment.NewLine, sourceFiles.Select(File.ReadAllText));
+
+        Assert.DoesNotContain("JsonElement", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Dictionary<", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("IDictionary<", sourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RulesEngine_Project_HasNoProjectPackageOrFrameworkReferences()
     {
         var project = LoadProject("src/Den.RulesEngine/Den.RulesEngine.csproj");
