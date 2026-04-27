@@ -16,7 +16,7 @@ public class ParticipantChannelServiceTests
 
         var post = service.PostPublicMessage(
             state,
-            new PostParticipantChannelMessageIntentCommand(
+            new PostParticipantChannelMessageCommand(
                 messageId,
                 Human(Alice),
                 "I nominate Bob.",
@@ -24,7 +24,7 @@ public class ParticipantChannelServiceTests
             ParticipantCommunicationPermissions.AllowAll("day"));
         var link = service.LinkGameEvent(
             state,
-            new LinkParticipantGameEventIntentCommand(
+            new LinkParticipantGameEventCommand(
                 linkId,
                 "event-7",
                 7,
@@ -61,6 +61,48 @@ public class ParticipantChannelServiceTests
     }
 
     [Fact]
+    public void PrivateAndSystemOnlyGameEventLinks_AreProjectedOnlyToAllowedFeeds()
+    {
+        var state = NewJoinedState(out var service, Alice, Bob, Carol);
+        var privateLinkId = Guid.Parse("00000000-0000-0000-0000-000000000202");
+        var systemLinkId = Guid.Parse("00000000-0000-0000-0000-000000000203");
+
+        service.LinkGameEvent(
+            state,
+            new LinkParticipantGameEventCommand(
+                privateLinkId,
+                "event-private",
+                12,
+                ParticipantGameEventLinkVisibility.PrivateToParticipantSet,
+                [Alice, Bob],
+                "Private fact.",
+                Now));
+        service.LinkGameEvent(
+            state,
+            new LinkParticipantGameEventCommand(
+                systemLinkId,
+                "event-system",
+                13,
+                ParticipantGameEventLinkVisibility.SystemOnly,
+                [],
+                "Debug-only fact.",
+                Now.AddSeconds(1)));
+
+        var publicFeed = service.ProjectPublicFeed(state);
+        var aliceFeed = service.ProjectParticipantFeed(state, Alice);
+        var bobFeed = service.ProjectParticipantFeed(state, Bob);
+        var carolFeed = service.ProjectParticipantFeed(state, Carol);
+
+        Assert.DoesNotContain(publicFeed.Entries, entry => entry.LinkId == privateLinkId || entry.LinkId == systemLinkId);
+        Assert.Contains(aliceFeed.Entries, entry => entry.LinkId == privateLinkId);
+        Assert.Contains(bobFeed.Entries, entry => entry.LinkId == privateLinkId);
+        Assert.DoesNotContain(carolFeed.Entries, entry => entry.LinkId == privateLinkId);
+        Assert.DoesNotContain(aliceFeed.Entries, entry => entry.LinkId == systemLinkId);
+        Assert.DoesNotContain(bobFeed.Entries, entry => entry.LinkId == systemLinkId);
+        Assert.DoesNotContain(carolFeed.Entries, entry => entry.LinkId == systemLinkId);
+    }
+
+    [Fact]
     public void DirectMessages_AreVisibleOnlyToSenderAndRecipients()
     {
         var state = NewJoinedState(out var service, Alice, Bob, Carol);
@@ -68,7 +110,7 @@ public class ParticipantChannelServiceTests
 
         var result = service.SendDirectMessage(
             state,
-            new SendParticipantDirectMessageIntentCommand(
+            new SendParticipantDirectMessageCommand(
                 messageId,
                 Agent(Alice),
                 [Bob],
@@ -96,33 +138,33 @@ public class ParticipantChannelServiceTests
         var messageId = Guid.Parse("00000000-0000-0000-0000-000000000103");
         service.PostPublicMessage(
             state,
-            new PostParticipantChannelMessageIntentCommand(messageId, Human(Alice), "Hello.", Now),
+            new PostParticipantChannelMessageCommand(messageId, Human(Alice), "Hello.", Now),
             ParticipantCommunicationPermissions.AllowAll("day"));
 
         var delivered = service.AdvanceCursor(
             state,
-            new AdvanceParticipantCommunicationCursorIntentCommand(
+            new AdvanceParticipantCommunicationCursorCommand(
                 Bob,
                 ParticipantCommunicationCursorKind.Delivered,
                 3,
                 Now.AddSeconds(1)));
         var read = service.AdvanceCursor(
             state,
-            new AdvanceParticipantCommunicationCursorIntentCommand(
+            new AdvanceParticipantCommunicationCursorCommand(
                 Bob,
                 ParticipantCommunicationCursorKind.Read,
                 3,
                 Now.AddSeconds(2)));
         var backwards = service.AdvanceCursor(
             state,
-            new AdvanceParticipantCommunicationCursorIntentCommand(
+            new AdvanceParticipantCommunicationCursorCommand(
                 Bob,
                 ParticipantCommunicationCursorKind.Delivered,
                 2,
                 Now.AddSeconds(3)));
         var beyondCommitted = service.AdvanceCursor(
             state,
-            new AdvanceParticipantCommunicationCursorIntentCommand(
+            new AdvanceParticipantCommunicationCursorCommand(
                 Bob,
                 ParticipantCommunicationCursorKind.Read,
                 state.NextSequence,
@@ -161,7 +203,7 @@ public class ParticipantChannelServiceTests
 
         var stageResult = service.SendDirectMessage(
             state,
-            new SendParticipantDirectMessageIntentCommand(
+            new SendParticipantDirectMessageCommand(
                 Guid.Parse("00000000-0000-0000-0000-000000000104"),
                 Human(Alice),
                 [Bob],
@@ -170,7 +212,7 @@ public class ParticipantChannelServiceTests
             forbiddenByStage);
         var routeResult = service.SendDirectMessage(
             state,
-            new SendParticipantDirectMessageIntentCommand(
+            new SendParticipantDirectMessageCommand(
                 Guid.Parse("00000000-0000-0000-0000-000000000105"),
                 Human(Alice),
                 [Carol],
@@ -179,7 +221,7 @@ public class ParticipantChannelServiceTests
             routeLimited);
         var accepted = service.SendDirectMessage(
             state,
-            new SendParticipantDirectMessageIntentCommand(
+            new SendParticipantDirectMessageCommand(
                 Guid.Parse("00000000-0000-0000-0000-000000000106"),
                 Human(Alice),
                 [Bob],
@@ -207,10 +249,10 @@ public class ParticipantChannelServiceTests
 
         var joined = service.JoinParticipant(
             state,
-            new JoinParticipantChannelIntentCommand(Alice, "Alice", Now));
+            new JoinParticipantChannelCommand(Alice, "Alice", Now));
         var left = service.LeaveParticipant(
             state,
-            new LeaveParticipantChannelIntentCommand(Alice, Now.AddSeconds(1)));
+            new LeaveParticipantChannelCommand(Alice, Now.AddSeconds(1)));
 
         Assert.True(joined.IsAccepted);
         Assert.True(left.IsAccepted);
@@ -234,11 +276,11 @@ public class ParticipantChannelServiceTests
 
         service.PostPublicMessage(
             state,
-            new PostParticipantChannelMessageIntentCommand(publicMessageId, Human(Alice), "Public", Now),
+            new PostParticipantChannelMessageCommand(publicMessageId, Human(Alice), "Public", Now),
             ParticipantCommunicationPermissions.AllowAll("day"));
         service.SendDirectMessage(
             state,
-            new SendParticipantDirectMessageIntentCommand(directMessageId, Agent(Bob), [Alice], "Private", Now.AddSeconds(1)),
+            new SendParticipantDirectMessageCommand(directMessageId, Agent(Bob), [Alice], "Private", Now.AddSeconds(1)),
             ParticipantCommunicationPermissions.AllowAll("day"));
 
         Assert.Equal(publicMessageId, state.ChannelMessages.Single().MessageId);
@@ -261,7 +303,7 @@ public class ParticipantChannelServiceTests
         {
             var result = service.JoinParticipant(
                 state,
-                new JoinParticipantChannelIntentCommand(participantId, participantId.Value, Now));
+                new JoinParticipantChannelCommand(participantId, participantId.Value, Now));
             Assert.True(result.IsAccepted);
         }
 

@@ -6,7 +6,7 @@ public sealed class ParticipantChannelService
 {
     public ParticipantCommunicationApplyResult JoinParticipant(
         ParticipantCommunicationState state,
-        JoinParticipantChannelIntentCommand command)
+        JoinParticipantChannelCommand command)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(command);
@@ -42,7 +42,7 @@ public sealed class ParticipantChannelService
 
     public ParticipantCommunicationApplyResult LeaveParticipant(
         ParticipantCommunicationState state,
-        LeaveParticipantChannelIntentCommand command)
+        LeaveParticipantChannelCommand command)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(command);
@@ -67,7 +67,7 @@ public sealed class ParticipantChannelService
 
     public ParticipantCommunicationApplyResult PostPublicMessage(
         ParticipantCommunicationState state,
-        PostParticipantChannelMessageIntentCommand command,
+        PostParticipantChannelMessageCommand command,
         ParticipantCommunicationPermissions permissions)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -111,7 +111,7 @@ public sealed class ParticipantChannelService
 
     public ParticipantCommunicationApplyResult SendDirectMessage(
         ParticipantCommunicationState state,
-        SendParticipantDirectMessageIntentCommand command,
+        SendParticipantDirectMessageCommand command,
         ParticipantCommunicationPermissions permissions)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -181,7 +181,7 @@ public sealed class ParticipantChannelService
 
     public ParticipantCommunicationApplyResult LinkGameEvent(
         ParticipantCommunicationState state,
-        LinkParticipantGameEventIntentCommand command)
+        LinkParticipantGameEventCommand command)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(command);
@@ -228,7 +228,7 @@ public sealed class ParticipantChannelService
 
     public ParticipantCommunicationApplyResult AdvanceCursor(
         ParticipantCommunicationState state,
-        AdvanceParticipantCommunicationCursorIntentCommand command)
+        AdvanceParticipantCommunicationCursorCommand command)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(command);
@@ -416,21 +416,21 @@ public sealed class ParticipantChannelService
         || state.DirectMessages.Any(message => message.MessageId == messageId);
 
     private static ParticipantCommunicationApplyResult RejectPublicMessage(
-        PostParticipantChannelMessageIntentCommand command,
+        PostParticipantChannelMessageCommand command,
         string reasonCode) =>
         new(
             [new ParticipantChannelMessageRejectedEvent(command.Author.ParticipantId, reasonCode, command.CreatedAt)],
             [new ParticipantCommunicationIssue(reasonCode, $"Public channel message rejected: {reasonCode}.")]);
 
     private static ParticipantCommunicationApplyResult RejectDirectMessage(
-        SendParticipantDirectMessageIntentCommand command,
+        SendParticipantDirectMessageCommand command,
         string reasonCode) =>
         new(
             [new ParticipantDirectMessageRejectedEvent(command.Author.ParticipantId, command.RecipientParticipantIds.ToArray(), reasonCode, command.CreatedAt)],
             [new ParticipantCommunicationIssue(reasonCode, $"Direct message rejected: {reasonCode}.")]);
 
     private static ParticipantCommunicationApplyResult RejectCursor(
-        AdvanceParticipantCommunicationCursorIntentCommand command,
+        AdvanceParticipantCommunicationCursorCommand command,
         string reasonCode) =>
         new(
             [new ParticipantCommunicationCursorRejectedEvent(command.ParticipantId, command.CursorKind, reasonCode, command.OccurredAt)],

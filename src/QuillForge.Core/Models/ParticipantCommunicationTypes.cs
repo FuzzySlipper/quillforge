@@ -100,29 +100,29 @@ public sealed class ParticipantCommunicationCursor
     public long ReadThroughSequence { get; set; }
 }
 
-public sealed record JoinParticipantChannelIntentCommand(
+public sealed record JoinParticipantChannelCommand(
     GameParticipantId ParticipantId,
     string DisplayName,
     DateTimeOffset OccurredAt);
 
-public sealed record LeaveParticipantChannelIntentCommand(
+public sealed record LeaveParticipantChannelCommand(
     GameParticipantId ParticipantId,
     DateTimeOffset OccurredAt);
 
-public sealed record PostParticipantChannelMessageIntentCommand(
+public sealed record PostParticipantChannelMessageCommand(
     Guid MessageId,
     ParticipantMessageAuthor Author,
     string Text,
     DateTimeOffset CreatedAt);
 
-public sealed record SendParticipantDirectMessageIntentCommand(
+public sealed record SendParticipantDirectMessageCommand(
     Guid MessageId,
     ParticipantMessageAuthor Author,
     IReadOnlyList<GameParticipantId> RecipientParticipantIds,
     string Text,
     DateTimeOffset CreatedAt);
 
-public sealed record LinkParticipantGameEventIntentCommand(
+public sealed record LinkParticipantGameEventCommand(
     Guid LinkId,
     string GameEventId,
     long? GameEventSequence,
@@ -131,7 +131,7 @@ public sealed record LinkParticipantGameEventIntentCommand(
     string Summary,
     DateTimeOffset CreatedAt);
 
-public sealed record AdvanceParticipantCommunicationCursorIntentCommand(
+public sealed record AdvanceParticipantCommunicationCursorCommand(
     GameParticipantId ParticipantId,
     ParticipantCommunicationCursorKind CursorKind,
     long ThroughSequence,
