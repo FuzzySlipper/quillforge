@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Den.Persistence/Den.Persistence.csproj" />
+    <Project Path="src/Den.RulesEngine/Den.RulesEngine.csproj" />
+    <Project Path="src/Den.RulesEngine.Werewolf/Den.RulesEngine.Werewolf.csproj" />
     <Project Path="src/QuillForge.Core/QuillForge.Core.csproj" />
     <Project Path="src/QuillForge.Providers/QuillForge.Providers.csproj" />
     <Project Path="src/QuillForge.Storage/QuillForge.Storage.csproj" />
@@ -8,6 +10,8 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Den.Persistence.Tests/Den.Persistence.Tests.csproj" />
+    <Project Path="tests/Den.RulesEngine.Tests/Den.RulesEngine.Tests.csproj" />
+    <Project Path="tests/Den.RulesEngine.Werewolf.Tests/Den.RulesEngine.Werewolf.Tests.csproj" />
     <Project Path="tests/QuillForge.Architecture.Tests/QuillForge.Architecture.Tests.csproj" />
     <Project Path="tests/QuillForge.Core.Tests/QuillForge.Core.Tests.csproj" />
     <Project Path="tests/QuillForge.ProviderHarness.Tests/QuillForge.ProviderHarness.Tests.csproj" />
