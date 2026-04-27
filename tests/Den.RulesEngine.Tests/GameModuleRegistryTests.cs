@@ -11,7 +11,6 @@ public sealed class GameModuleRegistryTests
         var result = registry.Register(module);
 
         Assert.True(result.IsValid);
-        Assert.Same(module, registry.Find(module.Descriptor.ModuleId));
         Assert.Same(module, registry.Find(module.Descriptor.ModuleId, module.Descriptor.ModuleVersion));
         Assert.Single(registry.Modules);
     }

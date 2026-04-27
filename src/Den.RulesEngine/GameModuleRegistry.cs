@@ -21,24 +21,14 @@ public sealed class GameModuleRegistry
         return ValidationResult.Valid;
     }
 
-    public IGameModule? Find(GameModuleId moduleId) =>
-        _modules.FirstOrDefault(module => module.Descriptor.ModuleId == moduleId);
-
     public IGameModule? Find(GameModuleId moduleId, GameModuleVersion moduleVersion) =>
         _modules.FirstOrDefault(module =>
             module.Descriptor.ModuleId == moduleId
             && module.Descriptor.ModuleVersion == moduleVersion);
 
-    public ValidationResult ValidateRegistered(GameModuleId moduleId)
-    {
-        return Find(moduleId) is null
-            ? ValidationResult.Invalid(new ValidationIssue("unknown_module_id", $"Module '{moduleId}' is not registered."))
-            : ValidationResult.Valid;
-    }
-
     public ValidationResult ValidateRegistered(GameModuleId moduleId, GameModuleVersion moduleVersion)
     {
-        if (Find(moduleId) is null)
+        if (!_modules.Any(module => module.Descriptor.ModuleId == moduleId))
         {
             return ValidationResult.Invalid(new ValidationIssue("unknown_module_id", $"Module '{moduleId}' is not registered."));
         }
@@ -84,24 +74,6 @@ public sealed class GameSetupValidationService
     public GameSetupValidationService(GameModuleRegistry registry)
     {
         _registry = registry;
-    }
-
-    public ValidationResult Validate(
-        GameModuleId moduleId,
-        GameTemplateVersion templateVersion,
-        GameSetup setup,
-        IReadOnlyList<ParticipantSetup> participants)
-    {
-        ArgumentNullException.ThrowIfNull(setup);
-        ArgumentNullException.ThrowIfNull(participants);
-
-        var module = _registry.Find(moduleId);
-        if (module is null)
-        {
-            return ValidationResult.Invalid(new ValidationIssue("unknown_module_id", $"Module '{moduleId}' is not registered."));
-        }
-
-        return ValidateModule(module, templateVersion, setup, participants);
     }
 
     public ValidationResult Validate(
