@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Den.RulesEngine;
 using QuillForge.Core.Models;
 using QuillForge.Web.Contracts;
 using YamlDotNet.Serialization;
@@ -497,11 +498,103 @@ public sealed class ContractSnapshotTests
                     GeneratedAt = DateTimeOffset.Parse("2026-04-17T12:00:00+00:00"),
                 },
             },
+            Game = new GameRuntimeState
+            {
+                Status = GameRuntimeStatus.WaitingForInput,
+                GameInstanceId = "game-001",
+                TemplateId = "village-night",
+                ModuleId = "werewolf",
+                ModuleVersion = "0.1.0",
+                Seed = 1234,
+                StartedAt = DateTimeOffset.Parse("2026-04-27T11:00:00+00:00"),
+                LastUpdatedAt = DateTimeOffset.Parse("2026-04-27T11:05:00+00:00"),
+                EngineSnapshot = CreateGameRuntimeSnapshot(),
+                ParticipantBindings =
+                [
+                    new GameRuntimeParticipantBinding
+                    {
+                        ParticipantId = "human-1",
+                        DisplayName = "Human",
+                        Kind = GameRuntimeParticipantKind.Human,
+                        UserSeatId = "user",
+                    },
+                    new GameRuntimeParticipantBinding
+                    {
+                        ParticipantId = "agent-1",
+                        DisplayName = "Mira",
+                        Kind = GameRuntimeParticipantKind.Agent,
+                        ProviderAlias = "local",
+                        ModelOverride = "test-model",
+                    },
+                ],
+                EventDeliveryCursors =
+                [
+                    new GameRuntimeEventDeliveryCursor
+                    {
+                        ParticipantId = "agent-1",
+                        DeliveredThroughEngineEventSequence = 3,
+                        DeliveredThroughCommunicationSequence = 2,
+                        MemoryRevision = 1,
+                        LastPromptEnvelopeId = "prompt-001",
+                    },
+                ],
+                AgentMemories =
+                [
+                    new GameRuntimeAgentMemoryState
+                    {
+                        ParticipantId = "agent-1",
+                        Revision = 1,
+                        TokenBudget = 512,
+                        Summary = "Mira remembers the public accusation.",
+                        ContentHash = "sha256:test",
+                        UpdatedAt = DateTimeOffset.Parse("2026-04-27T11:04:00+00:00"),
+                    },
+                ],
+                HostRecords =
+                [
+                    new GameRuntimeHostRecord
+                    {
+                        RecordId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                        Sequence = 1,
+                        Kind = GameRuntimeHostRecordKind.Started,
+                        OccurredAt = DateTimeOffset.Parse("2026-04-27T11:00:00+00:00"),
+                        ReasonCode = "game_started",
+                        Summary = "Game runtime started.",
+                    },
+                ],
+                NextHostRecordSequence = 2,
+            },
             LastModified = DateTimeOffset.Parse("2026-03-15T14:30:00+00:00"),
         };
         AssertJsonSnapshot("SessionState", state, SessionStateJsonOptions);
     }
 
+    private static RulesGameStateSnapshot CreateGameRuntimeSnapshot()
+    {
+        var gameInstanceId = new GameInstanceId("game-001");
+        var moduleId = new GameModuleId("werewolf");
+        var moduleVersion = new GameModuleVersion("0.1.0");
+        var participant = ParticipantState.Agent(new ParticipantId("agent-1"), "Mira");
+        var state = RulesGameState.CreateNotStarted(
+            gameInstanceId,
+            new GameModuleDescriptor(
+                moduleId,
+                moduleVersion,
+                new GameTemplateVersion("1.0.0"),
+                new GameTemplateVersion("1.0.0"),
+                "Werewolf",
+                new PlayerCountRange(4, 16),
+                []),
+            1234,
+            [participant]);
+        state = state with
+        {
+            Status = RulesGameStatus.WaitingForInput,
+            EventJournal = state.EventJournal.Append(GameStartedEvent.Create(gameInstanceId, moduleId, moduleVersion, 1234)),
+        };
+
+        return RulesGameStateSnapshot.FromState(state);
+    }
 
     [Fact]
     public void LoreCanonizationPreviewResponse_MatchesApprovedSnapshot()

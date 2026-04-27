@@ -1,5 +1,19 @@
+using System.Text.Json.Serialization;
+
 namespace Den.RulesEngine;
 
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(GameStartedEvent), "game_started")]
+[JsonDerivedType(typeof(PlayerChoiceSubmittedEvent), "player_choice_submitted")]
+[JsonDerivedType(typeof(DeterministicEffectsAdvancedEvent), "deterministic_effects_advanced")]
+[JsonDerivedType(typeof(IntentCommandRejectedEvent), "intent_command_rejected")]
+[JsonDerivedType(typeof(NoActionTakenEvent), "no_action_taken")]
+[JsonDerivedType(typeof(PendingInputRequestedEvent), "pending_input_requested")]
+[JsonDerivedType(typeof(StageAdvancedEvent), "stage_advanced")]
+[JsonDerivedType(typeof(RoundEndedEvent), "round_ended")]
+[JsonDerivedType(typeof(RoundStartedEvent), "round_started")]
+[JsonDerivedType(typeof(GameEndedEvent), "game_ended")]
+[JsonDerivedType(typeof(GameAbortedEvent), "game_aborted")]
 public interface IGameEvent
 {
     GameEventId EventId { get; }

@@ -80,6 +80,10 @@ public class SessionState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LoreCanonizationRuntimeState? Canonization { get; set; }
 
+    /// <summary>Session-owned social game runtime state, if this session has a game.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GameRuntimeState? Game { get; set; }
+
     /// <summary>
     /// Timestamp of last mutation. Used to detect stale state on concurrent access.
     /// </summary>

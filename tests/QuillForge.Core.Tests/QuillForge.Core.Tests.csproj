@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Den.RulesEngine\Den.RulesEngine.csproj" />
     <ProjectReference Include="..\..\src\QuillForge.Core\QuillForge.Core.csproj" />
   </ItemGroup>
 

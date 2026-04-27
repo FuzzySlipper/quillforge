@@ -60,5 +60,139 @@
       "generatedAt": "2026-04-17T12:00:00+00:00"
     }
   },
+  "game": {
+    "status": "waitingForInput",
+    "gameInstanceId": "game-001",
+    "templateId": "village-night",
+    "moduleId": "werewolf",
+    "moduleVersion": "0.1.0",
+    "seed": 1234,
+    "startedAt": "2026-04-27T11:00:00+00:00",
+    "lastUpdatedAt": "2026-04-27T11:05:00+00:00",
+    "engineSnapshot": {
+      "gameInstanceId": {
+        "value": "game-001"
+      },
+      "moduleId": {
+        "value": "werewolf"
+      },
+      "moduleVersion": {
+        "value": "0.1.0"
+      },
+      "status": "waitingForInput",
+      "random": {
+        "seed": 1234,
+        "drawCount": 0
+      },
+      "round": {
+        "roundNumber": 0
+      },
+      "stage": {
+        "stageId": {
+          "value": "not-started"
+        },
+        "displayName": "Not started",
+        "sequence": 0,
+        "allowsPublicMessages": false,
+        "allowsDirectMessages": false
+      },
+      "participants": [
+        {
+          "participantId": {
+            "value": "agent-1"
+          },
+          "displayName": "Mira",
+          "kind": "agent",
+          "participantSetIds": [],
+          "isActive": true
+        }
+      ],
+      "pendingInputs": [],
+      "eventJournal": {
+        "gameInstanceId": {
+          "value": "game-001"
+        },
+        "nextSequence": 2,
+        "events": [
+          {
+            "type": "game_started",
+            "moduleId": {
+              "value": "werewolf"
+            },
+            "moduleVersion": {
+              "value": "0.1.0"
+            },
+            "seed": 1234,
+            "eventId": {
+              "value": "ae11140c-5abc-ebfe-3e67-4361e9cd0fe3"
+            },
+            "sequence": 1,
+            "gameInstanceId": {
+              "value": "game-001"
+            },
+            "occurredAt": "1970-01-01T00:00:00.0000001+00:00",
+            "visibility": {
+              "kind": "public"
+            }
+          }
+        ]
+      }
+    },
+    "communication": {
+      "nextSequence": 1,
+      "participants": [],
+      "channelMessages": [],
+      "directMessages": [],
+      "gameEventLinks": [],
+      "cursors": []
+    },
+    "participantBindings": [
+      {
+        "participantId": "human-1",
+        "displayName": "Human",
+        "kind": "human",
+        "userSeatId": "user"
+      },
+      {
+        "participantId": "agent-1",
+        "displayName": "Mira",
+        "kind": "agent",
+        "providerAlias": "local",
+        "modelOverride": "test-model"
+      }
+    ],
+    "eventDeliveryCursors": [
+      {
+        "participantId": "agent-1",
+        "deliveredThroughEngineEventSequence": 3,
+        "deliveredThroughCommunicationSequence": 2,
+        "memoryRevision": 1,
+        "lastPromptEnvelopeId": "prompt-001"
+      }
+    ],
+    "agentMemories": [
+      {
+        "participantId": "agent-1",
+        "revision": 1,
+        "tokenBudget": 512,
+        "summary": "Mira remembers the public accusation.",
+        "contentHash": "sha256:test",
+        "updatedAt": "2026-04-27T11:04:00+00:00"
+      }
+    ],
+    "promptCursors": [],
+    "promptEnvelopes": [],
+    "nextHostRecordSequence": 2,
+    "hostRecords": [
+      {
+        "recordId": "11111111-1111-1111-1111-111111111111",
+        "sequence": 1,
+        "kind": "started",
+        "occurredAt": "2026-04-27T11:00:00+00:00",
+        "reasonCode": "game_started",
+        "summary": "Game runtime started."
+      }
+    ]
+  },
   "lastModified": "2026-03-15T14:30:00+00:00"
 }

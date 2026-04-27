@@ -100,6 +100,18 @@ public sealed record RulesGameStateSnapshot(
             state.PendingInputs.ToArray(),
             state.EventJournal.ToSnapshot());
     }
+
+    public RulesGameState ToState() => new(
+        GameInstanceId,
+        ModuleId,
+        ModuleVersion,
+        Status,
+        Random,
+        Round,
+        Stage,
+        Participants.ToArray(),
+        PendingInputs.ToArray(),
+        EventJournal.ToJournal());
 }
 
 public sealed record ParticipantState(

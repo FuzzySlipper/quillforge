@@ -14,10 +14,10 @@ namespace QuillForge.Architecture.Tests;
 public class SessionStateTests
 {
     [Fact]
-    public void SessionState_OwnsExactlySixSubStates()
+    public void SessionState_OwnsExactlySevenSubStates()
     {
         // The aggregate should have exactly Mode, Profile, Roleplay, Writer,
-        // Narrative, and Canonization sub-states
+        // Narrative, Canonization, and Game sub-states
         // plus SessionId and LastModified metadata. No flat bag of nullable fields.
         var props = typeof(SessionState).GetProperties(BindingFlags.Public | BindingFlags.Instance);
         var subStateProps = props.Where(p =>
@@ -26,16 +26,18 @@ public class SessionStateTests
             p.PropertyType == typeof(RoleplayRuntimeState) ||
             p.PropertyType == typeof(WriterRuntimeState) ||
             p.PropertyType == typeof(NarrativeRuntimeState) ||
-            p.PropertyType == typeof(LoreCanonizationRuntimeState))
+            p.PropertyType == typeof(LoreCanonizationRuntimeState) ||
+            p.PropertyType == typeof(GameRuntimeState))
             .ToList();
 
-        Assert.Equal(6, subStateProps.Count);
+        Assert.Equal(7, subStateProps.Count);
         Assert.Contains(subStateProps, p => p.Name == "Mode");
         Assert.Contains(subStateProps, p => p.Name == "Profile");
         Assert.Contains(subStateProps, p => p.Name == "Roleplay");
         Assert.Contains(subStateProps, p => p.Name == "Writer");
         Assert.Contains(subStateProps, p => p.Name == "Narrative");
         Assert.Contains(subStateProps, p => p.Name == "Canonization");
+        Assert.Contains(subStateProps, p => p.Name == "Game");
     }
 
     [Fact]
@@ -48,6 +50,7 @@ public class SessionStateTests
         Assert.NotNull(state.Writer);
         Assert.NotNull(state.Narrative);
         Assert.Null(state.Canonization);
+        Assert.Null(state.Game);
     }
 
     [Fact]
@@ -133,6 +136,7 @@ public class SessionStateTests
         Assert.DoesNotContain("CurrentFile", topProps);
         Assert.DoesNotContain("Character", topProps);
         Assert.DoesNotContain("WriterPendingContent", topProps);
+        Assert.DoesNotContain("GameInstanceId", topProps);
     }
 
     [Fact]
@@ -175,6 +179,14 @@ public class SessionStateTests
     public void ISessionLifecycleService_ExistsInCore()
     {
         var serviceType = typeof(ISessionLifecycleService);
+        Assert.True(serviceType.IsInterface);
+        Assert.Equal("QuillForge.Core", serviceType.Assembly.GetName().Name);
+    }
+
+    [Fact]
+    public void IGameRuntimeService_ExistsInCore()
+    {
+        var serviceType = typeof(IGameRuntimeService);
         Assert.True(serviceType.IsInterface);
         Assert.Equal("QuillForge.Core", serviceType.Assembly.GetName().Name);
     }
@@ -287,6 +299,24 @@ public class SessionStateTests
                     CanApply = true,
                 },
             },
+            Game = new GameRuntimeState
+            {
+                Status = GameRuntimeStatus.Running,
+                GameInstanceId = "game-001",
+                TemplateId = "village-template",
+                ModuleId = "werewolf",
+                ModuleVersion = "0.1.0",
+                Seed = 1234,
+                ParticipantBindings =
+                [
+                    new GameRuntimeParticipantBinding
+                    {
+                        ParticipantId = "human-1",
+                        DisplayName = "Human",
+                        Kind = GameRuntimeParticipantKind.Human,
+                    },
+                ],
+            },
         };
 
         Assert.Equal(sessionId, state.SessionId);
@@ -308,5 +338,8 @@ public class SessionStateTests
         Assert.Equal("midpoint", state.Narrative.PlotProgress.CurrentBeat);
         Assert.NotNull(state.Canonization?.PendingProposal);
         Assert.Equal("history.md", state.Canonization?.PendingProposal?.TargetFilePath);
+        Assert.NotNull(state.Game);
+        Assert.Equal(GameRuntimeStatus.Running, state.Game.Status);
+        Assert.Equal("game-001", state.Game.GameInstanceId);
     }
 }

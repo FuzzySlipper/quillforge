@@ -701,6 +701,7 @@ public sealed class SessionRuntimeService : ISessionStateService
                 },
             },
             Canonization = CloneCanonizationState(state.Canonization),
+            Game = GameRuntimeStateCloner.Clone(state.Game),
         };
     }
 
@@ -816,7 +817,8 @@ public sealed class SessionRuntimeService : ISessionStateService
             && string.IsNullOrWhiteSpace(state.Narrative.ActivePlotFile)
             && string.IsNullOrWhiteSpace(state.Narrative.PlotProgress.CurrentBeat)
             && state.Narrative.PlotProgress.CompletedBeats.Count == 0
-            && state.Narrative.PlotProgress.Deviations.Count == 0;
+            && state.Narrative.PlotProgress.Deviations.Count == 0
+            && state.Game is null;
     }
 
     private static bool ProfileStatesEqual(ProfileState left, ProfileState right)

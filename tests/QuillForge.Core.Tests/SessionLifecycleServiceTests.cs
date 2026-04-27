@@ -1,3 +1,4 @@
+using Den.RulesEngine;
 using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -73,6 +74,7 @@ public sealed class SessionLifecycleServiceTests
                     Deviations = ["The rival saw the map."],
                 },
             },
+            Game = CreateGameRuntime(sourceTree.SessionId),
         });
 
         var forkedTree = await service.ForkAsync(sourceTree.SessionId);
@@ -101,6 +103,16 @@ public sealed class SessionLifecycleServiceTests
         Assert.Contains("opening", forkedRuntime.Narrative.PlotProgress.CompletedBeats);
         Assert.Contains("The rival saw the map.", forkedRuntime.Narrative.PlotProgress.Deviations);
         Assert.Null(forkedRuntime.Canonization);
+        Assert.NotNull(forkedRuntime.Game);
+        Assert.Equal(GameRuntimeStatus.WaitingForInput, forkedRuntime.Game.Status);
+        Assert.Equal("game-001", forkedRuntime.Game.GameInstanceId);
+        Assert.Single(forkedRuntime.Game.EngineSnapshot!.EventJournal.Events);
+        Assert.Single(forkedRuntime.Game.Communication.ChannelMessages);
+        Assert.Single(forkedRuntime.Game.AgentMemories);
+        Assert.Single(forkedRuntime.Game.EventDeliveryCursors);
+        Assert.Contains(forkedRuntime.Game.HostRecords, record => record.Kind == GameRuntimeHostRecordKind.Forked
+            && record.SourceSessionId == sourceTree.SessionId
+            && record.TargetSessionId == forkedTree.SessionId);
     }
 
     [Fact]
@@ -200,6 +212,7 @@ public sealed class SessionLifecycleServiceTests
         {
             SessionId = sessionId,
             Mode = new ModeSelectionState { ActiveMode = Mode.Writer },
+            Game = CreateGameRuntime(sessionId),
         });
 
         await service.DeleteAsync(sessionId);
@@ -208,6 +221,109 @@ public sealed class SessionLifecycleServiceTests
         var runtime = await runtimeStore.LoadAsync(sessionId);
         Assert.Equal(sessionId, runtime.SessionId);
         Assert.Equal(Mode.Guide, runtime.Mode.ActiveMode);
+        Assert.Null(runtime.Game);
+    }
+
+    private static GameRuntimeState CreateGameRuntime(Guid sessionId)
+    {
+        var gameInstanceId = new GameInstanceId("game-001");
+        var moduleId = new GameModuleId("test-game");
+        var moduleVersion = new GameModuleVersion("1.0.0");
+        var participant = ParticipantState.Agent(new ParticipantId("agent-1"), "Agent");
+        var engineState = RulesGameState.CreateNotStarted(
+            gameInstanceId,
+            new GameModuleDescriptor(
+                moduleId,
+                moduleVersion,
+                new GameTemplateVersion("1.0.0"),
+                new GameTemplateVersion("1.0.0"),
+                "Test Game",
+                new PlayerCountRange(1, 4),
+                []),
+            1234,
+            [participant]);
+        engineState = engineState with
+        {
+            Status = RulesGameStatus.WaitingForInput,
+            EventJournal = engineState.EventJournal.Append(GameStartedEvent.Create(gameInstanceId, moduleId, moduleVersion, 1234)),
+        };
+
+        return new GameRuntimeState
+        {
+            Status = GameRuntimeStatus.WaitingForInput,
+            GameInstanceId = gameInstanceId.Value,
+            TemplateId = "template-1",
+            ModuleId = moduleId.Value,
+            ModuleVersion = moduleVersion.Value,
+            Seed = 1234,
+            StartedAt = DateTimeOffset.Parse("2026-04-27T11:00:00+00:00"),
+            EngineSnapshot = RulesGameStateSnapshot.FromState(engineState),
+            ParticipantBindings =
+            [
+                new GameRuntimeParticipantBinding
+                {
+                    ParticipantId = "agent-1",
+                    DisplayName = "Agent",
+                    Kind = GameRuntimeParticipantKind.Agent,
+                    ProviderAlias = "local",
+                },
+            ],
+            Communication = new ParticipantCommunicationState
+            {
+                NextSequence = 2,
+                Participants =
+                [
+                    new ParticipantPresenceState
+                    {
+                        ParticipantId = new GameParticipantId("agent-1"),
+                        DisplayName = "Agent",
+                        IsJoined = true,
+                        JoinedSequence = 1,
+                    },
+                ],
+                ChannelMessages =
+                [
+                    new ParticipantChannelMessage(
+                        Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                        1,
+                        new ParticipantMessageAuthor(new GameParticipantId("agent-1"), ParticipantMessageAuthorKind.Agent),
+                        "Opening claim.",
+                        DateTimeOffset.Parse("2026-04-27T11:01:00+00:00")),
+                ],
+            },
+            AgentMemories =
+            [
+                new GameRuntimeAgentMemoryState
+                {
+                    ParticipantId = "agent-1",
+                    Revision = 1,
+                    TokenBudget = 512,
+                    Summary = "Remember the opening claim.",
+                },
+            ],
+            EventDeliveryCursors =
+            [
+                new GameRuntimeEventDeliveryCursor
+                {
+                    ParticipantId = "agent-1",
+                    DeliveredThroughEngineEventSequence = 1,
+                    DeliveredThroughCommunicationSequence = 1,
+                    MemoryRevision = 1,
+                },
+            ],
+            HostRecords =
+            [
+                new GameRuntimeHostRecord
+                {
+                    Sequence = 1,
+                    Kind = GameRuntimeHostRecordKind.Started,
+                    OccurredAt = DateTimeOffset.Parse("2026-04-27T11:00:00+00:00"),
+                    ReasonCode = "game_started",
+                    Summary = $"Started in session {sessionId}.",
+                },
+            ],
+            NextHostRecordSequence = 2,
+        };
     }
 
     private static SessionLifecycleService CreateService(
@@ -337,6 +453,7 @@ internal sealed class InMemoryRuntimeStore : ISessionStateStore
                     Deviations = [.. state.Narrative.PlotProgress.Deviations],
                 },
             },
+            Game = GameRuntimeStateCloner.Clone(state.Game),
         };
     }
 }

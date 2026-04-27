@@ -5,6 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Den.RulesEngine\Den.RulesEngine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="QuillForge.Core.Tests" />
     <InternalsVisibleTo Include="QuillForge.Storage" />
   </ItemGroup>

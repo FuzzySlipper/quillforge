@@ -202,6 +202,8 @@ internal static class QuillForgeApplication
             return result.Registry;
         });
         builder.Services.AddSingleton<GameSetupValidationService>();
+        builder.Services.AddSingleton(sp => new RulesEngineService(sp.GetRequiredService<GameModuleRegistry>()));
+        builder.Services.AddSingleton<IGameRuntimeService, GameRuntimeService>();
         builder.Services.AddSingleton<IGameTemplateProviderCatalog, GameTemplateProviderCatalog>();
         builder.Services.AddSingleton<IGameTemplateModuleValidator, GameTemplateModuleValidator>();
         builder.Services.AddSingleton<IGameTemplateService, GameTemplateService>();

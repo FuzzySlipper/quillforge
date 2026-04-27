@@ -37,11 +37,11 @@ public class DependencyBoundaryTests
     }
 
     [Fact]
-    public void Core_DoesNot_Reference_RulesEngineProjects()
+    public void Core_ReferencesOnlyPortableRulesEngineContractsForGameRuntimeState()
     {
         var referenced = CoreAssembly.GetReferencedAssemblies();
 
-        Assert.DoesNotContain(referenced, a => a.Name == "Den.RulesEngine");
+        Assert.Contains(referenced, a => a.Name == "Den.RulesEngine");
         Assert.DoesNotContain(referenced, a => a.Name == "Den.RulesEngine.Werewolf");
     }
 

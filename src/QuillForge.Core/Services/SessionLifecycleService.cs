@@ -112,6 +112,11 @@ public sealed class SessionLifecycleService : ISessionLifecycleService
                 },
             },
             Canonization = null,
+            Game = GameRuntimeStateCloner.CloneForFork(
+                source.Game,
+                source.SessionId ?? Guid.Empty,
+                forkedSessionId,
+                DateTimeOffset.UtcNow),
         };
     }
 
