@@ -50,6 +50,7 @@ public sealed class RulesEngineService
     {
         var setupValidation = new GameSetupValidationService(_moduleRegistry).Validate(
             command.ModuleId,
+            command.ModuleVersion,
             module.Descriptor.MinimumTemplateVersion,
             command.Setup,
             command.Participants);
@@ -287,19 +288,13 @@ public sealed class RulesEngineService
     {
         var moduleId = command is StartGameIntentCommand start ? start.ModuleId : state.ModuleId;
         var moduleVersion = command is StartGameIntentCommand startVersion ? startVersion.ModuleVersion : state.ModuleVersion;
-        var module = _moduleRegistry.Find(moduleId);
-        if (module is null)
+        var registration = _moduleRegistry.ValidateRegistered(moduleId, moduleVersion);
+        if (!registration.IsValid)
         {
-            return (null, new ValidationIssue("unknown_module_id", $"Module '{moduleId}' is not registered."));
+            return (null, registration.Issues[0]);
         }
 
-        if (module.Descriptor.ModuleVersion != moduleVersion)
-        {
-            return (null, new ValidationIssue(
-                "unsupported_module_version",
-                $"Module '{moduleId}' version '{moduleVersion}' is not registered."));
-        }
-
+        var module = _moduleRegistry.Find(moduleId, moduleVersion);
         return (module, null);
     }
 

@@ -24,7 +24,36 @@ public sealed record GameModuleDescriptor(
     GameTemplateVersion MaximumTemplateVersion,
     string DisplayName,
     PlayerCountRange PlayerCount,
-    IReadOnlyList<GameSetupFieldDescriptor> SetupFields);
+    IReadOnlyList<GameSetupFieldDescriptor> SetupFields)
+{
+    public GameCommunicationCapabilities CommunicationCapabilities { get; init; } = new(false, false);
+
+    public GameMemoryExpectations MemoryExpectations { get; init; } = new(false, 0, 0);
+
+    public IReadOnlyList<GamePromptAssetIdentifier> RequiredPromptAssets { get; init; } = [];
+
+    public GameParticipantRequirements ParticipantRequirements { get; init; } = new(true, true, false, 0, 0);
+}
+
+public sealed record GameCommunicationCapabilities(
+    bool AllowsPublicChannelMessages,
+    bool AllowsDirectMessages);
+
+public sealed record GameMemoryExpectations(
+    bool UsesRoundSummaries,
+    int SuggestedSummaryTokenBudget,
+    int MaximumRetainedRoundSummaries);
+
+public sealed record GamePromptAssetIdentifier(
+    string AssetId,
+    GamePromptAssetKind Kind);
+
+public sealed record GameParticipantRequirements(
+    bool AllowsHumanParticipants,
+    bool AllowsAgentParticipants,
+    bool AllowsSystemParticipants,
+    int MinimumHumanParticipants,
+    int MinimumAgentParticipants);
 
 public sealed record PlayerCountRange(int Minimum, int Maximum)
 {

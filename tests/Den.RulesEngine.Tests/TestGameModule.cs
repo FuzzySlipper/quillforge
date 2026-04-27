@@ -7,14 +7,20 @@ internal sealed class TestGameModule : IGameModule
     public bool RejectSetup { get; init; }
 
     public static GameModuleDescriptor CreateDescriptor() =>
-        new(
+        new GameModuleDescriptor(
             new GameModuleId("test-module"),
             new GameModuleVersion("1.0.0"),
             new GameTemplateVersion("1.0.0"),
             new GameTemplateVersion("1.0.0"),
             "Test Module",
             new PlayerCountRange(2, 8),
-            [new GameSetupFieldDescriptor("scenario", GameSetupValueKind.String, true, "Scenario", "Scenario name.")]);
+            [new GameSetupFieldDescriptor("scenario", GameSetupValueKind.String, true, "Scenario", "Scenario name.")])
+        {
+            CommunicationCapabilities = new GameCommunicationCapabilities(true, true),
+            MemoryExpectations = new GameMemoryExpectations(true, 512, 8),
+            RequiredPromptAssets = [new GamePromptAssetIdentifier("rules", GamePromptAssetKind.RulesText)],
+            ParticipantRequirements = new GameParticipantRequirements(true, true, false, 1, 1)
+        };
 
     public ValidationResult ValidateSetup(GameSetupValidationContext context)
     {
