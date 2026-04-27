@@ -125,18 +125,7 @@ public static class GameIntentCommandValidationService
                 "Pending input requests must provide at least one legal option."));
         }
 
-        var targets = command.Audience.Kind switch
-        {
-            PendingInputAudienceKind.OneParticipant => command.Audience.ParticipantId is null
-                ? []
-                : [command.Audience.ParticipantId.Value],
-            PendingInputAudienceKind.ManyParticipants => command.Audience.ParticipantIds,
-            PendingInputAudienceKind.AllActiveParticipants => state.Participants
-                .Where(participant => participant.IsActive && participant.Kind != ParticipantKind.System)
-                .Select(participant => participant.ParticipantId)
-                .ToArray(),
-            _ => []
-        };
+        var targets = PendingInputAudienceResolver.Resolve(state, command.Audience);
 
         if (targets.Count == 0)
         {

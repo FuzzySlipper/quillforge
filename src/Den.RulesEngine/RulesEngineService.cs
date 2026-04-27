@@ -80,7 +80,7 @@ public sealed class RulesEngineService
         RulesGameState state,
         RequestPendingInputIntentCommand command)
     {
-        var targets = ResolveAudienceTargets(state, command.Audience);
+        var targets = PendingInputAudienceResolver.Resolve(state, command.Audience);
         var pendingInputs = state.PendingInputs.ToList();
         var events = new List<IGameEvent>();
 
@@ -301,22 +301,6 @@ public sealed class RulesEngineService
         }
 
         return (module, null);
-    }
-
-    private static IReadOnlyList<ParticipantId> ResolveAudienceTargets(RulesGameState state, PendingInputAudience audience)
-    {
-        return audience.Kind switch
-        {
-            PendingInputAudienceKind.OneParticipant => audience.ParticipantId is null
-                ? []
-                : [audience.ParticipantId.Value],
-            PendingInputAudienceKind.ManyParticipants => audience.ParticipantIds.ToArray(),
-            PendingInputAudienceKind.AllActiveParticipants => state.Participants
-                .Where(participant => participant.IsActive && participant.Kind != ParticipantKind.System)
-                .Select(participant => participant.ParticipantId)
-                .ToArray(),
-            _ => []
-        };
     }
 
     private static PendingInputId CreatePendingInputId(GameIntentCommandId commandId, ParticipantId participantId) =>

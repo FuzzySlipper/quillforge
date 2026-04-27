@@ -44,6 +44,60 @@ public sealed class GameIntentCommandValidationTests
     }
 
     [Fact]
+    public void Validate_RequestPendingInput_RejectsMissingLegalOptions()
+    {
+        var state = CreateState(waitingInput: null);
+        var command = new RequestPendingInputIntentCommand(
+            GameIntentCommandId.NewId(),
+            state.GameInstanceId,
+            GameStageState.NotStarted.StageId,
+            "choose",
+            [],
+            PendingInputAudience.One(new ParticipantId("alice")));
+
+        var result = GameIntentCommandValidationService.Validate(state, command);
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal("missing_legal_options", Assert.Single(result.Issues).Code);
+    }
+
+    [Fact]
+    public void Validate_RequestPendingInput_RejectsMissingTargets()
+    {
+        var state = CreateState(waitingInput: null);
+        var command = new RequestPendingInputIntentCommand(
+            GameIntentCommandId.NewId(),
+            state.GameInstanceId,
+            GameStageState.NotStarted.StageId,
+            "choose",
+            [new LegalIntentOption("choose", "Choose", "Choose.")],
+            PendingInputAudience.Many([]));
+
+        var result = GameIntentCommandValidationService.Validate(state, command);
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal("missing_pending_input_targets", Assert.Single(result.Issues).Code);
+    }
+
+    [Fact]
+    public void Validate_RequestPendingInput_RejectsUnknownParticipantTargets()
+    {
+        var state = CreateState(waitingInput: null);
+        var command = new RequestPendingInputIntentCommand(
+            GameIntentCommandId.NewId(),
+            state.GameInstanceId,
+            GameStageState.NotStarted.StageId,
+            "choose",
+            [new LegalIntentOption("choose", "Choose", "Choose.")],
+            PendingInputAudience.One(new ParticipantId("missing")));
+
+        var result = GameIntentCommandValidationService.Validate(state, command);
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal("unknown_participant", Assert.Single(result.Issues).Code);
+    }
+
+    [Fact]
     public void ToRejectedEvent_CreatesTypedPastTenseFactForInvalidCommand()
     {
         var state = CreateState(waitingInput: null);
