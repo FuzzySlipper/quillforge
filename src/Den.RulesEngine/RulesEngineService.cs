@@ -34,7 +34,7 @@ public sealed class RulesEngineService
             StartGameIntentCommand start => ApplyStartGame(state, module, start),
             RequestPendingInputIntentCommand request => ApplyRequestPendingInput(state, request),
             SubmitPlayerChoiceIntentCommand submit => ApplySubmitPlayerChoice(state, module, submit),
-            AdvanceStageIntentCommand advanceStage => ApplyAdvanceStage(state, advanceStage),
+            AdvanceStageIntentCommand advanceStage => ApplyAdvanceStage(state, module, advanceStage),
             EndRoundIntentCommand endRound => ApplyEndRound(state, endRound),
             AdvanceDeterministicEffectsIntentCommand advance => ApplyModuleCommand(state, module, advance, appendDefaultAdvanceEvent: true),
             EndGameIntentCommand end => ApplyEndGame(state, end),
@@ -145,7 +145,7 @@ public sealed class RulesEngineService
         };
     }
 
-    private RulesEngineApplyResult ApplyAdvanceStage(RulesGameState state, AdvanceStageIntentCommand command)
+    private RulesEngineApplyResult ApplyAdvanceStage(RulesGameState state, IGameModule module, AdvanceStageIntentCommand command)
     {
         var next = state with
         {
@@ -157,7 +157,13 @@ public sealed class RulesEngineService
             state.Stage.StageId,
             command.NextStage.StageId);
 
-        return AcceptWithEvents(next, [gameEvent]);
+        var serviceResult = AcceptWithEvents(next, [gameEvent]);
+        var moduleResult = ApplyModulePhases(serviceResult.State, module, command, []);
+
+        return moduleResult with
+        {
+            Events = serviceResult.Events.Concat(moduleResult.Events).ToArray()
+        };
     }
 
     private RulesEngineApplyResult ApplyEndRound(RulesGameState state, EndRoundIntentCommand command)
