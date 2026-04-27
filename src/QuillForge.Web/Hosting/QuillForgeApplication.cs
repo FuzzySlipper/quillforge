@@ -100,6 +100,7 @@ internal static class QuillForgeApplication
         app.MapContentEndpoints(contentRoot);
         app.MapProfileEndpoints(contentRoot);
         app.MapGameTemplateEndpoints();
+        app.MapGameEndpoints();
         app.MapPlotEndpoints();
         app.MapCharacterCardEndpoints(contentRoot);
         app.MapCouncilEndpoints();
@@ -203,7 +204,11 @@ internal static class QuillForgeApplication
         });
         builder.Services.AddSingleton<GameSetupValidationService>();
         builder.Services.AddSingleton(sp => new RulesEngineService(sp.GetRequiredService<GameModuleRegistry>()));
+        builder.Services.AddSingleton<GameVisibilityProjector>();
+        builder.Services.AddSingleton<ParticipantChannelService>();
         builder.Services.AddSingleton<IGameRuntimeService, GameRuntimeService>();
+        builder.Services.AddSingleton<IGameIntentTranslationAgent, GameIntentTranslationAgent>();
+        builder.Services.AddSingleton<IGameBridgeService, GameBridgeService>();
         builder.Services.AddSingleton<IGameTemplateProviderCatalog, GameTemplateProviderCatalog>();
         builder.Services.AddSingleton<IGameTemplateModuleValidator, GameTemplateModuleValidator>();
         builder.Services.AddSingleton<IGameTemplateService, GameTemplateService>();

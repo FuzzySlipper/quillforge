@@ -25,6 +25,8 @@ internal static class GameRuntimeStateCloner
             EndedAt = state.EndedAt,
             EngineSnapshot = CloneSnapshot(state.EngineSnapshot),
             Communication = CloneCommunication(state.Communication),
+            HostAllowsPublicMessages = state.HostAllowsPublicMessages,
+            HostAllowsDirectMessages = state.HostAllowsDirectMessages,
             ParticipantBindings = state.ParticipantBindings.Select(CloneParticipantBinding).ToList(),
             EventDeliveryCursors = state.EventDeliveryCursors.Select(CloneEventDeliveryCursor).ToList(),
             AgentMemories = state.AgentMemories.Select(CloneAgentMemory).ToList(),

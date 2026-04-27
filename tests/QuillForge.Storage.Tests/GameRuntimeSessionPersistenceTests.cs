@@ -47,6 +47,33 @@ public sealed class GameRuntimeSessionPersistenceTests : IDisposable
         Assert.True(File.Exists(expectedFile));
     }
 
+    [Fact]
+    public async Task FileSystemSessionRuntimeStore_PreservesUnknownModuleEventMetadataAsStoredGameEvent()
+    {
+        var store = CreateStore();
+        var sessionId = Guid.Parse("bbbbbbbb-cccc-dddd-eeee-ffffffffffff");
+        var runtime = CreateGameRuntime();
+        var liveState = runtime.EngineSnapshot!.ToState();
+        runtime.EngineSnapshot = RulesGameStateSnapshot.FromState(liveState with
+        {
+            EventJournal = liveState.EventJournal.Append(UnknownModuleEvent.Create(liveState.GameInstanceId)),
+        });
+        var state = new SessionState
+        {
+            SessionId = sessionId,
+            Game = runtime,
+        };
+
+        await store.SaveAsync(state);
+
+        var loaded = await store.LoadAsync(sessionId);
+
+        var stored = Assert.IsType<StoredGameEvent>(loaded.Game!.EngineSnapshot!.EventJournal.Events[1]);
+        Assert.Equal(nameof(UnknownModuleEvent), stored.EventType);
+        Assert.Equal(2, stored.Sequence);
+        Assert.Equal(GameEventVisibilityKind.Public, stored.Visibility.Kind);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDir))
@@ -59,6 +86,20 @@ public sealed class GameRuntimeSessionPersistenceTests : IDisposable
         _tempDir,
         new AtomicFileWriter(NullLogger<AtomicFileWriter>.Instance),
         NullLogger<FileSystemSessionRuntimeStore>.Instance);
+
+    private sealed record UnknownModuleEvent(
+        GameEventId EventId,
+        long Sequence,
+        GameInstanceId GameInstanceId,
+        DateTimeOffset OccurredAt,
+        GameEventVisibility Visibility) : GameEventBase(EventId, Sequence, GameInstanceId, OccurredAt, Visibility)
+    {
+        public static UnknownModuleEvent Create(GameInstanceId gameInstanceId) =>
+            new(default, 0, gameInstanceId, default, GameEventVisibility.Public);
+
+        public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
+            this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
+    }
 
     private static GameRuntimeState CreateGameRuntime()
     {

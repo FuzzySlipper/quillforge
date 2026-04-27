@@ -35,6 +35,10 @@ public sealed class GameRuntimeState
 
     public ParticipantCommunicationState Communication { get; set; } = new();
 
+    public bool HostAllowsPublicMessages { get; set; } = true;
+
+    public bool HostAllowsDirectMessages { get; set; } = true;
+
     public List<GameRuntimeParticipantBinding> ParticipantBindings { get; set; } = [];
 
     public List<GameRuntimeEventDeliveryCursor> EventDeliveryCursors { get; set; } = [];

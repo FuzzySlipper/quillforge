@@ -25,4 +25,14 @@ public interface IGameRuntimeService
         Guid sessionId,
         AbortGameRuntimeCommand command,
         CancellationToken ct = default);
+
+    Task<SessionMutationResult<GameRuntimeCommunicationMutationResult>> PostPublicMessageAsync(
+        Guid sessionId,
+        PostGameRuntimePublicMessageCommand command,
+        CancellationToken ct = default);
+
+    Task<SessionMutationResult<GameRuntimeCommunicationMutationResult>> SendDirectMessageAsync(
+        Guid sessionId,
+        SendGameRuntimeDirectMessageCommand command,
+        CancellationToken ct = default);
 }

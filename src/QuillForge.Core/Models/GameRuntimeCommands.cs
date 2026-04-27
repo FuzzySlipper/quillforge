@@ -13,7 +13,9 @@ public sealed record StartGameRuntimeCommand(
     IReadOnlyList<ParticipantSetup> Participants,
     IReadOnlyList<GameRuntimeParticipantBinding> ParticipantBindings,
     int AgentMemoryTokenBudget,
-    DateTimeOffset StartedAt);
+    DateTimeOffset StartedAt,
+    bool HostAllowsPublicMessages = true,
+    bool HostAllowsDirectMessages = true);
 
 public sealed record ApplyGameRuntimeEngineCommand(
     IGameIntentCommand EngineCommand,
@@ -26,3 +28,18 @@ public sealed record AbortGameRuntimeCommand(
     GameIntentCommandId CommandId,
     string ReasonCode,
     DateTimeOffset AbortedAt);
+
+public sealed record PostGameRuntimePublicMessageCommand(
+    Guid MessageId,
+    string ParticipantId,
+    ParticipantMessageAuthorKind AuthorKind,
+    string Text,
+    DateTimeOffset CreatedAt);
+
+public sealed record SendGameRuntimeDirectMessageCommand(
+    Guid MessageId,
+    string ParticipantId,
+    ParticipantMessageAuthorKind AuthorKind,
+    IReadOnlyList<string> RecipientParticipantIds,
+    string Text,
+    DateTimeOffset CreatedAt);

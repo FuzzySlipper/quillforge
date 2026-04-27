@@ -1,19 +1,9 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Den.RulesEngine;
 
-[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
-[JsonDerivedType(typeof(GameStartedEvent), "game_started")]
-[JsonDerivedType(typeof(PlayerChoiceSubmittedEvent), "player_choice_submitted")]
-[JsonDerivedType(typeof(DeterministicEffectsAdvancedEvent), "deterministic_effects_advanced")]
-[JsonDerivedType(typeof(IntentCommandRejectedEvent), "intent_command_rejected")]
-[JsonDerivedType(typeof(NoActionTakenEvent), "no_action_taken")]
-[JsonDerivedType(typeof(PendingInputRequestedEvent), "pending_input_requested")]
-[JsonDerivedType(typeof(StageAdvancedEvent), "stage_advanced")]
-[JsonDerivedType(typeof(RoundEndedEvent), "round_ended")]
-[JsonDerivedType(typeof(RoundStartedEvent), "round_started")]
-[JsonDerivedType(typeof(GameEndedEvent), "game_ended")]
-[JsonDerivedType(typeof(GameAbortedEvent), "game_aborted")]
+[JsonConverter(typeof(GameEventJsonConverter))]
 public interface IGameEvent
 {
     GameEventId EventId { get; }
@@ -241,4 +231,131 @@ public sealed record GameAbortedEvent(
 
     public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
         this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
+}
+
+public sealed record StoredGameEvent(
+    GameEventId EventId,
+    long Sequence,
+    GameInstanceId GameInstanceId,
+    DateTimeOffset OccurredAt,
+    GameEventVisibility Visibility,
+    string EventType) : GameEventBase(EventId, Sequence, GameInstanceId, OccurredAt, Visibility)
+{
+    public static StoredGameEvent FromEvent(IGameEvent gameEvent) =>
+        new(
+            gameEvent.EventId,
+            gameEvent.Sequence,
+            gameEvent.GameInstanceId,
+            gameEvent.OccurredAt,
+            gameEvent.Visibility,
+            gameEvent.GetType().Name);
+
+    public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
+        this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
+}
+
+public sealed class GameEventJsonConverter : JsonConverter<IGameEvent>
+{
+    public override IGameEvent Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        using var document = JsonDocument.ParseValue(ref reader);
+        var root = document.RootElement;
+        var discriminator = root.GetProperty("type").GetString();
+        var payload = root.TryGetProperty("event", out var eventPayload)
+            ? eventPayload.GetRawText()
+            : root.GetRawText();
+        return discriminator switch
+        {
+            "game_started" => Deserialize<GameStartedEvent>(payload, options),
+            "player_choice_submitted" => Deserialize<PlayerChoiceSubmittedEvent>(payload, options),
+            "deterministic_effects_advanced" => Deserialize<DeterministicEffectsAdvancedEvent>(payload, options),
+            "intent_command_rejected" => Deserialize<IntentCommandRejectedEvent>(payload, options),
+            "no_action_taken" => Deserialize<NoActionTakenEvent>(payload, options),
+            "pending_input_requested" => Deserialize<PendingInputRequestedEvent>(payload, options),
+            "stage_advanced" => Deserialize<StageAdvancedEvent>(payload, options),
+            "round_ended" => Deserialize<RoundEndedEvent>(payload, options),
+            "round_started" => Deserialize<RoundStartedEvent>(payload, options),
+            "game_ended" => Deserialize<GameEndedEvent>(payload, options),
+            "game_aborted" => Deserialize<GameAbortedEvent>(payload, options),
+            "stored_game_event" => Deserialize<StoredGameEvent>(payload, options),
+            _ => Deserialize<StoredGameEvent>(payload, options),
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, IGameEvent value, JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("type", Discriminator(value));
+        writer.WritePropertyName("event");
+        SerializePayload(writer, value, options);
+        writer.WriteEndObject();
+    }
+
+    private static T Deserialize<T>(string json, JsonSerializerOptions options)
+        where T : IGameEvent =>
+        JsonSerializer.Deserialize<T>(json, options)
+        ?? throw new JsonException($"Could not deserialize game event payload as {typeof(T).Name}.");
+
+    private static string Discriminator(IGameEvent gameEvent) => gameEvent switch
+    {
+        GameStartedEvent => "game_started",
+        PlayerChoiceSubmittedEvent => "player_choice_submitted",
+        DeterministicEffectsAdvancedEvent => "deterministic_effects_advanced",
+        IntentCommandRejectedEvent => "intent_command_rejected",
+        NoActionTakenEvent => "no_action_taken",
+        PendingInputRequestedEvent => "pending_input_requested",
+        StageAdvancedEvent => "stage_advanced",
+        RoundEndedEvent => "round_ended",
+        RoundStartedEvent => "round_started",
+        GameEndedEvent => "game_ended",
+        GameAbortedEvent => "game_aborted",
+        StoredGameEvent => "stored_game_event",
+        _ => "stored_game_event",
+    };
+
+    private static void SerializePayload(Utf8JsonWriter writer, IGameEvent value, JsonSerializerOptions options)
+    {
+        switch (value)
+        {
+            case GameStartedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case PlayerChoiceSubmittedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case DeterministicEffectsAdvancedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case IntentCommandRejectedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case NoActionTakenEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case PendingInputRequestedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case StageAdvancedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case RoundEndedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case RoundStartedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case GameEndedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case GameAbortedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case StoredGameEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            default:
+                JsonSerializer.Serialize(writer, StoredGameEvent.FromEvent(value), options);
+                break;
+        }
+    }
 }

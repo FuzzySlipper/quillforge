@@ -61,3 +61,7 @@ public sealed record GameRuntimeMutationResult(
     GameRuntimeState Game,
     IReadOnlyList<IGameRuntimeEvent> RuntimeEvents,
     IReadOnlyList<IGameEvent> EngineEvents);
+
+public sealed record GameRuntimeCommunicationMutationResult(
+    GameRuntimeState Game,
+    IReadOnlyList<IParticipantCommunicationEvent> CommunicationEvents);

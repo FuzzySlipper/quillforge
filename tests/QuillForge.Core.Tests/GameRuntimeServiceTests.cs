@@ -132,6 +132,7 @@ public sealed class GameRuntimeServiceTests
             gate ?? new InMemorySessionMutationGate(NullLogger<InMemorySessionMutationGate>.Instance),
             registry,
             rulesEngine,
+            new ParticipantChannelService(),
             NullLogger<GameRuntimeService>.Instance);
     }
 

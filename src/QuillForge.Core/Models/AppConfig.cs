@@ -41,6 +41,7 @@ public sealed record ModelsConfig
     public string DelegateTechnical { get; set; } = "default";
     public string Artifact { get; set; } = "default";
     public string Research { get; set; } = "default";
+    public string GameIntentTranslator { get; set; } = "default";
 }
 
 public sealed record PersonaConfig
@@ -126,6 +127,7 @@ public sealed record AgentsConfig
     public CouncilBudget Council { get; set; } = new();
     public ArtifactBudget Artifact { get; set; } = new();
     public ResearchBudget Research { get; set; } = new();
+    public GameIntentTranslationBudget GameIntentTranslation { get; set; } = new();
 }
 
 public sealed record OrchestratorBudget
@@ -197,6 +199,11 @@ public sealed record ResearchBudget
     public int MaxToolRounds { get; set; } = 15;
     public int MaxConcurrency { get; set; } = 4;
     public double Temperature { get; set; } = 0.4;
+}
+
+public sealed record GameIntentTranslationBudget
+{
+    public int MaxTokens { get; set; } = 512;
 }
 
 public sealed record TimeoutsConfig

@@ -116,23 +116,25 @@
         "events": [
           {
             "type": "game_started",
-            "moduleId": {
-              "value": "werewolf"
-            },
-            "moduleVersion": {
-              "value": "0.1.0"
-            },
-            "seed": 1234,
-            "eventId": {
-              "value": "ae11140c-5abc-ebfe-3e67-4361e9cd0fe3"
-            },
-            "sequence": 1,
-            "gameInstanceId": {
-              "value": "game-001"
-            },
-            "occurredAt": "1970-01-01T00:00:00.0000001+00:00",
-            "visibility": {
-              "kind": "public"
+            "event": {
+              "moduleId": {
+                "value": "werewolf"
+              },
+              "moduleVersion": {
+                "value": "0.1.0"
+              },
+              "seed": 1234,
+              "eventId": {
+                "value": "ae11140c-5abc-ebfe-3e67-4361e9cd0fe3"
+              },
+              "sequence": 1,
+              "gameInstanceId": {
+                "value": "game-001"
+              },
+              "occurredAt": "1970-01-01T00:00:00.0000001+00:00",
+              "visibility": {
+                "kind": "public"
+              }
             }
           }
         ]
@@ -146,6 +148,8 @@
       "gameEventLinks": [],
       "cursors": []
     },
+    "hostAllowsPublicMessages": true,
+    "hostAllowsDirectMessages": true,
     "participantBindings": [
       {
         "participantId": "human-1",

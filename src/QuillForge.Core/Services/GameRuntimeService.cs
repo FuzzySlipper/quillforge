@@ -10,6 +10,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
     private readonly ISessionMutationGate _gate;
     private readonly GameModuleRegistry _moduleRegistry;
     private readonly RulesEngineService _rulesEngine;
+    private readonly ParticipantChannelService _communicationService;
     private readonly ILogger<GameRuntimeService> _logger;
 
     public GameRuntimeService(
@@ -17,12 +18,14 @@ public sealed class GameRuntimeService : IGameRuntimeService
         ISessionMutationGate gate,
         GameModuleRegistry moduleRegistry,
         RulesEngineService rulesEngine,
+        ParticipantChannelService communicationService,
         ILogger<GameRuntimeService> logger)
     {
         _store = store;
         _gate = gate;
         _moduleRegistry = moduleRegistry;
         _rulesEngine = rulesEngine;
+        _communicationService = communicationService;
         _logger = logger;
     }
 
@@ -247,6 +250,69 @@ public sealed class GameRuntimeService : IGameRuntimeService
         return AbortAsyncCore(sessionId, command, ct);
     }
 
+    public Task<SessionMutationResult<GameRuntimeCommunicationMutationResult>> PostPublicMessageAsync(
+        Guid sessionId,
+        PostGameRuntimePublicMessageCommand command,
+        CancellationToken ct = default)
+    {
+        return ApplyCommunicationAsync(
+            sessionId,
+            "post_game_public_message",
+            command.CreatedAt,
+            runtime =>
+            {
+                var participant = FindParticipantBinding(runtime, command.ParticipantId);
+                if (participant is null)
+                {
+                    return ParticipantCommunicationApplyResult.Rejected(new ParticipantCommunicationIssue(
+                        "unknown_participant",
+                        $"Participant '{command.ParticipantId}' is not part of the active game."));
+                }
+
+                return _communicationService.PostPublicMessage(
+                    runtime.Communication,
+                    new PostParticipantChannelMessageCommand(
+                        command.MessageId,
+                        new ParticipantMessageAuthor(new GameParticipantId(participant.ParticipantId), command.AuthorKind),
+                        command.Text,
+                        command.CreatedAt),
+                    BuildCommunicationPermissions(runtime));
+            },
+            ct);
+    }
+
+    public Task<SessionMutationResult<GameRuntimeCommunicationMutationResult>> SendDirectMessageAsync(
+        Guid sessionId,
+        SendGameRuntimeDirectMessageCommand command,
+        CancellationToken ct = default)
+    {
+        return ApplyCommunicationAsync(
+            sessionId,
+            "send_game_direct_message",
+            command.CreatedAt,
+            runtime =>
+            {
+                var participant = FindParticipantBinding(runtime, command.ParticipantId);
+                if (participant is null)
+                {
+                    return ParticipantCommunicationApplyResult.Rejected(new ParticipantCommunicationIssue(
+                        "unknown_participant",
+                        $"Participant '{command.ParticipantId}' is not part of the active game."));
+                }
+
+                return _communicationService.SendDirectMessage(
+                    runtime.Communication,
+                    new SendParticipantDirectMessageCommand(
+                        command.MessageId,
+                        new ParticipantMessageAuthor(new GameParticipantId(participant.ParticipantId), command.AuthorKind),
+                        command.RecipientParticipantIds.Select(id => new GameParticipantId(id)).ToArray(),
+                        command.Text,
+                        command.CreatedAt),
+                    BuildCommunicationPermissions(runtime));
+            },
+            ct);
+    }
+
     private async Task<SessionMutationResult<GameRuntimeMutationResult>> AbortAsyncCore(
         Guid sessionId,
         AbortGameRuntimeCommand command,
@@ -284,6 +350,50 @@ public sealed class GameRuntimeService : IGameRuntimeService
             });
     }
 
+    private async Task<SessionMutationResult<GameRuntimeCommunicationMutationResult>> ApplyCommunicationAsync(
+        Guid sessionId,
+        string operationName,
+        DateTimeOffset occurredAt,
+        Func<GameRuntimeState, ParticipantCommunicationApplyResult> apply,
+        CancellationToken ct)
+    {
+        await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
+        if (lease is null)
+        {
+            return SessionMutationResult<GameRuntimeCommunicationMutationResult>.Busy(
+                "Another mutating operation is already running for this session.");
+        }
+
+        var state = await _store.LoadAsync(sessionId, ct);
+        var runtime = state.Game;
+        if (runtime?.EngineSnapshot is null || string.IsNullOrWhiteSpace(runtime.GameInstanceId))
+        {
+            return SessionMutationResult<GameRuntimeCommunicationMutationResult>.Invalid(
+                "No game runtime is available for this session.");
+        }
+
+        if (!runtime.IsActive)
+        {
+            return SessionMutationResult<GameRuntimeCommunicationMutationResult>.Invalid(
+                "The game runtime is not active.");
+        }
+
+        var communicationResult = apply(runtime);
+        if (!communicationResult.IsAccepted)
+        {
+            return SessionMutationResult<GameRuntimeCommunicationMutationResult>.Invalid(
+                communicationResult.Issues[0].Message);
+        }
+
+        runtime.LastUpdatedAt = occurredAt;
+        await _store.SaveAsync(state, ct);
+
+        return SessionMutationResult<GameRuntimeCommunicationMutationResult>.Success(
+            new GameRuntimeCommunicationMutationResult(
+                GameRuntimeStateCloner.Clone(runtime)!,
+                communicationResult.Events));
+    }
+
     private static GameRuntimeState CreateRuntime(
         StartGameRuntimeCommand command,
         RulesGameState startedState,
@@ -302,6 +412,8 @@ public sealed class GameRuntimeService : IGameRuntimeService
             EngineSnapshot = RulesGameStateSnapshot.FromState(startedState),
             ParticipantBindings = command.ParticipantBindings.Select(CloneBinding).ToList(),
             Communication = CreateCommunicationState(command.ParticipantBindings),
+            HostAllowsPublicMessages = command.HostAllowsPublicMessages,
+            HostAllowsDirectMessages = command.HostAllowsDirectMessages,
             EventDeliveryCursors = command.ParticipantBindings.Select(binding => new GameRuntimeEventDeliveryCursor
             {
                 ParticipantId = binding.ParticipantId,
@@ -390,6 +502,23 @@ public sealed class GameRuntimeService : IGameRuntimeService
         Personality = binding.Personality,
         UserSeatId = binding.UserSeatId,
     };
+
+    private static GameRuntimeParticipantBinding? FindParticipantBinding(GameRuntimeState runtime, string participantId) =>
+        runtime.ParticipantBindings.FirstOrDefault(binding =>
+            string.Equals(binding.ParticipantId, participantId, StringComparison.Ordinal));
+
+    private static ParticipantCommunicationPermissions BuildCommunicationPermissions(GameRuntimeState runtime)
+    {
+        var stage = runtime.EngineSnapshot?.Stage;
+        var stageId = stage?.StageId.Value ?? string.Empty;
+        return new ParticipantCommunicationPermissions(
+            stageId,
+            runtime.HostAllowsPublicMessages,
+            stage?.AllowsPublicMessages ?? false,
+            runtime.HostAllowsDirectMessages,
+            stage?.AllowsDirectMessages ?? false,
+            []);
+    }
 
     private static string? ValidateParticipantBindings(StartGameRuntimeCommand command)
     {
