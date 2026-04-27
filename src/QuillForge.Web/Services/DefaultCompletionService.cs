@@ -36,16 +36,36 @@ public sealed class DefaultCompletionService : ICompletionService
 
     private (ICompletionService Service, CompletionRequest Request) ResolveService(CompletionRequest request)
     {
+        if (!string.IsNullOrWhiteSpace(request.ProviderAlias))
+        {
+            var requestedAlias = request.ProviderAlias.Trim();
+            var resolution = _registry.ResolveProviderAlias(requestedAlias);
+            if (!resolution.IsResolved || string.IsNullOrWhiteSpace(resolution.ResolvedAlias))
+            {
+                throw new InvalidOperationException(resolution.Error ?? $"No provider registered with alias '{requestedAlias}'.");
+            }
+
+            var providerConfig = _registry.GetConfig(resolution.ResolvedAlias)
+                ?? throw new InvalidOperationException($"No provider registered with alias '{resolution.ResolvedAlias}'.");
+            _logger.LogDebug(
+                "Resolving completion service for explicit provider alias: requested={RequestedAlias}, resolved={ResolvedAlias}, model={Model}",
+                requestedAlias,
+                resolution.ResolvedAlias,
+                request.Model);
+            var service = _registry.GetCompletionService(resolution.ResolvedAlias);
+            return (service, ApplyProviderOptions(request with { ProviderAlias = null }, providerConfig.Options));
+        }
+
         var model = request.Model;
 
         // If model is a registered provider alias, use that provider
         // and normalize the model to "default" so the provider uses its configured model
         // instead of passing the alias as a literal model name to the API.
-        if (_registry.GetConfig(model) is { } providerConfig)
+        if (_registry.GetConfig(model) is { } providerConfigByModel)
         {
             _logger.LogDebug("Resolving completion service for provider alias: {Model}", model);
             var service = _registry.GetCompletionService(model);
-            return (service, ApplyProviderOptions(request with { Model = "default" }, providerConfig?.Options));
+            return (service, ApplyProviderOptions(request with { Model = "default" }, providerConfigByModel.Options));
         }
 
         // Otherwise, use the first registered provider

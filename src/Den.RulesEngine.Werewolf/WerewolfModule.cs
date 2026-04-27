@@ -114,6 +114,8 @@ public sealed class WerewolfModule : IGameModule
             StartGameIntentCommand => StartGame(context.State),
             SubmitPlayerChoiceIntentCommand submit when context.State.Stage.StageId == WerewolfConstants.NightStage.StageId => ResolveNightIfReady(context.State),
             SubmitPlayerChoiceIntentCommand submit when context.State.Stage.StageId == WerewolfConstants.VotingStage.StageId => RecordVoteAndResolveIfReady(context.State, submit),
+            RecordNoActionTakenIntentCommand when context.State.Stage.StageId == WerewolfConstants.NightStage.StageId => ResolveNightIfReady(context.State),
+            RecordNoActionTakenIntentCommand when context.State.Stage.StageId == WerewolfConstants.VotingStage.StageId => ResolveVoteIfReady(context.State, []),
             AdvanceStageIntentCommand advance when advance.NextStage.StageId == WerewolfConstants.VotingStage.StageId => GameModuleTransitionResult.Accepted(context.State, [WerewolfStageStartedEvent.Create(context.State.GameInstanceId, WerewolfConstants.VotingStage.StageId, context.State.Round.RoundNumber)]),
             _ => GameModuleTransitionResult.Accepted(context.State, [])
         };
@@ -123,7 +125,8 @@ public sealed class WerewolfModule : IGameModule
     [
         new GameRuleHandlerDescriptor(nameof(StartGameIntentCommand), RulesResolutionPhase.OnRun, nameof(WerewolfModule), 0),
         new GameRuleHandlerDescriptor(nameof(SubmitPlayerChoiceIntentCommand), RulesResolutionPhase.CanStart, nameof(WerewolfModule), 0),
-        new GameRuleHandlerDescriptor(nameof(SubmitPlayerChoiceIntentCommand), RulesResolutionPhase.OnRun, nameof(WerewolfModule), 0)
+        new GameRuleHandlerDescriptor(nameof(SubmitPlayerChoiceIntentCommand), RulesResolutionPhase.OnRun, nameof(WerewolfModule), 0),
+        new GameRuleHandlerDescriptor(nameof(RecordNoActionTakenIntentCommand), RulesResolutionPhase.OnRun, nameof(WerewolfModule), 0)
     ];
 
     public IReadOnlyList<GamePromptAsset> GetPromptAssets() =>
@@ -212,7 +215,7 @@ public sealed class WerewolfModule : IGameModule
 
     private static GameModuleTransitionResult ResolveNightIfReady(RulesGameState state)
     {
-        if (!AllPendingInputsForStageSubmitted(state, WerewolfConstants.NightStage.StageId))
+        if (!AllPendingInputsForStageFinished(state, WerewolfConstants.NightStage.StageId))
         {
             return GameModuleTransitionResult.Accepted(state, []);
         }
@@ -236,12 +239,15 @@ public sealed class WerewolfModule : IGameModule
         var target = submit.ChoiceName == WerewolfConstants.AbstainChoice
             ? (ParticipantId?)null
             : new ParticipantId(submit.ChoiceName);
-        var events = new List<IGameEvent>
-        {
-            WerewolfVoteRecordedEvent.Create(state.GameInstanceId, submit.ParticipantId, target)
-        };
+        return ResolveVoteIfReady(
+            state,
+            [WerewolfVoteRecordedEvent.Create(state.GameInstanceId, submit.ParticipantId, target)]);
+    }
 
-        if (!AllPendingInputsForStageSubmitted(state, WerewolfConstants.VotingStage.StageId))
+    private static GameModuleTransitionResult ResolveVoteIfReady(RulesGameState state, IReadOnlyList<IGameEvent> priorEvents)
+    {
+        var events = priorEvents.ToList();
+        if (!AllPendingInputsForStageFinished(state, WerewolfConstants.VotingStage.StageId))
         {
             return GameModuleTransitionResult.Accepted(state, events);
         }
@@ -306,6 +312,13 @@ public sealed class WerewolfModule : IGameModule
     {
         var stageInputs = state.PendingInputs.Where(input => input.StageId == stageId).ToArray();
         return stageInputs.Length > 0 && stageInputs.All(input => input.Status == PendingInputStatus.Submitted);
+    }
+
+    private static bool AllPendingInputsForStageFinished(RulesGameState state, GameStageId stageId)
+    {
+        var stageInputs = state.PendingInputs.Where(input => input.StageId == stageId).ToArray();
+        return stageInputs.Length > 0 && stageInputs.All(input =>
+            input.Status is PendingInputStatus.Submitted or PendingInputStatus.TimedOut);
     }
 
     private static PendingInputState[] RemovePendingInputsForStage(RulesGameState state, GameStageId stageId) =>

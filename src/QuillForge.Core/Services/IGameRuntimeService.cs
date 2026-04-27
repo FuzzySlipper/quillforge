@@ -35,4 +35,9 @@ public interface IGameRuntimeService
         Guid sessionId,
         SendGameRuntimeDirectMessageCommand command,
         CancellationToken ct = default);
+
+    Task<SessionMutationResult<GameRuntimePromptMutationResult>> RecordAgentPromptAsync(
+        Guid sessionId,
+        RecordGameRuntimeAgentPromptCommand command,
+        CancellationToken ct = default);
 }

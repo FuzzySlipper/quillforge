@@ -128,6 +128,7 @@ public sealed record AgentsConfig
     public ArtifactBudget Artifact { get; set; } = new();
     public ResearchBudget Research { get; set; } = new();
     public GameIntentTranslationBudget GameIntentTranslation { get; set; } = new();
+    public GameAgentTurnsBudget GameAgentTurns { get; set; } = new();
 }
 
 public sealed record OrchestratorBudget
@@ -204,6 +205,13 @@ public sealed record ResearchBudget
 public sealed record GameIntentTranslationBudget
 {
     public int MaxTokens { get; set; } = 512;
+}
+
+public sealed record GameAgentTurnsBudget
+{
+    public int MaxTokens { get; set; } = 1024;
+    public int MaxConcurrency { get; set; } = 4;
+    public int ResponseTimeoutSeconds { get; set; } = 120;
 }
 
 public sealed record TimeoutsConfig

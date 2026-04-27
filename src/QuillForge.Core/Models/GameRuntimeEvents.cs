@@ -57,6 +57,19 @@ public sealed record GameRuntimeForkedEvent(
     public string EventName => nameof(GameRuntimeForkedEvent);
 }
 
+public sealed record GameRuntimeAgentPromptRecordedEvent(
+    string GameInstanceId,
+    string EnvelopeId,
+    string ParticipantId,
+    string? ProviderAlias,
+    string? Model,
+    int? PromptTokens,
+    int? ResponseTokens,
+    DateTimeOffset OccurredAt) : IGameRuntimeEvent
+{
+    public string EventName => nameof(GameRuntimeAgentPromptRecordedEvent);
+}
+
 public sealed record GameRuntimeMutationResult(
     GameRuntimeState Game,
     IReadOnlyList<IGameRuntimeEvent> RuntimeEvents,
@@ -65,3 +78,7 @@ public sealed record GameRuntimeMutationResult(
 public sealed record GameRuntimeCommunicationMutationResult(
     GameRuntimeState Game,
     IReadOnlyList<IParticipantCommunicationEvent> CommunicationEvents);
+
+public sealed record GameRuntimePromptMutationResult(
+    GameRuntimeState Game,
+    IReadOnlyList<IGameRuntimeEvent> RuntimeEvents);

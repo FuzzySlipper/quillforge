@@ -70,6 +70,13 @@ public sealed record ToolDefinition(string Name, string Description, JsonElement
 /// </summary>
 public sealed record CompletionRequest
 {
+    /// <summary>
+    /// Optional configured provider alias. When set, adapters that support multiple
+    /// providers route the request to this provider while keeping <see cref="Model"/>
+    /// as the provider-local model name or "default".
+    /// </summary>
+    public string? ProviderAlias { get; init; }
+
     public required string Model { get; init; }
     public required int MaxTokens { get; init; }
     public string? SystemPrompt { get; init; }

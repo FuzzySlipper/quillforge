@@ -47,6 +47,8 @@ public static class GameIntentCommandValidationService
                 ? IntentCommandValidationResult.Accepted
                 : IntentCommandValidationResult.Rejected(new ValidationIssue("game_already_started", "The game has already started.")),
             AdvanceDeterministicEffectsIntentCommand => IntentCommandValidationResult.Accepted,
+            RecordAgentResponseRejectedIntentCommand rejected => ValidateAgentResponseRejected(state, rejected),
+            RecordNoActionTakenIntentCommand noAction => ValidateNoActionTaken(state, noAction),
             RequestPendingInputIntentCommand request => ValidateRequestPendingInput(state, request),
             AdvanceStageIntentCommand => IntentCommandValidationResult.Accepted,
             EndRoundIntentCommand => IntentCommandValidationResult.Accepted,
@@ -109,6 +111,70 @@ public static class GameIntentCommandValidationService
             return IntentCommandValidationResult.Rejected(new ValidationIssue(
                 "illegal_choice",
                 "Choice is not legal for the pending input."));
+        }
+
+        return IntentCommandValidationResult.Accepted;
+    }
+
+    private static IntentCommandValidationResult ValidateAgentResponseRejected(
+        RulesGameState state,
+        RecordAgentResponseRejectedIntentCommand command)
+    {
+        if (state.FindParticipant(command.ParticipantId) is null)
+        {
+            return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "unknown_participant",
+                "Agent response rejection targets a participant that is not registered in this game."));
+        }
+
+        if (state.FindPendingInput(command.PendingInputId) is null)
+        {
+            return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "unknown_pending_input",
+                "Agent response rejection targets a pending input that is not registered in this game."));
+        }
+
+        if (string.IsNullOrWhiteSpace(command.ReasonCode))
+        {
+            return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "missing_reason_code",
+                "Agent response rejection requires a reason code."));
+        }
+
+        return IntentCommandValidationResult.Accepted;
+    }
+
+    private static IntentCommandValidationResult ValidateNoActionTaken(
+        RulesGameState state,
+        RecordNoActionTakenIntentCommand command)
+    {
+        var pendingInput = state.FindPendingInput(command.PendingInputId);
+        if (pendingInput is null)
+        {
+            return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "unknown_pending_input",
+                "No-action command targets a pending input that is not registered in this game."));
+        }
+
+        if (!pendingInput.IsWaitingFor(command.ParticipantId))
+        {
+            return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "pending_input_not_available",
+                "Pending input is not waiting for this participant."));
+        }
+
+        if (pendingInput.StageId != state.Stage.StageId)
+        {
+            return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "out_of_stage",
+                "Pending input belongs to a previous or future stage."));
+        }
+
+        if (string.IsNullOrWhiteSpace(command.ReasonCode))
+        {
+            return IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "missing_reason_code",
+                "No-action command requires a reason code."));
         }
 
         return IntentCommandValidationResult.Accepted;

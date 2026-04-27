@@ -100,6 +100,30 @@ public sealed record IntentCommandRejectedEvent(
         this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
 }
 
+public sealed record AgentResponseRejectedEvent(
+    GameEventId EventId,
+    long Sequence,
+    GameInstanceId GameInstanceId,
+    DateTimeOffset OccurredAt,
+    GameEventVisibility Visibility,
+    PendingInputId PendingInputId,
+    ParticipantId ParticipantId,
+    string ReasonCode,
+    string Reason) : GameEventBase(EventId, Sequence, GameInstanceId, OccurredAt, Visibility)
+{
+    public static AgentResponseRejectedEvent Create(
+        GameInstanceId gameInstanceId,
+        PendingInputId pendingInputId,
+        ParticipantId participantId,
+        string reasonCode,
+        string reason,
+        GameEventVisibility visibility) =>
+        new(default, 0, gameInstanceId, default, visibility, pendingInputId, participantId, reasonCode, reason);
+
+    public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
+        this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
+}
+
 public sealed record NoActionTakenEvent(
     GameEventId EventId,
     long Sequence,
@@ -270,6 +294,7 @@ public sealed class GameEventJsonConverter : JsonConverter<IGameEvent>
             "player_choice_submitted" => Deserialize<PlayerChoiceSubmittedEvent>(payload, options),
             "deterministic_effects_advanced" => Deserialize<DeterministicEffectsAdvancedEvent>(payload, options),
             "intent_command_rejected" => Deserialize<IntentCommandRejectedEvent>(payload, options),
+            "agent_response_rejected" => Deserialize<AgentResponseRejectedEvent>(payload, options),
             "no_action_taken" => Deserialize<NoActionTakenEvent>(payload, options),
             "pending_input_requested" => Deserialize<PendingInputRequestedEvent>(payload, options),
             "stage_advanced" => Deserialize<StageAdvancedEvent>(payload, options),
@@ -302,6 +327,7 @@ public sealed class GameEventJsonConverter : JsonConverter<IGameEvent>
         PlayerChoiceSubmittedEvent => "player_choice_submitted",
         DeterministicEffectsAdvancedEvent => "deterministic_effects_advanced",
         IntentCommandRejectedEvent => "intent_command_rejected",
+        AgentResponseRejectedEvent => "agent_response_rejected",
         NoActionTakenEvent => "no_action_taken",
         PendingInputRequestedEvent => "pending_input_requested",
         StageAdvancedEvent => "stage_advanced",
@@ -327,6 +353,9 @@ public sealed class GameEventJsonConverter : JsonConverter<IGameEvent>
                 JsonSerializer.Serialize(writer, known, options);
                 break;
             case IntentCommandRejectedEvent known:
+                JsonSerializer.Serialize(writer, known, options);
+                break;
+            case AgentResponseRejectedEvent known:
                 JsonSerializer.Serialize(writer, known, options);
                 break;
             case NoActionTakenEvent known:

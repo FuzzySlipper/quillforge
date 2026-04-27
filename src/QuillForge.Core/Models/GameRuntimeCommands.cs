@@ -43,3 +43,17 @@ public sealed record SendGameRuntimeDirectMessageCommand(
     IReadOnlyList<string> RecipientParticipantIds,
     string Text,
     DateTimeOffset CreatedAt);
+
+public sealed record RecordGameRuntimeAgentPromptCommand(
+    string EnvelopeId,
+    string ParticipantId,
+    DateTimeOffset CreatedAt,
+    long EngineCursorSequence,
+    long CommunicationCursorSequence,
+    int MemoryRevision,
+    string? ProviderAlias,
+    string? Model,
+    int? PromptTokens,
+    int? ResponseTokens,
+    string PromptContentHash,
+    string ResponseContentHash);

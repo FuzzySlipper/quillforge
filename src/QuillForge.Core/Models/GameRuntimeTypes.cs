@@ -195,5 +195,6 @@ public enum GameRuntimeHostRecordKind
     Resumed,
     EngineCommandApplied,
     Aborted,
-    Forked
+    Forked,
+    AgentPromptRecorded
 }

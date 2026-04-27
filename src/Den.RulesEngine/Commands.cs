@@ -28,6 +28,22 @@ public sealed record AdvanceDeterministicEffectsIntentCommand(
     GameInstanceId GameInstanceId,
     string EffectName) : IGameIntentCommand;
 
+public sealed record RecordAgentResponseRejectedIntentCommand(
+    GameIntentCommandId CommandId,
+    GameInstanceId GameInstanceId,
+    PendingInputId PendingInputId,
+    ParticipantId ParticipantId,
+    string ReasonCode,
+    string Reason,
+    GameEventVisibility Visibility) : IGameIntentCommand;
+
+public sealed record RecordNoActionTakenIntentCommand(
+    GameIntentCommandId CommandId,
+    GameInstanceId GameInstanceId,
+    PendingInputId PendingInputId,
+    ParticipantId ParticipantId,
+    string ReasonCode) : IGameIntentCommand;
+
 public sealed record RequestPendingInputIntentCommand(
     GameIntentCommandId CommandId,
     GameInstanceId GameInstanceId,

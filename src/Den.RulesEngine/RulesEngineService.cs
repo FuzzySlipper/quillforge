@@ -33,6 +33,8 @@ public sealed class RulesEngineService
         {
             StartGameIntentCommand start => ApplyStartGame(state, module, start),
             RequestPendingInputIntentCommand request => ApplyRequestPendingInput(state, request),
+            RecordAgentResponseRejectedIntentCommand rejected => ApplyAgentResponseRejected(state, rejected),
+            RecordNoActionTakenIntentCommand noAction => ApplyNoActionTaken(state, module, noAction),
             SubmitPlayerChoiceIntentCommand submit => ApplySubmitPlayerChoice(state, module, submit),
             AdvanceStageIntentCommand advanceStage => ApplyAdvanceStage(state, module, advanceStage),
             EndRoundIntentCommand endRound => ApplyEndRound(state, endRound),
@@ -116,6 +118,47 @@ public sealed class RulesEngineService
         };
 
         return AcceptWithEvents(next, events);
+    }
+
+    private RulesEngineApplyResult ApplyAgentResponseRejected(
+        RulesGameState state,
+        RecordAgentResponseRejectedIntentCommand command)
+    {
+        var rejected = AgentResponseRejectedEvent.Create(
+            state.GameInstanceId,
+            command.PendingInputId,
+            command.ParticipantId,
+            NormalizeReasonCode(command.ReasonCode),
+            string.IsNullOrWhiteSpace(command.Reason) ? "Agent response was rejected." : command.Reason.Trim(),
+            command.Visibility);
+
+        return AcceptWithEvents(state, [rejected]);
+    }
+
+    private RulesEngineApplyResult ApplyNoActionTaken(
+        RulesGameState state,
+        IGameModule module,
+        RecordNoActionTakenIntentCommand command)
+    {
+        var pendingInputs = state.PendingInputs
+            .Select(input => input.PendingInputId == command.PendingInputId
+                ? input with { Status = PendingInputStatus.TimedOut }
+                : input)
+            .ToArray();
+        var working = state with { PendingInputs = pendingInputs };
+        var noAction = NoActionTakenEvent.Create(
+            state.GameInstanceId,
+            command.PendingInputId,
+            command.ParticipantId,
+            NormalizeReasonCode(command.ReasonCode));
+
+        var serviceResult = AcceptWithEvents(working, [noAction]);
+        var moduleResult = ApplyModulePhases(serviceResult.State, module, command, []);
+
+        return moduleResult with
+        {
+            Events = serviceResult.Events.Concat(moduleResult.Events).ToArray()
+        };
     }
 
     private RulesEngineApplyResult ApplySubmitPlayerChoice(
@@ -312,6 +355,9 @@ public sealed class RulesEngineService
 
     private static PendingInputId CreatePendingInputId(GameIntentCommandId commandId, ParticipantId participantId) =>
         new($"{commandId.Value:D}:{participantId.Value}");
+
+    private static string NormalizeReasonCode(string reasonCode) =>
+        string.IsNullOrWhiteSpace(reasonCode) ? "unspecified" : reasonCode.Trim();
 
     private static EngineTraceRecord CreateTraceRecord(
         IGameModule module,
