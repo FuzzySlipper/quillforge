@@ -46,11 +46,31 @@ public sealed record GameEventJournal(
     private static GameEventId CreateEventId(GameInstanceId gameInstanceId, long sequence)
     {
         var input = $"{gameInstanceId.Value}:{sequence}";
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input));
+        var first = Fnv1a64(input);
+        var second = Fnv1a64($"{input}:event");
         Span<byte> guidBytes = stackalloc byte[16];
-        bytes.AsSpan(0, 16).CopyTo(guidBytes);
+        BitConverter.TryWriteBytes(guidBytes[..8], first);
+        BitConverter.TryWriteBytes(guidBytes[8..], second);
 
         return new GameEventId(new Guid(guidBytes));
+    }
+
+    private static ulong Fnv1a64(string value)
+    {
+        const ulong offsetBasis = 14695981039346656037ul;
+        const ulong prime = 1099511628211ul;
+
+        var hash = offsetBasis;
+        unchecked
+        {
+            foreach (var character in value)
+            {
+                hash ^= character;
+                hash *= prime;
+            }
+        }
+
+        return hash;
     }
 
     private static DateTimeOffset ResolveOccurredAt(IGameEvent gameEvent, long sequence)

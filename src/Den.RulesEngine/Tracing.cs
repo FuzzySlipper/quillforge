@@ -7,12 +7,6 @@ public interface IRulesEngineObserver
 
 public sealed class NoOpRulesEngineObserver : IRulesEngineObserver
 {
-    public static NoOpRulesEngineObserver Instance { get; } = new();
-
-    private NoOpRulesEngineObserver()
-    {
-    }
-
     public void Record(EngineTraceRecord record)
     {
     }
