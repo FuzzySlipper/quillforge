@@ -18,6 +18,7 @@ import type {
 } from "../types";
 import type { InspectorSection } from "./AppInspector";
 import GameTemplateEditor from "./GameTemplateEditor";
+import { WerewolfGamePanel } from "./WerewolfGamePanel";
 import WorkspaceQuickButton from "./WorkspaceQuickButton";
 
 interface GamesWorkspaceProps {
@@ -498,9 +499,11 @@ export default function GamesWorkspace({
                 </p>
               </div>
             ) : (
-              <div className="grid gap-6 xl:grid-cols-2">
-                <section>
-                  <div className="qf-shell-folio mb-3">Public narration</div>
+              <div className="flex flex-col gap-6">
+                {activeView && <WerewolfGamePanel view={activeView} />}
+                <div className="grid gap-6 xl:grid-cols-2">
+                  <section>
+                    <div className="qf-shell-folio mb-3">Public narration</div>
                   {narration.length === 0 ? (
                     <div className="qf-shell-card border-dashed px-4 py-4 text-sm leading-6 text-text-muted">
                       Public engine facts will appear here as the rules engine commits visible events.
@@ -518,10 +521,10 @@ export default function GamesWorkspace({
                       ))}
                     </div>
                   )}
-                </section>
+                  </section>
 
-                <section>
-                  <div className="qf-shell-folio mb-3">Visible feed</div>
+                  <section>
+                    <div className="qf-shell-folio mb-3">Visible feed</div>
                   {visibleFeed.length === 0 ? (
                     <div className="qf-shell-card border-dashed px-4 py-4 text-sm leading-6 text-text-muted">
                       Channel messages, direct messages visible to the selected participant, and public game-event links appear here.
@@ -531,7 +534,8 @@ export default function GamesWorkspace({
                       {visibleFeed.map((entry) => <FeedEntry key={`${entry.kind}:${entry.sequence}:${entry.messageId ?? entry.linkId ?? entry.gameEventId}`} entry={entry} />)}
                     </div>
                   )}
-                </section>
+                  </section>
+                </div>
               </div>
             )}
           </div>

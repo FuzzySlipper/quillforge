@@ -1,0 +1,52 @@
+[
+  {
+    "eventType": "WerewolfRoleRevealedEvent",
+    "visibility": "PrivateToParticipant",
+    "text": "Your role is Werewolf."
+  },
+  {
+    "eventType": "WerewolfTeamRevealedEvent",
+    "visibility": "PrivateToSet",
+    "text": "Werewolf teammates: player-1, player-3."
+  },
+  {
+    "eventType": "WerewolfStageStartedEvent",
+    "visibility": "Public",
+    "text": "Night 1 begins. Private role information is active."
+  },
+  {
+    "eventType": "WerewolfNightActionsResolvedEvent",
+    "visibility": "Public",
+    "text": "Night 1 resolved. Dawn breaks over the table."
+  },
+  {
+    "eventType": "WerewolfStageStartedEvent",
+    "visibility": "Public",
+    "text": "Day discussion begins for round 1. Public table talk is open."
+  },
+  {
+    "eventType": "WerewolfVoteRecordedEvent",
+    "visibility": "Public",
+    "text": "player-1 voted for player-2."
+  },
+  {
+    "eventType": "WerewolfVoteResolvedEvent",
+    "visibility": "Public",
+    "text": "The vote resolved: player-2 was selected for elimination."
+  },
+  {
+    "eventType": "WerewolfPlayerEliminatedEvent",
+    "visibility": "Public",
+    "text": "player-2 was eliminated and revealed as Villager."
+  },
+  {
+    "eventType": "WerewolfWinConditionResolvedEvent",
+    "visibility": "Public",
+    "text": "Werewolves win: werewolves reached parity."
+  },
+  {
+    "eventType": "GameEndedEvent",
+    "visibility": "Public",
+    "text": "Game ended: werewolves_win."
+  }
+]

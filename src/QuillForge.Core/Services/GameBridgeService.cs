@@ -12,6 +12,7 @@ public sealed class GameBridgeService : IGameBridgeService
     private readonly IGameIntentTranslationAgent _translationAgent;
     private readonly ParticipantChannelService _channelService;
     private readonly GameVisibilityProjector _visibilityProjector;
+    private readonly IGameEventNarrationComposer _narrationComposer;
     private readonly ILogger<GameBridgeService> _logger;
 
     public GameBridgeService(
@@ -21,6 +22,7 @@ public sealed class GameBridgeService : IGameBridgeService
         IGameIntentTranslationAgent translationAgent,
         ParticipantChannelService channelService,
         GameVisibilityProjector visibilityProjector,
+        IGameEventNarrationComposer narrationComposer,
         ILogger<GameBridgeService> logger)
     {
         _templateService = templateService;
@@ -29,6 +31,7 @@ public sealed class GameBridgeService : IGameBridgeService
         _translationAgent = translationAgent;
         _channelService = channelService;
         _visibilityProjector = visibilityProjector;
+        _narrationComposer = narrationComposer;
         _logger = logger;
     }
 
@@ -304,7 +307,7 @@ public sealed class GameBridgeService : IGameBridgeService
             liveState.Stage.DisplayName,
             BuildRoster(runtime, participantId),
             new GameBridgePublicView(
-                publicProjection.Events.Select(ToNarrationEntry).ToArray(),
+                publicProjection.Events.Select(eventView => ToNarrationEntry(liveState, eventView)).ToArray(),
                 publicFeed),
             player);
     }
@@ -355,13 +358,19 @@ public sealed class GameBridgeService : IGameBridgeService
             cursor);
     }
 
-    private static GameBridgeNarrationEntry ToNarrationEntry(VisibleGameEvent gameEvent) =>
-        new(
+    private GameBridgeNarrationEntry ToNarrationEntry(RulesGameState liveState, VisibleGameEvent gameEvent)
+    {
+        var typedEvent = liveState.EventJournal.Events.FirstOrDefault(item => item.EventId == gameEvent.EventId);
+        var text = typedEvent is null
+            ? $"{gameEvent.EventType} occurred."
+            : _narrationComposer.ComposeSummary(typedEvent);
+        return new GameBridgeNarrationEntry(
             gameEvent.EventId.ToString(),
             gameEvent.Sequence,
             gameEvent.EventType,
-            $"{gameEvent.EventType} occurred.",
+            text,
             gameEvent.OccurredAt);
+    }
 
     private static IReadOnlyList<ParticipantSetup> BuildParticipants(GameTemplate template, string? userDisplayName)
     {

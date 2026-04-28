@@ -1,8 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Den.RulesEngine;
+using Den.RulesEngine.Werewolf;
 using QuillForge.Core.Models;
 using QuillForge.Web.Contracts;
+using QuillForge.Web.Services;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -368,6 +370,35 @@ public sealed class ContractSnapshotTests
             WriterState = "idle",
         };
         AssertJsonSnapshot("DebugBridgeStreamResponse", dto, DebugBridgeJsonOptions);
+    }
+
+    [Fact]
+    public void WerewolfNarrationComposer_MatchesApprovedSnapshot()
+    {
+        var gameId = new GameInstanceId("game-werewolf");
+        var participant = new ParticipantId("player-1");
+        var events = new IGameEvent[]
+        {
+            WerewolfRoleRevealedEvent.Create(gameId, participant, WerewolfRole.Werewolf),
+            WerewolfTeamRevealedEvent.Create(gameId, [new ParticipantId("player-1"), new ParticipantId("player-3")]),
+            WerewolfStageStartedEvent.Create(gameId, WerewolfConstants.NightStage.StageId, 1),
+            WerewolfNightActionsResolvedEvent.Create(gameId, 1),
+            WerewolfStageStartedEvent.Create(gameId, WerewolfConstants.DayDiscussionStage.StageId, 1),
+            WerewolfVoteRecordedEvent.Create(gameId, participant, new ParticipantId("player-2")),
+            WerewolfVoteResolvedEvent.Create(gameId, new ParticipantId("player-2"), isTie: false),
+            WerewolfPlayerEliminatedEvent.Create(gameId, new ParticipantId("player-2"), WerewolfRole.Villager),
+            WerewolfWinConditionResolvedEvent.Create(gameId, WerewolfWinner.Werewolves, "werewolves_reached_parity"),
+            GameEndedEvent.Create(gameId, "werewolves_win"),
+        };
+        var composer = new WerewolfGameEventNarrationComposer();
+        var dto = events.Select((gameEvent, index) => new
+        {
+            eventType = gameEvent.GetType().Name,
+            visibility = gameEvent.Visibility.Kind.ToString(),
+            text = composer.ComposeSummary(gameEvent.WithJournalMetadata(GameEventId.NewId(), index + 1, DateTimeOffset.Parse("2026-04-28T12:00:00+00:00")))
+        }).ToArray();
+
+        AssertJsonSnapshot("WerewolfNarrationComposer", dto, DebugBridgeJsonOptions);
     }
 
     // =======================================================================

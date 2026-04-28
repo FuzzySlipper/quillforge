@@ -443,9 +443,27 @@ public sealed class FrontendContractTests
         Assert.Contains("submitGameAction", source, StringComparison.Ordinal);
         Assert.Contains("postGamePublicMessage", source, StringComparison.Ordinal);
         Assert.Contains("<GameTemplateEditor", source, StringComparison.Ordinal);
+        Assert.Contains("<WerewolfGamePanel", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"games-no-game-state\"", source, StringComparison.Ordinal);
         Assert.Contains("No game is running in this session.", source, StringComparison.Ordinal);
         Assert.DoesNotContain("sendChatStream", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WerewolfGamePanel_UsesTypedGameViewAndKeepsLabelsIsolated()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("components", "WerewolfGamePanel.tsx"));
+
+        Assert.Contains("view.moduleId !== \"werewolf\"", source, StringComparison.Ordinal);
+        Assert.Contains("Your role is", source, StringComparison.Ordinal);
+        Assert.Contains("Werewolf teammates:", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"werewolf-panel\"", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"werewolf-role-info\"", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"werewolf-pending-prompts\"", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"werewolf-outcome\"", source, StringComparison.Ordinal);
+        Assert.Contains("display-only projections from typed engine facts", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("startGameFromTemplate", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("submitGameAction", source, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -26,7 +26,7 @@ public sealed class GameBridgeServiceTests
         Assert.Contains(view.Public.Narration, entry => entry.EventType == nameof(GameStartedEvent));
         Assert.DoesNotContain(view.Public.Narration, entry => entry.EventType == nameof(DeterministicEffectsAdvancedEvent));
         Assert.Contains(view.Public.Feed, entry => entry.Kind == ParticipantFeedEntryKind.GameEventLink
-            && entry.Summary == "GameStartedEvent occurred.");
+            && entry.Summary == "Game started with module test-bridge-game.");
         Assert.DoesNotContain(view.Public.Feed, entry => entry.Summary == "DeterministicEffectsAdvancedEvent occurred.");
         Assert.NotNull(view.Player);
         Assert.Equal("human-1", view.Player!.ParticipantId);
@@ -51,11 +51,11 @@ public sealed class GameBridgeServiceTests
             && submitted.ParticipantId.Value == "human-1"
             && submitted.ChoiceName == "approve");
         Assert.Contains(result.Value.View.Player!.Feed, entry => entry.Kind == ParticipantFeedEntryKind.GameEventLink
-            && entry.Summary == "PlayerChoiceSubmittedEvent occurred.");
-        Assert.DoesNotContain(result.Value.View.Public.Feed, entry => entry.Summary == "PlayerChoiceSubmittedEvent occurred.");
+            && entry.Summary == "human-1 submitted a choice.");
+        Assert.DoesNotContain(result.Value.View.Public.Feed, entry => entry.Summary == "human-1 submitted a choice.");
 
         var agentView = await fixture.Bridge.GetViewAsync(sessionId, "agent-1");
-        Assert.DoesNotContain(agentView.Player!.Feed, entry => entry.Summary == "PlayerChoiceSubmittedEvent occurred.");
+        Assert.DoesNotContain(agentView.Player!.Feed, entry => entry.Summary == "human-1 submitted a choice.");
     }
 
     [Fact]
@@ -180,6 +180,7 @@ public sealed class GameBridgeServiceTests
             registry,
             new RulesEngineService(registry),
             new ParticipantChannelService(),
+            new DefaultGameEventNarrationComposer(),
             NullLogger<GameRuntimeService>.Instance);
         var channel = new ParticipantChannelService();
         var bridge = new GameBridgeService(
@@ -189,6 +190,7 @@ public sealed class GameBridgeServiceTests
             translationAgent ?? new ScriptedTranslationAgent(GameIntentTranslationResult.Accepted(TestGameModule.PendingInputId, "approve", 0.9, "parsed")),
             channel,
             new GameVisibilityProjector(),
+            new DefaultGameEventNarrationComposer(),
             NullLogger<GameBridgeService>.Instance);
         return new Fixture(bridge, store);
     }

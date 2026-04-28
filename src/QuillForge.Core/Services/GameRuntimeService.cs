@@ -11,6 +11,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
     private readonly GameModuleRegistry _moduleRegistry;
     private readonly RulesEngineService _rulesEngine;
     private readonly ParticipantChannelService _communicationService;
+    private readonly IGameEventNarrationComposer _narrationComposer;
     private readonly ILogger<GameRuntimeService> _logger;
 
     public GameRuntimeService(
@@ -19,6 +20,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
         GameModuleRegistry moduleRegistry,
         RulesEngineService rulesEngine,
         ParticipantChannelService communicationService,
+        IGameEventNarrationComposer narrationComposer,
         ILogger<GameRuntimeService> logger)
     {
         _store = store;
@@ -26,6 +28,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
         _moduleRegistry = moduleRegistry;
         _rulesEngine = rulesEngine;
         _communicationService = communicationService;
+        _narrationComposer = narrationComposer;
         _logger = logger;
     }
 
@@ -768,7 +771,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
                 continue;
             }
 
-            var link = ToParticipantGameEventLinkCommand(liveState, gameEvent);
+            var link = ToParticipantGameEventLinkCommand(liveState, gameEvent, _narrationComposer);
             if (link is null)
             {
                 continue;
@@ -788,7 +791,8 @@ public sealed class GameRuntimeService : IGameRuntimeService
 
     private static LinkParticipantGameEventCommand? ToParticipantGameEventLinkCommand(
         RulesGameState liveState,
-        IGameEvent gameEvent)
+        IGameEvent gameEvent,
+        IGameEventNarrationComposer narrationComposer)
     {
         var (visibility, visibleTo) = ToCommunicationVisibility(liveState, gameEvent.Visibility);
         if (visibility is null)
@@ -802,7 +806,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
             gameEvent.Sequence,
             visibility.Value,
             visibleTo,
-            $"{gameEvent.GetType().Name} occurred.",
+            narrationComposer.ComposeSummary(gameEvent),
             gameEvent.OccurredAt);
     }
 

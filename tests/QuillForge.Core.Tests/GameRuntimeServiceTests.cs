@@ -28,7 +28,7 @@ public sealed class GameRuntimeServiceTests
         Assert.Equal(2, result.Value.Game.EventDeliveryCursors.Count);
         Assert.Equal(2, result.Value.Game.Communication.Participants.Count);
         Assert.Contains(result.Value.EngineEvents, gameEvent => gameEvent is GameStartedEvent);
-        Assert.Contains(result.Value.Game.Communication.GameEventLinks, link => link.Summary == "GameStartedEvent occurred.");
+        Assert.Contains(result.Value.Game.Communication.GameEventLinks, link => link.Summary == "Game started with module test-game.");
 
         var persisted = await store.LoadAsync(sessionId);
         Assert.NotNull(persisted.Game?.EngineSnapshot);
@@ -115,7 +115,7 @@ public sealed class GameRuntimeServiceTests
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.Equal(GameRuntimeStatus.Ended, result.Value!.Game.Status);
         Assert.Contains(result.Value.EngineEvents, gameEvent => gameEvent is GameEndedEvent);
-        Assert.Contains(result.Value.Game.Communication.GameEventLinks, link => link.Summary == "GameEndedEvent occurred.");
+        Assert.Contains(result.Value.Game.Communication.GameEventLinks, link => link.Summary == "Game ended: test_outcome.");
 
         var persisted = await store.LoadAsync(sessionId);
         Assert.Equal(RulesGameStatus.Ended, persisted.Game?.EngineSnapshot?.Status);
@@ -161,6 +161,7 @@ public sealed class GameRuntimeServiceTests
             registry,
             rulesEngine,
             new ParticipantChannelService(),
+            new DefaultGameEventNarrationComposer(),
             NullLogger<GameRuntimeService>.Instance);
     }
 

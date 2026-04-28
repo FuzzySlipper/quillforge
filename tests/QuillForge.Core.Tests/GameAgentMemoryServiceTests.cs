@@ -201,6 +201,7 @@ public sealed class GameAgentMemoryServiceTests
             registry,
             new RulesEngineService(registry),
             new ParticipantChannelService(),
+            new DefaultGameEventNarrationComposer(),
             NullLogger<GameRuntimeService>.Instance);
         var visibleEvents = new AgentVisibleEventsService(new GameVisibilityProjector(), new ParticipantChannelService());
         var memory = new GameAgentMemoryService(
