@@ -114,6 +114,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
         }
 
         var runtime = CreateRuntime(command, applyResult.State, applyResult.Events);
+        LinkEngineEventsToCommunication(runtime, applyResult.State, applyResult.Events);
         state.Game = runtime;
         await _store.SaveAsync(state, ct);
 
@@ -178,6 +179,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
         }
 
         UpdateRuntimeFromApplyResult(runtime, applyResult.State, command.OccurredAt);
+        LinkEngineEventsToCommunication(runtime, applyResult.State, applyResult.Events);
         var hostRecordKind = runtime.Status == GameRuntimeStatus.Aborted
             ? GameRuntimeHostRecordKind.Aborted
             : GameRuntimeHostRecordKind.EngineCommandApplied;
@@ -737,17 +739,90 @@ public sealed class GameRuntimeService : IGameRuntimeService
         runtime.ParticipantBindings.FirstOrDefault(binding =>
             string.Equals(binding.ParticipantId, participantId, StringComparison.Ordinal));
 
-    private static ParticipantCommunicationPermissions BuildCommunicationPermissions(GameRuntimeState runtime)
+    private ParticipantCommunicationPermissions BuildCommunicationPermissions(GameRuntimeState runtime)
     {
         var stage = runtime.EngineSnapshot?.Stage;
         var stageId = stage?.StageId.Value ?? string.Empty;
+        var module = runtime.EngineSnapshot is null
+            ? null
+            : _moduleRegistry.Find(runtime.EngineSnapshot.ModuleId, runtime.EngineSnapshot.ModuleVersion);
+        var capabilities = module?.Descriptor.CommunicationCapabilities;
         return new ParticipantCommunicationPermissions(
             stageId,
             runtime.HostAllowsPublicMessages,
-            stage?.AllowsPublicMessages ?? false,
+            (capabilities?.AllowsPublicChannelMessages ?? false) && (stage?.AllowsPublicMessages ?? false),
             runtime.HostAllowsDirectMessages,
-            stage?.AllowsDirectMessages ?? false,
+            (capabilities?.AllowsDirectMessages ?? false) && (stage?.AllowsDirectMessages ?? false),
             []);
+    }
+
+    private void LinkEngineEventsToCommunication(
+        GameRuntimeState runtime,
+        RulesGameState liveState,
+        IReadOnlyList<IGameEvent> events)
+    {
+        foreach (var gameEvent in events.OrderBy(item => item.Sequence))
+        {
+            if (runtime.Communication.GameEventLinks.Any(link => string.Equals(link.GameEventId, gameEvent.EventId.ToString(), StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            var link = ToParticipantGameEventLinkCommand(liveState, gameEvent);
+            if (link is null)
+            {
+                continue;
+            }
+
+            var result = _communicationService.LinkGameEvent(runtime.Communication, link);
+            if (!result.IsAccepted)
+            {
+                _logger.LogWarning(
+                    "Game event communication link rejected: game={GameInstanceId} event={EventId} reason={ReasonCode}",
+                    runtime.GameInstanceId,
+                    gameEvent.EventId.ToString(),
+                    result.Issues[0].Code);
+            }
+        }
+    }
+
+    private static LinkParticipantGameEventCommand? ToParticipantGameEventLinkCommand(
+        RulesGameState liveState,
+        IGameEvent gameEvent)
+    {
+        var (visibility, visibleTo) = ToCommunicationVisibility(liveState, gameEvent.Visibility);
+        if (visibility is null)
+        {
+            return null;
+        }
+
+        return new LinkParticipantGameEventCommand(
+            Guid.CreateVersion7(),
+            gameEvent.EventId.ToString(),
+            gameEvent.Sequence,
+            visibility.Value,
+            visibleTo,
+            $"{gameEvent.GetType().Name} occurred.",
+            gameEvent.OccurredAt);
+    }
+
+    private static (ParticipantGameEventLinkVisibility? Visibility, IReadOnlyList<GameParticipantId> VisibleTo) ToCommunicationVisibility(
+        RulesGameState liveState,
+        GameEventVisibility visibility)
+    {
+        return visibility.Kind switch
+        {
+            GameEventVisibilityKind.Public => (ParticipantGameEventLinkVisibility.Public, []),
+            GameEventVisibilityKind.PrivateToParticipant when visibility.ParticipantId is { } participantId =>
+                (ParticipantGameEventLinkVisibility.PrivateToParticipantSet, [new GameParticipantId(participantId.Value)]),
+            GameEventVisibilityKind.PrivateToSet when visibility.ParticipantSetId is { } participantSetId =>
+                (ParticipantGameEventLinkVisibility.PrivateToParticipantSet,
+                    liveState.Participants
+                        .Where(participant => participant.ParticipantSetIds.Contains(participantSetId))
+                        .Select(participant => new GameParticipantId(participant.ParticipantId.Value))
+                        .ToArray()),
+            _ => (null, []),
+        };
     }
 
     private static string? ValidateParticipantBindings(StartGameRuntimeCommand command)

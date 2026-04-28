@@ -139,6 +139,7 @@ public sealed class GameAgentTurnServiceTests
         Assert.Contains("Use only visible facts", prompt, StringComparison.Ordinal);
         Assert.Contains("Remember to be cautious", prompt, StringComparison.Ordinal);
         Assert.Contains("Table talk visible to agents", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("GameStartedEvent occurred.", prompt, StringComparison.Ordinal);
         Assert.Contains("pending-agent-a", prompt, StringComparison.Ordinal);
         Assert.Contains("approve", prompt, StringComparison.Ordinal);
         Assert.Contains("must not invent or change rules", prompt, StringComparison.OrdinalIgnoreCase);

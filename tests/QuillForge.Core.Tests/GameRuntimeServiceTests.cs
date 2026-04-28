@@ -28,6 +28,7 @@ public sealed class GameRuntimeServiceTests
         Assert.Equal(2, result.Value.Game.EventDeliveryCursors.Count);
         Assert.Equal(2, result.Value.Game.Communication.Participants.Count);
         Assert.Contains(result.Value.EngineEvents, gameEvent => gameEvent is GameStartedEvent);
+        Assert.Contains(result.Value.Game.Communication.GameEventLinks, link => link.Summary == "GameStartedEvent occurred.");
 
         var persisted = await store.LoadAsync(sessionId);
         Assert.NotNull(persisted.Game?.EngineSnapshot);
@@ -114,17 +115,44 @@ public sealed class GameRuntimeServiceTests
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.Equal(GameRuntimeStatus.Ended, result.Value!.Game.Status);
         Assert.Contains(result.Value.EngineEvents, gameEvent => gameEvent is GameEndedEvent);
+        Assert.Contains(result.Value.Game.Communication.GameEventLinks, link => link.Summary == "GameEndedEvent occurred.");
 
         var persisted = await store.LoadAsync(sessionId);
         Assert.Equal(RulesGameStatus.Ended, persisted.Game?.EngineSnapshot?.Status);
     }
 
+    [Fact]
+    public async Task SendDirectMessageAsync_RejectsWhenModuleCapabilitiesForbidDirectMessages()
+    {
+        var sessionId = Guid.NewGuid();
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store, moduleAllowsDirectMessages: false);
+        await service.StartAsync(sessionId, CreateStartCommand(hostAllowsDirectMessages: true));
+
+        var result = await service.SendDirectMessageAsync(
+            sessionId,
+            new SendGameRuntimeDirectMessageCommand(
+                Guid.NewGuid(),
+                "human-1",
+                ParticipantMessageAuthorKind.Human,
+                ["agent-1"],
+                "secret",
+                DateTimeOffset.Parse("2026-04-27T12:20:00+00:00")));
+
+        Assert.Equal(SessionMutationStatus.Invalid, result.Status);
+        Assert.Contains("dm_forbidden", result.Error, StringComparison.Ordinal);
+
+        var persisted = await store.LoadAsync(sessionId);
+        Assert.Empty(persisted.Game!.Communication.DirectMessages);
+    }
+
     private static GameRuntimeService CreateService(
         InMemorySessionRuntimeStore store,
-        ISessionMutationGate? gate = null)
+        ISessionMutationGate? gate = null,
+        bool moduleAllowsDirectMessages = true)
     {
         var registry = new GameModuleRegistry();
-        var register = registry.Register(new TestModule());
+        var register = registry.Register(new TestModule(moduleAllowsDirectMessages));
         Assert.True(register.IsValid);
         var rulesEngine = new RulesEngineService(registry);
         return new GameRuntimeService(
@@ -136,7 +164,7 @@ public sealed class GameRuntimeServiceTests
             NullLogger<GameRuntimeService>.Instance);
     }
 
-    private static StartGameRuntimeCommand CreateStartCommand() => new(
+    private static StartGameRuntimeCommand CreateStartCommand(bool hostAllowsDirectMessages = true) => new(
         "test-template",
         new GameInstanceId("game-001"),
         new GameModuleId("test-game"),
@@ -166,11 +194,19 @@ public sealed class GameRuntimeServiceTests
             },
         ],
         512,
-        DateTimeOffset.Parse("2026-04-27T11:00:00+00:00"));
+        DateTimeOffset.Parse("2026-04-27T11:00:00+00:00"),
+        HostAllowsDirectMessages: hostAllowsDirectMessages);
 
     private sealed class TestModule : IGameModule
     {
-        public GameModuleDescriptor Descriptor { get; } = new(
+        public TestModule(bool allowsDirectMessages)
+        {
+            Descriptor = CreateDescriptor(allowsDirectMessages);
+        }
+
+        public GameModuleDescriptor Descriptor { get; }
+
+        private static GameModuleDescriptor CreateDescriptor(bool allowsDirectMessages) => new(
             new GameModuleId("test-game"),
             new GameModuleVersion("1.0.0"),
             new GameTemplateVersion("1.0.0"),
@@ -179,6 +215,7 @@ public sealed class GameRuntimeServiceTests
             new PlayerCountRange(2, 6),
             [])
         {
+            CommunicationCapabilities = new GameCommunicationCapabilities(true, allowsDirectMessages),
             ParticipantRequirements = new GameParticipantRequirements(true, true, false, 1, 1),
         };
 
@@ -193,7 +230,10 @@ public sealed class GameRuntimeServiceTests
                     participant.Kind,
                     []))
                 .ToArray();
-            return RulesGameState.CreateNotStarted(context.GameInstanceId, context.Descriptor, context.Seed, participants);
+            return RulesGameState.CreateNotStarted(context.GameInstanceId, context.Descriptor, context.Seed, participants) with
+            {
+                Stage = new GameStageState(new GameStageId("discussion"), "Discussion", 1, true, true),
+            };
         }
 
         public IReadOnlyList<LegalIntentDescriptor> GetLegalIntentDescriptors(RulesGameState state, ParticipantId participantId) => [];

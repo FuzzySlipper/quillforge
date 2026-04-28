@@ -62,6 +62,7 @@ public sealed class AgentVisibleEventsService
             .ToArray();
         var feed = _channelService.ProjectParticipantFeed(runtime.Communication, new GameParticipantId(participantId));
         var visibleFeed = feed.Entries
+            .Where(item => item.Kind is ParticipantFeedEntryKind.PublicChannelMessage or ParticipantFeedEntryKind.DirectMessage)
             .Where(item => item.Sequence > prior.CommunicationSequence)
             .OrderBy(item => item.Sequence)
             .ToArray();
@@ -76,9 +77,9 @@ public sealed class AgentVisibleEventsService
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        var communicationCursor = feed.Entries.Count == 0
+        var communicationCursor = visibleFeed.Length == 0
             ? prior.CommunicationSequence
-            : Math.Max(prior.CommunicationSequence, feed.Entries.Max(item => item.Sequence));
+            : Math.Max(prior.CommunicationSequence, visibleFeed.Max(item => item.Sequence));
         var next = new AgentVisibleEventsCursor(
             publicCursor,
             privateIds,

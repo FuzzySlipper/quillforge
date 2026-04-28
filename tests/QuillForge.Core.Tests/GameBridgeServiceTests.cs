@@ -25,6 +25,9 @@ public sealed class GameBridgeServiceTests
         Assert.NotNull(view.GameInstanceId);
         Assert.Contains(view.Public.Narration, entry => entry.EventType == nameof(GameStartedEvent));
         Assert.DoesNotContain(view.Public.Narration, entry => entry.EventType == nameof(DeterministicEffectsAdvancedEvent));
+        Assert.Contains(view.Public.Feed, entry => entry.Kind == ParticipantFeedEntryKind.GameEventLink
+            && entry.Summary == "GameStartedEvent occurred.");
+        Assert.DoesNotContain(view.Public.Feed, entry => entry.Summary == "DeterministicEffectsAdvancedEvent occurred.");
         Assert.NotNull(view.Player);
         Assert.Equal("human-1", view.Player!.ParticipantId);
         Assert.Contains(view.Player.PendingInputs, input => input.PendingInputId.Value == TestGameModule.PendingInputId);
@@ -47,6 +50,12 @@ public sealed class GameBridgeServiceTests
         Assert.Contains(result.Value!.EngineEvents, gameEvent => gameEvent is PlayerChoiceSubmittedEvent submitted
             && submitted.ParticipantId.Value == "human-1"
             && submitted.ChoiceName == "approve");
+        Assert.Contains(result.Value.View.Player!.Feed, entry => entry.Kind == ParticipantFeedEntryKind.GameEventLink
+            && entry.Summary == "PlayerChoiceSubmittedEvent occurred.");
+        Assert.DoesNotContain(result.Value.View.Public.Feed, entry => entry.Summary == "PlayerChoiceSubmittedEvent occurred.");
+
+        var agentView = await fixture.Bridge.GetViewAsync(sessionId, "agent-1");
+        Assert.DoesNotContain(agentView.Player!.Feed, entry => entry.Summary == "PlayerChoiceSubmittedEvent occurred.");
     }
 
     [Fact]
