@@ -57,6 +57,11 @@ public sealed record GameViewResponse
     public required GameBridgeView View { get; init; }
 }
 
+public sealed record GameInspectorResponse
+{
+    public required GameInspectorProjection Inspector { get; init; }
+}
+
 public sealed record GameMutationResponse
 {
     public required GameBridgeView View { get; init; }

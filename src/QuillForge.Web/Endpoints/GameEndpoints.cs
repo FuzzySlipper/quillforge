@@ -21,6 +21,19 @@ public static class GameEndpoints
             return Results.Ok(new GameViewResponse { View = view });
         });
 
+        group.MapGet("/inspector", async (
+            Guid sessionId,
+            int? promptEnvelopeLimit,
+            IGameInspectorService inspector,
+            CancellationToken ct) =>
+        {
+            var projection = await inspector.GetProjectionAsync(
+                sessionId,
+                promptEnvelopeLimit ?? 10,
+                ct);
+            return Results.Ok(new GameInspectorResponse { Inspector = projection });
+        });
+
         group.MapPost("/start", async (
             Guid sessionId,
             StartGameRequest request,

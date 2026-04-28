@@ -1,0 +1,144 @@
+{
+  "inspector": {
+    "sessionId": "01234567-89ab-cdef-0123-456789abcdef",
+    "hasGame": true,
+    "gameInstanceId": "game-001",
+    "templateId": "village",
+    "moduleId": "werewolf",
+    "moduleVersion": "0.1.0",
+    "seed": 42,
+    "runtimeStatus": "WaitingForInput",
+    "engine": {
+      "status": "WaitingForInput",
+      "roundNumber": 2,
+      "stageId": "day-vote",
+      "stageName": "Day vote",
+      "stageAllowsPublicMessages": true,
+      "stageAllowsDirectMessages": false,
+      "eventJournalNextSequence": 5,
+      "eventJournal": [
+        {
+          "eventId": "11111111-1111-1111-1111-111111111111",
+          "sequence": 1,
+          "eventType": "GameStartedEvent",
+          "occurredAt": "2026-04-28T10:00:00+00:00",
+          "visibility": "Public",
+          "participantId": null,
+          "pendingInputId": null,
+          "reasonCode": null,
+          "outcomeName": null
+        },
+        {
+          "eventId": "22222222-2222-2222-2222-222222222222",
+          "sequence": 2,
+          "eventType": "PlayerChoiceSubmittedEvent",
+          "occurredAt": "2026-04-28T10:01:00+00:00",
+          "visibility": "PrivateToParticipant",
+          "participantId": "agent-1",
+          "pendingInputId": "pending-agent-1",
+          "reasonCode": null,
+          "outcomeName": null
+        }
+      ],
+      "pendingInputs": [
+        {
+          "pendingInputId": "pending-human-1",
+          "participantId": "human-1",
+          "stageId": "day-vote",
+          "intentName": "vote",
+          "status": "Waiting",
+          "legalChoiceNames": [
+            "agent-1",
+            "abstain"
+          ]
+        }
+      ]
+    },
+    "participants": [
+      {
+        "participantId": "human-1",
+        "displayName": "Human",
+        "kind": "Human",
+        "isActive": true,
+        "providerAlias": null,
+        "model": null
+      },
+      {
+        "participantId": "agent-1",
+        "displayName": "Mira",
+        "kind": "Agent",
+        "isActive": true,
+        "providerAlias": "local",
+        "model": "llama3.2"
+      }
+    ],
+    "promptCursors": [
+      {
+        "participantId": "agent-1",
+        "lastDeliveredPublicEngineEventSequence": 4,
+        "deliveredPrivateEventIds": [
+          "22222222-2222-2222-2222-222222222222"
+        ],
+        "communicationDeliveredThroughSequence": 3,
+        "memoryRevision": 1,
+        "lastPromptEnvelopeId": "env-1"
+      }
+    ],
+    "eventDeliveryCursors": [
+      {
+        "participantId": "agent-1",
+        "deliveredThroughEngineEventSequence": 4,
+        "deliveredThroughCommunicationSequence": 3,
+        "memoryRevision": 1,
+        "lastPromptEnvelopeId": "env-1"
+      }
+    ],
+    "agentMemories": [
+      {
+        "participantId": "agent-1",
+        "revision": 1,
+        "tokenBudget": 512,
+        "summary": "Mira remembers the public vote pressure.",
+        "contentHash": "memory-hash",
+        "lastSummarizedRoundNumber": 1,
+        "lastSummarizedPublicEngineEventSequence": 4,
+        "lastSummarizedPrivateEventIds": [
+          "22222222-2222-2222-2222-222222222222"
+        ],
+        "lastSummarizedCommunicationSequence": 3,
+        "updatedAt": "2026-04-28T10:05:00+00:00"
+      }
+    ],
+    "promptEnvelopes": [
+      {
+        "envelopeId": "env-1",
+        "participantId": "agent-1",
+        "createdAt": "2026-04-28T10:04:00+00:00",
+        "engineCursorSequence": 4,
+        "communicationCursorSequence": 3,
+        "memoryRevision": 1,
+        "providerAlias": "local",
+        "model": "llama3.2",
+        "promptTokens": 120,
+        "responseTokens": 18,
+        "promptContentHash": "prompt-hash",
+        "responseContentHash": "response-hash",
+        "promptPreview": "Visible engine facts: public vote pressure.",
+        "responsePreview": "{\u0022accepted\u0022:true}"
+      }
+    ],
+    "tokenUsage": {
+      "totalInputTokens": 120,
+      "totalOutputTokens": 18,
+      "totalRequests": 1,
+      "byAgent": [
+        {
+          "agentName": "game-agent:agent-1",
+          "inputTokens": 120,
+          "outputTokens": 18,
+          "requestCount": 1
+        }
+      ]
+    }
+  }
+}

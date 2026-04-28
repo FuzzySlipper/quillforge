@@ -795,6 +795,164 @@ public sealed class ContractSnapshotTests
         AssertJsonSnapshot("GameViewResponse", dto, DebugBridgeJsonOptions);
     }
 
+    [Fact]
+    public void GameInspectorResponse_MatchesApprovedSnapshot()
+    {
+        var dto = new GameInspectorResponse
+        {
+            Inspector = new GameInspectorProjection
+            {
+                SessionId = Guid.Parse("01234567-89ab-cdef-0123-456789abcdef"),
+                HasGame = true,
+                GameInstanceId = "game-001",
+                TemplateId = "village",
+                ModuleId = "werewolf",
+                ModuleVersion = "0.1.0",
+                Seed = 42,
+                RuntimeStatus = GameRuntimeStatus.WaitingForInput.ToString(),
+                Engine = new GameInspectorEngineProjection
+                {
+                    Status = RulesGameStatus.WaitingForInput.ToString(),
+                    RoundNumber = 2,
+                    StageId = "day-vote",
+                    StageName = "Day vote",
+                    StageAllowsPublicMessages = true,
+                    StageAllowsDirectMessages = false,
+                    EventJournalNextSequence = 5,
+                    EventJournal =
+                    [
+                        new GameInspectorEventProjection
+                        {
+                            EventId = "11111111-1111-1111-1111-111111111111",
+                            Sequence = 1,
+                            EventType = nameof(GameStartedEvent),
+                            OccurredAt = DateTimeOffset.Parse("2026-04-28T10:00:00+00:00"),
+                            Visibility = GameEventVisibilityKind.Public.ToString(),
+                        },
+                        new GameInspectorEventProjection
+                        {
+                            EventId = "22222222-2222-2222-2222-222222222222",
+                            Sequence = 2,
+                            EventType = nameof(PlayerChoiceSubmittedEvent),
+                            OccurredAt = DateTimeOffset.Parse("2026-04-28T10:01:00+00:00"),
+                            Visibility = GameEventVisibilityKind.PrivateToParticipant.ToString(),
+                            ParticipantId = "agent-1",
+                            PendingInputId = "pending-agent-1",
+                        },
+                    ],
+                    PendingInputs =
+                    [
+                        new GameInspectorPendingInputProjection
+                        {
+                            PendingInputId = "pending-human-1",
+                            ParticipantId = "human-1",
+                            StageId = "day-vote",
+                            IntentName = "vote",
+                            Status = PendingInputStatus.Waiting.ToString(),
+                            LegalChoiceNames = ["agent-1", "abstain"],
+                        },
+                    ],
+                },
+                Participants =
+                [
+                    new GameInspectorParticipantProjection
+                    {
+                        ParticipantId = "human-1",
+                        DisplayName = "Human",
+                        Kind = GameRuntimeParticipantKind.Human.ToString(),
+                        IsActive = true,
+                    },
+                    new GameInspectorParticipantProjection
+                    {
+                        ParticipantId = "agent-1",
+                        DisplayName = "Mira",
+                        Kind = GameRuntimeParticipantKind.Agent.ToString(),
+                        IsActive = true,
+                        ProviderAlias = "local",
+                        Model = "llama3.2",
+                    },
+                ],
+                PromptCursors =
+                [
+                    new GameInspectorPromptCursorProjection
+                    {
+                        ParticipantId = "agent-1",
+                        LastDeliveredPublicEngineEventSequence = 4,
+                        DeliveredPrivateEventIds = ["22222222-2222-2222-2222-222222222222"],
+                        CommunicationDeliveredThroughSequence = 3,
+                        MemoryRevision = 1,
+                        LastPromptEnvelopeId = "env-1",
+                    },
+                ],
+                EventDeliveryCursors =
+                [
+                    new GameInspectorEventDeliveryCursorProjection
+                    {
+                        ParticipantId = "agent-1",
+                        DeliveredThroughEngineEventSequence = 4,
+                        DeliveredThroughCommunicationSequence = 3,
+                        MemoryRevision = 1,
+                        LastPromptEnvelopeId = "env-1",
+                    },
+                ],
+                AgentMemories =
+                [
+                    new GameInspectorMemoryProjection
+                    {
+                        ParticipantId = "agent-1",
+                        Revision = 1,
+                        TokenBudget = 512,
+                        Summary = "Mira remembers the public vote pressure.",
+                        ContentHash = "memory-hash",
+                        LastSummarizedRoundNumber = 1,
+                        LastSummarizedPublicEngineEventSequence = 4,
+                        LastSummarizedPrivateEventIds = ["22222222-2222-2222-2222-222222222222"],
+                        LastSummarizedCommunicationSequence = 3,
+                        UpdatedAt = DateTimeOffset.Parse("2026-04-28T10:05:00+00:00"),
+                    },
+                ],
+                PromptEnvelopes =
+                [
+                    new GameInspectorPromptEnvelopeProjection
+                    {
+                        EnvelopeId = "env-1",
+                        ParticipantId = "agent-1",
+                        CreatedAt = DateTimeOffset.Parse("2026-04-28T10:04:00+00:00"),
+                        EngineCursorSequence = 4,
+                        CommunicationCursorSequence = 3,
+                        MemoryRevision = 1,
+                        ProviderAlias = "local",
+                        Model = "llama3.2",
+                        PromptTokens = 120,
+                        ResponseTokens = 18,
+                        PromptContentHash = "prompt-hash",
+                        ResponseContentHash = "response-hash",
+                        PromptPreview = "Visible engine facts: public vote pressure.",
+                        ResponsePreview = "{\"accepted\":true}",
+                    },
+                ],
+                TokenUsage = new SessionUsageSummary
+                {
+                    TotalInputTokens = 120,
+                    TotalOutputTokens = 18,
+                    TotalRequests = 1,
+                    ByAgent =
+                    [
+                        new AgentUsageEntry
+                        {
+                            AgentName = "game-agent:agent-1",
+                            InputTokens = 120,
+                            OutputTokens = 18,
+                            RequestCount = 1,
+                        },
+                    ],
+                },
+            },
+        };
+
+        AssertJsonSnapshot("GameInspectorResponse", dto, DebugBridgeJsonOptions);
+    }
+
     // =======================================================================
     // Game Template API Shape
     // =======================================================================
