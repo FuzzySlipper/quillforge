@@ -82,6 +82,8 @@ dotnet test tests/QuillForge.ProviderHarness.Tests/QuillForge.ProviderHarness.Te
 
 These runs are prompt-level deterministic with fake completion sources. Future live-provider exploratory game runs should be interpreted from their trace artifacts rather than asserted as golden semantic outcomes.
 
+For manual/live social-games validation, pair this harness command with the Games-mode smoke path and troubleshooting guide in `docs/social-games-setup-testing-extension.md`.
+
 ## Expected Deliverable
 
 Return:

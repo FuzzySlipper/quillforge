@@ -9,13 +9,14 @@ QuillForge is under active development. Releases are built from Git tags and are
 ## Features
 
 - Conversational orchestrator with specialized agents behind the scenes
-- Seven working modes: Guide, Writer, Roleplay, Lore Builder, Forge, Council, and Research
+- Eight working modes: Guide, Writer, Roleplay, Lore Builder, Forge, Council, Research, and Games
 - Branching conversation history with retry, fork, delete, and variants
 - Lore-backed responses and writing assistance
 - Autonomous Forge pipeline for long-form story generation
 - Multi-provider support: Anthropic, OpenAI, Ollama, OpenRouter, Azure OpenAI, and OpenAI-compatible endpoints
 - Optional reasoning display when a provider/model exposes reasoning content
 - Artifact generation, research workflows, image generation, and TTS support
+- Modular social-games framework with a typed Werewolf table, saved templates, agent seats, hidden-information projections, and harness traces
 
 ## Modes
 
@@ -28,6 +29,7 @@ QuillForge is under active development. Releases are built from Git tags and are
 | Forge | Command-and-pipeline control for autonomous story production |
 | Council | Multi-advisor synthesis for brainstorming and critique |
 | Research | Parallel research workflows and research project output |
+| Games | Typed social-games table for Werewolf and future explicit game modules |
 
 ## Getting Started
 
@@ -77,7 +79,7 @@ Manual updates keep your writing workspace in place:
 
 If you are running the legacy browser/server host from source or an older portable build, open the URL shown in the terminal. In source-development runs this is usually `http://localhost:5204`.
 
-QuillForge can check GitHub releases and show update availability in the app, but it does not auto-install updates for you. For a maintainer-facing pre-release checklist, see `docs/desktop-release-validation.md`.
+QuillForge can check GitHub releases and show update availability in the app, but it does not auto-install updates for you. For a maintainer-facing pre-release checklist, see `docs/desktop-release-validation.md`. For social-games setup, testing, and extension workflows, see `docs/social-games-setup-testing-extension.md`.
 
 ### From Source
 
@@ -195,6 +197,7 @@ QuillForge keeps user-owned content in the content root. In source/dev and curre
 ├── generated-audio/
 ├── artifacts/
 ├── research/
+├── game-templates/
 └── data/
     ├── providers.json
     ├── sessions/
@@ -242,6 +245,8 @@ That flow builds the shell UI, publishes `QuillForge.Web` as a self-contained si
 ```text
 src/
   Den.Persistence/       Product-neutral persisted document infrastructure
+  Den.RulesEngine/       Portable deterministic social-games rules engine
+  Den.RulesEngine.Werewolf/ First explicit Werewolf game module
   QuillForge.Core/       Domain models, tool loop, modes, agents, pipeline
   QuillForge.Providers/  LLM adapters and provider-specific integrations
   QuillForge.Storage/    File-backed stores, config/session persistence, content I/O
@@ -249,6 +254,8 @@ src/
   QuillForge.Desktop/    Tauri desktop shell, local shell UI, backend sidecar packaging
 
 tests/
+  Den.RulesEngine.Tests/
+  Den.RulesEngine.Werewolf.Tests/
   QuillForge.Core.Tests/
   QuillForge.Providers.Tests/
   QuillForge.Storage.Tests/
@@ -471,7 +478,7 @@ If something is specifically about request handling, startup wiring, or browser 
 
 ### Modes Are Prompt and Workflow Choices, Not Separate Apps
 
-QuillForge has multiple modes, but they are not six unrelated systems glued together.
+QuillForge has multiple modes, but they are not unrelated systems glued together.
 
 They are six behavior layers on top of shared runtime and tool infrastructure.
 
