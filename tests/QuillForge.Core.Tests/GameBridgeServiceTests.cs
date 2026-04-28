@@ -144,6 +144,16 @@ public sealed class GameBridgeServiceTests
         Assert.DoesNotContain(publicView.Public.Feed, entry => entry.Text == "secret");
         Assert.Contains(agentView.Player!.Feed, entry => entry.Text == "secret");
         Assert.Contains(otherView.Player!.Feed, entry => entry.Text == "secret");
+
+        var mixedFeed = agentView.Player.Feed
+            .Where(entry => entry.Kind is ParticipantFeedEntryKind.GameEventLink
+                or ParticipantFeedEntryKind.PublicChannelMessage
+                or ParticipantFeedEntryKind.DirectMessage)
+            .ToArray();
+        Assert.Equal(mixedFeed.Select(entry => entry.Sequence).Order().ToArray(), mixedFeed.Select(entry => entry.Sequence).ToArray());
+        Assert.Contains(mixedFeed, entry => entry.Kind == ParticipantFeedEntryKind.GameEventLink);
+        Assert.Contains(mixedFeed, entry => entry.Kind == ParticipantFeedEntryKind.PublicChannelMessage);
+        Assert.Contains(mixedFeed, entry => entry.Kind == ParticipantFeedEntryKind.DirectMessage);
     }
 
     [Fact]
