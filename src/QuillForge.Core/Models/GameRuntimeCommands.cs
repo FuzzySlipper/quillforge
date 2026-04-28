@@ -49,6 +49,7 @@ public sealed record RecordGameRuntimeAgentPromptCommand(
     string ParticipantId,
     DateTimeOffset CreatedAt,
     long EngineCursorSequence,
+    IReadOnlyList<string> DeliveredPrivateEventIds,
     long CommunicationCursorSequence,
     int MemoryRevision,
     string? ProviderAlias,
@@ -56,4 +57,24 @@ public sealed record RecordGameRuntimeAgentPromptCommand(
     int? PromptTokens,
     int? ResponseTokens,
     string PromptContentHash,
-    string ResponseContentHash);
+    string ResponseContentHash,
+    string? PromptText = null,
+    string? ResponseText = null,
+    int MaxPromptEnvelopesPerAgent = 10);
+
+public sealed record RecordGameRuntimeAgentMemorySummaryCommand(
+    string EnvelopeId,
+    string ParticipantId,
+    DateTimeOffset CreatedAt,
+    string? Summary,
+    string? SummaryContentHash,
+    MemorySummaryDecision Decision,
+    string? ProviderAlias,
+    string? Model,
+    int? PromptTokens,
+    int? ResponseTokens,
+    string PromptContentHash,
+    string ResponseContentHash,
+    string PromptText,
+    string ResponseText,
+    int MaxPromptEnvelopesPerAgent = 10);

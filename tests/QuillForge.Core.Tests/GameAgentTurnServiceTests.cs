@@ -162,8 +162,7 @@ public sealed class GameAgentTurnServiceTests
             runtime,
             registry,
             completionService,
-            new GameVisibilityProjector(),
-            new ParticipantChannelService(),
+            new AgentVisibleEventsService(new GameVisibilityProjector(), new ParticipantChannelService()),
             new AppConfig(),
             NullLogger<GameAgentTurnService>.Instance);
         return new Fixture(runtime, agentTurns, store);

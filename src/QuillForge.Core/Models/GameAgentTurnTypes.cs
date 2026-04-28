@@ -41,9 +41,8 @@ public sealed record GameAgentPromptContext(
     string StageName,
     string ModuleDisplayName,
     IReadOnlyList<GamePromptAsset> PromptAssets,
-    IReadOnlyList<VisibleGameEvent> VisibleEngineEvents,
+    AgentVisibleEventsSnapshot VisibleEvents,
     IReadOnlyList<PendingInputState> PendingInputs,
-    IReadOnlyList<ParticipantFeedEntry> VisibleFeed,
     GameRuntimeAgentMemoryState? Memory,
     GameRuntimeAgentPromptDeliveryCursor? PromptCursor,
     GameRuntimeParticipantBinding Binding);
@@ -52,6 +51,7 @@ public sealed record GameAgentPromptAssembly(
     string SystemPrompt,
     string UserPrompt,
     long EngineCursorSequence,
+    IReadOnlyList<string> DeliveredPrivateEventIds,
     long CommunicationCursorSequence,
     int MemoryRevision,
     string PromptContentHash);

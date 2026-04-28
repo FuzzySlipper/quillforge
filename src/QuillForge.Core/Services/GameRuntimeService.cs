@@ -352,6 +352,11 @@ public sealed class GameRuntimeService : IGameRuntimeService
         cursor.LastDeliveredPublicEngineEventSequence = Math.Max(
             cursor.LastDeliveredPublicEngineEventSequence,
             command.EngineCursorSequence);
+        cursor.DeliveredPrivateEventIds = cursor.DeliveredPrivateEventIds
+            .Concat(command.DeliveredPrivateEventIds)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
         cursor.CommunicationDeliveredThroughSequence = Math.Max(
             cursor.CommunicationDeliveredThroughSequence,
             command.CommunicationCursorSequence);
@@ -386,7 +391,10 @@ public sealed class GameRuntimeService : IGameRuntimeService
             ResponseTokens = command.ResponseTokens,
             PromptContentHash = command.PromptContentHash,
             ResponseContentHash = command.ResponseContentHash,
+            PromptText = NormalizeChoice(command.PromptText),
+            ResponseText = NormalizeChoice(command.ResponseText),
         });
+        TrimPromptEnvelopes(runtime, command.ParticipantId, command.MaxPromptEnvelopesPerAgent);
         runtime.LastUpdatedAt = command.CreatedAt;
         GameRuntimeStateCloner.AppendHostRecord(
             runtime,
@@ -407,6 +415,132 @@ public sealed class GameRuntimeService : IGameRuntimeService
             command.CreatedAt);
         return SessionMutationResult<GameRuntimePromptMutationResult>.Success(
             new GameRuntimePromptMutationResult(GameRuntimeStateCloner.Clone(runtime)!, [runtimeEvent]));
+    }
+
+    public async Task<SessionMutationResult<GameRuntimeMemorySummaryMutationResult>> RecordAgentMemorySummaryAsync(
+        Guid sessionId,
+        RecordGameRuntimeAgentMemorySummaryCommand command,
+        CancellationToken ct = default)
+    {
+        const string operationName = "record_game_agent_memory_summary";
+        await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
+        if (lease is null)
+        {
+            return SessionMutationResult<GameRuntimeMemorySummaryMutationResult>.Busy(
+                "Another mutating operation is already running for this session.");
+        }
+
+        var state = await _store.LoadAsync(sessionId, ct);
+        var runtime = state.Game;
+        if (runtime?.EngineSnapshot is null || string.IsNullOrWhiteSpace(runtime.GameInstanceId))
+        {
+            return SessionMutationResult<GameRuntimeMemorySummaryMutationResult>.Invalid(
+                "No game runtime is available for this session.");
+        }
+
+        var participant = FindParticipantBinding(runtime, command.ParticipantId);
+        if (participant is null || participant.Kind != GameRuntimeParticipantKind.Agent)
+        {
+            return SessionMutationResult<GameRuntimeMemorySummaryMutationResult>.Invalid(
+                $"Participant '{command.ParticipantId}' is not an agent participant in this game.");
+        }
+
+        var memory = runtime.AgentMemories.FirstOrDefault(item =>
+            string.Equals(item.ParticipantId, command.ParticipantId, StringComparison.Ordinal));
+        if (memory is null)
+        {
+            memory = new GameRuntimeAgentMemoryState { ParticipantId = command.ParticipantId };
+            runtime.AgentMemories.Add(memory);
+        }
+
+        var recordedSummary = command.Decision.RejectionReason is null && !string.IsNullOrWhiteSpace(command.Summary);
+        if (recordedSummary)
+        {
+            memory.Revision++;
+            memory.Summary = command.Summary;
+            memory.ContentHash = command.SummaryContentHash;
+            memory.LastSummarizedRoundNumber = Math.Max(memory.LastSummarizedRoundNumber, command.Decision.RoundNumber);
+            memory.LastSummarizedPublicEngineEventSequence = command.Decision.NewCursor.PublicEngineEventSequence;
+            memory.LastSummarizedPrivateEventIds = command.Decision.NewCursor.PrivateEngineEventIds.ToList();
+            memory.LastSummarizedCommunicationSequence = command.Decision.NewCursor.CommunicationSequence;
+            memory.UpdatedAt = command.CreatedAt;
+        }
+
+        var promptCursor = runtime.PromptCursors.FirstOrDefault(item =>
+            string.Equals(item.ParticipantId, command.ParticipantId, StringComparison.Ordinal));
+        if (promptCursor is null)
+        {
+            promptCursor = new GameRuntimeAgentPromptDeliveryCursor { ParticipantId = command.ParticipantId };
+            runtime.PromptCursors.Add(promptCursor);
+        }
+
+        promptCursor.LastDeliveredPublicEngineEventSequence = command.Decision.NewCursor.PublicEngineEventSequence;
+        promptCursor.DeliveredPrivateEventIds = command.Decision.NewCursor.PrivateEngineEventIds.ToList();
+        promptCursor.CommunicationDeliveredThroughSequence = command.Decision.NewCursor.CommunicationSequence;
+        promptCursor.MemoryRevision = memory.Revision;
+        promptCursor.LastPromptEnvelopeId = command.EnvelopeId;
+
+        var eventCursor = runtime.EventDeliveryCursors.FirstOrDefault(item =>
+            string.Equals(item.ParticipantId, command.ParticipantId, StringComparison.Ordinal));
+        if (eventCursor is not null)
+        {
+            eventCursor.DeliveredThroughEngineEventSequence = command.Decision.NewCursor.PublicEngineEventSequence;
+            eventCursor.DeliveredThroughCommunicationSequence = command.Decision.NewCursor.CommunicationSequence;
+            eventCursor.MemoryRevision = memory.Revision;
+            eventCursor.LastPromptEnvelopeId = command.EnvelopeId;
+        }
+
+        var decision = command.Decision with
+        {
+            NewCursor = command.Decision.NewCursor with { MemoryRevision = memory.Revision },
+            SummaryContentHash = command.SummaryContentHash,
+        };
+        runtime.MemorySummaryDecisions.RemoveAll(item =>
+            string.Equals(item.ParticipantId, decision.ParticipantId, StringComparison.Ordinal)
+            && item.RoundNumber == decision.RoundNumber);
+        runtime.MemorySummaryDecisions.Add(decision);
+        runtime.PromptEnvelopes.Add(new GameRuntimeAgentPromptEnvelope
+        {
+            EnvelopeId = command.EnvelopeId,
+            ParticipantId = command.ParticipantId,
+            CreatedAt = command.CreatedAt,
+            EngineCursorSequence = decision.NewCursor.PublicEngineEventSequence,
+            CommunicationCursorSequence = decision.NewCursor.CommunicationSequence,
+            MemoryRevision = memory.Revision,
+            ProviderAlias = NormalizeChoice(command.ProviderAlias),
+            Model = NormalizeChoice(command.Model),
+            PromptTokens = command.PromptTokens,
+            ResponseTokens = command.ResponseTokens,
+            PromptContentHash = command.PromptContentHash,
+            ResponseContentHash = command.ResponseContentHash,
+            PromptText = command.PromptText,
+            ResponseText = command.ResponseText,
+        });
+        TrimPromptEnvelopes(runtime, command.ParticipantId, command.MaxPromptEnvelopesPerAgent);
+        runtime.LastUpdatedAt = command.CreatedAt;
+        GameRuntimeStateCloner.AppendHostRecord(
+            runtime,
+            GameRuntimeHostRecordKind.AgentMemorySummaryRecorded,
+            command.CreatedAt,
+            recordedSummary ? "agent_memory_summary_recorded" : "agent_memory_summary_rejected",
+            recordedSummary
+                ? $"Recorded agent memory summary for participant '{command.ParticipantId}' round {decision.RoundNumber}."
+                : $"Recorded rejected agent memory summary decision for participant '{command.ParticipantId}' round {decision.RoundNumber}.");
+        await _store.SaveAsync(state, ct);
+
+        var runtimeEvent = new GameRuntimeAgentMemorySummaryRecordedEvent(
+            runtime.GameInstanceId,
+            decision.DecisionId,
+            command.ParticipantId,
+            decision.RoundNumber,
+            memory.Revision,
+            NormalizeChoice(command.ProviderAlias),
+            NormalizeChoice(command.Model),
+            command.PromptTokens,
+            command.ResponseTokens,
+            command.CreatedAt);
+        return SessionMutationResult<GameRuntimeMemorySummaryMutationResult>.Success(
+            new GameRuntimeMemorySummaryMutationResult(GameRuntimeStateCloner.Clone(runtime)!, [runtimeEvent]));
     }
 
     private async Task<SessionMutationResult<GameRuntimeMutationResult>> AbortAsyncCore(
@@ -645,6 +779,27 @@ public sealed class GameRuntimeService : IGameRuntimeService
         }
 
         return null;
+    }
+
+    private static void TrimPromptEnvelopes(
+        GameRuntimeState runtime,
+        string participantId,
+        int maxPromptEnvelopesPerAgent)
+    {
+        var maxCount = Math.Max(1, maxPromptEnvelopesPerAgent);
+        var participantEnvelopes = runtime.PromptEnvelopes
+            .Where(item => string.Equals(item.ParticipantId, participantId, StringComparison.Ordinal))
+            .OrderByDescending(item => item.CreatedAt)
+            .ThenByDescending(item => item.EnvelopeId, StringComparer.Ordinal)
+            .Skip(maxCount)
+            .Select(item => item.EnvelopeId)
+            .ToHashSet(StringComparer.Ordinal);
+        if (participantEnvelopes.Count == 0)
+        {
+            return;
+        }
+
+        runtime.PromptEnvelopes.RemoveAll(item => participantEnvelopes.Contains(item.EnvelopeId));
     }
 
     private static SessionMutationResult<GameRuntimeMutationResult> Busy() =>

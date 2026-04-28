@@ -547,7 +547,63 @@ public sealed class ContractSnapshotTests
                         TokenBudget = 512,
                         Summary = "Mira remembers the public accusation.",
                         ContentHash = "sha256:test",
+                        LastSummarizedRoundNumber = 1,
+                        LastSummarizedPublicEngineEventSequence = 3,
+                        LastSummarizedPrivateEventIds = ["private-event-1"],
+                        LastSummarizedCommunicationSequence = 2,
                         UpdatedAt = DateTimeOffset.Parse("2026-04-27T11:04:00+00:00"),
+                    },
+                ],
+                MemorySummaryDecisions =
+                [
+                    new MemorySummaryDecision(
+                        "memory-decision-001",
+                        "agent-1",
+                        1,
+                        DateTimeOffset.Parse("2026-04-27T11:04:00+00:00"),
+                        new AgentVisibleEventsCursor(1, [], 1, 0),
+                        new AgentVisibleEventsCursor(3, ["private-event-1"], 2, 1),
+                        40,
+                        12,
+                        false,
+                        false,
+                        false,
+                        "local",
+                        "test-model",
+                        "round-ended-event-1",
+                        null,
+                        "sha256:memory"),
+                ],
+                PromptCursors =
+                [
+                    new GameRuntimeAgentPromptDeliveryCursor
+                    {
+                        ParticipantId = "agent-1",
+                        LastDeliveredPublicEngineEventSequence = 3,
+                        DeliveredPrivateEventIds = ["private-event-1"],
+                        CommunicationDeliveredThroughSequence = 2,
+                        MemoryRevision = 1,
+                        LastPromptEnvelopeId = "prompt-001",
+                    },
+                ],
+                PromptEnvelopes =
+                [
+                    new GameRuntimeAgentPromptEnvelope
+                    {
+                        EnvelopeId = "prompt-001",
+                        ParticipantId = "agent-1",
+                        CreatedAt = DateTimeOffset.Parse("2026-04-27T11:04:00+00:00"),
+                        EngineCursorSequence = 3,
+                        CommunicationCursorSequence = 2,
+                        MemoryRevision = 1,
+                        ProviderAlias = "local",
+                        Model = "test-model",
+                        PromptTokens = 40,
+                        ResponseTokens = 12,
+                        PromptContentHash = "sha256:prompt",
+                        ResponseContentHash = "sha256:response",
+                        PromptText = "Prompt text retained for inspector.",
+                        ResponseText = "Response text retained for inspector.",
                     },
                 ],
                 HostRecords =

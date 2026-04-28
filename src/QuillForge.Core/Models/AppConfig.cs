@@ -129,6 +129,7 @@ public sealed record AgentsConfig
     public ResearchBudget Research { get; set; } = new();
     public GameIntentTranslationBudget GameIntentTranslation { get; set; } = new();
     public GameAgentTurnsBudget GameAgentTurns { get; set; } = new();
+    public GameAgentMemoryBudget GameAgentMemory { get; set; } = new();
 }
 
 public sealed record OrchestratorBudget
@@ -212,6 +213,13 @@ public sealed record GameAgentTurnsBudget
     public int MaxTokens { get; set; } = 1024;
     public int MaxConcurrency { get; set; } = 4;
     public int ResponseTimeoutSeconds { get; set; } = 120;
+    public int MaxPromptEnvelopesPerAgent { get; set; } = 10;
+}
+
+public sealed record GameAgentMemoryBudget
+{
+    public int MaxPromptEnvelopesPerAgent { get; set; } = 10;
+    public double Temperature { get; set; } = 0.2;
 }
 
 public sealed record TimeoutsConfig

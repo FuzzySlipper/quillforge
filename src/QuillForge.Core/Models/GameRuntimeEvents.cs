@@ -70,6 +70,21 @@ public sealed record GameRuntimeAgentPromptRecordedEvent(
     public string EventName => nameof(GameRuntimeAgentPromptRecordedEvent);
 }
 
+public sealed record GameRuntimeAgentMemorySummaryRecordedEvent(
+    string GameInstanceId,
+    string DecisionId,
+    string ParticipantId,
+    int RoundNumber,
+    int MemoryRevision,
+    string? ProviderAlias,
+    string? Model,
+    int? PromptTokens,
+    int? ResponseTokens,
+    DateTimeOffset OccurredAt) : IGameRuntimeEvent
+{
+    public string EventName => nameof(GameRuntimeAgentMemorySummaryRecordedEvent);
+}
+
 public sealed record GameRuntimeMutationResult(
     GameRuntimeState Game,
     IReadOnlyList<IGameRuntimeEvent> RuntimeEvents,
@@ -80,5 +95,9 @@ public sealed record GameRuntimeCommunicationMutationResult(
     IReadOnlyList<IParticipantCommunicationEvent> CommunicationEvents);
 
 public sealed record GameRuntimePromptMutationResult(
+    GameRuntimeState Game,
+    IReadOnlyList<IGameRuntimeEvent> RuntimeEvents);
+
+public sealed record GameRuntimeMemorySummaryMutationResult(
     GameRuntimeState Game,
     IReadOnlyList<IGameRuntimeEvent> RuntimeEvents);

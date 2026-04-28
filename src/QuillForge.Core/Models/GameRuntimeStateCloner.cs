@@ -30,6 +30,7 @@ internal static class GameRuntimeStateCloner
             ParticipantBindings = state.ParticipantBindings.Select(CloneParticipantBinding).ToList(),
             EventDeliveryCursors = state.EventDeliveryCursors.Select(CloneEventDeliveryCursor).ToList(),
             AgentMemories = state.AgentMemories.Select(CloneAgentMemory).ToList(),
+            MemorySummaryDecisions = state.MemorySummaryDecisions.Select(CloneMemorySummaryDecision).ToList(),
             PromptCursors = state.PromptCursors.Select(ClonePromptCursor).ToList(),
             PromptEnvelopes = state.PromptEnvelopes.Select(ClonePromptEnvelope).ToList(),
             NextHostRecordSequence = state.NextHostRecordSequence,
@@ -162,7 +163,17 @@ internal static class GameRuntimeStateCloner
         TokenBudget = memory.TokenBudget,
         Summary = memory.Summary,
         ContentHash = memory.ContentHash,
+        LastSummarizedRoundNumber = memory.LastSummarizedRoundNumber,
+        LastSummarizedPublicEngineEventSequence = memory.LastSummarizedPublicEngineEventSequence,
+        LastSummarizedPrivateEventIds = memory.LastSummarizedPrivateEventIds.ToList(),
+        LastSummarizedCommunicationSequence = memory.LastSummarizedCommunicationSequence,
         UpdatedAt = memory.UpdatedAt,
+    };
+
+    private static MemorySummaryDecision CloneMemorySummaryDecision(MemorySummaryDecision decision) => decision with
+    {
+        PriorCursor = decision.PriorCursor with { PrivateEngineEventIds = decision.PriorCursor.PrivateEngineEventIds.ToArray() },
+        NewCursor = decision.NewCursor with { PrivateEngineEventIds = decision.NewCursor.PrivateEngineEventIds.ToArray() },
     };
 
     private static GameRuntimeAgentPromptDeliveryCursor ClonePromptCursor(GameRuntimeAgentPromptDeliveryCursor cursor) => new()
@@ -189,6 +200,8 @@ internal static class GameRuntimeStateCloner
         ResponseTokens = envelope.ResponseTokens,
         PromptContentHash = envelope.PromptContentHash,
         ResponseContentHash = envelope.ResponseContentHash,
+        PromptText = envelope.PromptText,
+        ResponseText = envelope.ResponseText,
     };
 
     private static GameRuntimeHostRecord CloneHostRecord(GameRuntimeHostRecord record) => new()

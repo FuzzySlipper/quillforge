@@ -12,8 +12,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
     private readonly IGameRuntimeService _runtimeService;
     private readonly GameModuleRegistry _moduleRegistry;
     private readonly ICompletionService _completionService;
-    private readonly GameVisibilityProjector _visibilityProjector;
-    private readonly ParticipantChannelService _channelService;
+    private readonly AgentVisibleEventsService _visibleEventsService;
     private readonly AppConfig _appConfig;
     private readonly ILogger<GameAgentTurnService> _logger;
 
@@ -21,16 +20,14 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         IGameRuntimeService runtimeService,
         GameModuleRegistry moduleRegistry,
         ICompletionService completionService,
-        GameVisibilityProjector visibilityProjector,
-        ParticipantChannelService channelService,
+        AgentVisibleEventsService visibleEventsService,
         AppConfig appConfig,
         ILogger<GameAgentTurnService> logger)
     {
         _runtimeService = runtimeService;
         _moduleRegistry = moduleRegistry;
         _completionService = completionService;
-        _visibilityProjector = visibilityProjector;
-        _channelService = channelService;
+        _visibleEventsService = visibleEventsService;
         _appConfig = appConfig;
         _logger = logger;
     }
@@ -88,6 +85,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
                     completion.Binding.ParticipantId,
                     command.OccurredAt,
                     completion.Prompt.EngineCursorSequence,
+                    completion.Prompt.DeliveredPrivateEventIds,
                     completion.Prompt.CommunicationCursorSequence,
                     completion.Prompt.MemoryRevision,
                     completion.ProviderAlias,
@@ -95,7 +93,10 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
                     completion.Response.Usage.InputTokens,
                     completion.Response.Usage.OutputTokens,
                     completion.Prompt.PromptContentHash,
-                    StableContentHash(completion.Response.Content.GetText())),
+                    StableContentHash(completion.Response.Content.GetText()),
+                    completion.Prompt.SystemPrompt + "\n---\n" + completion.Prompt.UserPrompt,
+                    completion.Response.Content.GetText(),
+                    Math.Max(1, _appConfig.Agents.GameAgentTurns.MaxPromptEnvelopesPerAgent)),
                 ct);
             if (promptResult.Status == SessionMutationStatus.Success && promptResult.Value is not null)
             {
@@ -433,12 +434,14 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         GameRuntimeParticipantBinding binding,
         PendingInputState pendingInput)
     {
-        var playerProjection = _visibilityProjector.ProjectPlayer(liveState, pendingInput.ParticipantId);
-        var feed = _channelService.ProjectParticipantFeed(runtime.Communication, new GameParticipantId(binding.ParticipantId));
         var memory = runtime.AgentMemories.FirstOrDefault(item =>
             string.Equals(item.ParticipantId, binding.ParticipantId, StringComparison.Ordinal));
         var cursor = runtime.PromptCursors.FirstOrDefault(item =>
             string.Equals(item.ParticipantId, binding.ParticipantId, StringComparison.Ordinal));
+        var visibleEvents = _visibleEventsService.BuildForPrompt(runtime, liveState, binding.ParticipantId, cursor);
+        var pendingInputs = liveState.PendingInputs
+            .Where(input => input.IsWaitingFor(pendingInput.ParticipantId))
+            .ToArray();
         return new GameAgentPromptContext(
             runtime.GameInstanceId!,
             binding.ParticipantId,
@@ -447,9 +450,8 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
             liveState.Stage.DisplayName,
             module.Descriptor.DisplayName,
             module.GetPromptAssets(),
-            playerProjection.Events,
-            playerProjection.PendingInputs,
-            feed.Entries,
+            visibleEvents,
+            pendingInputs,
             memory,
             cursor,
             binding);
@@ -460,8 +462,9 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         var rules = context.PromptAssets.Where(asset => asset.Kind == GamePromptAssetKind.RulesText).Select(asset => asset.Content).ToArray();
         var instructions = context.PromptAssets.Where(asset => asset.Kind == GamePromptAssetKind.ParticipantInstructions).Select(asset => asset.Content).ToArray();
         var pendingInput = context.PendingInputs.FirstOrDefault();
-        var engineCursor = context.VisibleEngineEvents.Count == 0 ? 0 : context.VisibleEngineEvents.Max(item => item.Sequence);
-        var communicationCursor = context.VisibleFeed.Count == 0 ? 0 : context.VisibleFeed.Max(item => item.Sequence);
+        var engineCursor = context.VisibleEvents.NewCursor.PublicEngineEventSequence;
+        var deliveredPrivateEventIds = context.VisibleEvents.NewCursor.PrivateEngineEventIds;
+        var communicationCursor = context.VisibleEvents.NewCursor.CommunicationSequence;
         var memoryRevision = context.Memory?.Revision ?? 0;
 
         var system = new StringBuilder();
@@ -496,10 +499,10 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         user.AppendLine(string.IsNullOrWhiteSpace(context.Memory?.Summary) ? "- No prior memory summary." : context.Memory!.Summary);
         user.AppendLine();
         user.AppendLine("Visible engine facts:");
-        AppendVisibleEvents(user, context.VisibleEngineEvents, context.PromptCursor?.LastDeliveredPublicEngineEventSequence ?? 0);
+        AppendVisibleEvents(user, context.VisibleEvents.EngineEvents);
         user.AppendLine();
         user.AppendLine("Visible channel and direct-message feed:");
-        AppendFeed(user, context.VisibleFeed, context.PromptCursor?.CommunicationDeliveredThroughSequence ?? 0);
+        AppendFeed(user, context.VisibleEvents.FeedEntries);
         user.AppendLine();
         user.AppendLine("Pending input to answer:");
         if (pendingInput is null)
@@ -523,6 +526,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
             systemText,
             userText,
             engineCursor,
+            deliveredPrivateEventIds,
             communicationCursor,
             memoryRevision,
             StableContentHash(systemText + "\n---\n" + userText));
@@ -597,31 +601,29 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
             .ToArray();
     }
 
-    private static void AppendVisibleEvents(StringBuilder builder, IReadOnlyList<VisibleGameEvent> events, long deliveredThrough)
+    private static void AppendVisibleEvents(StringBuilder builder, IReadOnlyList<VisibleGameEvent> events)
     {
-        var filtered = events.Where(item => item.Sequence > deliveredThrough).OrderBy(item => item.Sequence).ToArray();
-        if (filtered.Length == 0)
+        if (events.Count == 0)
         {
             builder.AppendLine("- No newly delivered engine facts.");
             return;
         }
 
-        foreach (var item in filtered)
+        foreach (var item in events.OrderBy(item => item.Sequence))
         {
             builder.AppendLine($"- #{item.Sequence} {item.EventType} ({item.EventId}) at {item.OccurredAt:O}");
         }
     }
 
-    private static void AppendFeed(StringBuilder builder, IReadOnlyList<ParticipantFeedEntry> feed, long deliveredThrough)
+    private static void AppendFeed(StringBuilder builder, IReadOnlyList<ParticipantFeedEntry> feed)
     {
-        var filtered = feed.Where(item => item.Sequence > deliveredThrough).OrderBy(item => item.Sequence).ToArray();
-        if (filtered.Length == 0)
+        if (feed.Count == 0)
         {
             builder.AppendLine("- No newly delivered channel or direct-message entries.");
             return;
         }
 
-        foreach (var item in filtered)
+        foreach (var item in feed.OrderBy(item => item.Sequence))
         {
             var author = item.Author?.ParticipantId.Value ?? "system";
             var text = item.Text ?? item.Summary ?? item.GameEventId ?? item.Kind.ToString();

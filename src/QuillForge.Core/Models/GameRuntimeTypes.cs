@@ -45,6 +45,8 @@ public sealed class GameRuntimeState
 
     public List<GameRuntimeAgentMemoryState> AgentMemories { get; set; } = [];
 
+    public List<MemorySummaryDecision> MemorySummaryDecisions { get; set; } = [];
+
     public List<GameRuntimeAgentPromptDeliveryCursor> PromptCursors { get; set; } = [];
 
     public List<GameRuntimeAgentPromptEnvelope> PromptEnvelopes { get; set; } = [];
@@ -124,6 +126,14 @@ public sealed class GameRuntimeAgentMemoryState
 
     public string? ContentHash { get; set; }
 
+    public int LastSummarizedRoundNumber { get; set; }
+
+    public long LastSummarizedPublicEngineEventSequence { get; set; }
+
+    public List<string> LastSummarizedPrivateEventIds { get; set; } = [];
+
+    public long LastSummarizedCommunicationSequence { get; set; }
+
     public DateTimeOffset? UpdatedAt { get; set; }
 }
 
@@ -167,6 +177,10 @@ public sealed class GameRuntimeAgentPromptEnvelope
     public string? PromptContentHash { get; set; }
 
     public string? ResponseContentHash { get; set; }
+
+    public string? PromptText { get; set; }
+
+    public string? ResponseText { get; set; }
 }
 
 public sealed class GameRuntimeHostRecord
@@ -196,5 +210,6 @@ public enum GameRuntimeHostRecordKind
     EngineCommandApplied,
     Aborted,
     Forked,
-    AgentPromptRecorded
+    AgentPromptRecorded,
+    AgentMemorySummaryRecorded
 }

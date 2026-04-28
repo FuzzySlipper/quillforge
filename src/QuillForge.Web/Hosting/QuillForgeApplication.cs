@@ -206,10 +206,12 @@ internal static class QuillForgeApplication
         builder.Services.AddSingleton(sp => new RulesEngineService(sp.GetRequiredService<GameModuleRegistry>()));
         builder.Services.AddSingleton<GameVisibilityProjector>();
         builder.Services.AddSingleton<ParticipantChannelService>();
+        builder.Services.AddSingleton<AgentVisibleEventsService>();
         builder.Services.AddSingleton<IGameRuntimeService, GameRuntimeService>();
         builder.Services.AddSingleton<IGameIntentTranslationAgent, GameIntentTranslationAgent>();
         builder.Services.AddSingleton<IGameBridgeService, GameBridgeService>();
         builder.Services.AddSingleton<IGameAgentTurnService, GameAgentTurnService>();
+        builder.Services.AddSingleton<IGameAgentMemoryService, GameAgentMemoryService>();
         builder.Services.AddSingleton<IGameTemplateProviderCatalog, GameTemplateProviderCatalog>();
         builder.Services.AddSingleton<IGameTemplateModuleValidator, GameTemplateModuleValidator>();
         builder.Services.AddSingleton<IGameTemplateService, GameTemplateService>();

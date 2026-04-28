@@ -181,11 +181,76 @@
         "tokenBudget": 512,
         "summary": "Mira remembers the public accusation.",
         "contentHash": "sha256:test",
+        "lastSummarizedRoundNumber": 1,
+        "lastSummarizedPublicEngineEventSequence": 3,
+        "lastSummarizedPrivateEventIds": [
+          "private-event-1"
+        ],
+        "lastSummarizedCommunicationSequence": 2,
         "updatedAt": "2026-04-27T11:04:00+00:00"
       }
     ],
-    "promptCursors": [],
-    "promptEnvelopes": [],
+    "memorySummaryDecisions": [
+      {
+        "decisionId": "memory-decision-001",
+        "participantId": "agent-1",
+        "roundNumber": 1,
+        "createdAt": "2026-04-27T11:04:00+00:00",
+        "priorCursor": {
+          "publicEngineEventSequence": 1,
+          "privateEngineEventIds": [],
+          "communicationSequence": 1,
+          "memoryRevision": 0
+        },
+        "newCursor": {
+          "publicEngineEventSequence": 3,
+          "privateEngineEventIds": [
+            "private-event-1"
+          ],
+          "communicationSequence": 2,
+          "memoryRevision": 1
+        },
+        "promptTokens": 40,
+        "responseTokens": 12,
+        "exceededTokenBudget": false,
+        "trimmed": false,
+        "retried": false,
+        "providerAlias": "local",
+        "model": "test-model",
+        "snapshotId": "round-ended-event-1",
+        "summaryContentHash": "sha256:memory"
+      }
+    ],
+    "promptCursors": [
+      {
+        "participantId": "agent-1",
+        "lastDeliveredPublicEngineEventSequence": 3,
+        "deliveredPrivateEventIds": [
+          "private-event-1"
+        ],
+        "communicationDeliveredThroughSequence": 2,
+        "memoryRevision": 1,
+        "lastPromptEnvelopeId": "prompt-001"
+      }
+    ],
+    "promptEnvelopes": [
+      {
+        "envelopeId": "prompt-001",
+        "participantId": "agent-1",
+        "createdAt": "2026-04-27T11:04:00+00:00",
+        "engineCursorSequence": 3,
+        "communicationCursorSequence": 2,
+        "memoryRevision": 1,
+        "providerAlias": "local",
+        "model": "test-model",
+        "promptTokens": 40,
+        "responseTokens": 12,
+        "promptContentHash": "sha256:prompt",
+        "responseContentHash": "sha256:response",
+        "promptText": "Prompt text retained for inspector.",
+        "responseText": "Response text retained for inspector."
+      }
+    ],
     "nextHostRecordSequence": 2,
     "hostRecords": [
       {
