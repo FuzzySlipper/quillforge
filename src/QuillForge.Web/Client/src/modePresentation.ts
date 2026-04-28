@@ -8,6 +8,7 @@ export const MODE_LABELS: Record<Mode, string> = {
   forge: "Forge",
   council: "Council",
   research: "Research",
+  games: "Games",
 };
 
 export const MODE_DESCRIPTIONS: Record<Mode, string> = {
@@ -18,6 +19,7 @@ export const MODE_DESCRIPTIONS: Record<Mode, string> = {
   forge: "Command-and-pipeline control surface for Forge projects, stage runs, and status checks.",
   council: "Every message is routed through the council for multiple perspectives before synthesis.",
   research: "Multi-agent web research with parallel topic investigation and organized markdown findings.",
+  games: "Typed social game table with rules-engine-owned actions, public feed, private info, and participant controls.",
 };
 
 export const MODE_ICON_PATHS: Record<Mode, string> = {
@@ -28,4 +30,5 @@ export const MODE_ICON_PATHS: Record<Mode, string> = {
   forge: "/mode-icons/forge.svg",
   council: "/mode-icons/council.svg",
   research: "/mode-icons/research.svg",
+  games: "/mode-icons/games.svg",
 };

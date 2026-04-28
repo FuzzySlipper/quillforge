@@ -48,6 +48,7 @@ public sealed class GuideMode : IMode
             - `forge`: command- and pipeline-driven story development
             - `council`: multi-perspective advisory synthesis
             - `research`: sourced investigation with saved findings
+            - `games`: typed social game workspace with rules-engine-owned gameplay
 
             Rules:
             - Strongly encourage the user to switch into a task-specific mode once you understand their goal.

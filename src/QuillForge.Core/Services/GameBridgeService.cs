@@ -278,6 +278,10 @@ public sealed class GameBridgeService : IGameBridgeService
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                [],
                 new GameBridgePublicView([], []),
                 null);
         }
@@ -295,10 +299,33 @@ public sealed class GameBridgeService : IGameBridgeService
             runtime.TemplateId,
             runtime.ModuleId,
             runtime.ModuleVersion,
+            liveState.Round.RoundNumber,
+            liveState.Stage.StageId.Value,
+            liveState.Stage.DisplayName,
+            BuildRoster(runtime, participantId),
             new GameBridgePublicView(
                 publicProjection.Events.Select(ToNarrationEntry).ToArray(),
                 publicFeed),
             player);
+    }
+
+    private static IReadOnlyList<GameBridgeParticipantView> BuildRoster(GameRuntimeState runtime, string? currentParticipantId)
+    {
+        var joinedIds = runtime.Communication.Participants
+            .Where(participant => participant.IsJoined)
+            .Select(participant => participant.ParticipantId.Value)
+            .ToHashSet(StringComparer.Ordinal);
+        var current = string.IsNullOrWhiteSpace(currentParticipantId) ? null : currentParticipantId.Trim();
+
+        return runtime.ParticipantBindings
+            .Select(binding => new GameBridgeParticipantView(
+                binding.ParticipantId,
+                binding.DisplayName,
+                binding.Kind,
+                joinedIds.Contains(binding.ParticipantId),
+                current is not null && string.Equals(binding.ParticipantId, current, StringComparison.Ordinal)))
+            .OrderBy(participant => participant.ParticipantId, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private GameBridgePlayerView? ProjectPlayer(

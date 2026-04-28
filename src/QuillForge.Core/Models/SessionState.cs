@@ -14,6 +14,7 @@ public static class ModeExtensions
         Mode.Forge => "forge",
         Mode.Council => "council",
         Mode.Research => "research",
+        Mode.Games => "games",
         _ => "guide",
     };
 

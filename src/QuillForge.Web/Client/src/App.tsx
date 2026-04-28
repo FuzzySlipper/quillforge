@@ -30,6 +30,7 @@ import AppStatusFooter from "./components/AppStatusFooter";
 import ConversationPane from "./components/ConversationPane";
 import CouncilWorkspace from "./components/CouncilWorkspace";
 import ForgeWorkspace from "./components/ForgeWorkspace";
+import GamesWorkspace from "./components/GamesWorkspace";
 import GuideWorkspace from "./components/GuideWorkspace";
 import InputBar from "./components/InputBar";
 import ProfilePicker from "./components/ProfilePicker";
@@ -68,7 +69,7 @@ const RELEASES_URL = "https://github.com/FuzzySlipper/quillforge/releases";
 const INSPECTOR_STORAGE_KEY_PREFIX = "qf-shell-inspector:";
 
 function defaultInspectorOpen(mode: Mode): boolean {
-  return mode === "guide" || mode === "roleplay" || mode === "lore" || mode === "research";
+  return mode === "guide" || mode === "roleplay" || mode === "lore" || mode === "research" || mode === "games";
 }
 
 function readInspectorOpen(mode: Mode): boolean {
@@ -1224,6 +1225,18 @@ function App() {
             onRunStart={handleForgeStart}
             onRunApprove={handleForgeApprove}
             onRunPause={handleForgePause}
+          />
+        );
+      case "games":
+        return (
+          <GamesWorkspace
+            sessionId={currentSessionId}
+            sending={sending}
+            updateBanner={updateBanner}
+            onOpenMode={() => setModeOpen(true)}
+            onOpenSection={openInspectorSection}
+            onRefresh={handleSessionScopedRefresh}
+            onNewSession={handleNewSession}
           />
         );
       case "research":

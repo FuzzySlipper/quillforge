@@ -26,6 +26,7 @@ public class OrchestratorTests
             new ForgeMode(),
             new CouncilMode(),
             new ResearchMode(),
+            new GamesMode(),
         ];
 
         var assistantPromptStore = new FakeAssistantPromptStore();
@@ -98,7 +99,7 @@ public class OrchestratorTests
         var toolLoop = new ToolLoop(fake, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
         var orchestrator = new OrchestratorAgent(
             toolLoop,
-            [new GuideMode(), new WriterMode(), new RoleplayMode(), new LoreBuilderMode(), new ForgeMode(), new CouncilMode()],
+            [new GuideMode(), new WriterMode(), new RoleplayMode(), new LoreBuilderMode(), new ForgeMode(), new CouncilMode(), new GamesMode()],
             new FakeAssistantPromptStore(),
             new FakeInteractiveSessionContextService(),
             new AppConfig(),
@@ -124,7 +125,7 @@ public class OrchestratorTests
         var toolLoop = new ToolLoop(fake, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
         var orchestrator = new OrchestratorAgent(
             toolLoop,
-            [new GuideMode(), new WriterMode(), new RoleplayMode(), new LoreBuilderMode(), new ForgeMode(), new CouncilMode(), new ResearchMode()],
+            [new GuideMode(), new WriterMode(), new RoleplayMode(), new LoreBuilderMode(), new ForgeMode(), new CouncilMode(), new ResearchMode(), new GamesMode()],
             assistantStore,
             new FakeInteractiveSessionContextService(),
             new AppConfig(),
@@ -155,7 +156,7 @@ public class OrchestratorTests
         var toolLoop = new ToolLoop(fake, continuation, LogFactory.CreateLogger<ToolLoop>(), new AppConfig());
         var orchestrator = new OrchestratorAgent(
             toolLoop,
-            [new GuideMode(), new WriterMode(), new RoleplayMode(), new LoreBuilderMode(), new ForgeMode(), new CouncilMode(), new ResearchMode()],
+            [new GuideMode(), new WriterMode(), new RoleplayMode(), new LoreBuilderMode(), new ForgeMode(), new CouncilMode(), new ResearchMode(), new GamesMode()],
             assistantStore,
             new FakeInteractiveSessionContextService(),
             new AppConfig(),
@@ -261,6 +262,51 @@ public class OrchestratorTests
         Assert.Contains("/forge design", prompt);
         Assert.Contains("Do NOT write premise, outline, brief, draft, review, or assembly content", prompt);
         Assert.Contains("Do NOT treat Forge mode like a second Writer mode", prompt);
+    }
+
+    [Fact]
+    public void GamesMode_Prompt_IsTypedEndpointOwned()
+    {
+        var mode = new GamesMode();
+        var prompt = mode.BuildSystemPromptSection(new ModeContext());
+
+        Assert.Contains("typed game endpoints", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not a game master", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("must not", prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("workspace controls", prompt, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task HandleAsync_GamesMode_FiltersToDocumentationOnlyTools()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueText("Use the table controls.");
+        var orchestrator = CreateOrchestrator(fake);
+        var state = new SessionState
+        {
+            Mode = new ModeSelectionState { ActiveMode = Mode.Games },
+        };
+        var context = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = Mode.Games };
+        var tools = new IToolHandler[]
+        {
+            new StubToolHandler("query_docs"),
+            new StubToolHandler("query_lore"),
+            new StubToolHandler("direct_scene"),
+            new StubToolHandler("write_prose"),
+            new StubToolHandler("run_research"),
+        };
+
+        await orchestrator.HandleAsync(
+            state,
+            "test-model",
+            1024,
+            tools,
+            [new CompletionMessage("user", new MessageContent("vote for Mira"))],
+            context);
+
+        var toolNames = fake.ReceivedRequests[0].Tools!.Select(t => t.Name).ToList();
+        Assert.Equal(["query_docs"], toolNames);
+        Assert.Contains("Current Mode: Games", fake.ReceivedRequests[0].SystemPrompt!);
     }
 
     [Fact]

@@ -688,6 +688,83 @@ public sealed class ContractSnapshotTests
     }
 
     // =======================================================================
+    // Game API Shape
+    // =======================================================================
+
+    [Fact]
+    public void GameViewResponse_MatchesApprovedSnapshot()
+    {
+        var dto = new GameViewResponse
+        {
+            View = new GameBridgeView(
+                GameRuntimeStatus.WaitingForInput,
+                "game-001",
+                "village",
+                "werewolf",
+                "0.1.0",
+                2,
+                "day-vote",
+                "Day vote",
+                [
+                    new GameBridgeParticipantView("human-1", "Human", GameRuntimeParticipantKind.Human, true, true),
+                    new GameBridgeParticipantView("agent-1", "Mira", GameRuntimeParticipantKind.Agent, true, false),
+                ],
+                new GameBridgePublicView(
+                    [
+                        new GameBridgeNarrationEntry(
+                            "11111111-1111-1111-1111-111111111111",
+                            4,
+                            "RoundStartedEvent",
+                            "RoundStartedEvent occurred.",
+                            DateTimeOffset.Parse("2026-04-28T10:00:00+00:00")),
+                    ],
+                    [
+                        new ParticipantFeedEntry(
+                            3,
+                            ParticipantFeedEntryKind.PublicChannelMessage,
+                            Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                            null,
+                            new ParticipantMessageAuthor(new GameParticipantId("human-1"), ParticipantMessageAuthorKind.Human),
+                            [],
+                            "I nominate Mira.",
+                            null,
+                            null,
+                            null,
+                            DateTimeOffset.Parse("2026-04-28T10:01:00+00:00")),
+                    ]),
+                new GameBridgePlayerView(
+                    "human-1",
+                    "Human",
+                    [
+                        new VisibleGameEvent(
+                            new GameEventId(Guid.Parse("33333333-3333-3333-3333-333333333333")),
+                            2,
+                            "RoleAssignedEvent",
+                            DateTimeOffset.Parse("2026-04-28T09:59:00+00:00")),
+                    ],
+                    [
+                        new PendingInputState(
+                            new PendingInputId("pending-1"),
+                            new ParticipantId("human-1"),
+                            new GameStageId("day-vote"),
+                            "SubmitVote",
+                            PendingInputStatus.Waiting,
+                            [new LegalIntentOption("vote-agent-1", "Vote Mira", "Cast a vote for Mira.")]),
+                    ],
+                    [],
+                    new GameRuntimeEventDeliveryCursor
+                    {
+                        ParticipantId = "human-1",
+                        DeliveredThroughEngineEventSequence = 4,
+                        DeliveredThroughCommunicationSequence = 3,
+                        MemoryRevision = 0,
+                    }))
+        };
+
+        AssertJsonSnapshot("GameViewResponse", dto, DebugBridgeJsonOptions);
+    }
+
+    // =======================================================================
     // Game Template API Shape
     // =======================================================================
 

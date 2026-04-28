@@ -283,11 +283,89 @@ public sealed class FrontendContractTests
     {
         var modeValues = GetTypeScriptUnionValues("Mode");
 
-        var expectedModes = new[] { "guide", "writer", "roleplay", "lore", "forge", "council", "research" }
+        var expectedModes = new[] { "guide", "writer", "roleplay", "lore", "forge", "council", "research", "games" }
             .OrderBy(value => value)
             .ToList();
 
         Assert.Equal(expectedModes, modeValues.OrderBy(value => value).ToList());
+    }
+
+    [Fact]
+    public void GameViewResponse_StaysInSyncWith_GameViewResponseInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("GameViewResponse");
+        var jsonKeys = SerializeTopLevelKeys(new GameViewResponse
+        {
+            View = EmptyGameBridgeView(),
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("GameBridgeView", shape["view"]);
+    }
+
+    [Fact]
+    public void GameBridgeView_StaysInSyncWith_GameBridgeViewInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("GameBridgeView");
+        var jsonKeys = SerializeTopLevelKeys(EmptyGameBridgeView());
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("GameRuntimeStatus", shape["status"]);
+        Assert.Equal("number | null", shape["roundNumber"]);
+        Assert.Equal("GameBridgeParticipantView[]", shape["roster"]);
+        Assert.Equal("GameBridgePlayerView | null", shape["player"]);
+    }
+
+    [Fact]
+    public void GameTemplateListResponse_StaysInSyncWith_GameTemplateListResponseInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("GameTemplateListResponse");
+        var jsonKeys = SerializeTopLevelKeys(new GameTemplateListResponse
+        {
+            Templates = [new GameTemplateSummary
+            {
+                TemplateId = "village",
+                DisplayName = "Village Werewolf",
+                ModuleId = "werewolf",
+                MinimumModuleVersion = "0.1.0",
+                MaximumModuleVersion = "0.1.0",
+            }],
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("GameTemplateSummary[]", shape["templates"]);
+    }
+
+    [Fact]
+    public void GamesWorkspace_UsesTypedGameEndpointsAndRendersNoGameState()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("components", "GamesWorkspace.tsx"));
+
+        Assert.Contains("getGameView", source, StringComparison.Ordinal);
+        Assert.Contains("startGameFromTemplate", source, StringComparison.Ordinal);
+        Assert.Contains("submitGameAction", source, StringComparison.Ordinal);
+        Assert.Contains("postGamePublicMessage", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"games-no-game-state\"", source, StringComparison.Ordinal);
+        Assert.Contains("No game is running in this session.", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("sendChatStream", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ModeSwitcher_AndPresentation_RegisterGamesMode()
+    {
+        var presentation = File.ReadAllText(GetFrontendFilePath("modePresentation.ts"));
+        var switcher = File.ReadAllText(GetFrontendFilePath("components", "ModeSwitcher.tsx"));
+        var app = File.ReadAllText(GetFrontendFilePath("App.tsx"));
+
+        Assert.Contains("games: \"Games\"", presentation, StringComparison.Ordinal);
+        Assert.Contains("/mode-icons/games.svg", presentation, StringComparison.Ordinal);
+        Assert.Contains("selectedMode !== \"games\"", switcher, StringComparison.Ordinal);
+        var commands = File.ReadAllText(GetFrontendFilePath("commands.ts"));
+
+        Assert.Contains("case \"games\":", app, StringComparison.Ordinal);
+        Assert.Contains("<GamesWorkspace", app, StringComparison.Ordinal);
+        Assert.Contains("research|games", commands, StringComparison.Ordinal);
+        Assert.Contains("\"games\"", commands, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -499,6 +577,20 @@ public sealed class FrontendContractTests
             .Select(value => value.Trim().Trim('"'))
             .ToList();
     }
+
+    private static GameBridgeView EmptyGameBridgeView() =>
+        new(
+            GameRuntimeStatus.NotStarted,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            [],
+            new GameBridgePublicView([], []),
+            null);
 
     private static List<string> SerializeTopLevelKeys<T>(T value)
     {

@@ -15,6 +15,7 @@ public sealed class SessionRuntimeServiceTests
         new LoreBuilderMode(),
         new ForgeMode(),
         new CouncilMode(),
+        new GamesMode(),
     ];
 
     [Fact]
@@ -35,6 +36,53 @@ public sealed class SessionRuntimeServiceTests
         Assert.Equal("chapter1.md", result.Value.Mode.CurrentFile);
         Assert.Equal("hero", result.Value.Mode.Character);
         Assert.Equal("default", result.Value.Profile.ProfileId);
+    }
+
+    [Fact]
+    public async Task SetModeAsync_GamesMode_UsesGenericModeWithoutProjectRequirement()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var service = CreateService(store);
+        var sessionId = Guid.CreateVersion7();
+
+        var result = await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("games", null, null, null));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(result.Value);
+        Assert.Equal(Mode.Games, result.Value.Mode.ActiveMode);
+        Assert.Null(result.Value.Mode.ProjectName);
+        Assert.Null(result.Value.Mode.CurrentFile);
+        Assert.Null(result.Value.Mode.Character);
+        Assert.Equal("games", result.Value.Mode.ActiveMode.ToWireString());
+    }
+
+    [Fact]
+    public async Task SetModeAsync_RejectsLeavingGamesModeWhenGameIsActive()
+    {
+        var store = new InMemorySessionRuntimeStore();
+        var sessionId = Guid.CreateVersion7();
+        await store.SaveAsync(new SessionState
+        {
+            SessionId = sessionId,
+            Mode = new ModeSelectionState { ActiveMode = Mode.Games },
+            Game = new GameRuntimeState
+            {
+                Status = GameRuntimeStatus.WaitingForInput,
+                GameInstanceId = "game-active",
+            },
+        });
+        var service = CreateService(store);
+
+        var result = await service.SetModeAsync(
+            sessionId,
+            new SetSessionModeCommand("guide", null, null, null));
+
+        Assert.Equal(SessionMutationStatus.Invalid, result.Status);
+        Assert.Contains("game_mode_switch_rejected", result.Error);
+        var saved = await store.LoadAsync(sessionId);
+        Assert.Equal(Mode.Games, saved.Mode.ActiveMode);
     }
 
     [Fact]
@@ -1247,6 +1295,7 @@ internal sealed class InMemorySessionRuntimeStore : ISessionStateStore
                         GeneratedAt = state.Canonization.PendingProposal.GeneratedAt,
                     },
                 },
+            Game = GameRuntimeStateCloner.Clone(state.Game),
         };
     }
 }

@@ -1,4 +1,4 @@
-export type Mode = "guide" | "writer" | "roleplay" | "lore" | "forge" | "council" | "research";
+export type Mode = "guide" | "writer" | "roleplay" | "lore" | "forge" | "council" | "research" | "games";
 
 export interface ReasoningArtifact {
   agentId: string;
@@ -126,6 +126,131 @@ export interface ProjectList {
   mode: string;
   directory: string;
   projects: ProjectEntry[];
+}
+
+export type GameRuntimeStatus = "NotStarted" | "Running" | "WaitingForInput" | "Resolving" | "WaitingOnAgentTurns" | "Ended" | "Aborted";
+export type GameParticipantKind = "Human" | "Agent" | "System";
+export type ParticipantFeedEntryKind = "PublicChannelMessage" | "DirectMessage" | "GameEventLink" | 0 | 1 | 2;
+export type PendingInputStatus = "Waiting" | "Submitted" | "TimedOut" | "Cancelled" | 0 | 1 | 2 | 3;
+
+export interface GameIdentifier {
+  value: string;
+}
+
+export interface GameViewResponse {
+  view: GameBridgeView;
+}
+
+export interface GameMutationResponse {
+  view: GameBridgeView;
+  runtimeEventTypes: string[];
+  engineEventTypes: string[];
+  communicationEventTypes: string[];
+}
+
+export interface GameBridgeView {
+  status: GameRuntimeStatus;
+  gameInstanceId: string | null;
+  templateId: string | null;
+  moduleId: string | null;
+  moduleVersion: string | null;
+  roundNumber: number | null;
+  stageId: string | null;
+  stageName: string | null;
+  roster: GameBridgeParticipantView[];
+  public: GameBridgePublicView;
+  player: GameBridgePlayerView | null;
+}
+
+export interface GameBridgePublicView {
+  narration: GameBridgeNarrationEntry[];
+  feed: ParticipantFeedEntry[];
+}
+
+export interface GameBridgeParticipantView {
+  participantId: string;
+  displayName: string;
+  kind: GameParticipantKind;
+  isJoined: boolean;
+  isCurrentPlayer: boolean;
+}
+
+export interface GameBridgePlayerView {
+  participantId: string;
+  displayName: string;
+  engineEvents: VisibleGameEvent[];
+  pendingInputs: PendingInputState[];
+  feed: ParticipantFeedEntry[];
+  cursor: GameRuntimeEventDeliveryCursor | null;
+}
+
+export interface GameBridgeNarrationEntry {
+  eventId: string;
+  sequence: number;
+  eventType: string;
+  text: string;
+  occurredAt: string;
+}
+
+export interface VisibleGameEvent {
+  eventId: GameIdentifier;
+  sequence: number;
+  eventType: string;
+  occurredAt: string;
+}
+
+export interface PendingInputState {
+  pendingInputId: GameIdentifier;
+  participantId: GameIdentifier;
+  stageId: GameIdentifier;
+  intentName: string;
+  status: PendingInputStatus;
+  legalOptions: LegalIntentOption[];
+}
+
+export interface LegalIntentOption {
+  intentName: string;
+  displayName: string;
+  description: string;
+}
+
+export interface ParticipantFeedEntry {
+  sequence: number;
+  kind: ParticipantFeedEntryKind;
+  messageId: string | null;
+  linkId: string | null;
+  author: ParticipantMessageAuthor | null;
+  recipientParticipantIds: GameIdentifier[];
+  text: string | null;
+  gameEventId: string | null;
+  gameEventSequence: number | null;
+  summary: string | null;
+  createdAt: string;
+}
+
+export interface ParticipantMessageAuthor {
+  participantId: GameIdentifier;
+  kind: "Human" | "Agent" | "System" | 0 | 1 | 2;
+}
+
+export interface GameRuntimeEventDeliveryCursor {
+  participantId: string;
+  deliveredThroughEngineEventSequence: number;
+  deliveredThroughCommunicationSequence: number;
+  memoryRevision: number;
+  lastPromptEnvelopeId: string | null;
+}
+
+export interface GameTemplateSummary {
+  templateId: string;
+  displayName: string;
+  moduleId: string;
+  minimumModuleVersion: string;
+  maximumModuleVersion: string;
+}
+
+export interface GameTemplateListResponse {
+  templates: GameTemplateSummary[];
 }
 
 

@@ -11,5 +11,6 @@ public enum Mode
     Lore,
     Forge,
     Council,
-    Research
+    Research,
+    Games
 }

@@ -9,6 +9,9 @@ import type {
   LoreCanonizationPreviewResult,
   LoreCanonizationApplyResult,
   LoreCanonizationDiscardResult,
+  GameTemplateListResponse,
+  GameViewResponse,
+  GameMutationResponse,
 } from "./types";
 
 const BASE = "";
@@ -313,6 +316,64 @@ export async function setMode(
 export async function getProjects(mode?: string): Promise<{ projects: string[] }> {
   const query = mode ? `?mode=${encodeURIComponent(mode)}` : "";
   return request(`/api/projects${query}`);
+}
+
+export async function listGameTemplates(): Promise<GameTemplateListResponse> {
+  return request("/api/game-templates/");
+}
+
+export async function getGameView(sessionId: string, participantId?: string | null): Promise<GameViewResponse> {
+  const query = participantId ? `?participantId=${encodeURIComponent(participantId)}` : "";
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/${query}`);
+}
+
+export async function startGameFromTemplate(
+  sessionId: string,
+  templateId: string,
+  userDisplayName?: string | null,
+  seed?: number | null,
+): Promise<GameMutationResponse> {
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/start`, {
+    method: "POST",
+    body: JSON.stringify({ templateId, userDisplayName, seed }),
+  });
+}
+
+export async function submitGameAction(
+  sessionId: string,
+  participantId: string,
+  pendingInputId: string,
+  choiceName: string,
+): Promise<GameMutationResponse> {
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/actions`, {
+    method: "POST",
+    body: JSON.stringify({ participantId, pendingInputId, choiceName }),
+  });
+}
+
+export async function postGamePublicMessage(
+  sessionId: string,
+  participantId: string,
+  text: string,
+): Promise<GameMutationResponse> {
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/messages`, {
+    method: "POST",
+    body: JSON.stringify({ participantId, text, authorKind: "Human" }),
+  });
+}
+
+export async function endGame(sessionId: string): Promise<GameMutationResponse> {
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/end`, {
+    method: "POST",
+    body: JSON.stringify({ outcomeName: "ended_by_user" }),
+  });
+}
+
+export async function abortGame(sessionId: string): Promise<GameMutationResponse> {
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/abort`, {
+    method: "POST",
+    body: JSON.stringify({ reasonCode: "aborted_by_user" }),
+  });
 }
 
 export async function newSession(): Promise<{ sessionId: string; name: string }> {

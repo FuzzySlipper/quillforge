@@ -93,7 +93,7 @@ const commands: Record<string, CommandDef> = {
 
   mode: {
     description: "Switch operating mode",
-    usage: "[guide|writer|roleplay|lore|forge|council|research]",
+    usage: "[guide|writer|roleplay|lore|forge|council|research|games]",
     handler: async (args, ctx) => {
       const rawTarget = args.trim().toLowerCase();
       if (!rawTarget) {
@@ -101,7 +101,7 @@ const commands: Record<string, CommandDef> = {
         return { output: null };
       }
       const target = rawTarget === "general" ? "guide" : rawTarget;
-      const valid: Mode[] = ["guide", "writer", "roleplay", "lore", "forge", "council", "research"];
+      const valid: Mode[] = ["guide", "writer", "roleplay", "lore", "forge", "council", "research", "games"];
       if (!valid.includes(target as Mode)) {
         return { output: `Unknown mode \`${rawTarget}\`. Valid modes: ${valid.join(", ")}` };
       }

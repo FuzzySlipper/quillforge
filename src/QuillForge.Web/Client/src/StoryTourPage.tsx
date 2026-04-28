@@ -58,7 +58,7 @@ type ProviderRoleGuide = {
   why: string;
 };
 
-const MODE_ORDER: Mode[] = ["guide", "writer", "roleplay", "lore", "council", "research", "forge"];
+const MODE_ORDER: Mode[] = ["guide", "writer", "roleplay", "lore", "council", "research", "forge", "games"];
 
 const TOUR_MODES: Record<Mode, TourModeSpec> = {
   guide: {
@@ -306,6 +306,43 @@ const TOUR_MODES: Record<Mode, TourModeSpec> = {
     ],
     sampleOutput:
       "Three threads emerged: deluge myths tied to broken oaths, submerged bell chambers that can throw sound through stone, and real ritual calendars built around extreme spring tides. The detailed notes are saved for reuse.",
+  },
+  games: {
+    id: "games",
+    label: "Games",
+    badge: "Typed Table",
+    family: "Rules Engine",
+    accent: "#77d7ff",
+    promise: "Runs social games through typed actions, participant feeds, and rules-engine authority.",
+    feelsLike: "A game table with private notes, legal moves, and a visible public log.",
+    whenToUse: "When you want a structured social game where agents can be players but the model never becomes the game master.",
+    returns: "Game status, stage, public feed, private player information, legal actions, roster, and host controls.",
+    userPrompt: "Start a village social deduction game and show me my legal actions.",
+    visibleTitle: "Typed game table",
+    visibleResult:
+      "Games mode shows status, stage, public feed, private player projection, pending actions, roster, and controls from typed game endpoints instead of asking chat to infer rules from narration.",
+    backstageCopy:
+      "The rules engine owns gameplay facts. QuillForge owns the game workspace, templates, participant communication, agent turns, memory summaries, and prompt cursors around that engine boundary.",
+    backstageNotes: [
+      "Templates choose a registered rules-engine module",
+      "Game endpoints expose typed public and player projections",
+      "Agent players submit structured choices through the bridge",
+      "The UI posts actions and messages through game endpoints only",
+    ],
+    guardrails: [
+      "No hidden game-master decisions from chat",
+      "No hidden-info inference from narrator text",
+      "No lore, writer, forge, council, or research tools during gameplay",
+    ],
+    flow: [
+      { label: "Template", detail: "Choose a saved game setup and seed." },
+      { label: "Rules Engine", detail: "Commit typed facts, stages, pending inputs, and visible projections." },
+      { label: "Table Workspace", detail: "Show public feed, private info, roster, and legal controls." },
+      { label: "Agent Players", detail: "Use bounded provider calls to choose from legal actions only." },
+      { label: "Journal", detail: "Persist complete gameplay and communication records.", kind: "terminal" },
+    ],
+    sampleOutput:
+      "The game is waiting on your vote. The public feed shows the accusation, your private panel shows the legal choices, and the roster marks which participants are agents or human players.",
   },
   forge: {
     id: "forge",

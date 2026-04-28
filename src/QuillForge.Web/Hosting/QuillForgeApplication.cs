@@ -320,6 +320,7 @@ internal static class QuillForgeApplication
         builder.Services.AddSingleton<IMode, ForgeMode>();
         builder.Services.AddSingleton<IMode, CouncilMode>();
         builder.Services.AddSingleton<IMode, ResearchMode>();
+        builder.Services.AddSingleton<IMode, GamesMode>();
 
         builder.Services.AddSingleton<ISessionMutationGate, InMemorySessionMutationGate>();
         builder.Services.AddSingleton<SessionRuntimeService>();

@@ -68,6 +68,6 @@ public sealed class GameEndpointTests
         }
 
         private static GameBridgeView EmptyView() =>
-            new(GameRuntimeStatus.NotStarted, null, null, null, null, new GameBridgePublicView([], []), null);
+            new(GameRuntimeStatus.NotStarted, null, null, null, null, null, null, null, [], new GameBridgePublicView([], []), null);
     }
 }

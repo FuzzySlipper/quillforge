@@ -326,6 +326,7 @@ public sealed class HarnessInteractiveScenarioRunner : IAsyncDisposable
         builder.Services.AddSingleton<IMode, WriterMode>();
         builder.Services.AddSingleton<IMode, RoleplayMode>();
         builder.Services.AddSingleton<IMode, CouncilMode>();
+        builder.Services.AddSingleton<IMode, GamesMode>();
 
         builder.Services.AddSingleton<IPipelineStage, PlanningStage>();
         builder.Services.AddSingleton<IPipelineStage, DesignStage>();

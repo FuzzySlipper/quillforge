@@ -1,0 +1,103 @@
+{
+  "view": {
+    "status": "WaitingForInput",
+    "gameInstanceId": "game-001",
+    "templateId": "village",
+    "moduleId": "werewolf",
+    "moduleVersion": "0.1.0",
+    "roundNumber": 2,
+    "stageId": "day-vote",
+    "stageName": "Day vote",
+    "roster": [
+      {
+        "participantId": "human-1",
+        "displayName": "Human",
+        "kind": "Human",
+        "isJoined": true,
+        "isCurrentPlayer": true
+      },
+      {
+        "participantId": "agent-1",
+        "displayName": "Mira",
+        "kind": "Agent",
+        "isJoined": true,
+        "isCurrentPlayer": false
+      }
+    ],
+    "public": {
+      "narration": [
+        {
+          "eventId": "11111111-1111-1111-1111-111111111111",
+          "sequence": 4,
+          "eventType": "RoundStartedEvent",
+          "text": "RoundStartedEvent occurred.",
+          "occurredAt": "2026-04-28T10:00:00+00:00"
+        }
+      ],
+      "feed": [
+        {
+          "sequence": 3,
+          "kind": 0,
+          "messageId": "22222222-2222-2222-2222-222222222222",
+          "linkId": null,
+          "author": {
+            "participantId": {
+              "value": "human-1"
+            },
+            "kind": 0
+          },
+          "recipientParticipantIds": [],
+          "text": "I nominate Mira.",
+          "gameEventId": null,
+          "gameEventSequence": null,
+          "summary": null,
+          "createdAt": "2026-04-28T10:01:00+00:00"
+        }
+      ]
+    },
+    "player": {
+      "participantId": "human-1",
+      "displayName": "Human",
+      "engineEvents": [
+        {
+          "eventId": {
+            "value": "33333333-3333-3333-3333-333333333333"
+          },
+          "sequence": 2,
+          "eventType": "RoleAssignedEvent",
+          "occurredAt": "2026-04-28T09:59:00+00:00"
+        }
+      ],
+      "pendingInputs": [
+        {
+          "pendingInputId": {
+            "value": "pending-1"
+          },
+          "participantId": {
+            "value": "human-1"
+          },
+          "stageId": {
+            "value": "day-vote"
+          },
+          "intentName": "SubmitVote",
+          "status": 0,
+          "legalOptions": [
+            {
+              "intentName": "vote-agent-1",
+              "displayName": "Vote Mira",
+              "description": "Cast a vote for Mira."
+            }
+          ]
+        }
+      ],
+      "feed": [],
+      "cursor": {
+        "participantId": "human-1",
+        "deliveredThroughEngineEventSequence": 4,
+        "deliveredThroughCommunicationSequence": 3,
+        "memoryRevision": 0,
+        "lastPromptEnvelopeId": null
+      }
+    }
+  }
+}

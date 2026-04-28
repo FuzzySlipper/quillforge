@@ -211,6 +211,17 @@ public sealed class SessionRuntimeService : ISessionStateService
         var newProjectName = NormalizeChoice(command.Project);
         var newFileName = NormalizeChoice(command.File);
 
+        if (oldMode == Mode.Games && targetMode != Mode.Games && state.Game?.IsActive == true)
+        {
+            _logger.LogWarning(
+                "Session mode update rejected during active game: session={SessionId} game={GameInstanceId} targetMode={TargetMode}",
+                sessionId,
+                state.Game.GameInstanceId,
+                targetMode);
+            return SessionMutationResult<SessionState>.Invalid(
+                "game_mode_switch_rejected: End or abort the active game before switching away from Games mode.");
+        }
+
         if (targetMode == Mode.Roleplay)
         {
             if (newProjectName is null)

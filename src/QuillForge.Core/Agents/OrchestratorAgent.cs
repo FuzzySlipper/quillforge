@@ -238,6 +238,9 @@ public sealed class OrchestratorAgent
             "forge" => """
                 In Forge mode, keep ownership with the explicit command and pipeline workflow rather than inventing a free-form narrator persona.
                 """,
+            "games" => """
+                In Games mode, keep ownership with typed game bridge endpoints and workspace controls rather than accepting gameplay through broad chat.
+                """,
             _ => """
                 Follow the active mode's workflow exactly and keep routing authority inside the application's fixed boundaries.
                 """,

@@ -43,7 +43,7 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
       });
     } else if (selectedMode === "research") {
       listResearchProjects().then((p) => setProjects(p.projects ?? []));
-    } else if (selectedMode !== "guide" && selectedMode !== "council") {
+    } else if (selectedMode !== "guide" && selectedMode !== "council" && selectedMode !== "games") {
       // Fetch projects for writer/forge
       getProjects(selectedMode).then((p) => setProjects(p.projects ?? []));
     }
@@ -72,6 +72,8 @@ export default function ModeSwitcher({ open, onClose, onSwitched, sessionId }: M
       }
       onSwitched(result?.sessionId ?? sessionId, result?.notice ?? null);
       onClose();
+    } catch (err) {
+      setValidationMessage(err instanceof Error ? err.message : "Mode switch failed.");
     } finally {
       setSaving(false);
     }

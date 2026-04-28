@@ -43,12 +43,23 @@ public sealed record GameBridgeView(
     string? TemplateId,
     string? ModuleId,
     string? ModuleVersion,
+    int? RoundNumber,
+    string? StageId,
+    string? StageName,
+    IReadOnlyList<GameBridgeParticipantView> Roster,
     GameBridgePublicView Public,
     GameBridgePlayerView? Player);
 
 public sealed record GameBridgePublicView(
     IReadOnlyList<GameBridgeNarrationEntry> Narration,
     IReadOnlyList<ParticipantFeedEntry> Feed);
+
+public sealed record GameBridgeParticipantView(
+    string ParticipantId,
+    string DisplayName,
+    GameRuntimeParticipantKind Kind,
+    bool IsJoined,
+    bool IsCurrentPlayer);
 
 public sealed record GameBridgePlayerView(
     string ParticipantId,
