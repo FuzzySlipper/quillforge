@@ -238,6 +238,12 @@ export default function GameTemplateEditor({
   }, [catalog, template]);
   const defaultProviderAlias = catalog?.providers[0]?.alias ?? "";
 
+  async function refreshCatalog(): Promise<GameTemplateCatalogResponse> {
+    const nextCatalog = await getGameTemplateCatalog();
+    setCatalog(nextCatalog);
+    return nextCatalog;
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -339,8 +345,14 @@ export default function GameTemplateEditor({
           .filter(Boolean);
       }
 
-      const values = current.rulesOptions.values.filter((value) => value.name !== field.name);
-      return { ...current, rulesOptions: { values: [...values, updated] } };
+      const existingIndex = current.rulesOptions.values.findIndex((value) => value.name === field.name);
+      const values = [...current.rulesOptions.values];
+      if (existingIndex >= 0) {
+        values[existingIndex] = updated;
+      } else {
+        values.push(updated);
+      }
+      return { ...current, rulesOptions: { values } };
     });
   }
 
@@ -380,6 +392,7 @@ export default function GameTemplateEditor({
       setValidation(response.validation);
       onSelectTemplate(response.template.templateId);
       await onTemplatesChanged(response.template.templateId);
+      await refreshCatalog();
       setMessage("Template saved.");
     });
   }
@@ -392,6 +405,7 @@ export default function GameTemplateEditor({
       setValidation(response.validation);
       onSelectTemplate(response.template.templateId);
       await onTemplatesChanged(response.template.templateId);
+      await refreshCatalog();
       setMessage("Template cloned.");
     });
   }
@@ -403,8 +417,15 @@ export default function GameTemplateEditor({
       const nextId = templates.find((item) => item.templateId !== selectedTemplateId)?.templateId ?? "";
       onSelectTemplate(nextId);
       await onTemplatesChanged(nextId);
-      setTemplate(catalog ? createDefaultTemplate(catalog) : null);
-      setValidation(null);
+      const nextCatalog = await refreshCatalog();
+      if (nextId) {
+        const response = await getGameTemplate(nextId);
+        setTemplate(response.template);
+        setValidation(response.validation);
+      } else {
+        setTemplate(createDefaultTemplate(nextCatalog));
+        setValidation(null);
+      }
       setMessage("Template deleted.");
     });
   }
