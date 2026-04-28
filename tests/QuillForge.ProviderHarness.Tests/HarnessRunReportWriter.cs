@@ -48,6 +48,59 @@ public static class HarnessRunReportWriter
         return report;
     }
 
+    public static HarnessPersistedRunReport WriteGameReport(
+        HarnessRunArtifactStore artifactStore,
+        HarnessGameScenarioReport scenarioReport)
+    {
+        var gameTracePath = artifactStore.PersistJson($"app/{scenarioReport.ScenarioName}-trace.json", scenarioReport.GameTrace);
+
+        var report = new HarnessPersistedRunReport
+        {
+            SchemaVersion = SchemaVersion,
+            Kind = "game",
+            RunId = artifactStore.RunId,
+            ScenarioName = scenarioReport.ScenarioName,
+            ScopeName = scenarioReport.GameTrace.ModuleId ?? "game",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Status = scenarioReport.GameTrace.Status,
+            AppTraceFile = gameTracePath,
+            GameDeterminismMode = scenarioReport.GameTrace.DeterminismMode,
+            GameDeterminismDescription = scenarioReport.GameTrace.DeterminismDescription,
+            GameLiveProviderRun = scenarioReport.GameTrace.LiveProviderRun,
+            GameFinalOutcome = scenarioReport.GameTrace.FinalOutcome,
+            GameAgentCount = scenarioReport.GameTrace.Agents.Count,
+            UsageSummary = new SessionUsageSummary
+            {
+                TotalRequests = scenarioReport.GameTrace.PromptEnvelopes.Count,
+                TotalInputTokens = scenarioReport.GameTrace.Usage.PromptTokens,
+                TotalOutputTokens = scenarioReport.GameTrace.Usage.CompletionTokens,
+                ByAgent = scenarioReport.GameTrace.Agents
+                    .Select(agent => new AgentUsageEntry
+                    {
+                        AgentName = agent.ParticipantId,
+                        InputTokens = scenarioReport.GameTrace.PromptEnvelopes
+                            .Where(envelope => string.Equals(envelope.ParticipantId, agent.ParticipantId, StringComparison.Ordinal))
+                            .Sum(envelope => envelope.PromptTokens ?? 0),
+                        OutputTokens = scenarioReport.GameTrace.PromptEnvelopes
+                            .Where(envelope => string.Equals(envelope.ParticipantId, agent.ParticipantId, StringComparison.Ordinal))
+                            .Sum(envelope => envelope.ResponseTokens ?? 0),
+                        RequestCount = scenarioReport.GameTrace.PromptEnvelopes
+                            .Count(envelope => string.Equals(envelope.ParticipantId, agent.ParticipantId, StringComparison.Ordinal)),
+                    })
+                    .ToArray(),
+            },
+            AssertionResults = [],
+            Findings = [],
+        };
+
+        report.JsonReportPath = artifactStore.PersistJson($"reports/{scenarioReport.ScenarioName}-capture.json", report);
+        report.MarkdownReportPath = artifactStore.PersistText(
+            $"reports/{scenarioReport.ScenarioName}-summary.md",
+            BuildMarkdownReport(report));
+
+        return report;
+    }
+
     public static HarnessPersistedRunReport WriteInteractiveReport(
         HarnessRunArtifactStore artifactStore,
         HarnessInteractiveScenarioReport scenarioReport)
@@ -138,6 +191,27 @@ public static class HarnessRunReportWriter
             lines.Add($"- Artifact trace file: `{report.ArtifactTraceFile}`");
         }
 
+        if (!string.IsNullOrWhiteSpace(report.GameDeterminismMode))
+        {
+            lines.Add("- Determinism:");
+            lines.Add($"  - mode: `{report.GameDeterminismMode}`");
+            lines.Add($"  - live provider run: `{report.GameLiveProviderRun}`");
+            if (!string.IsNullOrWhiteSpace(report.GameDeterminismDescription))
+            {
+                lines.Add($"  - note: {report.GameDeterminismDescription}");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(report.GameFinalOutcome))
+        {
+            lines.Add($"- Final outcome: `{report.GameFinalOutcome}`");
+        }
+
+        if (report.GameAgentCount is not null)
+        {
+            lines.Add($"- Game agent count: `{report.GameAgentCount}`");
+        }
+
         if (report.UsageSummary is not null)
         {
             lines.Add("- Session usage:");
@@ -185,6 +259,11 @@ public sealed record HarnessPersistedRunReport
     public string? ArtifactTraceFile { get; init; }
     public string? ManifestFile { get; init; }
     public SessionUsageSummary? UsageSummary { get; init; }
+    public string? GameDeterminismMode { get; init; }
+    public string? GameDeterminismDescription { get; init; }
+    public bool GameLiveProviderRun { get; init; }
+    public string? GameFinalOutcome { get; init; }
+    public int? GameAgentCount { get; init; }
     public IReadOnlyList<HarnessAssertionResult> AssertionResults { get; init; } = [];
     public IReadOnlyList<HarnessFinding> Findings { get; init; } = [];
     public string? JsonReportPath { get; set; }

@@ -70,6 +70,18 @@ Include prompts that force real behavior:
 - a council-style question that should produce multi-member output
 - a prompt that mutates session state plus a follow-up that verifies persistence
 
+## Multi-Agent Game Harness
+
+For deterministic social-game regression and benchmarking traces, use the scripted game harness documented in `docs/architecture/game-harness-trace-artifacts.md`:
+
+```bash
+dotnet test tests/QuillForge.ProviderHarness.Tests/QuillForge.ProviderHarness.Tests.csproj \
+  -p:AllowMissingPrunePackageData=true \
+  --filter HarnessGameScenarioTests
+```
+
+These runs are prompt-level deterministic with fake completion sources. Future live-provider exploratory game runs should be interpreted from their trace artifacts rather than asserted as golden semantic outcomes.
+
 ## Expected Deliverable
 
 Return:
