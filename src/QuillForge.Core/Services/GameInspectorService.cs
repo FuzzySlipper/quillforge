@@ -102,7 +102,9 @@ public sealed class GameInspectorService : IGameInspectorService
                     Kind = binding.Kind.ToString(),
                     IsActive = participant?.IsActive ?? false,
                     ProviderAlias = binding.ProviderAlias,
-                    Model = string.IsNullOrWhiteSpace(binding.ModelOverride) ? "default" : binding.ModelOverride,
+                    Model = binding.Kind == GameRuntimeParticipantKind.Agent
+                        ? (string.IsNullOrWhiteSpace(binding.ModelOverride) ? "default" : binding.ModelOverride)
+                        : null,
                 };
             })
             .OrderBy(item => item.ParticipantId, StringComparer.Ordinal)
