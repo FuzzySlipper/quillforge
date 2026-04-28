@@ -197,11 +197,18 @@ export default function GamesWorkspace({
       setLoading(true);
       setError(null);
       try {
+        if (participantId) {
+          const playerView = (await getGameView(sessionId, participantId)).view;
+          if (!cancelled) {
+            setView(playerView);
+          }
+          return;
+        }
+
         const publicView = (await getGameView(sessionId)).view;
         if (cancelled) return;
 
-        const preferredParticipant = participantId
-          ?? publicView.roster.find((participant) => participant.kind === "Human")?.participantId
+        const preferredParticipant = publicView.roster.find((participant) => participant.kind === "Human")?.participantId
           ?? publicView.roster[0]?.participantId
           ?? null;
 
