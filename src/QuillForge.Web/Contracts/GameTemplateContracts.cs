@@ -32,11 +32,19 @@ public sealed record GameTemplateModuleOption
 
     public required IReadOnlyList<GameTemplateSetupFieldOption> SetupFields { get; init; }
 
+    public required IReadOnlyList<GameTemplateStageHookOption> Stages { get; init; }
+
+    public required IReadOnlyList<GameTemplateActionFormOption> ActionForms { get; init; }
+
+    public required IReadOnlyList<GameTemplatePromptAssetOption> PromptAssets { get; init; }
+
     public required GameTemplateCommunicationCapabilitiesOption CommunicationCapabilities { get; init; }
 
     public required GameTemplateMemoryExpectationsOption MemoryExpectations { get; init; }
 
     public required GameTemplateParticipantRequirementsOption ParticipantRequirements { get; init; }
+
+    public required GameTemplateProjectionCapabilitiesOption ProjectionCapabilities { get; init; }
 }
 
 public sealed record GameTemplateSetupFieldOption
@@ -50,6 +58,58 @@ public sealed record GameTemplateSetupFieldOption
     public required string DisplayName { get; init; }
 
     public required string Description { get; init; }
+}
+
+public sealed record GameTemplateStageHookOption
+{
+    public required string StageId { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string Description { get; init; }
+
+    public required int Sequence { get; init; }
+
+    public required bool AllowsPublicMessages { get; init; }
+
+    public required bool AllowsDirectMessages { get; init; }
+}
+
+public sealed record GameTemplateActionFormOption
+{
+    public required string IntentName { get; init; }
+
+    public required string StageId { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string Description { get; init; }
+
+    public required string Layout { get; init; }
+
+    public required IReadOnlyList<GameTemplateActionFieldOption> Fields { get; init; }
+}
+
+public sealed record GameTemplateActionFieldOption
+{
+    public required string Name { get; init; }
+
+    public required string ValueKind { get; init; }
+
+    public required bool IsRequired { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string Description { get; init; }
+}
+
+public sealed record GameTemplatePromptAssetOption
+{
+    public required string AssetId { get; init; }
+
+    public required string Kind { get; init; }
+
+    public required bool IsRequired { get; init; }
 }
 
 public sealed record GameTemplateCommunicationCapabilitiesOption
@@ -79,6 +139,15 @@ public sealed record GameTemplateParticipantRequirementsOption
     public required int MinimumHumanParticipants { get; init; }
 
     public required int MinimumAgentParticipants { get; init; }
+}
+
+public sealed record GameTemplateProjectionCapabilitiesOption
+{
+    public required bool SupportsPublicEventProjection { get; init; }
+
+    public required bool SupportsParticipantPrivateProjection { get; init; }
+
+    public required bool SupportsHostInspectorProjection { get; init; }
 }
 
 public sealed record GameTemplateProviderOption

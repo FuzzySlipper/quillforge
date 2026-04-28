@@ -290,11 +290,13 @@ public sealed class GameBridgeService : IGameBridgeService
         }
 
         var liveState = runtime.EngineSnapshot.ToState();
+        var module = _moduleRegistry.Find(liveState.ModuleId, liveState.ModuleVersion);
+        var moduleAuthoring = module is null ? null : ToModuleAuthoringView(module);
         var publicProjection = _visibilityProjector.ProjectPublic(liveState.EventJournal);
         var publicFeed = _channelService.ProjectPublicFeed(runtime.Communication).Entries;
         var player = string.IsNullOrWhiteSpace(participantId)
             ? null
-            : ProjectPlayer(runtime, liveState, participantId.Trim());
+            : ProjectPlayer(runtime, liveState, participantId.Trim(), moduleAuthoring);
 
         return new GameBridgeView(
             runtime.Status,
@@ -309,7 +311,10 @@ public sealed class GameBridgeService : IGameBridgeService
             new GameBridgePublicView(
                 publicProjection.Events.Select(eventView => ToNarrationEntry(liveState, eventView)).ToArray(),
                 publicFeed),
-            player);
+            player)
+        {
+            ModuleAuthoring = moduleAuthoring,
+        };
     }
 
     private static IReadOnlyList<GameBridgeParticipantView> BuildRoster(GameRuntimeState runtime, string? currentParticipantId)
@@ -334,7 +339,8 @@ public sealed class GameBridgeService : IGameBridgeService
     private GameBridgePlayerView? ProjectPlayer(
         GameRuntimeState runtime,
         RulesGameState liveState,
-        string participantId)
+        string participantId,
+        GameBridgeModuleAuthoringView? moduleAuthoring)
     {
         PlayerGameProjection playerProjection;
         try
@@ -355,7 +361,10 @@ public sealed class GameBridgeService : IGameBridgeService
             playerProjection.Events,
             playerProjection.PendingInputs,
             feed.Entries,
-            cursor);
+            cursor)
+        {
+            ActionForms = MatchActionForms(playerProjection.PendingInputs, moduleAuthoring),
+        };
     }
 
     private GameBridgeNarrationEntry ToNarrationEntry(RulesGameState liveState, VisibleGameEvent gameEvent)
@@ -370,6 +379,82 @@ public sealed class GameBridgeService : IGameBridgeService
             gameEvent.EventType,
             text,
             gameEvent.OccurredAt);
+    }
+
+    private static GameBridgeModuleAuthoringView ToModuleAuthoringView(IGameModule module)
+    {
+        var descriptor = module.Descriptor;
+        var requiredAssets = descriptor.RequiredPromptAssets
+            .Select(asset => $"{asset.AssetId}:{asset.Kind}")
+            .ToHashSet(StringComparer.Ordinal);
+
+        return new GameBridgeModuleAuthoringView(
+            descriptor.SetupFields.Select(ToSetupFieldView).ToArray(),
+            descriptor.AuthoringHooks.Stages.Select(ToStageHookView).ToArray(),
+            descriptor.AuthoringHooks.ActionForms.Select(ToActionFormView).ToArray(),
+            module.GetPromptAssets()
+                .Select(asset => new GameBridgePromptAssetView(
+                    asset.AssetId,
+                    asset.Kind.ToString(),
+                    requiredAssets.Contains($"{asset.AssetId}:{asset.Kind}")))
+                .ToArray(),
+            new GameBridgeCommunicationCapabilitiesView(
+                descriptor.CommunicationCapabilities.AllowsPublicChannelMessages,
+                descriptor.CommunicationCapabilities.AllowsDirectMessages),
+            new GameBridgeMemoryExpectationsView(
+                descriptor.MemoryExpectations.UsesRoundSummaries,
+                descriptor.MemoryExpectations.SuggestedSummaryTokenBudget,
+                descriptor.MemoryExpectations.MaximumRetainedRoundSummaries),
+            new GameBridgeProjectionCapabilitiesView(
+                descriptor.AuthoringHooks.ProjectionCapabilities.SupportsPublicEventProjection,
+                descriptor.AuthoringHooks.ProjectionCapabilities.SupportsParticipantPrivateProjection,
+                descriptor.AuthoringHooks.ProjectionCapabilities.SupportsHostInspectorProjection));
+    }
+
+    private static GameBridgeSetupFieldView ToSetupFieldView(GameSetupFieldDescriptor field) =>
+        new(field.Name, field.ValueKind.ToString(), field.IsRequired, field.DisplayName, field.Description);
+
+    private static GameBridgeStageHookView ToStageHookView(GameStageDescriptor stage) =>
+        new(
+            stage.StageId.Value,
+            stage.DisplayName,
+            stage.Description,
+            stage.Sequence,
+            stage.AllowsPublicMessages,
+            stage.AllowsDirectMessages);
+
+    private static GameBridgeActionFormView ToActionFormView(GameActionFormDescriptor form) =>
+        new(
+            form.IntentName,
+            form.StageId.Value,
+            form.DisplayName,
+            form.Description,
+            form.Layout.ToString(),
+            form.Fields
+                .Select(field => new GameBridgeActionFieldView(
+                    field.Name,
+                    field.ValueKind.ToString(),
+                    field.IsRequired,
+                    field.DisplayName,
+                    field.Description))
+                .ToArray());
+
+    private static IReadOnlyList<GameBridgeActionFormView> MatchActionForms(
+        IReadOnlyList<PendingInputState> pendingInputs,
+        GameBridgeModuleAuthoringView? moduleAuthoring)
+    {
+        if (moduleAuthoring is null || pendingInputs.Count == 0)
+        {
+            return [];
+        }
+
+        return pendingInputs
+            .Select(input => moduleAuthoring.ActionForms.FirstOrDefault(form =>
+                string.Equals(form.IntentName, input.IntentName, StringComparison.Ordinal)
+                && string.Equals(form.StageId, input.StageId.Value, StringComparison.Ordinal)))
+            .OfType<GameBridgeActionFormView>()
+            .DistinctBy(form => $"{form.StageId}:{form.IntentName}")
+            .ToArray();
     }
 
     private static IReadOnlyList<ParticipantSetup> BuildParticipants(GameTemplate template, string? userDisplayName)

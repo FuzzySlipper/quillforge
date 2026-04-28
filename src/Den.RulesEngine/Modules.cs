@@ -33,7 +33,57 @@ public sealed record GameModuleDescriptor(
     public IReadOnlyList<GamePromptAssetIdentifier> RequiredPromptAssets { get; init; } = [];
 
     public GameParticipantRequirements ParticipantRequirements { get; init; } = new(true, true, false, 0, 0);
+
+    public GameModuleAuthoringHooks AuthoringHooks { get; init; } = GameModuleAuthoringHooks.Empty;
 }
+
+public sealed record GameModuleAuthoringHooks(
+    IReadOnlyList<GameStageDescriptor> Stages,
+    IReadOnlyList<GameActionFormDescriptor> ActionForms,
+    GameProjectionCapabilities ProjectionCapabilities)
+{
+    public static GameModuleAuthoringHooks Empty { get; } = new([], [], new GameProjectionCapabilities(true, true, true));
+}
+
+public sealed record GameStageDescriptor(
+    GameStageId StageId,
+    string DisplayName,
+    string Description,
+    int Sequence,
+    bool AllowsPublicMessages,
+    bool AllowsDirectMessages);
+
+public sealed record GameActionFormDescriptor(
+    string IntentName,
+    GameStageId StageId,
+    string DisplayName,
+    string Description,
+    GameActionFormLayout Layout,
+    IReadOnlyList<GameActionFieldDescriptor> Fields);
+
+public enum GameActionFormLayout
+{
+    ButtonList,
+    SelectOne
+}
+
+public sealed record GameActionFieldDescriptor(
+    string Name,
+    GameActionFieldKind ValueKind,
+    bool IsRequired,
+    string DisplayName,
+    string Description);
+
+public enum GameActionFieldKind
+{
+    ChoiceName,
+    FreeText
+}
+
+public sealed record GameProjectionCapabilities(
+    bool SupportsPublicEventProjection,
+    bool SupportsParticipantPrivateProjection,
+    bool SupportsHostInspectorProjection);
 
 public sealed record GameCommunicationCapabilities(
     bool AllowsPublicChannelMessages,

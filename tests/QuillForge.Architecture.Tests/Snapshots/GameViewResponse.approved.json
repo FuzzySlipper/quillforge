@@ -97,7 +97,9 @@
         "deliveredThroughCommunicationSequence": 3,
         "memoryRevision": 0,
         "lastPromptEnvelopeId": null
-      }
-    }
+      },
+      "actionForms": []
+    },
+    "moduleAuthoring": null
   }
 }

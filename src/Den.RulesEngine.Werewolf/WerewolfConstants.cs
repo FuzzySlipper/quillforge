@@ -16,6 +16,10 @@ public static class WerewolfConstants
 
     public const string OneNightCompatibleSetupField = "one_night_compatible";
 
+    public const string NightActionIntentName = "night-action";
+
+    public const string VoteIntentName = "vote";
+
     public const string SkipNightChoice = "skip-night";
 
     public const string AbstainChoice = "abstain";

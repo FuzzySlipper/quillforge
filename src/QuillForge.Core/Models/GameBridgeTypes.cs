@@ -48,7 +48,68 @@ public sealed record GameBridgeView(
     string? StageName,
     IReadOnlyList<GameBridgeParticipantView> Roster,
     GameBridgePublicView Public,
-    GameBridgePlayerView? Player);
+    GameBridgePlayerView? Player)
+{
+    public GameBridgeModuleAuthoringView? ModuleAuthoring { get; init; }
+}
+
+public sealed record GameBridgeModuleAuthoringView(
+    IReadOnlyList<GameBridgeSetupFieldView> SetupFields,
+    IReadOnlyList<GameBridgeStageHookView> Stages,
+    IReadOnlyList<GameBridgeActionFormView> ActionForms,
+    IReadOnlyList<GameBridgePromptAssetView> PromptAssets,
+    GameBridgeCommunicationCapabilitiesView CommunicationCapabilities,
+    GameBridgeMemoryExpectationsView MemoryExpectations,
+    GameBridgeProjectionCapabilitiesView ProjectionCapabilities);
+
+public sealed record GameBridgeSetupFieldView(
+    string Name,
+    string ValueKind,
+    bool IsRequired,
+    string DisplayName,
+    string Description);
+
+public sealed record GameBridgeStageHookView(
+    string StageId,
+    string DisplayName,
+    string Description,
+    int Sequence,
+    bool AllowsPublicMessages,
+    bool AllowsDirectMessages);
+
+public sealed record GameBridgeActionFormView(
+    string IntentName,
+    string StageId,
+    string DisplayName,
+    string Description,
+    string Layout,
+    IReadOnlyList<GameBridgeActionFieldView> Fields);
+
+public sealed record GameBridgeActionFieldView(
+    string Name,
+    string ValueKind,
+    bool IsRequired,
+    string DisplayName,
+    string Description);
+
+public sealed record GameBridgePromptAssetView(
+    string AssetId,
+    string Kind,
+    bool IsRequired);
+
+public sealed record GameBridgeCommunicationCapabilitiesView(
+    bool AllowsPublicChannelMessages,
+    bool AllowsDirectMessages);
+
+public sealed record GameBridgeMemoryExpectationsView(
+    bool UsesRoundSummaries,
+    int SuggestedSummaryTokenBudget,
+    int MaximumRetainedRoundSummaries);
+
+public sealed record GameBridgeProjectionCapabilitiesView(
+    bool SupportsPublicEventProjection,
+    bool SupportsParticipantPrivateProjection,
+    bool SupportsHostInspectorProjection);
 
 public sealed record GameBridgePublicView(
     IReadOnlyList<GameBridgeNarrationEntry> Narration,
@@ -67,7 +128,10 @@ public sealed record GameBridgePlayerView(
     IReadOnlyList<VisibleGameEvent> EngineEvents,
     IReadOnlyList<PendingInputState> PendingInputs,
     IReadOnlyList<ParticipantFeedEntry> Feed,
-    GameRuntimeEventDeliveryCursor? Cursor);
+    GameRuntimeEventDeliveryCursor? Cursor)
+{
+    public IReadOnlyList<GameBridgeActionFormView> ActionForms { get; init; } = [];
+}
 
 public sealed record GameBridgeNarrationEntry(
     string EventId,

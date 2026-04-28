@@ -157,7 +157,48 @@ public sealed class WerewolfModule : IGameModule
                 new GamePromptAssetIdentifier("werewolf-rules", GamePromptAssetKind.RulesText),
                 new GamePromptAssetIdentifier("werewolf-participant-instructions", GamePromptAssetKind.ParticipantInstructions)
             ],
-            ParticipantRequirements = new GameParticipantRequirements(true, true, false, 1, 0)
+            ParticipantRequirements = new GameParticipantRequirements(true, true, false, 1, 0),
+            AuthoringHooks = new GameModuleAuthoringHooks(
+                [
+                    new GameStageDescriptor(
+                        WerewolfConstants.NightStage.StageId,
+                        WerewolfConstants.NightStage.DisplayName,
+                        "Private role information is visible; night-only actions resolve before discussion.",
+                        WerewolfConstants.NightStage.Sequence,
+                        WerewolfConstants.NightStage.AllowsPublicMessages,
+                        WerewolfConstants.NightStage.AllowsDirectMessages),
+                    new GameStageDescriptor(
+                        WerewolfConstants.DayDiscussionStage.StageId,
+                        WerewolfConstants.DayDiscussionStage.DisplayName,
+                        "Participants discuss visible facts before the village vote.",
+                        WerewolfConstants.DayDiscussionStage.Sequence,
+                        WerewolfConstants.DayDiscussionStage.AllowsPublicMessages,
+                        WerewolfConstants.DayDiscussionStage.AllowsDirectMessages),
+                    new GameStageDescriptor(
+                        WerewolfConstants.VotingStage.StageId,
+                        WerewolfConstants.VotingStage.DisplayName,
+                        "Active participants vote to eliminate someone or abstain.",
+                        WerewolfConstants.VotingStage.Sequence,
+                        WerewolfConstants.VotingStage.AllowsPublicMessages,
+                        WerewolfConstants.VotingStage.AllowsDirectMessages)
+                ],
+                [
+                    new GameActionFormDescriptor(
+                        WerewolfConstants.NightActionIntentName,
+                        WerewolfConstants.NightStage.StageId,
+                        "Night prompt",
+                        "Continue once private role information has been reviewed.",
+                        GameActionFormLayout.ButtonList,
+                        [new GameActionFieldDescriptor("choiceName", GameActionFieldKind.ChoiceName, true, "Night action", "Choose the available night action.")]),
+                    new GameActionFormDescriptor(
+                        WerewolfConstants.VoteIntentName,
+                        WerewolfConstants.VotingStage.StageId,
+                        "Village vote",
+                        "Choose an active participant to eliminate or abstain.",
+                        GameActionFormLayout.ButtonList,
+                        [new GameActionFieldDescriptor("choiceName", GameActionFieldKind.ChoiceName, true, "Vote target", "Choose one legal vote target.")])
+                ],
+                new GameProjectionCapabilities(true, true, true))
         };
 
     private static GameModuleTransitionResult ValidateCommand(GameModuleTransitionContext context)

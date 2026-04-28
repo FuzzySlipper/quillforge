@@ -160,6 +160,74 @@ export interface GameBridgeView {
   roster: GameBridgeParticipantView[];
   public: GameBridgePublicView;
   player: GameBridgePlayerView | null;
+  moduleAuthoring: GameBridgeModuleAuthoringView | null;
+}
+
+export interface GameBridgeModuleAuthoringView {
+  setupFields: GameBridgeSetupFieldView[];
+  stages: GameBridgeStageHookView[];
+  actionForms: GameBridgeActionFormView[];
+  promptAssets: GameBridgePromptAssetView[];
+  communicationCapabilities: GameBridgeCommunicationCapabilitiesView;
+  memoryExpectations: GameBridgeMemoryExpectationsView;
+  projectionCapabilities: GameBridgeProjectionCapabilitiesView;
+}
+
+export interface GameBridgeSetupFieldView {
+  name: string;
+  valueKind: GameSetupValueKind;
+  isRequired: boolean;
+  displayName: string;
+  description: string;
+}
+
+export interface GameBridgeStageHookView {
+  stageId: string;
+  displayName: string;
+  description: string;
+  sequence: number;
+  allowsPublicMessages: boolean;
+  allowsDirectMessages: boolean;
+}
+
+export interface GameBridgeActionFormView {
+  intentName: string;
+  stageId: string;
+  displayName: string;
+  description: string;
+  layout: string;
+  fields: GameBridgeActionFieldView[];
+}
+
+export interface GameBridgeActionFieldView {
+  name: string;
+  valueKind: string;
+  isRequired: boolean;
+  displayName: string;
+  description: string;
+}
+
+export interface GameBridgePromptAssetView {
+  assetId: string;
+  kind: string;
+  isRequired: boolean;
+}
+
+export interface GameBridgeCommunicationCapabilitiesView {
+  allowsPublicChannelMessages: boolean;
+  allowsDirectMessages: boolean;
+}
+
+export interface GameBridgeMemoryExpectationsView {
+  usesRoundSummaries: boolean;
+  suggestedSummaryTokenBudget: number;
+  maximumRetainedRoundSummaries: number;
+}
+
+export interface GameBridgeProjectionCapabilitiesView {
+  supportsPublicEventProjection: boolean;
+  supportsParticipantPrivateProjection: boolean;
+  supportsHostInspectorProjection: boolean;
 }
 
 export interface GameBridgePublicView {
@@ -182,6 +250,7 @@ export interface GameBridgePlayerView {
   pendingInputs: PendingInputState[];
   feed: ParticipantFeedEntry[];
   cursor: GameRuntimeEventDeliveryCursor | null;
+  actionForms: GameBridgeActionFormView[];
 }
 
 export interface GameBridgeNarrationEntry {
@@ -271,9 +340,13 @@ export interface GameTemplateModuleOption {
   minimumPlayers: number;
   maximumPlayers: number;
   setupFields: GameTemplateSetupFieldOption[];
+  stages: GameTemplateStageHookOption[];
+  actionForms: GameTemplateActionFormOption[];
+  promptAssets: GameTemplatePromptAssetOption[];
   communicationCapabilities: GameTemplateCommunicationCapabilitiesOption;
   memoryExpectations: GameTemplateMemoryExpectationsOption;
   participantRequirements: GameTemplateParticipantRequirementsOption;
+  projectionCapabilities: GameTemplateProjectionCapabilitiesOption;
 }
 
 export interface GameTemplateSetupFieldOption {
@@ -282,6 +355,38 @@ export interface GameTemplateSetupFieldOption {
   isRequired: boolean;
   displayName: string;
   description: string;
+}
+
+export interface GameTemplateStageHookOption {
+  stageId: string;
+  displayName: string;
+  description: string;
+  sequence: number;
+  allowsPublicMessages: boolean;
+  allowsDirectMessages: boolean;
+}
+
+export interface GameTemplateActionFormOption {
+  intentName: string;
+  stageId: string;
+  displayName: string;
+  description: string;
+  layout: string;
+  fields: GameTemplateActionFieldOption[];
+}
+
+export interface GameTemplateActionFieldOption {
+  name: string;
+  valueKind: string;
+  isRequired: boolean;
+  displayName: string;
+  description: string;
+}
+
+export interface GameTemplatePromptAssetOption {
+  assetId: string;
+  kind: string;
+  isRequired: boolean;
 }
 
 export interface GameTemplateCommunicationCapabilitiesOption {
@@ -301,6 +406,12 @@ export interface GameTemplateParticipantRequirementsOption {
   allowsSystemParticipants: boolean;
   minimumHumanParticipants: number;
   minimumAgentParticipants: number;
+}
+
+export interface GameTemplateProjectionCapabilitiesOption {
+  supportsPublicEventProjection: boolean;
+  supportsParticipantPrivateProjection: boolean;
+  supportsHostInspectorProjection: boolean;
 }
 
 export interface GameTemplateProviderOption {

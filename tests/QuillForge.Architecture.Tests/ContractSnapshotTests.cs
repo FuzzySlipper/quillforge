@@ -1070,6 +1070,49 @@ public sealed class ContractSnapshotTests
                             Description = "Number of werewolves in the village.",
                         },
                     ],
+                    Stages =
+                    [
+                        new GameTemplateStageHookOption
+                        {
+                            StageId = "night",
+                            DisplayName = "Night",
+                            Description = "Private role information is visible; night-only actions resolve before discussion.",
+                            Sequence = 1,
+                            AllowsPublicMessages = false,
+                            AllowsDirectMessages = true,
+                        },
+                    ],
+                    ActionForms =
+                    [
+                        new GameTemplateActionFormOption
+                        {
+                            IntentName = "vote",
+                            StageId = "voting",
+                            DisplayName = "Village vote",
+                            Description = "Choose an active participant to eliminate or abstain.",
+                            Layout = GameActionFormLayout.ButtonList.ToString(),
+                            Fields =
+                            [
+                                new GameTemplateActionFieldOption
+                                {
+                                    Name = "choiceName",
+                                    ValueKind = GameActionFieldKind.ChoiceName.ToString(),
+                                    IsRequired = true,
+                                    DisplayName = "Vote target",
+                                    Description = "Choose one legal vote target.",
+                                },
+                            ],
+                        },
+                    ],
+                    PromptAssets =
+                    [
+                        new GameTemplatePromptAssetOption
+                        {
+                            AssetId = "werewolf-rules",
+                            Kind = GamePromptAssetKind.RulesText.ToString(),
+                            IsRequired = true,
+                        },
+                    ],
                     CommunicationCapabilities = new GameTemplateCommunicationCapabilitiesOption
                     {
                         AllowsPublicChannelMessages = true,
@@ -1088,6 +1131,12 @@ public sealed class ContractSnapshotTests
                         AllowsSystemParticipants = false,
                         MinimumHumanParticipants = 1,
                         MinimumAgentParticipants = 3,
+                    },
+                    ProjectionCapabilities = new GameTemplateProjectionCapabilitiesOption
+                    {
+                        SupportsPublicEventProjection = true,
+                        SupportsParticipantPrivateProjection = true,
+                        SupportsHostInspectorProjection = true,
                     },
                 },
             ],

@@ -78,7 +78,12 @@ non-game consumer appears.
 `Den.RulesEngine.Werewolf` is the first game module. It supplies module
 metadata, setup validation, role assignment rules, legal actions, phase
 transitions, visibility rules, deterministic narrator templates, and prompt/rules
-assets. It must prove the module contract without becoming the framework.
+assets. It must prove the module contract without becoming the framework. Generic
+module authoring hooks extracted after the Werewolf proof are documented in
+[game-module-authoring-hooks.md](./game-module-authoring-hooks.md); those hooks
+cover setup schemas, action form metadata, stage labels, prompt assets,
+communication capabilities, memory expectations, and projection capabilities
+without moving Werewolf role/team semantics into the framework.
 
 ### Project Layout
 

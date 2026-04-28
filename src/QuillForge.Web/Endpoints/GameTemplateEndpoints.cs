@@ -25,7 +25,7 @@ public static class GameTemplateEndpoints
         group.MapGet("/catalog", ([FromServices] GameModuleRegistry registry, [FromServices] ProviderRegistry providerRegistry) =>
         {
             var modules = registry.Modules
-                .Select(module => ToModuleOption(module.Descriptor))
+                .Select(ToModuleOption)
                 .OrderBy(module => module.DisplayName, StringComparer.Ordinal)
                 .ThenBy(module => module.ModuleId, StringComparer.Ordinal)
                 .ThenBy(module => module.ModuleVersion, StringComparer.Ordinal)
@@ -157,8 +157,14 @@ public static class GameTemplateEndpoints
             Validation = envelope.Validation,
         };
 
-    private static GameTemplateModuleOption ToModuleOption(GameModuleDescriptor descriptor) =>
-        new()
+    private static GameTemplateModuleOption ToModuleOption(IGameModule module)
+    {
+        var descriptor = module.Descriptor;
+        var requiredAssets = descriptor.RequiredPromptAssets
+            .Select(asset => $"{asset.AssetId}:{asset.Kind}")
+            .ToHashSet(StringComparer.Ordinal);
+
+        return new GameTemplateModuleOption
         {
             ModuleId = descriptor.ModuleId.Value,
             ModuleVersion = descriptor.ModuleVersion.Value,
@@ -175,6 +181,45 @@ public static class GameTemplateEndpoints
                     IsRequired = field.IsRequired,
                     DisplayName = field.DisplayName,
                     Description = field.Description,
+                })
+                .ToArray(),
+            Stages = descriptor.AuthoringHooks.Stages
+                .Select(stage => new GameTemplateStageHookOption
+                {
+                    StageId = stage.StageId.Value,
+                    DisplayName = stage.DisplayName,
+                    Description = stage.Description,
+                    Sequence = stage.Sequence,
+                    AllowsPublicMessages = stage.AllowsPublicMessages,
+                    AllowsDirectMessages = stage.AllowsDirectMessages,
+                })
+                .ToArray(),
+            ActionForms = descriptor.AuthoringHooks.ActionForms
+                .Select(form => new GameTemplateActionFormOption
+                {
+                    IntentName = form.IntentName,
+                    StageId = form.StageId.Value,
+                    DisplayName = form.DisplayName,
+                    Description = form.Description,
+                    Layout = form.Layout.ToString(),
+                    Fields = form.Fields
+                        .Select(field => new GameTemplateActionFieldOption
+                        {
+                            Name = field.Name,
+                            ValueKind = field.ValueKind.ToString(),
+                            IsRequired = field.IsRequired,
+                            DisplayName = field.DisplayName,
+                            Description = field.Description,
+                        })
+                        .ToArray(),
+                })
+                .ToArray(),
+            PromptAssets = module.GetPromptAssets()
+                .Select(asset => new GameTemplatePromptAssetOption
+                {
+                    AssetId = asset.AssetId,
+                    Kind = asset.Kind.ToString(),
+                    IsRequired = requiredAssets.Contains($"{asset.AssetId}:{asset.Kind}"),
                 })
                 .ToArray(),
             CommunicationCapabilities = new GameTemplateCommunicationCapabilitiesOption
@@ -196,5 +241,12 @@ public static class GameTemplateEndpoints
                 MinimumHumanParticipants = descriptor.ParticipantRequirements.MinimumHumanParticipants,
                 MinimumAgentParticipants = descriptor.ParticipantRequirements.MinimumAgentParticipants,
             },
+            ProjectionCapabilities = new GameTemplateProjectionCapabilitiesOption
+            {
+                SupportsPublicEventProjection = descriptor.AuthoringHooks.ProjectionCapabilities.SupportsPublicEventProjection,
+                SupportsParticipantPrivateProjection = descriptor.AuthoringHooks.ProjectionCapabilities.SupportsParticipantPrivateProjection,
+                SupportsHostInspectorProjection = descriptor.AuthoringHooks.ProjectionCapabilities.SupportsHostInspectorProjection,
+            },
         };
+    }
 }

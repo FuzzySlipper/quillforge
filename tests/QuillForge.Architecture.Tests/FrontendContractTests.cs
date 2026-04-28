@@ -354,6 +354,9 @@ public sealed class FrontendContractTests
                     MinimumPlayers = 4,
                     MaximumPlayers = 12,
                     SetupFields = [],
+                    Stages = [],
+                    ActionForms = [],
+                    PromptAssets = [],
                     CommunicationCapabilities = new GameTemplateCommunicationCapabilitiesOption
                     {
                         AllowsPublicChannelMessages = true,
@@ -372,6 +375,12 @@ public sealed class FrontendContractTests
                         AllowsSystemParticipants = false,
                         MinimumHumanParticipants = 1,
                         MinimumAgentParticipants = 3,
+                    },
+                    ProjectionCapabilities = new GameTemplateProjectionCapabilitiesOption
+                    {
+                        SupportsPublicEventProjection = true,
+                        SupportsParticipantPrivateProjection = true,
+                        SupportsHostInspectorProjection = true,
                     },
                 },
             ],

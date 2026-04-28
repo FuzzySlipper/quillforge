@@ -10,6 +10,7 @@ import {
   submitGameAction,
 } from "../api";
 import type {
+  GameBridgeActionFormView,
   GameBridgeView,
   GameTemplateSummary,
   ParticipantFeedEntry,
@@ -111,20 +112,27 @@ function EngineEventEntry({ event }: { event: VisibleGameEvent }) {
 
 function PendingInputCard({
   input,
+  actionForms,
   disabled,
   onSubmit,
 }: {
   input: PendingInputState;
+  actionForms: GameBridgeActionFormView[];
   disabled?: boolean;
   onSubmit: (pendingInputId: string, choiceName: string) => void;
 }) {
   const pendingInputId = valueOf(input.pendingInputId);
+  const stageId = valueOf(input.stageId);
+  const form = actionForms.find(candidate => candidate.intentName === input.intentName && candidate.stageId === stageId);
+  const fieldHint = form?.fields.find(field => field.name === "choiceName")?.description;
 
   return (
     <div className="qf-shell-card border-accent/30 bg-accent/10 px-4 py-4">
       <div className="qf-shell-folio">Pending action</div>
-      <div className="mt-2 text-sm font-medium text-text">{input.intentName}</div>
-      <div className="mt-1 text-xs text-text-muted">stage · {valueOf(input.stageId)}</div>
+      <div className="mt-2 text-sm font-medium text-text">{form?.displayName || input.intentName}</div>
+      <div className="mt-1 text-xs text-text-muted">stage · {stageId}</div>
+      {form?.description && <p className="mt-2 text-xs leading-5 text-text-muted">{form.description}</p>}
+      {fieldHint && <p className="mt-1 text-xs leading-5 text-text-muted">{fieldHint}</p>}
       <div className="mt-3 flex flex-col gap-2">
         {input.legalOptions.map((option) => (
           <button
@@ -581,6 +589,7 @@ export default function GamesWorkspace({
                         <PendingInputCard
                           key={valueOf(input.pendingInputId)}
                           input={input}
+                          actionForms={currentPlayer.actionForms}
                           disabled={mutating || sending}
                           onSubmit={(pendingInputId, choiceName) => { void handleSubmitAction(pendingInputId, choiceName); }}
                         />

@@ -34,6 +34,43 @@ public sealed class GameBridgeServiceTests
     }
 
     [Fact]
+    public async Task GenericAuthoringHooks_ProjectThroughBridgeAndDriveFakeModuleToCompletion()
+    {
+        var fixture = CreateFixture();
+        var sessionId = Guid.NewGuid();
+
+        var start = await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("test-template", "Human Player", 42, Instant(0)));
+
+        Assert.Equal(SessionMutationStatus.Success, start.Status);
+        var view = start.Value!.View;
+        Assert.Equal("test-bridge-game", view.ModuleId);
+        Assert.NotNull(view.ModuleAuthoring);
+        Assert.Contains(view.ModuleAuthoring!.SetupFields, field => field.Name == "proposal_title");
+        Assert.Contains(view.ModuleAuthoring.Stages, stage => stage.StageId == "choice" && stage.DisplayName == "Choice");
+        Assert.Contains(view.ModuleAuthoring.ActionForms, form => form.IntentName == "choice" && form.DisplayName == "Proposal choice");
+        Assert.Contains(view.ModuleAuthoring.PromptAssets, asset => asset.AssetId == "test-bridge-rules" && asset.IsRequired);
+        Assert.True(view.ModuleAuthoring.CommunicationCapabilities.AllowsPublicChannelMessages);
+        Assert.True(view.ModuleAuthoring.MemoryExpectations.UsesRoundSummaries);
+        Assert.True(view.ModuleAuthoring.ProjectionCapabilities.SupportsParticipantPrivateProjection);
+        Assert.NotNull(view.Player);
+        Assert.Contains(view.Player!.ActionForms, form => form.IntentName == "choice" && form.StageId == "choice");
+
+        var result = await fixture.Bridge.SubmitTypedActionAsync(
+            sessionId,
+            new SubmitGameTypedActionCommand("human-1", TestGameModule.PendingInputId, "approve", Instant(1)));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.Equal(GameRuntimeStatus.Ended, result.Value!.View.Status);
+        Assert.Contains(result.Value.EngineEvents, gameEvent => gameEvent is PlayerChoiceSubmittedEvent submitted
+            && submitted.ParticipantId.Value == "human-1"
+            && submitted.ChoiceName == "approve");
+        Assert.Contains(result.Value.EngineEvents, gameEvent => gameEvent is GameEndedEvent ended
+            && ended.OutcomeName == "proposal_approved");
+    }
+
+    [Fact]
     public async Task SubmitTypedAction_AppliesUserChoice()
     {
         var fixture = CreateFixture();
@@ -332,10 +369,24 @@ public sealed class GameBridgeServiceTests
             new GameTemplateVersion("1.0.0"),
             "Test Bridge Game",
             new PlayerCountRange(2, 2),
-            [])
+            [new GameSetupFieldDescriptor("proposal_title", GameSetupValueKind.String, false, "Proposal title", "Optional proposal title shown to players.")])
         {
             CommunicationCapabilities = new GameCommunicationCapabilities(true, true),
+            MemoryExpectations = new GameMemoryExpectations(true, 96, 2),
+            RequiredPromptAssets = [new GamePromptAssetIdentifier("test-bridge-rules", GamePromptAssetKind.RulesText)],
             ParticipantRequirements = new GameParticipantRequirements(true, true, false, 1, 1),
+            AuthoringHooks = new GameModuleAuthoringHooks(
+                [new GameStageDescriptor(ChoiceStageId, "Choice", "Choose whether the table proposal succeeds.", 1, true, true)],
+                [
+                    new GameActionFormDescriptor(
+                        "choice",
+                        ChoiceStageId,
+                        "Proposal choice",
+                        "Pick one legal outcome for the proposal.",
+                        GameActionFormLayout.ButtonList,
+                        [new GameActionFieldDescriptor("choiceName", GameActionFieldKind.ChoiceName, true, "Outcome", "Choose approve or reject.")])
+                ],
+                new GameProjectionCapabilities(true, true, true)),
         };
 
         public ValidationResult ValidateSetup(GameSetupValidationContext context) => ValidationResult.Valid;
@@ -377,11 +428,27 @@ public sealed class GameBridgeServiceTests
                     [DeterministicEffectsAdvancedEvent.Create(context.State.GameInstanceId, "hidden-setup")]);
             }
 
+            if (context.Command is SubmitPlayerChoiceIntentCommand submit && context.Phase == RulesResolutionPhase.OnRun)
+            {
+                var outcome = submit.ChoiceName == "approve" ? "proposal_approved" : "proposal_rejected";
+                return GameModuleTransitionResult.Accepted(
+                    context.State with
+                    {
+                        Status = RulesGameStatus.Ended,
+                        PendingInputs = [],
+                    },
+                    [GameEndedEvent.Create(context.State.GameInstanceId, outcome)]);
+            }
+
             return GameModuleTransitionResult.Accepted(context.State, []);
         }
 
         public IReadOnlyList<GameRuleHandlerDescriptor> GetRuleHandlerDescriptors() => [];
 
-        public IReadOnlyList<GamePromptAsset> GetPromptAssets() => [];
+        public IReadOnlyList<GamePromptAsset> GetPromptAssets() =>
+        [
+            new GamePromptAsset("test-bridge-rules", GamePromptAssetKind.RulesText, "Approve or reject the table proposal."),
+            new GamePromptAsset("test-bridge-instructions", GamePromptAssetKind.ParticipantInstructions, "Use the available proposal choices only."),
+        ];
     }
 }

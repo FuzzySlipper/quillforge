@@ -17,6 +17,41 @@
           "description": "Number of werewolves in the village."
         }
       ],
+      "stages": [
+        {
+          "stageId": "night",
+          "displayName": "Night",
+          "description": "Private role information is visible; night-only actions resolve before discussion.",
+          "sequence": 1,
+          "allowsPublicMessages": false,
+          "allowsDirectMessages": true
+        }
+      ],
+      "actionForms": [
+        {
+          "intentName": "vote",
+          "stageId": "voting",
+          "displayName": "Village vote",
+          "description": "Choose an active participant to eliminate or abstain.",
+          "layout": "ButtonList",
+          "fields": [
+            {
+              "name": "choiceName",
+              "valueKind": "ChoiceName",
+              "isRequired": true,
+              "displayName": "Vote target",
+              "description": "Choose one legal vote target."
+            }
+          ]
+        }
+      ],
+      "promptAssets": [
+        {
+          "assetId": "werewolf-rules",
+          "kind": "RulesText",
+          "isRequired": true
+        }
+      ],
       "communicationCapabilities": {
         "allowsPublicChannelMessages": true,
         "allowsDirectMessages": true
@@ -32,6 +67,11 @@
         "allowsSystemParticipants": false,
         "minimumHumanParticipants": 1,
         "minimumAgentParticipants": 3
+      },
+      "projectionCapabilities": {
+        "supportsPublicEventProjection": true,
+        "supportsParticipantPrivateProjection": true,
+        "supportsHostInspectorProjection": true
       }
     }
   ],
