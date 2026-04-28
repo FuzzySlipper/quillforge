@@ -159,6 +159,43 @@ public class DependencyBoundaryTests
     }
 
     [Fact]
+    public void GameCoreServices_DoNotUseRawJsonNavigationForGameplayContracts()
+    {
+        var coreServicesRoot = Path.Combine(RepoRoot, "src", "QuillForge.Core", "Services");
+        var sourceFiles = Directory.GetFiles(coreServicesRoot, "Game*.cs", SearchOption.TopDirectoryOnly)
+            .Concat(Directory.GetFiles(Path.Combine(RepoRoot, "src", "QuillForge.Core", "Models"), "Game*.cs", SearchOption.TopDirectoryOnly))
+            .Concat([
+                Path.Combine(coreServicesRoot, "AgentVisibleEventsService.cs"),
+                Path.Combine(coreServicesRoot, "ParticipantChannelService.cs"),
+            ])
+            .ToArray();
+        var sourceText = string.Join(Environment.NewLine, sourceFiles.Select(File.ReadAllText));
+
+        Assert.DoesNotContain("JsonElement", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonDocument", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonNode", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetProperty(", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryGetProperty(", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("dynamic", sourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GameSessionEndpoints_AreTypedThinAdapters()
+    {
+        var sourceText = File.ReadAllText(Path.Combine(RepoRoot, "src", "QuillForge.Web", "Endpoints", "GameEndpoints.cs"));
+
+        Assert.Contains("IGameBridgeService", sourceText, StringComparison.Ordinal);
+        Assert.Contains("IGameInspectorService", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ISessionStateStore", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("RulesEngineService", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("GameRuntimeState", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonElement", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("JsonDocument", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetProperty(", sourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryGetProperty(", sourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WerewolfModule_DoesNot_Reference_QuillForgeOrHostFrameworks()
     {
         Assert.Contains(
