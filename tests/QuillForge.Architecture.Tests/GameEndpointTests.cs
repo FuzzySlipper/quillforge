@@ -12,6 +12,29 @@ namespace QuillForge.Architecture.Tests;
 public sealed class GameEndpointTests
 {
     [Fact]
+    public void GameTemplateEndpoints_MapExpectedTemplateRoutes()
+    {
+        var builder = WebApplication.CreateBuilder();
+        using var app = builder.Build();
+
+        app.MapGameTemplateEndpoints();
+
+        var routes = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => (Pattern: endpoint.RoutePattern.RawText, Methods: endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods.ToArray() ?? []))
+            .ToArray();
+
+        Assert.Contains(routes, route => route.Pattern == "/api/game-templates/" && route.Methods.Contains("GET"));
+        Assert.Contains(routes, route => route.Pattern == "/api/game-templates/catalog" && route.Methods.Contains("GET"));
+        Assert.Contains(routes, route => route.Pattern == "/api/game-templates/{templateId}" && route.Methods.Contains("GET"));
+        Assert.Contains(routes, route => route.Pattern == "/api/game-templates/{templateId}" && route.Methods.Contains("PUT"));
+        Assert.Contains(routes, route => route.Pattern == "/api/game-templates/{templateId}/clone" && route.Methods.Contains("POST"));
+        Assert.Contains(routes, route => route.Pattern == "/api/game-templates/validate" && route.Methods.Contains("POST"));
+        Assert.Contains(routes, route => route.Pattern == "/api/game-templates/{templateId}" && route.Methods.Contains("DELETE"));
+    }
+
+    [Fact]
     public void GameEndpoints_MapExpectedSessionScopedRoutes()
     {
         var builder = WebApplication.CreateBuilder();

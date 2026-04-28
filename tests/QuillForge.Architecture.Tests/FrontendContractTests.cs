@@ -337,6 +337,103 @@ public sealed class FrontendContractTests
     }
 
     [Fact]
+    public void GameTemplateCatalogResponse_StaysInSyncWith_GameTemplateCatalogResponseInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("GameTemplateCatalogResponse");
+        var jsonKeys = SerializeTopLevelKeys(new GameTemplateCatalogResponse
+        {
+            Modules =
+            [
+                new GameTemplateModuleOption
+                {
+                    ModuleId = "werewolf",
+                    ModuleVersion = "0.1.0",
+                    DisplayName = "Werewolf",
+                    MinimumTemplateVersion = "1.0.0",
+                    MaximumTemplateVersion = "1.0.0",
+                    MinimumPlayers = 4,
+                    MaximumPlayers = 12,
+                    SetupFields = [],
+                    CommunicationCapabilities = new GameTemplateCommunicationCapabilitiesOption
+                    {
+                        AllowsPublicChannelMessages = true,
+                        AllowsDirectMessages = true,
+                    },
+                    MemoryExpectations = new GameTemplateMemoryExpectationsOption
+                    {
+                        UsesRoundSummaries = true,
+                        SuggestedSummaryTokenBudget = 512,
+                        MaximumRetainedRoundSummaries = 3,
+                    },
+                    ParticipantRequirements = new GameTemplateParticipantRequirementsOption
+                    {
+                        AllowsHumanParticipants = true,
+                        AllowsAgentParticipants = true,
+                        AllowsSystemParticipants = false,
+                        MinimumHumanParticipants = 1,
+                        MinimumAgentParticipants = 3,
+                    },
+                },
+            ],
+            Providers = [new GameTemplateProviderOption { Alias = "local", Type = "Ollama", DefaultModel = "llama3.2", ContextLimit = 8192 }],
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("GameTemplateModuleOption[]", shape["modules"]);
+        Assert.Equal("GameTemplateProviderOption[]", shape["providers"]);
+    }
+
+    [Fact]
+    public void GameTemplateResponse_StaysInSyncWith_GameTemplateResponseInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("GameTemplateResponse");
+        var jsonKeys = SerializeTopLevelKeys(new GameTemplateResponse
+        {
+            Template = SampleGameTemplate(),
+            Validation = GameTemplateValidationResult.Valid,
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("GameTemplate", shape["template"]);
+        Assert.Equal("GameTemplateValidationResult", shape["validation"]);
+    }
+
+    [Fact]
+    public void GameTemplate_StaysInSyncWith_GameTemplateInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("GameTemplate");
+        var jsonKeys = SerializeTopLevelKeys(SampleGameTemplate());
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("GameTemplateModuleSelection", shape["module"]);
+        Assert.Equal("GameTemplateRosterSettings", shape["roster"]);
+        Assert.Equal("GameTemplateAgentPlayerConfig[]", GetTypeScriptInterfaceShape("GameTemplateRosterSettings")["agentPlayers"]);
+    }
+
+    [Fact]
+    public void GameTemplateEditor_UsesTypedTemplateApisAndSurfacesServiceValidation()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("components", "GameTemplateEditor.tsx"));
+
+        Assert.Contains("getGameTemplateCatalog", source, StringComparison.Ordinal);
+        Assert.Contains("getGameTemplate", source, StringComparison.Ordinal);
+        Assert.Contains("saveGameTemplate", source, StringComparison.Ordinal);
+        Assert.Contains("cloneGameTemplate", source, StringComparison.Ordinal);
+        Assert.Contains("deleteGameTemplate", source, StringComparison.Ordinal);
+        Assert.Contains("validateGameTemplate", source, StringComparison.Ordinal);
+        Assert.Contains("Validation issues from template service", source, StringComparison.Ordinal);
+        Assert.Contains("Provider alias", source, StringComparison.Ordinal);
+        Assert.Contains("Default model", source, StringComparison.Ordinal);
+        Assert.Contains("characterPrompt", source, StringComparison.Ordinal);
+        Assert.Contains("personality", source, StringComparison.Ordinal);
+        Assert.Contains("...current", source, StringComparison.Ordinal);
+        Assert.Contains("...current.roster", source, StringComparison.Ordinal);
+        Assert.Contains("...current.communication", source, StringComparison.Ordinal);
+        Assert.Contains("...current.naming", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"game-template-editor\"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GamesWorkspace_UsesTypedGameEndpointsAndRendersNoGameState()
     {
         var source = File.ReadAllText(GetFrontendFilePath("components", "GamesWorkspace.tsx"));
@@ -345,6 +442,7 @@ public sealed class FrontendContractTests
         Assert.Contains("startGameFromTemplate", source, StringComparison.Ordinal);
         Assert.Contains("submitGameAction", source, StringComparison.Ordinal);
         Assert.Contains("postGamePublicMessage", source, StringComparison.Ordinal);
+        Assert.Contains("<GameTemplateEditor", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"games-no-game-state\"", source, StringComparison.Ordinal);
         Assert.Contains("No game is running in this session.", source, StringComparison.Ordinal);
         Assert.DoesNotContain("sendChatStream", source, StringComparison.Ordinal);
@@ -510,7 +608,7 @@ public sealed class FrontendContractTests
     private static Dictionary<string, string> GetTypeScriptInterfaceShape(string fileName, string interfaceName)
     {
         var source = File.ReadAllText(GetFrontendFilePath(fileName));
-        var marker = $"export interface {interfaceName}";
+        var marker = $"export interface {interfaceName} ";
         var start = source.IndexOf(marker, StringComparison.Ordinal);
         Assert.True(start >= 0, $"Could not find interface {interfaceName} in {fileName}");
 
@@ -591,6 +689,56 @@ public sealed class FrontendContractTests
             [],
             new GameBridgePublicView([], []),
             null);
+
+    private static GameTemplate SampleGameTemplate() =>
+        new()
+        {
+            TemplateId = "village",
+            DisplayName = "Village Werewolf",
+            Description = "Baseline behavior-focused Werewolf setup.",
+            Module = new GameTemplateModuleSelection
+            {
+                ModuleId = "werewolf",
+                MinimumVersion = "0.1.0",
+                MaximumVersion = "0.1.0",
+            },
+            TemplateVersion = "1.0.0",
+            RulesOptions = new GameTemplateRulesOptions
+            {
+                Values = [new GameTemplateRuleOptionValue { Name = "werewolf_count", Kind = GameTemplateRuleOptionValueKind.Int, IntValue = 1 }],
+            },
+            Roster = new GameTemplateRosterSettings
+            {
+                RosterSize = 2,
+                UserSeatParticipantId = "seat-1",
+                AgentPlayers =
+                [
+                    new GameTemplateAgentPlayerConfig
+                    {
+                        ParticipantId = "seat-2",
+                        ProviderAlias = "local",
+                        ModelOverride = "llama3.2",
+                        CharacterPrompt = "Keep claims concise.",
+                        Personality = "skeptical villager",
+                        FixedName = "Mira",
+                        RandomNameBehavior = GameTemplateRandomNameBehavior.UseFixedNameWhenProvided,
+                    },
+                ],
+            },
+            Memory = new GameTemplateMemorySettings { TokenBudget = 512 },
+            Communication = new GameTemplateCommunicationSettings
+            {
+                PublicChannelEnabled = true,
+                DirectMessagesEnabled = true,
+                HostMessagesEnabled = true,
+            },
+            Naming = new GameTemplateNamingSettings
+            {
+                RandomizeAgentNames = true,
+                RandomNameSet = "village",
+                RandomSeed = 17,
+            },
+        };
 
     private static List<string> SerializeTopLevelKeys<T>(T value)
     {

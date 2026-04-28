@@ -854,6 +854,69 @@ public sealed class ContractSnapshotTests
         AssertJsonSnapshot("GameTemplateResponse", dto, DebugBridgeJsonOptions);
     }
 
+    [Fact]
+    public void GameTemplateCatalogResponse_MatchesApprovedSnapshot()
+    {
+        var dto = new GameTemplateCatalogResponse
+        {
+            Modules =
+            [
+                new GameTemplateModuleOption
+                {
+                    ModuleId = "werewolf",
+                    ModuleVersion = "0.1.0",
+                    DisplayName = "Werewolf",
+                    MinimumTemplateVersion = "1.0.0",
+                    MaximumTemplateVersion = "1.0.0",
+                    MinimumPlayers = 4,
+                    MaximumPlayers = 12,
+                    SetupFields =
+                    [
+                        new GameTemplateSetupFieldOption
+                        {
+                            Name = "werewolf_count",
+                            ValueKind = GameSetupValueKind.Int.ToString(),
+                            IsRequired = true,
+                            DisplayName = "Werewolf count",
+                            Description = "Number of werewolves in the village.",
+                        },
+                    ],
+                    CommunicationCapabilities = new GameTemplateCommunicationCapabilitiesOption
+                    {
+                        AllowsPublicChannelMessages = true,
+                        AllowsDirectMessages = true,
+                    },
+                    MemoryExpectations = new GameTemplateMemoryExpectationsOption
+                    {
+                        UsesRoundSummaries = true,
+                        SuggestedSummaryTokenBudget = 512,
+                        MaximumRetainedRoundSummaries = 3,
+                    },
+                    ParticipantRequirements = new GameTemplateParticipantRequirementsOption
+                    {
+                        AllowsHumanParticipants = true,
+                        AllowsAgentParticipants = true,
+                        AllowsSystemParticipants = false,
+                        MinimumHumanParticipants = 1,
+                        MinimumAgentParticipants = 3,
+                    },
+                },
+            ],
+            Providers =
+            [
+                new GameTemplateProviderOption
+                {
+                    Alias = "local",
+                    Type = "Ollama",
+                    DefaultModel = "llama3.2",
+                    ContextLimit = 8192,
+                },
+            ],
+        };
+
+        AssertJsonSnapshot("GameTemplateCatalogResponse", dto, DebugBridgeJsonOptions);
+    }
+
     // =======================================================================
     // Profile Config YAML Shape
     // =======================================================================

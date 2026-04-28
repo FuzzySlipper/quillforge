@@ -1,0 +1,46 @@
+{
+  "modules": [
+    {
+      "moduleId": "werewolf",
+      "moduleVersion": "0.1.0",
+      "displayName": "Werewolf",
+      "minimumTemplateVersion": "1.0.0",
+      "maximumTemplateVersion": "1.0.0",
+      "minimumPlayers": 4,
+      "maximumPlayers": 12,
+      "setupFields": [
+        {
+          "name": "werewolf_count",
+          "valueKind": "Int",
+          "isRequired": true,
+          "displayName": "Werewolf count",
+          "description": "Number of werewolves in the village."
+        }
+      ],
+      "communicationCapabilities": {
+        "allowsPublicChannelMessages": true,
+        "allowsDirectMessages": true
+      },
+      "memoryExpectations": {
+        "usesRoundSummaries": true,
+        "suggestedSummaryTokenBudget": 512,
+        "maximumRetainedRoundSummaries": 3
+      },
+      "participantRequirements": {
+        "allowsHumanParticipants": true,
+        "allowsAgentParticipants": true,
+        "allowsSystemParticipants": false,
+        "minimumHumanParticipants": 1,
+        "minimumAgentParticipants": 3
+      }
+    }
+  ],
+  "providers": [
+    {
+      "alias": "local",
+      "type": "Ollama",
+      "defaultModel": "llama3.2",
+      "contextLimit": 8192
+    }
+  ]
+}

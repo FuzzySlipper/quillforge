@@ -1,5 +1,8 @@
+using Den.RulesEngine;
+using Microsoft.AspNetCore.Mvc;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Providers.Registry;
 using QuillForge.Web.Contracts;
 
 namespace QuillForge.Web.Endpoints;
@@ -10,7 +13,7 @@ public static class GameTemplateEndpoints
     {
         var group = app.MapGroup("/api/game-templates");
 
-        group.MapGet("/", async (IGameTemplateService templateService, CancellationToken ct) =>
+        group.MapGet("/", async ([FromServices] IGameTemplateService templateService, CancellationToken ct) =>
         {
             var templates = await templateService.ListAsync(ct);
             return Results.Ok(new GameTemplateListResponse
@@ -19,9 +22,35 @@ public static class GameTemplateEndpoints
             });
         });
 
+        group.MapGet("/catalog", ([FromServices] GameModuleRegistry registry, [FromServices] ProviderRegistry providerRegistry) =>
+        {
+            var modules = registry.Modules
+                .Select(module => ToModuleOption(module.Descriptor))
+                .OrderBy(module => module.DisplayName, StringComparer.Ordinal)
+                .ThenBy(module => module.ModuleId, StringComparer.Ordinal)
+                .ThenBy(module => module.ModuleVersion, StringComparer.Ordinal)
+                .ToArray();
+            var providers = providerRegistry.GetAllConfigs()
+                .Select(config => new GameTemplateProviderOption
+                {
+                    Alias = config.Alias,
+                    Type = config.Type.ToString(),
+                    DefaultModel = config.DefaultModel,
+                    ContextLimit = config.ContextLimit,
+                })
+                .OrderBy(provider => provider.Alias, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            return Results.Ok(new GameTemplateCatalogResponse
+            {
+                Modules = modules,
+                Providers = providers,
+            });
+        });
+
         group.MapGet("/{templateId}", async (
             string templateId,
-            IGameTemplateService templateService,
+            [FromServices] IGameTemplateService templateService,
             CancellationToken ct) =>
         {
             try
@@ -42,7 +71,7 @@ public static class GameTemplateEndpoints
         group.MapPut("/{templateId}", async (
             string templateId,
             SaveGameTemplateRequest request,
-            IGameTemplateService templateService,
+            [FromServices] IGameTemplateService templateService,
             CancellationToken ct) =>
         {
             try
@@ -61,7 +90,7 @@ public static class GameTemplateEndpoints
         group.MapPost("/{templateId}/clone", async (
             string templateId,
             CloneGameTemplateRequest request,
-            IGameTemplateService templateService,
+            [FromServices] IGameTemplateService templateService,
             CancellationToken ct) =>
         {
             try
@@ -87,7 +116,7 @@ public static class GameTemplateEndpoints
 
         group.MapPost("/validate", async (
             ValidateGameTemplateRequest request,
-            IGameTemplateService templateService,
+            [FromServices] IGameTemplateService templateService,
             CancellationToken ct) =>
         {
             var validation = await templateService.ValidateAsync(request.Template, ct);
@@ -99,7 +128,7 @@ public static class GameTemplateEndpoints
 
         group.MapDelete("/{templateId}", async (
             string templateId,
-            IGameTemplateService templateService,
+            [FromServices] IGameTemplateService templateService,
             CancellationToken ct) =>
         {
             try
@@ -126,5 +155,46 @@ public static class GameTemplateEndpoints
         {
             Template = envelope.Template,
             Validation = envelope.Validation,
+        };
+
+    private static GameTemplateModuleOption ToModuleOption(GameModuleDescriptor descriptor) =>
+        new()
+        {
+            ModuleId = descriptor.ModuleId.Value,
+            ModuleVersion = descriptor.ModuleVersion.Value,
+            DisplayName = descriptor.DisplayName,
+            MinimumTemplateVersion = descriptor.MinimumTemplateVersion.Value,
+            MaximumTemplateVersion = descriptor.MaximumTemplateVersion.Value,
+            MinimumPlayers = descriptor.PlayerCount.Minimum,
+            MaximumPlayers = descriptor.PlayerCount.Maximum,
+            SetupFields = descriptor.SetupFields
+                .Select(field => new GameTemplateSetupFieldOption
+                {
+                    Name = field.Name,
+                    ValueKind = field.ValueKind.ToString(),
+                    IsRequired = field.IsRequired,
+                    DisplayName = field.DisplayName,
+                    Description = field.Description,
+                })
+                .ToArray(),
+            CommunicationCapabilities = new GameTemplateCommunicationCapabilitiesOption
+            {
+                AllowsPublicChannelMessages = descriptor.CommunicationCapabilities.AllowsPublicChannelMessages,
+                AllowsDirectMessages = descriptor.CommunicationCapabilities.AllowsDirectMessages,
+            },
+            MemoryExpectations = new GameTemplateMemoryExpectationsOption
+            {
+                UsesRoundSummaries = descriptor.MemoryExpectations.UsesRoundSummaries,
+                SuggestedSummaryTokenBudget = descriptor.MemoryExpectations.SuggestedSummaryTokenBudget,
+                MaximumRetainedRoundSummaries = descriptor.MemoryExpectations.MaximumRetainedRoundSummaries,
+            },
+            ParticipantRequirements = new GameTemplateParticipantRequirementsOption
+            {
+                AllowsHumanParticipants = descriptor.ParticipantRequirements.AllowsHumanParticipants,
+                AllowsAgentParticipants = descriptor.ParticipantRequirements.AllowsAgentParticipants,
+                AllowsSystemParticipants = descriptor.ParticipantRequirements.AllowsSystemParticipants,
+                MinimumHumanParticipants = descriptor.ParticipantRequirements.MinimumHumanParticipants,
+                MinimumAgentParticipants = descriptor.ParticipantRequirements.MinimumAgentParticipants,
+            },
         };
 }

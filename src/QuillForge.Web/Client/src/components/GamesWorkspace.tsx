@@ -17,6 +17,7 @@ import type {
   VisibleGameEvent,
 } from "../types";
 import type { InspectorSection } from "./AppInspector";
+import GameTemplateEditor from "./GameTemplateEditor";
 import WorkspaceQuickButton from "./WorkspaceQuickButton";
 
 interface GamesWorkspaceProps {
@@ -160,6 +161,16 @@ export default function GamesWorkspace({
   const [loading, setLoading] = useState(false);
   const [mutating, setMutating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function reloadTemplates(preferredTemplateId?: string) {
+    try {
+      const data = await listGameTemplates();
+      setTemplates(data.templates);
+      setSelectedTemplateId((previous) => (preferredTemplateId ?? previous) || data.templates[0]?.templateId || "");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load game templates");
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -413,7 +424,14 @@ export default function GamesWorkspace({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            <div className="qf-shell-folio mb-3">Participants</div>
+            <GameTemplateEditor
+              templates={templates}
+              selectedTemplateId={selectedTemplateId}
+              onSelectTemplate={setSelectedTemplateId}
+              onTemplatesChanged={reloadTemplates}
+            />
+
+            <div className="qf-shell-folio mb-3 mt-5">Participants</div>
             {!activeView || activeView.roster.length === 0 ? (
               <div className="qf-shell-card border-dashed px-4 py-5 text-sm leading-6 text-text-muted">
                 No participants yet. Start a game from a template to seat the table.

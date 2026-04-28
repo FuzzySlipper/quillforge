@@ -241,6 +241,10 @@ export interface GameRuntimeEventDeliveryCursor {
   lastPromptEnvelopeId: string | null;
 }
 
+export type GameTemplateRuleOptionValueKind = "String" | "Int" | "Bool" | "ParticipantId" | "ParticipantSet";
+export type GameTemplateRandomNameBehavior = "UseFixedNameWhenProvided" | "AlwaysRandomize" | "NeverRandomize";
+export type GameSetupValueKind = "String" | "Int" | "Bool" | "ParticipantId" | "ParticipantSet";
+
 export interface GameTemplateSummary {
   templateId: string;
   displayName: string;
@@ -251,6 +255,150 @@ export interface GameTemplateSummary {
 
 export interface GameTemplateListResponse {
   templates: GameTemplateSummary[];
+}
+
+export interface GameTemplateCatalogResponse {
+  modules: GameTemplateModuleOption[];
+  providers: GameTemplateProviderOption[];
+}
+
+export interface GameTemplateModuleOption {
+  moduleId: string;
+  moduleVersion: string;
+  displayName: string;
+  minimumTemplateVersion: string;
+  maximumTemplateVersion: string;
+  minimumPlayers: number;
+  maximumPlayers: number;
+  setupFields: GameTemplateSetupFieldOption[];
+  communicationCapabilities: GameTemplateCommunicationCapabilitiesOption;
+  memoryExpectations: GameTemplateMemoryExpectationsOption;
+  participantRequirements: GameTemplateParticipantRequirementsOption;
+}
+
+export interface GameTemplateSetupFieldOption {
+  name: string;
+  valueKind: GameSetupValueKind;
+  isRequired: boolean;
+  displayName: string;
+  description: string;
+}
+
+export interface GameTemplateCommunicationCapabilitiesOption {
+  allowsPublicChannelMessages: boolean;
+  allowsDirectMessages: boolean;
+}
+
+export interface GameTemplateMemoryExpectationsOption {
+  usesRoundSummaries: boolean;
+  suggestedSummaryTokenBudget: number;
+  maximumRetainedRoundSummaries: number;
+}
+
+export interface GameTemplateParticipantRequirementsOption {
+  allowsHumanParticipants: boolean;
+  allowsAgentParticipants: boolean;
+  allowsSystemParticipants: boolean;
+  minimumHumanParticipants: number;
+  minimumAgentParticipants: number;
+}
+
+export interface GameTemplateProviderOption {
+  alias: string;
+  type: string;
+  defaultModel: string | null;
+  contextLimit: number | null;
+}
+
+export interface GameTemplateResponse {
+  template: GameTemplate;
+  validation: GameTemplateValidationResult;
+}
+
+export interface ValidateGameTemplateResponse {
+  validation: GameTemplateValidationResult;
+}
+
+export interface DeleteGameTemplateResponse {
+  status: string;
+  templateId: string;
+}
+
+export interface GameTemplate {
+  templateId: string;
+  displayName: string;
+  description: string | null;
+  module: GameTemplateModuleSelection;
+  templateVersion: string;
+  rulesOptions: GameTemplateRulesOptions;
+  roster: GameTemplateRosterSettings;
+  memory: GameTemplateMemorySettings;
+  communication: GameTemplateCommunicationSettings;
+  naming: GameTemplateNamingSettings;
+}
+
+export interface GameTemplateModuleSelection {
+  moduleId: string;
+  minimumVersion: string;
+  maximumVersion: string;
+}
+
+export interface GameTemplateRulesOptions {
+  values: GameTemplateRuleOptionValue[];
+}
+
+export interface GameTemplateRuleOptionValue {
+  name: string;
+  kind: GameTemplateRuleOptionValueKind;
+  stringValue: string | null;
+  intValue: number | null;
+  boolValue: boolean | null;
+  participantIdValue: string | null;
+  participantSetValue: string[];
+}
+
+export interface GameTemplateRosterSettings {
+  rosterSize: number;
+  userSeatParticipantId: string | null;
+  agentPlayers: GameTemplateAgentPlayerConfig[];
+}
+
+export interface GameTemplateAgentPlayerConfig {
+  participantId: string;
+  providerAlias: string;
+  modelOverride: string | null;
+  characterPrompt: string | null;
+  personality: string | null;
+  fixedName: string | null;
+  randomNameBehavior: GameTemplateRandomNameBehavior;
+}
+
+export interface GameTemplateMemorySettings {
+  tokenBudget: number;
+}
+
+export interface GameTemplateCommunicationSettings {
+  publicChannelEnabled: boolean;
+  directMessagesEnabled: boolean;
+  hostMessagesEnabled: boolean;
+}
+
+export interface GameTemplateNamingSettings {
+  randomizeAgentNames: boolean;
+  randomNameSet: string | null;
+  randomSeed: number | null;
+}
+
+export interface GameTemplateValidationResult {
+  issues: GameTemplateValidationIssue[];
+  isValid: boolean;
+}
+
+export interface GameTemplateValidationIssue {
+  code: string;
+  message: string;
+  field: string | null;
+  source: string;
 }
 
 

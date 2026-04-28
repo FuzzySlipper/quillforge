@@ -7,6 +7,91 @@ public sealed record GameTemplateListResponse
     public required IReadOnlyList<GameTemplateSummary> Templates { get; init; }
 }
 
+public sealed record GameTemplateCatalogResponse
+{
+    public required IReadOnlyList<GameTemplateModuleOption> Modules { get; init; }
+
+    public required IReadOnlyList<GameTemplateProviderOption> Providers { get; init; }
+}
+
+public sealed record GameTemplateModuleOption
+{
+    public required string ModuleId { get; init; }
+
+    public required string ModuleVersion { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string MinimumTemplateVersion { get; init; }
+
+    public required string MaximumTemplateVersion { get; init; }
+
+    public required int MinimumPlayers { get; init; }
+
+    public required int MaximumPlayers { get; init; }
+
+    public required IReadOnlyList<GameTemplateSetupFieldOption> SetupFields { get; init; }
+
+    public required GameTemplateCommunicationCapabilitiesOption CommunicationCapabilities { get; init; }
+
+    public required GameTemplateMemoryExpectationsOption MemoryExpectations { get; init; }
+
+    public required GameTemplateParticipantRequirementsOption ParticipantRequirements { get; init; }
+}
+
+public sealed record GameTemplateSetupFieldOption
+{
+    public required string Name { get; init; }
+
+    public required string ValueKind { get; init; }
+
+    public required bool IsRequired { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string Description { get; init; }
+}
+
+public sealed record GameTemplateCommunicationCapabilitiesOption
+{
+    public required bool AllowsPublicChannelMessages { get; init; }
+
+    public required bool AllowsDirectMessages { get; init; }
+}
+
+public sealed record GameTemplateMemoryExpectationsOption
+{
+    public required bool UsesRoundSummaries { get; init; }
+
+    public required int SuggestedSummaryTokenBudget { get; init; }
+
+    public required int MaximumRetainedRoundSummaries { get; init; }
+}
+
+public sealed record GameTemplateParticipantRequirementsOption
+{
+    public required bool AllowsHumanParticipants { get; init; }
+
+    public required bool AllowsAgentParticipants { get; init; }
+
+    public required bool AllowsSystemParticipants { get; init; }
+
+    public required int MinimumHumanParticipants { get; init; }
+
+    public required int MinimumAgentParticipants { get; init; }
+}
+
+public sealed record GameTemplateProviderOption
+{
+    public required string Alias { get; init; }
+
+    public required string Type { get; init; }
+
+    public string? DefaultModel { get; init; }
+
+    public int? ContextLimit { get; init; }
+}
+
 public sealed record GameTemplateResponse
 {
     public required GameTemplate Template { get; init; }

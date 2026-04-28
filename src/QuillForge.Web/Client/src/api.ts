@@ -9,9 +9,14 @@ import type {
   LoreCanonizationPreviewResult,
   LoreCanonizationApplyResult,
   LoreCanonizationDiscardResult,
+  DeleteGameTemplateResponse,
+  GameTemplate,
+  GameTemplateCatalogResponse,
   GameTemplateListResponse,
+  GameTemplateResponse,
   GameViewResponse,
   GameMutationResponse,
+  ValidateGameTemplateResponse,
 } from "./types";
 
 const BASE = "";
@@ -320,6 +325,45 @@ export async function getProjects(mode?: string): Promise<{ projects: string[] }
 
 export async function listGameTemplates(): Promise<GameTemplateListResponse> {
   return request("/api/game-templates/");
+}
+
+export async function getGameTemplateCatalog(): Promise<GameTemplateCatalogResponse> {
+  return request("/api/game-templates/catalog");
+}
+
+export async function getGameTemplate(templateId: string): Promise<GameTemplateResponse> {
+  return request(`/api/game-templates/${encodeURIComponent(templateId)}`);
+}
+
+export async function saveGameTemplate(templateId: string, template: GameTemplate): Promise<GameTemplateResponse> {
+  return request(`/api/game-templates/${encodeURIComponent(templateId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ template }),
+  });
+}
+
+export async function cloneGameTemplate(
+  templateId: string,
+  targetTemplateId: string,
+  displayName?: string | null,
+): Promise<GameTemplateResponse> {
+  return request(`/api/game-templates/${encodeURIComponent(templateId)}/clone`, {
+    method: "POST",
+    body: JSON.stringify({ targetTemplateId, displayName }),
+  });
+}
+
+export async function validateGameTemplate(template: GameTemplate): Promise<ValidateGameTemplateResponse> {
+  return request("/api/game-templates/validate", {
+    method: "POST",
+    body: JSON.stringify({ template }),
+  });
+}
+
+export async function deleteGameTemplate(templateId: string): Promise<DeleteGameTemplateResponse> {
+  return request(`/api/game-templates/${encodeURIComponent(templateId)}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getGameView(sessionId: string, participantId?: string | null): Promise<GameViewResponse> {
