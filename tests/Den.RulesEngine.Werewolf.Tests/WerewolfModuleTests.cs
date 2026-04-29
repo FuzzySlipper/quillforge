@@ -39,8 +39,8 @@ public sealed class WerewolfModuleTests
         var werewolf = first.State.Participants.Single(participant => participant.ParticipantSetIds.Contains(WerewolfConstants.WerewolfRoleSetId));
         var villager = first.State.Participants.First(participant => !participant.ParticipantSetIds.Contains(WerewolfConstants.WerewolfRoleSetId));
         var projector = new GameVisibilityProjector();
-        var werewolfProjection = projector.ProjectPlayer(first.State, werewolf.ParticipantId);
-        var villagerProjection = projector.ProjectPlayer(first.State, villager.ParticipantId);
+        var werewolfProjection = projector.ProjectPlayer(GameVisibilityProjectionInput.FromState(first.State), werewolf.ParticipantId);
+        var villagerProjection = projector.ProjectPlayer(GameVisibilityProjectionInput.FromState(first.State), villager.ParticipantId);
 
         Assert.Contains(werewolfProjection.Events, gameEvent => gameEvent.EventType == nameof(WerewolfRoleRevealedEvent));
         Assert.Contains(werewolfProjection.Events, gameEvent => gameEvent.EventType == nameof(WerewolfTeamRevealedEvent));

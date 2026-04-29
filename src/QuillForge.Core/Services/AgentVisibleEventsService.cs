@@ -55,9 +55,10 @@ public sealed class AgentVisibleEventsService
         AgentVisibleEventsCursor prior)
     {
         var participant = new ParticipantId(participantId);
-        var playerProjection = _visibilityProjector.ProjectPlayer(liveState, participant);
+        var projectionInput = GameVisibilityProjectionInput.FromState(liveState);
+        var playerProjection = _visibilityProjector.ProjectPlayer(projectionInput, participant);
         var visibleEngineEvents = playerProjection.Events
-            .Where(item => IsNewVisibleEngineEvent(liveState, item, prior))
+            .Where(item => IsNewVisibleEngineEvent(projectionInput, item, prior))
             .OrderBy(item => item.Sequence)
             .ToArray();
         var feed = _channelService.ProjectParticipantFeed(runtime.Communication, new GameParticipantId(participantId));
@@ -67,12 +68,12 @@ public sealed class AgentVisibleEventsService
             .OrderBy(item => item.Sequence)
             .ToArray();
         var publicCursor = playerProjection.Events
-            .Where(item => IsPublicEvent(liveState, item.EventId))
+            .Where(item => IsPublicEvent(projectionInput, item.EventId))
             .Select(item => item.Sequence)
             .DefaultIfEmpty(prior.PublicEngineEventSequence)
             .Max();
         var privateIds = playerProjection.Events
-            .Where(item => !IsPublicEvent(liveState, item.EventId))
+            .Where(item => !IsPublicEvent(projectionInput, item.EventId))
             .Select(item => item.EventId.ToString())
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
@@ -95,11 +96,11 @@ public sealed class AgentVisibleEventsService
     }
 
     private static bool IsNewVisibleEngineEvent(
-        RulesGameState state,
+        GameVisibilityProjectionInput input,
         VisibleGameEvent visibleEvent,
         AgentVisibleEventsCursor prior)
     {
-        if (IsPublicEvent(state, visibleEvent.EventId))
+        if (IsPublicEvent(input, visibleEvent.EventId))
         {
             return visibleEvent.Sequence > prior.PublicEngineEventSequence;
         }
@@ -107,9 +108,9 @@ public sealed class AgentVisibleEventsService
         return !prior.PrivateEngineEventIds.Any(item => string.Equals(item, visibleEvent.EventId.ToString(), StringComparison.Ordinal));
     }
 
-    private static bool IsPublicEvent(RulesGameState state, GameEventId eventId)
+    private static bool IsPublicEvent(GameVisibilityProjectionInput input, GameEventId eventId)
     {
-        var gameEvent = state.EventJournal.Events.FirstOrDefault(item => item.EventId == eventId);
+        var gameEvent = input.EventJournal.Events.FirstOrDefault(item => item.EventId == eventId);
         return gameEvent?.Visibility.Kind == GameEventVisibilityKind.Public;
     }
 }

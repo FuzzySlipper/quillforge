@@ -94,8 +94,8 @@ public sealed class RulesEngineServiceTests
         Assert.Contains(submitted.Events, gameEvent => gameEvent is PlayerChoiceSubmittedEvent);
 
         var projector = new GameVisibilityProjector();
-        var aliceProjection = projector.ProjectPlayer(submitted.State, Alice);
-        var bobProjection = projector.ProjectPlayer(submitted.State, Bob);
+        var aliceProjection = projector.ProjectPlayer(GameVisibilityProjectionInput.FromState(submitted.State), Alice);
+        var bobProjection = projector.ProjectPlayer(GameVisibilityProjectionInput.FromState(submitted.State), Bob);
 
         Assert.Contains(aliceProjection.Events, gameEvent => gameEvent.EventType == nameof(PlayerChoiceSubmittedEvent));
         Assert.DoesNotContain(bobProjection.Events, gameEvent => gameEvent.EventType == nameof(PlayerChoiceSubmittedEvent));

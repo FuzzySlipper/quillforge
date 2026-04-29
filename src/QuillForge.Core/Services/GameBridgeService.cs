@@ -144,10 +144,11 @@ public sealed class GameBridgeService : IGameBridgeService
         }
 
         var liveState = runtime.EngineSnapshot.ToState();
+        var projectionInput = GameVisibilityProjectionInput.FromState(liveState);
         PlayerGameProjection playerProjection;
         try
         {
-            playerProjection = _visibilityProjector.ProjectPlayer(liveState, new ParticipantId(command.ParticipantId));
+            playerProjection = _visibilityProjector.ProjectPlayer(projectionInput, new ParticipantId(command.ParticipantId));
         }
         catch (ArgumentException ex)
         {
@@ -292,11 +293,12 @@ public sealed class GameBridgeService : IGameBridgeService
         var liveState = runtime.EngineSnapshot.ToState();
         var module = _moduleRegistry.Find(liveState.ModuleId, liveState.ModuleVersion);
         var moduleAuthoring = module is null ? null : ToModuleAuthoringView(module);
-        var publicProjection = _visibilityProjector.ProjectPublic(liveState.EventJournal);
+        var projectionInput = GameVisibilityProjectionInput.FromState(liveState);
+        var publicProjection = _visibilityProjector.ProjectPublic(projectionInput.EventJournal);
         var publicFeed = _channelService.ProjectPublicFeed(runtime.Communication).Entries;
         var player = string.IsNullOrWhiteSpace(participantId)
             ? null
-            : ProjectPlayer(runtime, liveState, participantId.Trim(), moduleAuthoring);
+            : ProjectPlayer(runtime, projectionInput, participantId.Trim(), moduleAuthoring);
 
         return new GameBridgeView(
             runtime.Status,
@@ -338,14 +340,14 @@ public sealed class GameBridgeService : IGameBridgeService
 
     private GameBridgePlayerView? ProjectPlayer(
         GameRuntimeState runtime,
-        RulesGameState liveState,
+        GameVisibilityProjectionInput projectionInput,
         string participantId,
         GameBridgeModuleAuthoringView? moduleAuthoring)
     {
         PlayerGameProjection playerProjection;
         try
         {
-            playerProjection = _visibilityProjector.ProjectPlayer(liveState, new ParticipantId(participantId));
+            playerProjection = _visibilityProjector.ProjectPlayer(projectionInput, new ParticipantId(participantId));
         }
         catch (ArgumentException)
         {

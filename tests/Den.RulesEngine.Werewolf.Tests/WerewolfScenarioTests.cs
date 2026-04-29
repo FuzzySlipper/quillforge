@@ -119,8 +119,8 @@ public sealed class WerewolfScenarioTests
         scenario.Submit(pendingInput, WerewolfConstants.SkipNightChoice);
 
         var projector = new GameVisibilityProjector();
-        var participantProjection = projector.ProjectPlayer(scenario.State, participant);
-        var otherProjection = projector.ProjectPlayer(scenario.State, other);
+        var participantProjection = projector.ProjectPlayer(GameVisibilityProjectionInput.FromState(scenario.State), participant);
+        var otherProjection = projector.ProjectPlayer(GameVisibilityProjectionInput.FromState(scenario.State), other);
 
         Assert.Contains(participantProjection.Events, gameEvent => gameEvent.EventType == nameof(WerewolfRoleRevealedEvent));
         Assert.Contains(participantProjection.Events, gameEvent => gameEvent.EventType == nameof(PlayerChoiceSubmittedEvent));

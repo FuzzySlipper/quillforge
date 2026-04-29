@@ -14,31 +14,58 @@ public sealed class GameVisibilityProjector
                 .ToArray());
     }
 
-    public PlayerGameProjection ProjectPlayer(RulesGameState state, ParticipantId participantId)
+    public PlayerGameProjection ProjectPlayer(GameVisibilityProjectionInput input, ParticipantId participantId)
     {
-        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(input);
 
-        var participant = state.FindParticipant(participantId)
+        var participant = input.FindParticipant(participantId)
             ?? throw new ArgumentException("Participant is not registered in this game.", nameof(participantId));
 
-        var visibleEvents = state.EventJournal.Events
+        var visibleEvents = input.EventJournal.Events
             .Where(gameEvent => gameEvent.Visibility.IsVisibleTo(participant))
             .Select(VisibleGameEvent.FromEvent)
             .ToArray();
 
-        var pendingInputs = state.PendingInputs
-            .Where(input => input.IsWaitingFor(participantId))
+        var pendingInputs = input.PendingInputs
+            .Where(pendingInput => pendingInput.IsWaitingFor(participantId))
             .ToArray();
 
         return new PlayerGameProjection(
-            state.GameInstanceId,
+            input.GameInstanceId,
             participant,
-            state.Status,
-            state.Round,
-            state.Stage,
+            input.Status,
+            input.Round,
+            input.Stage,
             visibleEvents,
             pendingInputs);
     }
+}
+
+public sealed record GameVisibilityProjectionInput(
+    GameInstanceId GameInstanceId,
+    RulesGameStatus Status,
+    GameRoundState Round,
+    GameStageState Stage,
+    IReadOnlyList<ParticipantState> Participants,
+    IReadOnlyList<PendingInputState> PendingInputs,
+    GameEventJournal EventJournal)
+{
+    public static GameVisibilityProjectionInput FromState(RulesGameState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        return new GameVisibilityProjectionInput(
+            state.GameInstanceId,
+            state.Status,
+            state.Round,
+            state.Stage,
+            state.Participants.ToArray(),
+            state.PendingInputs.ToArray(),
+            state.EventJournal);
+    }
+
+    public ParticipantState? FindParticipant(ParticipantId participantId) =>
+        Participants.FirstOrDefault(participant => participant.ParticipantId == participantId);
 }
 
 public sealed record PublicGameProjection(

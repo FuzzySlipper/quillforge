@@ -15,20 +15,42 @@ public sealed class GameVisibilityProjectorTests
     public void ProjectPlayer_ReturnsPublicOwnPrivateAndParticipantSetEvents()
     {
         var state = CreateStateWithVisibilityEvents();
-        var projection = new GameVisibilityProjector().ProjectPlayer(state, new ParticipantId("alice"));
+        var input = GameVisibilityProjectionInput.FromState(state);
+        var aliceProjection = new GameVisibilityProjector().ProjectPlayer(input, new ParticipantId("alice"));
+        var bobProjection = new GameVisibilityProjector().ProjectPlayer(input, new ParticipantId("bob"));
 
         Assert.Equal(
             ["GameStartedEvent", "PlayerChoiceSubmittedEvent", "NoActionTakenEvent"],
-            projection.Events.Select(gameEvent => gameEvent.EventType).ToArray());
-        Assert.DoesNotContain(projection.Events, gameEvent => gameEvent.EventType == "DeterministicEffectsAdvancedEvent");
-        Assert.DoesNotContain(projection.Events, gameEvent => gameEvent.EventType == "GameEndedEvent");
+            aliceProjection.Events.Select(gameEvent => gameEvent.EventType).ToArray());
+        Assert.DoesNotContain(aliceProjection.Events, gameEvent => gameEvent.EventType == "DeterministicEffectsAdvancedEvent");
+        Assert.DoesNotContain(aliceProjection.Events, gameEvent => gameEvent.EventType == "GameEndedEvent");
+
+        Assert.Equal(
+            ["GameStartedEvent", "GameEndedEvent"],
+            bobProjection.Events.Select(gameEvent => gameEvent.EventType).ToArray());
+        Assert.DoesNotContain(bobProjection.Events, gameEvent => gameEvent.EventType == "PlayerChoiceSubmittedEvent");
+        Assert.DoesNotContain(bobProjection.Events, gameEvent => gameEvent.EventType == "NoActionTakenEvent");
+        Assert.DoesNotContain(bobProjection.Events, gameEvent => gameEvent.EventType == "DeterministicEffectsAdvancedEvent");
+    }
+
+    [Fact]
+    public void ProjectionInput_DoesNotExposeFullRulesStateAuthority()
+    {
+        var properties = typeof(GameVisibilityProjectionInput)
+            .GetProperties()
+            .Select(property => property.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.DoesNotContain("ModuleId", properties);
+        Assert.DoesNotContain("ModuleVersion", properties);
+        Assert.DoesNotContain("Random", properties);
     }
 
     [Fact]
     public void ProjectPlayer_ReturnsOnlyPendingInputForThatPlayer()
     {
         var state = CreateStateWithVisibilityEvents();
-        var projection = new GameVisibilityProjector().ProjectPlayer(state, new ParticipantId("alice"));
+        var projection = new GameVisibilityProjector().ProjectPlayer(GameVisibilityProjectionInput.FromState(state), new ParticipantId("alice"));
 
         var pendingInput = Assert.Single(projection.PendingInputs);
         Assert.Equal(new PendingInputId("input-alice"), pendingInput.PendingInputId);
