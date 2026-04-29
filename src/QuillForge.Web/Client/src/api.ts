@@ -16,6 +16,7 @@ import type {
   GameTemplateResponse,
   GameViewResponse,
   GameMutationResponse,
+  GameDiagnosticLogResponse,
   ValidateGameTemplateResponse,
 } from "./types";
 
@@ -369,6 +370,10 @@ export async function deleteGameTemplate(templateId: string): Promise<DeleteGame
 export async function getGameView(sessionId: string, participantId?: string | null): Promise<GameViewResponse> {
   const query = participantId ? `?participantId=${encodeURIComponent(participantId)}` : "";
   return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/${query}`);
+}
+
+export async function getGameDiagnosticLog(sessionId: string): Promise<GameDiagnosticLogResponse> {
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/diagnostics`);
 }
 
 export async function startGameFromTemplate(

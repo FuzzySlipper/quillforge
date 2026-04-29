@@ -34,6 +34,24 @@ public static class GameEndpoints
             return Results.Ok(new GameInspectorResponse { Inspector = projection });
         });
 
+        group.MapGet("/diagnostics", async (
+            Guid sessionId,
+            int? promptPreviewCharacters,
+            IGameDiagnosticLogService diagnosticLog,
+            ILogger<Program> logger,
+            CancellationToken ct) =>
+        {
+            logger.LogInformation(
+                "Game diagnostic log requested: session={SessionId} promptPreviewCharacters={PromptPreviewCharacters}",
+                sessionId,
+                promptPreviewCharacters);
+            var projection = await diagnosticLog.GetLogAsync(
+                sessionId,
+                promptPreviewCharacters ?? 1200,
+                ct);
+            return Results.Ok(new GameDiagnosticLogResponse { Log = projection });
+        });
+
         group.MapPost("/start", async (
             Guid sessionId,
             StartGameRequest request,
@@ -89,8 +107,15 @@ public static class GameEndpoints
             Guid sessionId,
             PostGamePublicMessageRequest request,
             IGameBridgeService bridge,
+            ILogger<Program> logger,
             CancellationToken ct) =>
         {
+            logger.LogInformation(
+                "Game public message endpoint invoked: session={SessionId} participant={ParticipantId} authorKind={AuthorKind} textLength={TextLength}",
+                sessionId,
+                request.ParticipantId,
+                request.AuthorKind,
+                request.Text.Length);
             var result = await bridge.PostPublicMessageAsync(
                 sessionId,
                 new PostGameRuntimePublicMessageCommand(

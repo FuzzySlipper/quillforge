@@ -40,6 +40,7 @@ public sealed class GameEndpointTests
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<IGameBridgeService, FakeGameBridgeService>();
         builder.Services.AddSingleton<IGameInspectorService, FakeGameInspectorService>();
+        builder.Services.AddSingleton<IGameDiagnosticLogService, FakeGameDiagnosticLogService>();
         using var app = builder.Build();
 
         app.MapGameEndpoints();
@@ -52,6 +53,7 @@ public sealed class GameEndpointTests
 
         Assert.Contains(routes, route => route.Pattern == "/api/sessions/{sessionId:guid}/game/" && route.Methods.Contains("GET"));
         Assert.Contains(routes, route => route.Pattern == "/api/sessions/{sessionId:guid}/game/inspector" && route.Methods.Contains("GET"));
+        Assert.Contains(routes, route => route.Pattern == "/api/sessions/{sessionId:guid}/game/diagnostics" && route.Methods.Contains("GET"));
         Assert.Contains(routes, route => route.Pattern == "/api/sessions/{sessionId:guid}/game/start" && route.Methods.Contains("POST"));
         Assert.Contains(routes, route => route.Pattern == "/api/sessions/{sessionId:guid}/game/actions" && route.Methods.Contains("POST"));
         Assert.Contains(routes, route => route.Pattern == "/api/sessions/{sessionId:guid}/game/messages" && route.Methods.Contains("POST"));
@@ -64,6 +66,18 @@ public sealed class GameEndpointTests
     {
         public Task<GameInspectorProjection> GetProjectionAsync(Guid sessionId, int promptEnvelopeLimit = 10, CancellationToken ct = default) =>
             Task.FromResult(new GameInspectorProjection { SessionId = sessionId, HasGame = false });
+    }
+
+    private sealed class FakeGameDiagnosticLogService : IGameDiagnosticLogService
+    {
+        public Task<GameDiagnosticLogProjection> GetLogAsync(Guid sessionId, int promptPreviewCharacters = 1200, CancellationToken ct = default) =>
+            Task.FromResult(new GameDiagnosticLogProjection
+            {
+                SessionId = sessionId,
+                HasGame = false,
+                PrivacyNotice = GameDiagnosticLogService.PrivacyNotice,
+                Events = [],
+            });
     }
 
     private sealed class FakeGameBridgeService : IGameBridgeService

@@ -626,6 +626,21 @@ public sealed class GameRuntimeService : IGameRuntimeService
 
         if (!runtime.IsActive)
         {
+            GameRuntimeStateCloner.AppendHostRecord(
+                runtime,
+                GameRuntimeHostRecordKind.CommunicationRejected,
+                occurredAt,
+                "runtime_not_active",
+                $"Communication operation '{operationName}' rejected because runtime status is {runtime.Status}.");
+            runtime.LastUpdatedAt = occurredAt;
+            await _store.SaveAsync(state, ct);
+            _logger.LogWarning(
+                "Game communication rejected: session={SessionId} game={GameInstanceId} operation={OperationName} reason={ReasonCode} status={Status}",
+                sessionId,
+                runtime.GameInstanceId,
+                operationName,
+                "runtime_not_active",
+                runtime.Status);
             return SessionMutationResult<GameRuntimeCommunicationMutationResult>.Invalid(
                 "The game runtime is not active.");
         }
@@ -633,12 +648,40 @@ public sealed class GameRuntimeService : IGameRuntimeService
         var communicationResult = apply(runtime);
         if (!communicationResult.IsAccepted)
         {
+            var issue = communicationResult.Issues[0];
+            GameRuntimeStateCloner.AppendHostRecord(
+                runtime,
+                GameRuntimeHostRecordKind.CommunicationRejected,
+                occurredAt,
+                issue.Code,
+                $"Communication operation '{operationName}' rejected: {issue.Message}");
+            runtime.LastUpdatedAt = occurredAt;
+            await _store.SaveAsync(state, ct);
+            _logger.LogWarning(
+                "Game communication rejected: session={SessionId} game={GameInstanceId} operation={OperationName} reason={ReasonCode}",
+                sessionId,
+                runtime.GameInstanceId,
+                operationName,
+                issue.Code);
             return SessionMutationResult<GameRuntimeCommunicationMutationResult>.Invalid(
-                communicationResult.Issues[0].Message);
+                issue.Message);
         }
 
         runtime.LastUpdatedAt = occurredAt;
+        GameRuntimeStateCloner.AppendHostRecord(
+            runtime,
+            GameRuntimeHostRecordKind.CommunicationPosted,
+            occurredAt,
+            operationName,
+            $"Communication operation '{operationName}' committed {communicationResult.Events.Count} event(s).");
         await _store.SaveAsync(state, ct);
+
+        _logger.LogInformation(
+            "Game communication applied: session={SessionId} game={GameInstanceId} operation={OperationName} eventCount={EventCount}",
+            sessionId,
+            runtime.GameInstanceId,
+            operationName,
+            communicationResult.Events.Count);
 
         return SessionMutationResult<GameRuntimeCommunicationMutationResult>.Success(
             new GameRuntimeCommunicationMutationResult(

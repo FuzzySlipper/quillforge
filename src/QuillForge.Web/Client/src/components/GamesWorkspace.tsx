@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import {
   abortGame,
   endGame,
+  getGameDiagnosticLog,
   getGameView,
   listGameTemplates,
   postGamePublicMessage,
@@ -12,6 +13,8 @@ import {
 import type {
   GameBridgeActionFormView,
   GameBridgeView,
+  GameDiagnosticLogProjection,
+  GameDiagnosticLogEvent,
   GameTemplateSummary,
   ParticipantFeedEntry,
   PendingInputState,
@@ -110,6 +113,143 @@ function EngineEventEntry({ event }: { event: VisibleGameEvent }) {
   );
 }
 
+function diagnosticLevelLabel(level: GameDiagnosticLogEvent["level"]): string {
+  return typeof level === "string" ? level : ["Info", "Warning", "Error"][level] ?? String(level);
+}
+
+function diagnosticCategoryLabel(category: GameDiagnosticLogEvent["category"]): string {
+  if (typeof category === "string") return category;
+  return [
+    "Endpoint",
+    "Service",
+    "RuntimeMutation",
+    "RulesEngine",
+    "Communication",
+    "LlmProvider",
+    "AgentPrompt",
+    "TokenUsage",
+    "Persistence",
+    "Rejection",
+    "Error",
+  ][category] ?? String(category);
+}
+
+function DiagnosticLogPanel({
+  log,
+  loading,
+  error,
+  onRefresh,
+  onClose,
+}: {
+  log: GameDiagnosticLogProjection | null;
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => void;
+  onClose: () => void;
+}) {
+  const serializedLog = useMemo(() => JSON.stringify(log, null, 2), [log]);
+
+  async function copyLog() {
+    if (!log) return;
+    await navigator.clipboard.writeText(serializedLog);
+  }
+
+  function exportLog() {
+    if (!log) return;
+    const blob = new Blob([serializedLog], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `quillforge-game-diagnostics-${log.sessionId}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="border-b border-border/70 bg-surface/80 px-6 py-4" data-testid="game-diagnostic-log">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="qf-shell-folio">Diagnostic Log</div>
+          <h2 className="mt-1 text-xl font-semibold text-text">Game operation stream</h2>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-text-muted">
+            {log?.privacyNotice ?? "Host-level debug view for local game diagnostics. Prompt and private game previews may be shown when a game is active."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ActionButton label="Refresh Log" disabled={loading} onClick={onRefresh} />
+          <ActionButton label="Copy JSON" disabled={!log} onClick={() => { void copyLog(); }} />
+          <ActionButton label="Export JSON" disabled={!log} onClick={exportLog} />
+          <ActionButton label="Close" emphasis="subtle" onClick={onClose} />
+        </div>
+      </div>
+
+      {error && (
+        <div role="alert" className="mt-3 rounded-lg border border-danger-border bg-danger-soft px-4 py-3 text-sm text-danger-text">
+          {error}
+        </div>
+      )}
+      {loading && <div className="mt-3 text-sm text-text-muted">Loading diagnostic events...</div>}
+
+      <div className="mt-4 max-h-[42vh] overflow-y-auto rounded-xl border border-border/70 bg-background/40">
+        {!log || log.events.length === 0 ? (
+          <div className="px-4 py-6 text-sm text-text-muted">No diagnostic events have been collected for this session.</div>
+        ) : (
+          <div className="divide-y divide-border/50">
+            {log.events.map((event) => {
+              const level = diagnosticLevelLabel(event.level);
+              const category = diagnosticCategoryLabel(event.category);
+              const detailEntries = Object.entries(event.details ?? {}).filter(([, value]) => value !== null && value !== "");
+              return (
+                <article key={`${event.sequence}:${event.operation}`} className="px-4 py-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-text-muted">
+                    <span className="qf-shell-folio">#{event.sequence} · {category} · {level}</span>
+                    <span>{formatTime(event.timestamp)}</span>
+                  </div>
+                  <div className="mt-2 font-medium text-text">{event.operation}</div>
+                  <div className="mt-1 leading-6 text-text-muted">{event.summary}</div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-text-muted">
+                    <span>source · {event.source}</span>
+                    {event.participantId && <span>participant · {event.participantId}</span>}
+                    {event.providerAlias && <span>provider · {event.providerAlias}</span>}
+                    {event.model && <span>model · {event.model}</span>}
+                    {event.reasonCode && <span>reason · {event.reasonCode}</span>}
+                    {(event.promptTokens !== null || event.responseTokens !== null) && (
+                      <span>tokens · {event.promptTokens ?? 0} in / {event.responseTokens ?? 0} out</span>
+                    )}
+                  </div>
+                  {(event.promptPreview || event.responsePreview) && (
+                    <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                      {event.promptPreview && (
+                        <pre className="max-h-40 overflow-auto rounded-lg border border-border/60 bg-surface-alt px-3 py-2 text-xs text-text-muted whitespace-pre-wrap">{event.promptPreview}</pre>
+                      )}
+                      {event.responsePreview && (
+                        <pre className="max-h-40 overflow-auto rounded-lg border border-border/60 bg-surface-alt px-3 py-2 text-xs text-text-muted whitespace-pre-wrap">{event.responsePreview}</pre>
+                      )}
+                    </div>
+                  )}
+                  {detailEntries.length > 0 && (
+                    <details className="mt-2 text-xs text-text-muted">
+                      <summary className="cursor-pointer">Details</summary>
+                      <dl className="mt-2 grid gap-1 md:grid-cols-2">
+                        {detailEntries.map(([key, value]) => (
+                          <div key={key} className="min-w-0">
+                            <dt className="text-[10px] uppercase tracking-wide">{key}</dt>
+                            <dd className="break-all text-text-muted">{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </details>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PendingInputCard({
   input,
   actionForms,
@@ -177,6 +317,10 @@ export default function GamesWorkspace({
   const [loading, setLoading] = useState(false);
   const [mutating, setMutating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [diagnosticOpen, setDiagnosticOpen] = useState(false);
+  const [diagnosticLog, setDiagnosticLog] = useState<GameDiagnosticLogProjection | null>(null);
+  const [diagnosticLoading, setDiagnosticLoading] = useState(false);
+  const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
 
   async function reloadTemplates(preferredTemplateId?: string) {
     try {
@@ -289,6 +433,25 @@ export default function GamesWorkspace({
     onRefresh(sessionId);
   }
 
+  async function refreshDiagnosticLog() {
+    if (!sessionId) return;
+    setDiagnosticLoading(true);
+    setDiagnosticError(null);
+    try {
+      const response = await getGameDiagnosticLog(sessionId);
+      setDiagnosticLog(response.log);
+    } catch (err) {
+      setDiagnosticError(err instanceof Error ? err.message : "Failed to load game diagnostic log");
+    } finally {
+      setDiagnosticLoading(false);
+    }
+  }
+
+  function openDiagnosticLog() {
+    setDiagnosticOpen(true);
+    void refreshDiagnosticLog();
+  }
+
   async function withMutation(action: () => Promise<void>) {
     setMutating(true);
     setError(null);
@@ -298,6 +461,9 @@ export default function GamesWorkspace({
       setError(err instanceof Error ? err.message : "Game operation failed");
     } finally {
       setMutating(false);
+      if (diagnosticOpen) {
+        void refreshDiagnosticLog();
+      }
     }
   }
 
@@ -384,8 +550,19 @@ export default function GamesWorkspace({
           <WorkspaceQuickButton label="Sessions" onClick={() => onOpenSection("sessions")} />
           <WorkspaceQuickButton label="Context" onClick={() => onOpenSection("context")} />
           <WorkspaceQuickButton label="Refresh Table" onClick={() => { void refreshGame(); }} />
+          <WorkspaceQuickButton label="Diagnostic Log" disabled={!sessionId} onClick={openDiagnosticLog} />
         </div>
       </div>
+
+      {diagnosticOpen && (
+        <DiagnosticLogPanel
+          log={diagnosticLog}
+          loading={diagnosticLoading}
+          error={diagnosticError}
+          onRefresh={() => { void refreshDiagnosticLog(); }}
+          onClose={() => setDiagnosticOpen(false)}
+        />
+      )}
 
       {updateBanner}
 

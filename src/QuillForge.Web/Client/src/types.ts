@@ -141,6 +141,55 @@ export interface GameViewResponse {
   view: GameBridgeView;
 }
 
+export type GameDiagnosticLogLevel = "Info" | "Warning" | "Error" | 0 | 1 | 2;
+export type GameDiagnosticLogCategory =
+  | "Endpoint"
+  | "Service"
+  | "RuntimeMutation"
+  | "RulesEngine"
+  | "Communication"
+  | "LlmProvider"
+  | "AgentPrompt"
+  | "TokenUsage"
+  | "Persistence"
+  | "Rejection"
+  | "Error"
+  | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+
+export interface GameDiagnosticLogResponse {
+  log: GameDiagnosticLogProjection;
+}
+
+export interface GameDiagnosticLogProjection {
+  sessionId: string;
+  hasGame: boolean;
+  gameInstanceId: string | null;
+  templateId: string | null;
+  moduleId: string | null;
+  runtimeStatus: string | null;
+  privacyNotice: string;
+  events: GameDiagnosticLogEvent[];
+}
+
+export interface GameDiagnosticLogEvent {
+  sequence: number;
+  timestamp: string;
+  level: GameDiagnosticLogLevel;
+  category: GameDiagnosticLogCategory;
+  source: string;
+  operation: string;
+  summary: string;
+  reasonCode: string | null;
+  participantId: string | null;
+  providerAlias: string | null;
+  model: string | null;
+  promptTokens: number | null;
+  responseTokens: number | null;
+  promptPreview: string | null;
+  responsePreview: string | null;
+  details: Record<string, string | null>;
+}
+
 export interface GameMutationResponse {
   view: GameBridgeView;
   runtimeEventTypes: string[];

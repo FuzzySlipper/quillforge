@@ -216,6 +216,7 @@ internal static class QuillForgeApplication
         builder.Services.AddSingleton<IGameIntentTranslationAgent, GameIntentTranslationAgent>();
         builder.Services.AddSingleton<IGameBridgeService, GameBridgeService>();
         builder.Services.AddSingleton<IGameInspectorService, GameInspectorService>();
+        builder.Services.AddSingleton<IGameDiagnosticLogService, GameDiagnosticLogService>();
         builder.Services.AddSingleton<IGameAgentTurnService, GameAgentTurnService>();
         builder.Services.AddSingleton<IGameAgentMemoryService, GameAgentMemoryService>();
         builder.Services.AddSingleton<IGameTemplateProviderCatalog, GameTemplateProviderCatalog>();

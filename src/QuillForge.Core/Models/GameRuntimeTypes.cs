@@ -210,6 +210,8 @@ public enum GameRuntimeHostRecordKind
     EngineCommandApplied,
     Aborted,
     Forked,
+    CommunicationPosted,
+    CommunicationRejected,
     AgentPromptRecorded,
     AgentMemorySummaryRecorded
 }

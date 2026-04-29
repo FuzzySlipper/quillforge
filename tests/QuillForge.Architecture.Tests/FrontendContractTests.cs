@@ -489,6 +489,11 @@ public sealed class FrontendContractTests
         Assert.Contains("startGameFromTemplate", source, StringComparison.Ordinal);
         Assert.Contains("submitGameAction", source, StringComparison.Ordinal);
         Assert.Contains("postGamePublicMessage", source, StringComparison.Ordinal);
+        Assert.Contains("getGameDiagnosticLog", source, StringComparison.Ordinal);
+        Assert.Contains("Diagnostic Log", source, StringComparison.Ordinal);
+        Assert.Contains("Copy JSON", source, StringComparison.Ordinal);
+        Assert.Contains("Export JSON", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"game-diagnostic-log\"", source, StringComparison.Ordinal);
         Assert.Contains("<GameTemplateEditor", source, StringComparison.Ordinal);
         Assert.Contains("<WerewolfGamePanel", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"games-no-game-state\"", source, StringComparison.Ordinal);

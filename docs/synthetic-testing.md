@@ -84,6 +84,19 @@ These runs are prompt-level deterministic with fake completion sources. Future l
 
 For manual/live social-games validation, pair this harness command with the Games-mode smoke path and troubleshooting guide in `docs/social-games-setup-testing-extension.md`.
 
+### Games Diagnostic Log
+
+The Games workspace includes a **Diagnostic Log** button next to **Refresh Table**. Use it when a game starts and then stalls, an agent appears to take no action, or a message/action endpoint returns a 400/409.
+
+The log is a local host-level debug stream, not a player-visible projection. It can include private game facts, prompt/response previews, prompt cursors, memory summaries, provider/model names, token usage, rejection/no-action reason codes, rules-engine events, communication events, endpoint/service operations, and inferred session-state persistence outcomes. It must not include provider API keys or encrypted secrets.
+
+Recommended bug-report capture:
+1. Reproduce the game issue in Games mode.
+2. Click **Diagnostic Log**.
+3. Click **Refresh Log** immediately after the failed action.
+4. Use **Copy JSON** for paste-friendly reports or **Export JSON** for an attachment.
+5. Include the failed UI action or endpoint call, the visible status/stage, and the first rejection/error event in the exported stream.
+
 ## Expected Deliverable
 
 Return:
