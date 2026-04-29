@@ -98,8 +98,70 @@
         "memoryRevision": 0,
         "lastPromptEnvelopeId": null
       },
-      "actionForms": []
+      "actionForms": [
+        {
+          "intentName": "SubmitVote",
+          "stageId": "day-vote",
+          "displayName": "Village vote",
+          "description": "Choose an active participant to eliminate or abstain.",
+          "layout": "ButtonList",
+          "fields": [
+            {
+              "name": "choiceName",
+              "valueKind": "ChoiceName",
+              "isRequired": true,
+              "displayName": "Vote target",
+              "description": "Choose one legal vote target."
+            }
+          ]
+        }
+      ]
     },
-    "moduleAuthoring": null
+    "moduleAuthoring": {
+      "setupFields": [],
+      "stages": [
+        {
+          "stageId": "day-vote",
+          "displayName": "Day vote",
+          "description": "Active participants vote to eliminate someone or abstain.",
+          "sequence": 3,
+          "allowsPublicMessages": true,
+          "allowsDirectMessages": false
+        }
+      ],
+      "actionForms": [
+        {
+          "intentName": "SubmitVote",
+          "stageId": "day-vote",
+          "displayName": "Village vote",
+          "description": "Choose an active participant to eliminate or abstain.",
+          "layout": "ButtonList",
+          "fields": [
+            {
+              "name": "choiceName",
+              "valueKind": "ChoiceName",
+              "isRequired": true,
+              "displayName": "Vote target",
+              "description": "Choose one legal vote target."
+            }
+          ]
+        }
+      ],
+      "promptAssets": [],
+      "communicationCapabilities": {
+        "allowsPublicChannelMessages": true,
+        "allowsDirectMessages": false
+      },
+      "memoryExpectations": {
+        "usesRoundSummaries": true,
+        "suggestedSummaryTokenBudget": 512,
+        "maximumRetainedRoundSummaries": 3
+      },
+      "projectionCapabilities": {
+        "supportsPublicEventProjection": true,
+        "supportsParticipantPrivateProjection": true,
+        "supportsHostInspectorProjection": true
+      }
+    }
   }
 }

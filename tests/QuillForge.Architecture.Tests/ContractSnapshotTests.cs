@@ -789,7 +789,43 @@ public sealed class ContractSnapshotTests
                         DeliveredThroughEngineEventSequence = 4,
                         DeliveredThroughCommunicationSequence = 3,
                         MemoryRevision = 0,
-                    }))
+                    })
+                    {
+                        ActionForms =
+                        [
+                            new GameBridgeActionFormView(
+                                "SubmitVote",
+                                "day-vote",
+                                "Village vote",
+                                "Choose an active participant to eliminate or abstain.",
+                                "ButtonList",
+                                [
+                                    new GameBridgeActionFieldView("choiceName", "ChoiceName", true, "Vote target", "Choose one legal vote target."),
+                                ]),
+                        ],
+                    })
+            {
+                ModuleAuthoring = new GameBridgeModuleAuthoringView(
+                    [],
+                    [
+                        new GameBridgeStageHookView("day-vote", "Day vote", "Active participants vote to eliminate someone or abstain.", 3, true, false),
+                    ],
+                    [
+                        new GameBridgeActionFormView(
+                            "SubmitVote",
+                            "day-vote",
+                            "Village vote",
+                            "Choose an active participant to eliminate or abstain.",
+                            "ButtonList",
+                            [
+                                new GameBridgeActionFieldView("choiceName", "ChoiceName", true, "Vote target", "Choose one legal vote target."),
+                            ]),
+                    ],
+                    [],
+                    new GameBridgeCommunicationCapabilitiesView(true, false),
+                    new GameBridgeMemoryExpectationsView(true, 512, 3),
+                    new GameBridgeProjectionCapabilitiesView(true, true, true)),
+            }
         };
 
         AssertJsonSnapshot("GameViewResponse", dto, DebugBridgeJsonOptions);
