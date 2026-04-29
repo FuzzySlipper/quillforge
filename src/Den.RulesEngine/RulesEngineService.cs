@@ -39,8 +39,8 @@ public sealed class RulesEngineService
             AdvanceStageIntentCommand advanceStage => ApplyAdvanceStage(state, module, advanceStage),
             EndRoundIntentCommand endRound => ApplyEndRound(state, endRound),
             AdvanceDeterministicEffectsIntentCommand advance => ApplyModuleCommand(state, module, advance, appendDefaultAdvanceEvent: true),
-            EndGameIntentCommand end => ApplyEndGame(state, end),
-            AbortGameIntentCommand abort => ApplyAbortGame(state, abort),
+            EndGameIntentCommand end => ApplyEndGame(state, module, end),
+            AbortGameIntentCommand abort => ApplyAbortGame(state, module, abort),
             _ => Reject(state, command, new ValidationIssue("unknown_intent_command", "Intent command type is not recognized."))
         };
     }
@@ -250,26 +250,53 @@ public sealed class RulesEngineService
         return defaultAdvance with { TraceRecords = result.TraceRecords };
     }
 
-    private RulesEngineApplyResult ApplyEndGame(RulesGameState state, EndGameIntentCommand command)
+    private RulesEngineApplyResult ApplyEndGame(
+        RulesGameState state,
+        IGameModule module,
+        EndGameIntentCommand command) =>
+        ApplyTerminalCommand(
+            state,
+            module,
+            command,
+            RulesGameStatus.Ended,
+            GameEndedEvent.Create(state.GameInstanceId, command.OutcomeName));
+
+    private RulesEngineApplyResult ApplyAbortGame(
+        RulesGameState state,
+        IGameModule module,
+        AbortGameIntentCommand command) =>
+        ApplyTerminalCommand(
+            state,
+            module,
+            command,
+            RulesGameStatus.Aborted,
+            GameAbortedEvent.Create(state.GameInstanceId, command.ReasonCode));
+
+    private RulesEngineApplyResult ApplyTerminalCommand(
+        RulesGameState state,
+        IGameModule module,
+        IGameIntentCommand command,
+        RulesGameStatus terminalStatus,
+        IGameEvent terminalEvent)
     {
-        var next = state with
+        var moduleResult = ApplyModulePhases(state, module, command, []);
+        if (!moduleResult.IsAccepted)
         {
-            Status = RulesGameStatus.Ended,
+            return moduleResult;
+        }
+
+        var next = moduleResult.State with
+        {
+            Status = terminalStatus,
             PendingInputs = []
         };
+        var terminalResult = AcceptWithEvents(next, [terminalEvent]);
 
-        return AcceptWithEvents(next, [GameEndedEvent.Create(state.GameInstanceId, command.OutcomeName)]);
-    }
-
-    private RulesEngineApplyResult ApplyAbortGame(RulesGameState state, AbortGameIntentCommand command)
-    {
-        var next = state with
+        return terminalResult with
         {
-            Status = RulesGameStatus.Aborted,
-            PendingInputs = []
+            Events = moduleResult.Events.Concat(terminalResult.Events).ToArray(),
+            TraceRecords = moduleResult.TraceRecords
         };
-
-        return AcceptWithEvents(next, [GameAbortedEvent.Create(state.GameInstanceId, command.ReasonCode)]);
     }
 
     private RulesEngineApplyResult ApplyModulePhases(

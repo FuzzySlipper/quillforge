@@ -169,6 +169,87 @@ public sealed class RulesEngineServiceTests
     }
 
     [Fact]
+    public void Apply_EndGame_RunsModuleLifecycleBeforeTerminalFactAndClearsInputs()
+    {
+        var module = new TransitionTestModule(emitTerminalLifecycleEvent: true);
+        var service = CreateService(module);
+        var state = CreateRunningState(module) with
+        {
+            PendingInputs =
+            [
+                new PendingInputState(
+                    new PendingInputId("input-1"),
+                    Alice,
+                    DayStage.StageId,
+                    "vote",
+                    PendingInputStatus.Waiting,
+                    [new LegalIntentOption("vote", "Vote", "Choose a target.")])
+            ]
+        };
+
+        var result = service.Apply(state, new EndGameIntentCommand(
+            GameIntentCommandId.NewId(),
+            GameId,
+            "village_win"));
+
+        Assert.True(result.IsAccepted);
+        Assert.Equal(RulesGameStatus.Ended, result.State.Status);
+        Assert.Empty(result.State.PendingInputs);
+        Assert.Equal(CleanupStage, result.State.Stage);
+        Assert.Collection(
+            result.Events,
+            gameEvent =>
+            {
+                var lifecycle = Assert.IsType<DeterministicEffectsAdvancedEvent>(gameEvent);
+                Assert.Equal("module-ending", lifecycle.EffectName);
+                Assert.Equal(1, lifecycle.Sequence);
+            },
+            gameEvent =>
+            {
+                var ended = Assert.IsType<GameEndedEvent>(gameEvent);
+                Assert.Equal("village_win", ended.OutcomeName);
+                Assert.Equal(2, ended.Sequence);
+            });
+        Assert.Equal(
+            [RulesResolutionPhase.CanStart, RulesResolutionPhase.OnRun, RulesResolutionPhase.OnEnd],
+            result.TraceRecords.Select(record => record.Phase).ToArray());
+    }
+
+    [Fact]
+    public void Apply_AbortGame_AllowsModuleLifecycleToRejectTerminalCommand()
+    {
+        var module = new TransitionTestModule(rejectAbort: true);
+        var service = CreateService(module);
+        var state = CreateRunningState(module) with
+        {
+            PendingInputs =
+            [
+                new PendingInputState(
+                    new PendingInputId("input-1"),
+                    Alice,
+                    DayStage.StageId,
+                    "vote",
+                    PendingInputStatus.Waiting,
+                    [new LegalIntentOption("vote", "Vote", "Choose a target.")])
+            ]
+        };
+
+        var result = service.Apply(state, new AbortGameIntentCommand(
+            GameIntentCommandId.NewId(),
+            GameId,
+            "host_cancelled"));
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal(RulesGameStatus.Running, result.State.Status);
+        Assert.Single(result.State.PendingInputs);
+        Assert.Equal("abort_vetoed", Assert.Single(result.Issues).Code);
+        var rejected = Assert.IsType<IntentCommandRejectedEvent>(Assert.Single(result.Events));
+        Assert.Equal("abort_vetoed", rejected.ReasonCode);
+        Assert.Equal(1, rejected.Sequence);
+        Assert.Equal([RulesResolutionPhase.CanStart], result.TraceRecords.Select(record => record.Phase).ToArray());
+    }
+
+    [Fact]
     public void Apply_AdvanceDeterministicEffects_IgnoresModuleJournalMutationAndOwnsSequencing()
     {
         var module = new TransitionTestModule(tamperJournalOnAdvance: true);
@@ -256,16 +337,25 @@ public sealed class RulesEngineServiceTests
     private static readonly ParticipantId Chandra = new("chandra");
     private static readonly GameStageState DayStage = new(new GameStageId("day"), "Day", 1, true, false);
     private static readonly GameStageState NightStage = new(new GameStageId("night"), "Night", 2, false, true);
+    private static readonly GameStageState CleanupStage = new(new GameStageId("cleanup"), "Cleanup", 99, false, false);
 
     private sealed class TransitionTestModule : IGameModule
     {
         private readonly bool _useRandomOnAdvance;
         private readonly bool _tamperJournalOnAdvance;
+        private readonly bool _emitTerminalLifecycleEvent;
+        private readonly bool _rejectAbort;
 
-        public TransitionTestModule(bool useRandomOnAdvance = false, bool tamperJournalOnAdvance = false)
+        public TransitionTestModule(
+            bool useRandomOnAdvance = false,
+            bool tamperJournalOnAdvance = false,
+            bool emitTerminalLifecycleEvent = false,
+            bool rejectAbort = false)
         {
             _useRandomOnAdvance = useRandomOnAdvance;
             _tamperJournalOnAdvance = tamperJournalOnAdvance;
+            _emitTerminalLifecycleEvent = emitTerminalLifecycleEvent;
+            _rejectAbort = rejectAbort;
         }
 
         public GameModuleDescriptor Descriptor { get; } = new(
@@ -300,6 +390,21 @@ public sealed class RulesEngineServiceTests
 
         public GameModuleTransitionResult HandleIntentCommand(GameModuleTransitionContext context)
         {
+            if (context.Command is AbortGameIntentCommand && context.Phase == RulesResolutionPhase.CanStart && _rejectAbort)
+            {
+                return GameModuleTransitionResult.Rejected(
+                    context.State,
+                    new ValidationIssue("abort_vetoed", "The module vetoed abort during termination lifecycle."));
+            }
+
+            if (context.Command is EndGameIntentCommand && context.Phase == RulesResolutionPhase.OnRun && _emitTerminalLifecycleEvent)
+            {
+                var next = context.State with { Stage = CleanupStage };
+                return GameModuleTransitionResult.Accepted(
+                    next,
+                    [DeterministicEffectsAdvancedEvent.Create(context.State.GameInstanceId, "module-ending")]);
+            }
+
             if (context.Command is not AdvanceDeterministicEffectsIntentCommand advance
                 || context.Phase != RulesResolutionPhase.OnRun)
             {
@@ -318,14 +423,18 @@ public sealed class RulesEngineServiceTests
             }
 
             var draw = context.State.Random.NextInt(1000);
-            var next = context.State with { Random = draw.State };
+            var nextState = context.State with { Random = draw.State };
             return GameModuleTransitionResult.Accepted(
-                next,
+                nextState,
                 [DeterministicEffectsAdvancedEvent.Create(context.State.GameInstanceId, $"{advance.EffectName}:{draw.Value}")]);
         }
 
         public IReadOnlyList<GameRuleHandlerDescriptor> GetRuleHandlerDescriptors() =>
-            [new GameRuleHandlerDescriptor("advance", RulesResolutionPhase.OnRun, nameof(TransitionTestModule), 0)];
+        [
+            new GameRuleHandlerDescriptor("advance", RulesResolutionPhase.OnRun, nameof(TransitionTestModule), 0),
+            new GameRuleHandlerDescriptor(nameof(EndGameIntentCommand), RulesResolutionPhase.OnRun, nameof(TransitionTestModule), 0),
+            new GameRuleHandlerDescriptor(nameof(AbortGameIntentCommand), RulesResolutionPhase.CanStart, nameof(TransitionTestModule), 0)
+        ];
 
         public IReadOnlyList<GamePromptAsset> GetPromptAssets() => [];
     }

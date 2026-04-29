@@ -272,6 +272,24 @@ Trace records are observability. Committed gameplay facts are events. Trace
 records must help explain why an event happened without becoming gameplay
 authority.
 
+### Terminal Transitions
+
+`EndGameIntentCommand` and `AbortGameIntentCommand` are terminal lifecycle
+commands. They run through the same ordered module phases (`CanStart`, `OnRun`,
+`OnEnd`) before the engine commits the terminal fact. This is the explicit
+extension point for module cleanup, final reactions, and veto decisions; modules
+should use typed state changes and typed events from `HandleIntentCommand`, not
+out-of-band hooks or host callbacks.
+
+`RulesEngineService` still owns the terminal state transition. After module
+phases accept, the service clears pending inputs, sets `RulesGameStatus.Ended`
+or `RulesGameStatus.Aborted`, and commits `GameEndedEvent` or
+`GameAbortedEvent` last. Module events therefore appear before the terminal fact
+in deterministic journal order, while the terminal event remains the final source
+of truth that the game has ended or aborted. If a module rejects during terminal
+phases, the service commits only the standard `IntentCommandRejectedEvent` and
+leaves the game in its prior non-terminal state.
+
 ## Module Boundary
 
 Each module owns its game-specific content and rules. The portable module
