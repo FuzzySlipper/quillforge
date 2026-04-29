@@ -352,7 +352,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         var currentRuntime = await _runtimeService.LoadViewAsync(sessionId, ct);
         if (currentRuntime?.EngineSnapshot is not null)
         {
-            var isSensitiveReason = reasonCode == "hidden-info-attempt";
+            var isSensitiveReason = IsSensitiveNoActionReason(reasonCode);
             var visibility = isSensitiveReason
                 ? GameEventVisibility.HiddenSystemOnly
                 : GameEventVisibility.PrivateToParticipant(completion.PendingInput.ParticipantId);
@@ -667,6 +667,14 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
 
         return reasonCode.Trim().Replace('_', '-');
     }
+
+    private static bool IsSensitiveNoActionReason(string reasonCode) =>
+        SensitiveNoActionReasonCodes.Contains(reasonCode);
+
+    private static readonly HashSet<string> SensitiveNoActionReasonCodes = new(StringComparer.Ordinal)
+    {
+        "hidden-info-attempt",
+    };
 
     private static string NormalizeMessage(string? message, string fallback) =>
         string.IsNullOrWhiteSpace(message) ? fallback : message.Trim();
