@@ -89,6 +89,11 @@ public static class ServiceRegistration
                 sp.GetRequiredService<AtomicFileWriter>(),
                 sp.GetRequiredService<ILogger<FileSystemGameTemplateStore>>()));
 
+        services.AddSingleton<IGamePromptTemplateStore>(sp =>
+            new FileSystemGamePromptTemplateStore(contentRoot,
+                sp.GetRequiredService<AtomicFileWriter>(),
+                sp.GetRequiredService<ILogger<FileSystemGamePromptTemplateStore>>()));
+
         services.AddSingleton<FileSystemSessionRuntimeStore>(sp =>
             new FileSystemSessionRuntimeStore(contentRoot,
                 sp.GetRequiredService<AtomicFileWriter>(),

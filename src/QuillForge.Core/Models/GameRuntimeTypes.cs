@@ -90,6 +90,8 @@ public sealed class GameRuntimeParticipantBinding
 
     public string? Personality { get; set; }
 
+    public GamePromptTemplateSelection SystemPromptTemplate { get; set; } = GamePromptTemplateSelection.Default;
+
     public string? UserSeatId { get; set; }
 }
 

@@ -31,6 +31,7 @@ public static class ContentPaths
     public const string Artifacts = "artifacts";
     public const string Research = "research";
     public const string GameTemplates = "game-templates";
+    public const string GamePrompts = "game-prompts";
 
     // --- Data subdirectories ---
     public const string Data = "data";
@@ -70,6 +71,7 @@ public static class ContentPaths
         Artifacts,
         Research,
         GameTemplates,
+        GamePrompts,
         DataSessions,
         DataSessionState,
         DataLlmDebug,

@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
+import MDEditor from "@uiw/react-md-editor";
 import {
   cloneGameTemplate,
   deleteGameTemplate,
   getGameTemplate,
   getGameTemplateCatalog,
+  listGamePromptTemplates,
+  openGamePromptTemplate,
   saveGameTemplate,
   validateGameTemplate,
+  writeGamePromptTemplate,
 } from "../api";
 import type {
+  GamePromptTemplateDocumentResponse,
+  GamePromptTemplateOption,
+  GamePromptTemplateSelection,
   GameTemplate,
   GameTemplateAgentPlayerConfig,
   GameTemplateCatalogResponse,
@@ -68,6 +75,8 @@ function defaultRuleValue(field: GameTemplateSetupFieldOption): GameTemplateRule
   };
 }
 
+const DEFAULT_PROMPT_SELECTION: GamePromptTemplateSelection = { source: "Default", userPromptName: null };
+
 function defaultAgent(participantId: string, providerAlias: string): GameTemplateAgentPlayerConfig {
   return {
     participantId,
@@ -76,8 +85,30 @@ function defaultAgent(participantId: string, providerAlias: string): GameTemplat
     characterPrompt: null,
     personality: null,
     fixedName: participantId,
+    systemPromptTemplate: DEFAULT_PROMPT_SELECTION,
     randomNameBehavior: "UseFixedNameWhenProvided",
   };
+}
+
+function normalizePromptSelection(selection?: GamePromptTemplateSelection | null): GamePromptTemplateSelection {
+  if (selection?.source === "User" && selection.userPromptName?.trim()) {
+    return { source: "User", userPromptName: selection.userPromptName.trim() };
+  }
+
+  return DEFAULT_PROMPT_SELECTION;
+}
+
+function promptSelectionValue(selection?: GamePromptTemplateSelection | null): string {
+  const normalized = normalizePromptSelection(selection);
+  return normalized.source === "User" && normalized.userPromptName
+    ? `user:${normalized.userPromptName}`
+    : "default";
+}
+
+function promptSelectionFromValue(value: string): GamePromptTemplateSelection {
+  return value.startsWith("user:")
+    ? { source: "User", userPromptName: value.slice(5) }
+    : DEFAULT_PROMPT_SELECTION;
 }
 
 function createDefaultTemplate(
@@ -230,6 +261,14 @@ export default function GameTemplateEditor({
   const [template, setTemplate] = useState<GameTemplate | null>(null);
   const [validation, setValidation] = useState<GameTemplateValidationResult | null>(null);
   const [cloneTargetId, setCloneTargetId] = useState("");
+  const [promptOptions, setPromptOptions] = useState<GamePromptTemplateOption[]>([]);
+  const [promptEditor, setPromptEditor] = useState<{
+    agentParticipantId: string;
+    moduleId: string;
+    document: GamePromptTemplateDocumentResponse;
+    content: string;
+    originalContent: string;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -303,6 +342,35 @@ export default function GameTemplateEditor({
       cancelled = true;
     };
   }, [selectedTemplateId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPromptOptions() {
+      if (!selectedModule) {
+        setPromptOptions([{ value: "default", displayName: "Default", source: "Default", userPromptName: null, isDefault: true, tokens: 0, size: null, relativePath: null }]);
+        return;
+      }
+
+      try {
+        const response = await listGamePromptTemplates(selectedModule.moduleId);
+        if (!cancelled) {
+          setPromptOptions(response.prompts);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load game prompt templates");
+          setPromptOptions([{ value: "default", displayName: "Default", source: "Default", userPromptName: null, isDefault: true, tokens: 0, size: null, relativePath: null }]);
+        }
+      }
+    }
+
+    void loadPromptOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedModule?.moduleId]);
 
   function updateTemplate(mutator: (current: GameTemplate) => GameTemplate) {
     setTemplate((current) => {
@@ -412,6 +480,39 @@ export default function GameTemplateEditor({
       await onTemplatesChanged(response.template.templateId);
       await refreshCatalog();
       setMessage("Template cloned.");
+    });
+  }
+
+  async function handleEditPrompt(agent: GameTemplateAgentPlayerConfig) {
+    if (!selectedModule) return;
+    await runOperation(async () => {
+      const document = await openGamePromptTemplate(selectedModule.moduleId, normalizePromptSelection(agent.systemPromptTemplate));
+      updateAgent(agent.participantId, (current) => ({ ...current, systemPromptTemplate: document.selection }));
+      const refreshed = await listGamePromptTemplates(selectedModule.moduleId);
+      setPromptOptions(refreshed.prompts);
+      setPromptEditor({
+        agentParticipantId: agent.participantId,
+        moduleId: selectedModule.moduleId,
+        document,
+        content: document.content,
+        originalContent: document.content,
+      });
+      setMessage(document.createdCopy
+        ? "Copied the bundled Default prompt into user content. Save the template to keep this agent selection."
+        : "Opened existing user prompt template.");
+    });
+  }
+
+  async function handleSavePrompt() {
+    if (!promptEditor) return;
+    await runOperation(async () => {
+      await writeGamePromptTemplate(promptEditor.moduleId, promptEditor.document.name, promptEditor.content);
+      const refreshed = await listGamePromptTemplates(promptEditor.moduleId);
+      setPromptOptions(refreshed.prompts);
+      setPromptEditor((current) => current
+        ? { ...current, originalContent: current.content, document: { ...current.document, content: current.content, tokens: current.content.length / 4 } }
+        : current);
+      setMessage("Prompt template saved.");
     });
   }
 
@@ -721,6 +822,33 @@ export default function GameTemplateEditor({
                     className="rounded-lg border border-border bg-input-bg px-3 py-2 text-sm text-text"
                   />
                 </label>
+                <div className="flex flex-col gap-1 text-xs text-text-muted">
+                  <span>AI player system prompt</span>
+                  <div className="flex gap-2">
+                    <select
+                      value={promptSelectionValue(agent.systemPromptTemplate)}
+                      onChange={(event) => updateAgent(agent.participantId, (current) => ({ ...current, systemPromptTemplate: promptSelectionFromValue(event.target.value) }))}
+                      className="min-w-0 flex-1 rounded-lg border border-border bg-input-bg px-3 py-2 text-sm text-text"
+                    >
+                      {promptOptions.map((prompt) => (
+                        <option key={prompt.value} value={prompt.value}>
+                          {prompt.isDefault ? "Default" : prompt.displayName}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={busy || !selectedModule}
+                      onClick={() => { void handleEditPrompt(agent); }}
+                      className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border disabled:opacity-50"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  <span className="text-[11px] leading-4 text-text-muted">
+                    Default is bundled with the module. Editing Default creates a user-owned markdown copy.
+                  </span>
+                </div>
                 <label className="flex flex-col gap-1 text-xs text-text-muted">
                   Personality
                   <input
@@ -743,6 +871,56 @@ export default function GameTemplateEditor({
           })}
         </div>
       </section>
+
+      {promptEditor && (
+        <section className="rounded-xl border border-border/60 bg-surface/60 px-3 py-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="qf-shell-folio">Game Prompt Editor</div>
+              <div className="mt-1 text-xs text-text-muted">
+                {promptEditor.document.relativePath} · selected for {promptEditor.agentParticipantId}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPromptEditor(null)}
+              className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border"
+            >
+              Close
+            </button>
+          </div>
+          <div data-color-mode="dark">
+            <MDEditor
+              value={promptEditor.content}
+              onChange={(value) => setPromptEditor((current) => current ? { ...current, content: value ?? "" } : current)}
+              height={360}
+              preview="edit"
+              visibleDragbar
+            />
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="text-xs text-text-muted">~{Math.round(promptEditor.content.length / 4)} tokens</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={busy || promptEditor.content === promptEditor.originalContent}
+                onClick={() => setPromptEditor((current) => current ? { ...current, content: current.originalContent } : current)}
+                className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border disabled:opacity-50"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                disabled={busy || promptEditor.content === promptEditor.originalContent}
+                onClick={() => { void handleSavePrompt(); }}
+                className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
+              >
+                Save prompt
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy} onClick={() => { void handleValidate(); }} className="rounded-lg bg-surface-alt px-4 py-2 text-sm text-text hover:bg-border disabled:opacity-50">Validate</button>

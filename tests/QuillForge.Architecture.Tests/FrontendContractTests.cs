@@ -506,6 +506,12 @@ public sealed class FrontendContractTests
         Assert.Contains("cloneGameTemplate", source, StringComparison.Ordinal);
         Assert.Contains("deleteGameTemplate", source, StringComparison.Ordinal);
         Assert.Contains("validateGameTemplate", source, StringComparison.Ordinal);
+        Assert.Contains("listGamePromptTemplates", source, StringComparison.Ordinal);
+        Assert.Contains("openGamePromptTemplate", source, StringComparison.Ordinal);
+        Assert.Contains("writeGamePromptTemplate", source, StringComparison.Ordinal);
+        Assert.Contains("AI player system prompt", source, StringComparison.Ordinal);
+        Assert.Contains("Editing Default creates a user-owned markdown copy", source, StringComparison.Ordinal);
+        Assert.Contains("<MDEditor", source, StringComparison.Ordinal);
         Assert.Contains("Validation issues from template service", source, StringComparison.Ordinal);
         Assert.Contains("Provider alias", source, StringComparison.Ordinal);
         Assert.Contains("Provider model", source, StringComparison.Ordinal);

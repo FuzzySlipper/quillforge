@@ -198,3 +198,67 @@ public sealed record DeleteGameTemplateResponse
 
     public required string TemplateId { get; init; }
 }
+
+public sealed record GamePromptTemplateListResponse
+{
+    public required string ModuleId { get; init; }
+
+    public required IReadOnlyList<GamePromptTemplateOption> Prompts { get; init; }
+}
+
+public sealed record GamePromptTemplateOption
+{
+    public required string Value { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required GamePromptTemplateSource Source { get; init; }
+
+    public string? UserPromptName { get; init; }
+
+    public required bool IsDefault { get; init; }
+
+    public required int Tokens { get; init; }
+
+    public long? Size { get; init; }
+
+    public string? RelativePath { get; init; }
+}
+
+public sealed record OpenGamePromptTemplateRequest
+{
+    public GamePromptTemplateSelection Selection { get; init; } = GamePromptTemplateSelection.Default;
+}
+
+public sealed record GamePromptTemplateDocumentResponse
+{
+    public required string ModuleId { get; init; }
+
+    public required string Name { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string RelativePath { get; init; }
+
+    public required GamePromptTemplateSelection Selection { get; init; }
+
+    public required string Content { get; init; }
+
+    public required int Tokens { get; init; }
+
+    public required bool CreatedCopy { get; init; }
+}
+
+public sealed record WriteGamePromptTemplateRequest
+{
+    public string Content { get; init; } = string.Empty;
+}
+
+public sealed record WriteGamePromptTemplateResponse
+{
+    public string Status { get; init; } = "ok";
+
+    public required string ModuleId { get; init; }
+
+    public required string Name { get; init; }
+}

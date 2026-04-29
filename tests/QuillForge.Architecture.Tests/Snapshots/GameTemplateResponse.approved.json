@@ -42,6 +42,10 @@
           "characterPrompt": "Keep claims concise.",
           "personality": "skeptical villager",
           "fixedName": "Bob",
+          "systemPromptTemplate": {
+            "source": "Default",
+            "userPromptName": null
+          },
           "randomNameBehavior": "UseFixedNameWhenProvided"
         },
         {
@@ -51,6 +55,10 @@
           "characterPrompt": null,
           "personality": null,
           "fixedName": "Carol",
+          "systemPromptTemplate": {
+            "source": "Default",
+            "userPromptName": null
+          },
           "randomNameBehavior": "UseFixedNameWhenProvided"
         },
         {
@@ -60,6 +68,10 @@
           "characterPrompt": null,
           "personality": null,
           "fixedName": "Drew",
+          "systemPromptTemplate": {
+            "source": "Default",
+            "userPromptName": null
+          },
           "randomNameBehavior": "UseFixedNameWhenProvided"
         }
       ]

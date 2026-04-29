@@ -107,6 +107,8 @@ public sealed record GameTemplateAgentPlayerConfig
 
     public string? FixedName { get; init; }
 
+    public GamePromptTemplateSelection SystemPromptTemplate { get; init; } = GamePromptTemplateSelection.Default;
+
     public GameTemplateRandomNameBehavior RandomNameBehavior { get; init; } = GameTemplateRandomNameBehavior.UseFixedNameWhenProvided;
 }
 

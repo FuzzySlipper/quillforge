@@ -155,6 +155,9 @@
         "participantId": "human-1",
         "displayName": "Human",
         "kind": "human",
+        "systemPromptTemplate": {
+          "source": "default"
+        },
         "userSeatId": "user"
       },
       {
@@ -162,7 +165,10 @@
         "displayName": "Mira",
         "kind": "agent",
         "providerAlias": "local",
-        "modelOverride": "test-model"
+        "modelOverride": "test-model",
+        "systemPromptTemplate": {
+          "source": "default"
+        }
       }
     ],
     "eventDeliveryCursors": [

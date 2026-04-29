@@ -376,6 +376,7 @@ public sealed partial class HarnessGameScenarioRunner
             registryResult.Registry,
             completion,
             visibleEvents,
+            new DefaultOnlyGamePromptTemplateService(),
             appConfig,
             NullLogger<GameAgentTurnService>.Instance);
         var memory = new GameAgentMemoryService(

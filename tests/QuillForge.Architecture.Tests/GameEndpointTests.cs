@@ -31,6 +31,9 @@ public sealed class GameEndpointTests
 
         Assert.Contains(routes, route => route.Pattern == "/api/game-templates/" && route.Methods.Contains("GET"));
         Assert.Contains(routes, route => route.Pattern == "/api/game-templates/catalog" && route.Methods.Contains("GET"));
+        Assert.Contains(routes, route => route.Pattern == "/api/game-templates/{moduleId}/prompt-templates" && route.Methods.Contains("GET"));
+        Assert.Contains(routes, route => route.Pattern == "/api/game-templates/{moduleId}/prompt-templates/open" && route.Methods.Contains("POST"));
+        Assert.Contains(routes, route => route.Pattern == "/api/game-templates/{moduleId}/prompt-templates/{promptName}" && route.Methods.Contains("PUT"));
         Assert.Contains(routes, route => route.Pattern == "/api/game-templates/{templateId}" && route.Methods.Contains("GET"));
         Assert.Contains(routes, route => route.Pattern == "/api/game-templates/{templateId}" && route.Methods.Contains("PUT"));
         Assert.Contains(routes, route => route.Pattern == "/api/game-templates/{templateId}/clone" && route.Methods.Contains("POST"));

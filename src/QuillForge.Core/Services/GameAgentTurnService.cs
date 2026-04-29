@@ -13,6 +13,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
     private readonly GameModuleRegistry _moduleRegistry;
     private readonly ICompletionService _completionService;
     private readonly AgentVisibleEventsService _visibleEventsService;
+    private readonly IGamePromptTemplateService _promptTemplateService;
     private readonly AppConfig _appConfig;
     private readonly ILogger<GameAgentTurnService> _logger;
 
@@ -21,6 +22,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         GameModuleRegistry moduleRegistry,
         ICompletionService completionService,
         AgentVisibleEventsService visibleEventsService,
+        IGamePromptTemplateService promptTemplateService,
         AppConfig appConfig,
         ILogger<GameAgentTurnService> logger)
     {
@@ -28,6 +30,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         _moduleRegistry = moduleRegistry;
         _completionService = completionService;
         _visibleEventsService = visibleEventsService;
+        _promptTemplateService = promptTemplateService;
         _appConfig = appConfig;
         _logger = logger;
     }
@@ -152,7 +155,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         DateTimeOffset occurredAt,
         CancellationToken ct)
     {
-        var context = BuildPromptContext(runtime, liveState, module, job.Binding, job.PendingInput);
+        var context = await BuildPromptContextAsync(runtime, liveState, module, job.Binding, job.PendingInput, ct);
         var prompt = BuildPrompt(context);
         var model = Normalize(job.Binding.ModelOverride) ?? DefaultModelName;
         var providerAlias = Normalize(job.Binding.ProviderAlias);
@@ -432,12 +435,13 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
             [],
             []));
 
-    private GameAgentPromptContext BuildPromptContext(
+    private async Task<GameAgentPromptContext> BuildPromptContextAsync(
         GameRuntimeState runtime,
         RulesGameState liveState,
         IGameModule module,
         GameRuntimeParticipantBinding binding,
-        PendingInputState pendingInput)
+        PendingInputState pendingInput,
+        CancellationToken ct)
     {
         var memory = runtime.AgentMemories.FirstOrDefault(item =>
             string.Equals(item.ParticipantId, binding.ParticipantId, StringComparison.Ordinal));
@@ -447,6 +451,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         var pendingInputs = liveState.PendingInputs
             .Where(input => input.IsWaitingFor(pendingInput.ParticipantId))
             .ToArray();
+        var promptTemplate = await _promptTemplateService.ResolveAsync(module, binding.SystemPromptTemplate, ct);
         return new GameAgentPromptContext(
             runtime.GameInstanceId!,
             binding.ParticipantId,
@@ -455,6 +460,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
             liveState.Stage.DisplayName,
             module.Descriptor.DisplayName,
             module.GetPromptAssets(),
+            promptTemplate.Content,
             visibleEvents,
             pendingInputs,
             memory,
@@ -465,7 +471,9 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
     internal static GameAgentPromptAssembly BuildPrompt(GameAgentPromptContext context)
     {
         var rules = context.PromptAssets.Where(asset => asset.Kind == GamePromptAssetKind.RulesText).Select(asset => asset.Content).ToArray();
-        var instructions = context.PromptAssets.Where(asset => asset.Kind == GamePromptAssetKind.ParticipantInstructions).Select(asset => asset.Content).ToArray();
+        var instructions = string.IsNullOrWhiteSpace(context.SystemPromptTemplateContent)
+            ? Array.Empty<string>()
+            : [context.SystemPromptTemplateContent];
         var pendingInput = context.PendingInputs.FirstOrDefault();
         var engineCursor = context.VisibleEvents.NewCursor.PublicEngineEventSequence;
         var deliveredPrivateEventIds = context.VisibleEvents.NewCursor.PrivateEngineEventIds;

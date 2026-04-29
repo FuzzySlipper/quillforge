@@ -350,7 +350,21 @@ public sealed class GameTemplateService : IGameTemplateService
             CharacterPrompt = NormalizeOptional(player.CharacterPrompt),
             Personality = NormalizeOptional(player.Personality),
             FixedName = NormalizeOptional(player.FixedName),
+            SystemPromptTemplate = NormalizePromptTemplateSelection(player.SystemPromptTemplate),
         };
+
+    private static GamePromptTemplateSelection NormalizePromptTemplateSelection(GamePromptTemplateSelection? selection)
+    {
+        if (selection is null || selection.Source != GamePromptTemplateSource.User)
+        {
+            return GamePromptTemplateSelection.Default;
+        }
+
+        var promptName = NormalizeOptional(selection.UserPromptName);
+        return promptName is null
+            ? GamePromptTemplateSelection.Default
+            : GamePromptTemplateSelection.ForUserPrompt(promptName);
+    }
 
     private static string NormalizeId(string templateId, string parameterName)
     {

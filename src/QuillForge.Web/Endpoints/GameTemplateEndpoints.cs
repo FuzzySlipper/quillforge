@@ -49,6 +49,74 @@ public static class GameTemplateEndpoints
             });
         });
 
+        group.MapGet("/{moduleId}/prompt-templates", async (
+            string moduleId,
+            [FromServices] IGamePromptTemplateService promptTemplateService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var userPrompts = await promptTemplateService.ListUserPromptsAsync(moduleId, ct);
+                return Results.Ok(new GamePromptTemplateListResponse
+                {
+                    ModuleId = moduleId,
+                    Prompts = ToPromptOptions(userPrompts),
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        group.MapPost("/{moduleId}/prompt-templates/open", async (
+            string moduleId,
+            OpenGamePromptTemplateRequest request,
+            [FromServices] IGamePromptTemplateService promptTemplateService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                if (request.Selection.Source == GamePromptTemplateSource.User
+                    && !string.IsNullOrWhiteSpace(request.Selection.UserPromptName))
+                {
+                    var existing = await promptTemplateService.TryOpenUserPromptAsync(moduleId, request.Selection.UserPromptName, ct);
+                    return existing is null
+                        ? Results.NotFound(new { Error = $"Game prompt template {request.Selection.UserPromptName} not found" })
+                        : Results.Ok(ToPromptDocumentResponse(existing, createdCopy: false));
+                }
+
+                var copy = await promptTemplateService.CopyDefaultForEditAsync(moduleId, ct);
+                return Results.Ok(ToPromptDocumentResponse(copy, createdCopy: true));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        group.MapPut("/{moduleId}/prompt-templates/{promptName}", async (
+            string moduleId,
+            string promptName,
+            WriteGamePromptTemplateRequest request,
+            [FromServices] IGamePromptTemplateService promptTemplateService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                await promptTemplateService.SaveUserPromptAsync(moduleId, promptName, request.Content, ct);
+                return Results.Ok(new WriteGamePromptTemplateResponse
+                {
+                    ModuleId = moduleId,
+                    Name = promptName,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
         group.MapGet("/{templateId}", async (
             string templateId,
             [FromServices] IGameTemplateService templateService,
@@ -156,6 +224,48 @@ public static class GameTemplateEndpoints
         {
             Template = envelope.Template,
             Validation = envelope.Validation,
+        };
+
+    private static IReadOnlyList<GamePromptTemplateOption> ToPromptOptions(IReadOnlyList<GameUserPromptTemplateInfo> userPrompts)
+    {
+        var options = new List<GamePromptTemplateOption>
+        {
+            new()
+            {
+                Value = "default",
+                DisplayName = "Default",
+                Source = GamePromptTemplateSource.Default,
+                IsDefault = true,
+                Tokens = 0,
+            },
+        };
+        options.AddRange(userPrompts.Select(prompt => new GamePromptTemplateOption
+        {
+            Value = $"user:{prompt.Name}",
+            DisplayName = prompt.Name,
+            Source = GamePromptTemplateSource.User,
+            UserPromptName = prompt.Name,
+            IsDefault = false,
+            Tokens = prompt.Tokens,
+            Size = prompt.Size,
+            RelativePath = prompt.RelativePath,
+        }));
+        return options;
+    }
+
+    private static GamePromptTemplateDocumentResponse ToPromptDocumentResponse(
+        GameUserPromptTemplateDocument document,
+        bool createdCopy) =>
+        new()
+        {
+            ModuleId = document.ModuleId,
+            Name = document.Name,
+            DisplayName = document.Name,
+            RelativePath = document.RelativePath,
+            Selection = GamePromptTemplateSelection.ForUserPrompt(document.Name),
+            Content = document.Content,
+            Tokens = document.Tokens,
+            CreatedCopy = createdCopy,
         };
 
     private static GameTemplateModuleOption ToModuleOption(IGameModule module)
