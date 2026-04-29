@@ -561,6 +561,8 @@ public sealed class FrontendContractTests
         Assert.Contains("Export JSON", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"game-diagnostic-log\"", source, StringComparison.Ordinal);
         Assert.Contains("<GameTemplateEditor", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"game-template-editor-dialog\"", source, StringComparison.Ordinal);
+        Assert.Contains("Open Template Editor", source, StringComparison.Ordinal);
         Assert.Contains("<WerewolfGamePanel", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"games-no-game-state\"", source, StringComparison.Ordinal);
         Assert.Contains("No game is running in this session.", source, StringComparison.Ordinal);
@@ -568,6 +570,31 @@ public sealed class FrontendContractTests
         Assert.Contains("this workspace only submits typed legal choices", source, StringComparison.Ordinal);
         Assert.DoesNotContain("field.name === \"choiceName\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("sendChatStream", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GamesWorkspace_OpensTemplateEditorInStatefulDialogOutsideRosterSurface()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("components", "GamesWorkspace.tsx"));
+
+        Assert.Contains("templateEditorOpen", source, StringComparison.Ordinal);
+        Assert.Contains("editorTemplateId", source, StringComparison.Ordinal);
+        Assert.Contains("role=\"dialog\"", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"game-template-editor-dialog\"", source, StringComparison.Ordinal);
+        Assert.Contains("Closing hides this panel and keeps unsaved edits in memory", source, StringComparison.Ordinal);
+        Assert.Contains("className={open ? \"fixed inset-0", source, StringComparison.Ordinal);
+        Assert.Contains(": \"hidden\"}", source, StringComparison.Ordinal);
+
+        var setupStart = source.IndexOf("<aside className=\"qf-shell-card flex min-h-0 flex-col overflow-hidden\">", StringComparison.Ordinal);
+        Assert.True(setupStart >= 0, "Could not locate Setup & Roster aside.");
+
+        var tableStart = source.IndexOf("<section className=\"qf-shell-card qf-shell-card--sunken", setupStart, StringComparison.Ordinal);
+        Assert.True(tableStart > setupStart, "Could not locate Table State section after Setup & Roster aside.");
+
+        var setupSurface = source[setupStart..tableStart];
+        Assert.DoesNotContain("<GameTemplateEditor", setupSurface, StringComparison.Ordinal);
+        Assert.Contains("Open Template Editor", setupSurface, StringComparison.Ordinal);
+        Assert.Contains("Template editing opens in a separate workshop panel", setupSurface, StringComparison.Ordinal);
     }
 
     [Fact]
