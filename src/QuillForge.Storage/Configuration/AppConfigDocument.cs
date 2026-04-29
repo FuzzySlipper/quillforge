@@ -58,7 +58,8 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
             {
                 MaxPromptEnvelopesPerAgent = Math.Max(value.Agents.GameAgentMemory.MaxPromptEnvelopesPerAgent, 1),
                 Temperature = Math.Clamp(value.Agents.GameAgentMemory.Temperature, 0, 2),
-                FallbackCharactersPerToken = NormalizeFallbackCharactersPerToken(value.Agents.GameAgentMemory.FallbackCharactersPerToken),
+                FallbackCharactersPerToken = GameAgentMemoryBudget.NormalizeFallbackCharactersPerToken(
+                    value.Agents.GameAgentMemory.FallbackCharactersPerToken),
                 FallbackCharactersPerTokenByProvider = NormalizeFallbackCharactersPerTokenByProvider(
                     value.Agents.GameAgentMemory.FallbackCharactersPerTokenByProvider),
             },
@@ -72,9 +73,6 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
         },
     };
 
-    private static double NormalizeFallbackCharactersPerToken(double value) =>
-        double.IsFinite(value) && value > 0 ? value : 4.0;
-
     private static Dictionary<string, double> NormalizeFallbackCharactersPerTokenByProvider(
         IReadOnlyDictionary<string, double> values)
     {
@@ -86,7 +84,7 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
                 continue;
             }
 
-            normalized[item.Key.Trim()] = NormalizeFallbackCharactersPerToken(item.Value);
+            normalized[item.Key.Trim()] = GameAgentMemoryBudget.NormalizeFallbackCharactersPerToken(item.Value);
         }
 
         return normalized;

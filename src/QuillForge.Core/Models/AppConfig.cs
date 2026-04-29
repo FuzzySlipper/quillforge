@@ -218,10 +218,15 @@ public sealed record GameAgentTurnsBudget
 
 public sealed record GameAgentMemoryBudget
 {
+    public const double DefaultFallbackCharactersPerToken = 4.0;
+
     public int MaxPromptEnvelopesPerAgent { get; set; } = 10;
     public double Temperature { get; set; } = 0.2;
-    public double FallbackCharactersPerToken { get; set; } = 4.0;
+    public double FallbackCharactersPerToken { get; set; } = DefaultFallbackCharactersPerToken;
     public Dictionary<string, double> FallbackCharactersPerTokenByProvider { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public static double NormalizeFallbackCharactersPerToken(double value) =>
+        double.IsFinite(value) && value > 0 ? value : DefaultFallbackCharactersPerToken;
 }
 
 public sealed record TimeoutsConfig

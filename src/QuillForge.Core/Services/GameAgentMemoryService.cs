@@ -465,7 +465,8 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
             return providerCharactersPerToken;
         }
 
-        return NormalizeCharactersPerToken(_appConfig.Agents.GameAgentMemory.FallbackCharactersPerToken);
+        return GameAgentMemoryBudget.NormalizeFallbackCharactersPerToken(
+            _appConfig.Agents.GameAgentMemory.FallbackCharactersPerToken);
     }
 
     private static bool TryGetConfiguredCharactersPerToken(
@@ -473,21 +474,15 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
         string key,
         out double charactersPerToken)
     {
-        foreach (var item in values)
+        if (values.TryGetValue(key, out var configuredCharactersPerToken))
         {
-            if (string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))
-            {
-                charactersPerToken = NormalizeCharactersPerToken(item.Value);
-                return true;
-            }
+            charactersPerToken = GameAgentMemoryBudget.NormalizeFallbackCharactersPerToken(configuredCharactersPerToken);
+            return true;
         }
 
         charactersPerToken = 0;
         return false;
     }
-
-    private static double NormalizeCharactersPerToken(double value) =>
-        double.IsFinite(value) && value > 0 ? value : 4.0;
 
     private static int EstimateSummaryTokens(string summary, double charactersPerToken)
     {
