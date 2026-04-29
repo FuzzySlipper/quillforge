@@ -97,7 +97,7 @@ public sealed class FileSystemGameTemplateStore : IGameTemplateStore
     {
         if (string.IsNullOrWhiteSpace(templateId))
         {
-            throw new ArgumentException("Template id is required.", nameof(templateId));
+            throw new ArgumentException("templateId is required.", nameof(templateId));
         }
 
         var trimmed = templateId.Trim();

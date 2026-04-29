@@ -51,6 +51,24 @@ public sealed class FileSystemGameTemplateStoreTests
         }
     }
 
+    [Fact]
+    public async Task SaveAsync_RejectsBlankTemplateIdWithFieldSpecificMessage()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var store = CreateStore(root);
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() => store.SaveAsync(" ", CreateTemplate()));
+
+            Assert.Contains("templateId is required.", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static FileSystemGameTemplateStore CreateStore(string root) =>
         new(
             root,
