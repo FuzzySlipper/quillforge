@@ -220,6 +220,8 @@ public sealed record GameAgentMemoryBudget
 {
     public int MaxPromptEnvelopesPerAgent { get; set; } = 10;
     public double Temperature { get; set; } = 0.2;
+    public double FallbackCharactersPerToken { get; set; } = 4.0;
+    public Dictionary<string, double> FallbackCharactersPerTokenByProvider { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed record TimeoutsConfig

@@ -54,6 +54,14 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
             {
                 Temperature = Math.Clamp(value.Agents.Council.Temperature, 0, 2),
             },
+            GameAgentMemory = value.Agents.GameAgentMemory with
+            {
+                MaxPromptEnvelopesPerAgent = Math.Max(value.Agents.GameAgentMemory.MaxPromptEnvelopesPerAgent, 1),
+                Temperature = Math.Clamp(value.Agents.GameAgentMemory.Temperature, 0, 2),
+                FallbackCharactersPerToken = NormalizeFallbackCharactersPerToken(value.Agents.GameAgentMemory.FallbackCharactersPerToken),
+                FallbackCharactersPerTokenByProvider = NormalizeFallbackCharactersPerTokenByProvider(
+                    value.Agents.GameAgentMemory.FallbackCharactersPerTokenByProvider),
+            },
         },
         Timeouts = value.Timeouts with
         {
@@ -63,4 +71,24 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
             UpdateCheckHours = Math.Max(value.Timeouts.UpdateCheckHours, 1),
         },
     };
+
+    private static double NormalizeFallbackCharactersPerToken(double value) =>
+        double.IsFinite(value) && value > 0 ? value : 4.0;
+
+    private static Dictionary<string, double> NormalizeFallbackCharactersPerTokenByProvider(
+        IReadOnlyDictionary<string, double> values)
+    {
+        var normalized = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in values)
+        {
+            if (string.IsNullOrWhiteSpace(item.Key))
+            {
+                continue;
+            }
+
+            normalized[item.Key.Trim()] = NormalizeFallbackCharactersPerToken(item.Value);
+        }
+
+        return normalized;
+    }
 }

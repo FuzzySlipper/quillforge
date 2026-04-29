@@ -81,6 +81,13 @@ public class AppConfigStoreTests : IDisposable
                 max_tokens: 50
               council:
                 temperature: 5.0
+              game_agent_memory:
+                max_prompt_envelopes_per_agent: 0
+                temperature: 5.0
+                fallback_characters_per_token: 0
+                fallback_characters_per_token_by_provider:
+                  provider-a: -2
+                  " provider-b ": 3.5
             timeouts:
               tool_execution_seconds: 1
               provider_http_seconds: 0
@@ -97,6 +104,11 @@ public class AppConfigStoreTests : IDisposable
         Assert.Equal(1, config.Agents.Orchestrator.MaxToolRounds); // clamped to min 1
         Assert.Equal(256, config.Agents.Librarian.MaxTokens); // clamped to min 256
         Assert.Equal(2.0, config.Agents.Council.Temperature); // clamped to max 2
+        Assert.Equal(1, config.Agents.GameAgentMemory.MaxPromptEnvelopesPerAgent); // clamped to min 1
+        Assert.Equal(2.0, config.Agents.GameAgentMemory.Temperature); // clamped to max 2
+        Assert.Equal(4.0, config.Agents.GameAgentMemory.FallbackCharactersPerToken); // invalid falls back to default estimate
+        Assert.Equal(4.0, config.Agents.GameAgentMemory.FallbackCharactersPerTokenByProvider["provider-a"]); // invalid provider override falls back
+        Assert.Equal(3.5, config.Agents.GameAgentMemory.FallbackCharactersPerTokenByProvider["provider-b"]); // keys are trimmed
         Assert.Equal(5, config.Timeouts.ToolExecutionSeconds); // clamped to min 5
         Assert.Equal(1, config.Timeouts.ProviderHttpSeconds); // clamped to min 1
         Assert.Equal(1, config.Timeouts.UpdateCheckHours); // clamped to min 1

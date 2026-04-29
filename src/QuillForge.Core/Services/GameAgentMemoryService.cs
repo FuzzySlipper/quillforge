@@ -299,7 +299,11 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
 
         var rawSummary = completion.ParseResult.Summary.Trim();
         var budget = Math.Max(1, completion.Context.TokenBudget);
-        var (summary, exceeded, trimmed) = EnforceSummaryBudget(rawSummary, budget, completion.Response.Usage.OutputTokens);
+        var (summary, exceeded, trimmed) = EnforceSummaryBudget(
+            rawSummary,
+            budget,
+            completion.Response.Usage.OutputTokens,
+            ResolveFallbackCharactersPerToken(completion.ProviderAlias));
         var summaryHash = StableContentHash(summary);
         var decision = new MemorySummaryDecision(
             completion.DecisionId,
@@ -431,14 +435,15 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
         return jobs;
     }
 
-    private static (string Summary, bool Exceeded, bool Trimmed) EnforceSummaryBudget(
+    private (string Summary, bool Exceeded, bool Trimmed) EnforceSummaryBudget(
         string summary,
         int tokenBudget,
-        int responseTokens)
+        int responseTokens,
+        double fallbackCharactersPerToken)
     {
         var measuredTokens = responseTokens > 0
             ? responseTokens
-            : EstimateSummaryTokens(summary);
+            : EstimateSummaryTokens(summary, fallbackCharactersPerToken);
         var exceeded = measuredTokens > tokenBudget;
         if (!exceeded)
         {
@@ -449,10 +454,45 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
         return (trimmed, true, !string.Equals(trimmed, summary, StringComparison.Ordinal));
     }
 
-    private static int EstimateSummaryTokens(string summary)
+    private double ResolveFallbackCharactersPerToken(string? providerAlias)
+    {
+        if (!string.IsNullOrWhiteSpace(providerAlias)
+            && TryGetConfiguredCharactersPerToken(
+                _appConfig.Agents.GameAgentMemory.FallbackCharactersPerTokenByProvider,
+                providerAlias,
+                out var providerCharactersPerToken))
+        {
+            return providerCharactersPerToken;
+        }
+
+        return NormalizeCharactersPerToken(_appConfig.Agents.GameAgentMemory.FallbackCharactersPerToken);
+    }
+
+    private static bool TryGetConfiguredCharactersPerToken(
+        IReadOnlyDictionary<string, double> values,
+        string key,
+        out double charactersPerToken)
+    {
+        foreach (var item in values)
+        {
+            if (string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                charactersPerToken = NormalizeCharactersPerToken(item.Value);
+                return true;
+            }
+        }
+
+        charactersPerToken = 0;
+        return false;
+    }
+
+    private static double NormalizeCharactersPerToken(double value) =>
+        double.IsFinite(value) && value > 0 ? value : 4.0;
+
+    private static int EstimateSummaryTokens(string summary, double charactersPerToken)
     {
         var normalizedLength = summary.ReplaceLineEndings("\n").Length;
-        return Math.Max(1, (int)Math.Ceiling(normalizedLength / 4.0));
+        return Math.Max(1, (int)Math.Ceiling(normalizedLength / charactersPerToken));
     }
 
     private static string TrimSummaryToTokenBudget(

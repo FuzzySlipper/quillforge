@@ -208,6 +208,74 @@ public sealed class GameAgentMemoryServiceTests
     }
 
     [Fact]
+    public async Task RunRoundEndMemorySummaries_UsesProviderConfiguredFallbackEstimateWhenTokensAreMissing()
+    {
+        var summary = "alpha beta gamma delta";
+        var completion = new ScriptedCompletionService(_ => SummaryJson(summary), new TokenUsage(10, 0));
+        var appConfig = new AppConfig
+        {
+            Agents = new AgentsConfig
+            {
+                GameAgentMemory = new GameAgentMemoryBudget
+                {
+                    FallbackCharactersPerToken = 100,
+                    FallbackCharactersPerTokenByProvider =
+                    {
+                        ["provider-a"] = 2,
+                    },
+                },
+            },
+        };
+        var fixture = CreateFixture(completion, memoryTokenBudget: 5, appConfig: appConfig);
+        var sessionId = Guid.NewGuid();
+        await StartRuntimeAsync(fixture.Runtime, sessionId, singleAgent: true, memoryTokenBudget: 5);
+        await EndRoundAsync(fixture.Runtime, sessionId, Instant(1));
+
+        var result = await fixture.Memory.RunRoundEndMemorySummariesAsync(sessionId, new RunGameAgentMemorySummariesCommand(Instant(2)));
+
+        var memory = Assert.Single(result.Value!.Game!.AgentMemories);
+        Assert.Equal("alpha beta", memory.Summary);
+        var decision = Assert.Single(result.Value.Game.MemorySummaryDecisions);
+        Assert.True(decision.ExceededTokenBudget);
+        Assert.True(decision.Trimmed);
+        Assert.Equal(0, decision.ResponseTokens);
+    }
+
+    [Fact]
+    public async Task RunRoundEndMemorySummaries_UsesProviderReportedTokensInsteadOfConfiguredFallbackEstimate()
+    {
+        var summary = "alpha beta gamma delta";
+        var completion = new ScriptedCompletionService(_ => SummaryJson(summary), new TokenUsage(10, 4));
+        var appConfig = new AppConfig
+        {
+            Agents = new AgentsConfig
+            {
+                GameAgentMemory = new GameAgentMemoryBudget
+                {
+                    FallbackCharactersPerToken = 1,
+                    FallbackCharactersPerTokenByProvider =
+                    {
+                        ["provider-a"] = 1,
+                    },
+                },
+            },
+        };
+        var fixture = CreateFixture(completion, memoryTokenBudget: 4, appConfig: appConfig);
+        var sessionId = Guid.NewGuid();
+        await StartRuntimeAsync(fixture.Runtime, sessionId, singleAgent: true, memoryTokenBudget: 4);
+        await EndRoundAsync(fixture.Runtime, sessionId, Instant(1));
+
+        var result = await fixture.Memory.RunRoundEndMemorySummariesAsync(sessionId, new RunGameAgentMemorySummariesCommand(Instant(2)));
+
+        var memory = Assert.Single(result.Value!.Game!.AgentMemories);
+        Assert.Equal(summary, memory.Summary);
+        var decision = Assert.Single(result.Value.Game.MemorySummaryDecisions);
+        Assert.False(decision.ExceededTokenBudget);
+        Assert.False(decision.Trimmed);
+        Assert.Equal(4, decision.ResponseTokens);
+    }
+
+    [Fact]
     public async Task RunRoundEndMemorySummaries_UsesProviderReportedTokensInsteadOfWordCountProxy()
     {
         var summary = "one two three four five";
@@ -228,7 +296,7 @@ public sealed class GameAgentMemoryServiceTests
         Assert.Equal("recorded", participant.ReasonCode);
     }
 
-    private static Fixture CreateFixture(ICompletionService completionService, int memoryTokenBudget = 128)
+    private static Fixture CreateFixture(ICompletionService completionService, int memoryTokenBudget = 128, AppConfig? appConfig = null)
     {
         var registry = new GameModuleRegistry();
         var register = registry.Register(new MemoryTestModule(memoryTokenBudget));
@@ -248,7 +316,7 @@ public sealed class GameAgentMemoryServiceTests
             registry,
             completionService,
             visibleEvents,
-            new AppConfig(),
+            appConfig ?? new AppConfig(),
             NullLogger<GameAgentMemoryService>.Instance);
         return new Fixture(runtime, memory, store);
     }
