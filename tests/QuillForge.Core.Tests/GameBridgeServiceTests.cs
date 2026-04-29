@@ -154,7 +154,7 @@ public sealed class GameBridgeServiceTests
             new SubmitGameTextActionCommand("human-1", "I reject it.", Instant(1)));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
-        Assert.True(fixture.Store.LoadCount <= 3, $"Expected text action submit to avoid redundant pre-submit reloads, saw {fixture.Store.LoadCount} loads.");
+        Assert.Equal(3, fixture.Store.LoadCount);
         Assert.Contains(result.Value!.EngineEvents, gameEvent => gameEvent is PlayerChoiceSubmittedEvent submitted
             && submitted.ChoiceName == "reject");
     }
