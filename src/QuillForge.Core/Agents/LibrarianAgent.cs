@@ -16,8 +16,7 @@ public sealed class LibrarianAgent
     private readonly ILoreStore _loreStore;
     private readonly ILibrarianPromptStore _promptStore;
     private readonly ILogger<LibrarianAgent> _logger;
-    private readonly string _model;
-    private readonly LibrarianBudget _budget;
+    private readonly AppConfig _appConfig;
 
     public LibrarianAgent(ToolLoop toolLoop, ILoreStore loreStore, ILibrarianPromptStore promptStore, AppConfig appConfig, ILogger<LibrarianAgent> logger)
     {
@@ -25,8 +24,7 @@ public sealed class LibrarianAgent
         _loreStore = loreStore;
         _promptStore = promptStore;
         _logger = logger;
-        _model = appConfig.Models.Librarian;
-        _budget = appConfig.Agents.Librarian;
+        _appConfig = appConfig;
     }
 
     /// <summary>
@@ -48,15 +46,17 @@ public sealed class LibrarianAgent
         _logger.LogDebug("Librarian using prompt \"{PromptName}\" ({Length} chars)", context.LibrarianPrompt, userInstructions.Length);
         var systemPrompt = BuildSystemPrompt(loreContent, loreSetName, userInstructions, supplementalLore);
 
-        _logger.LogInformation("Librarian using model {Model}", _model);
+        var budget = _appConfig.Agents.Librarian;
+        var model = _appConfig.Models.Librarian;
+        _logger.LogInformation("Librarian using model {Model}", model);
 
         var config = new AgentConfig
         {
-            Model = _model,
-            MaxTokens = _budget.MaxTokens,
+            Model = model,
+            MaxTokens = budget.MaxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = _budget.MaxToolRounds,
-            CacheSystemPrompt = _budget.CacheSystemPrompt,
+            MaxToolRounds = budget.MaxToolRounds,
+            CacheSystemPrompt = budget.CacheSystemPrompt,
             AgentName = "librarian",
         };
 

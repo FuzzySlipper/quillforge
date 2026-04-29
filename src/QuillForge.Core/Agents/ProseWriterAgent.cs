@@ -15,8 +15,7 @@ public sealed class ProseWriterAgent
     private readonly IToolHandler? _queryContextHandler;
     private readonly CanonPrerequisiteGuard _canonGuard;
     private readonly ILogger<ProseWriterAgent> _logger;
-    private readonly string _model;
-    private readonly ProseWriterBudget _budget;
+    private readonly AppConfig _appConfig;
 
     public ProseWriterAgent(
         ToolLoop toolLoop,
@@ -31,8 +30,7 @@ public sealed class ProseWriterAgent
         _queryContextHandler = queryContextHandler;
         _canonGuard = canonGuard;
         _logger = logger;
-        _model = appConfig.Models.ProseWriter;
-        _budget = appConfig.Agents.ProseWriter;
+        _appConfig = appConfig;
     }
 
     /// <summary>
@@ -57,13 +55,14 @@ public sealed class ProseWriterAgent
             ct);
 
         var systemPrompt = BuildSystemPrompt(writingStyle, storyContext, request.ToneNotes);
+        var budget = _appConfig.Agents.ProseWriter;
 
         var config = new AgentConfig
         {
-            Model = _model,
-            MaxTokens = _budget.MaxTokens,
+            Model = _appConfig.Models.ProseWriter,
+            MaxTokens = budget.MaxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = _budget.MaxToolRounds,
+            MaxToolRounds = budget.MaxToolRounds,
             AgentName = "prose-writer",
         };
 

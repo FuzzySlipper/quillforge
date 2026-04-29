@@ -14,8 +14,7 @@ public sealed partial class ResearchAgent
     private readonly ToolLoop _toolLoop;
     private readonly IReadOnlyList<IToolHandler> _tools;
     private readonly ILogger<ResearchAgent> _logger;
-    private readonly string _model;
-    private readonly ResearchBudget _budget;
+    private readonly AppConfig _appConfig;
 
     public ResearchAgent(
         ToolLoop toolLoop,
@@ -26,8 +25,7 @@ public sealed partial class ResearchAgent
         _toolLoop = toolLoop;
         _tools = tools;
         _logger = logger;
-        _model = appConfig.Models.Research;
-        _budget = appConfig.Agents.Research;
+        _appConfig = appConfig;
     }
 
     public async Task<ResearchAgentResult> ResearchAsync(
@@ -43,14 +41,15 @@ public sealed partial class ResearchAgent
         _logger.LogInformation("ResearchAgent starting: topic=\"{Topic}\", project={Project}", topic, project);
 
         var systemPrompt = BuildSystemPrompt(topic, focus, filePath);
+        var budget = _appConfig.Agents.Research;
 
         var config = new AgentConfig
         {
-            Model = _model,
-            MaxTokens = _budget.MaxTokens,
+            Model = _appConfig.Models.Research,
+            MaxTokens = budget.MaxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = _budget.MaxToolRounds,
-            Temperature = _budget.Temperature,
+            MaxToolRounds = budget.MaxToolRounds,
+            Temperature = budget.Temperature,
             AgentName = "research",
         };
 

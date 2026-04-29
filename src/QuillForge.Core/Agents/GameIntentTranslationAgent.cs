@@ -16,8 +16,7 @@ public sealed class GameIntentTranslationAgent : IGameIntentTranslationAgent
     private const double MinimumConfidence = 0.65;
     private readonly ICompletionService _completionService;
     private readonly ILogger<GameIntentTranslationAgent> _logger;
-    private readonly string _model;
-    private readonly int _maxTokens;
+    private readonly AppConfig _appConfig;
 
     public GameIntentTranslationAgent(
         ICompletionService completionService,
@@ -26,8 +25,7 @@ public sealed class GameIntentTranslationAgent : IGameIntentTranslationAgent
     {
         _completionService = completionService;
         _logger = logger;
-        _model = appConfig.Models.GameIntentTranslator;
-        _maxTokens = appConfig.Agents.GameIntentTranslation.MaxTokens;
+        _appConfig = appConfig;
     }
 
     public async Task<GameIntentTranslationResult> TranslateAsync(
@@ -49,8 +47,8 @@ public sealed class GameIntentTranslationAgent : IGameIntentTranslationAgent
         var response = await _completionService.CompleteAsync(
             new CompletionRequest
             {
-                Model = _model,
-                MaxTokens = _maxTokens,
+                Model = _appConfig.Models.GameIntentTranslator,
+                MaxTokens = _appConfig.Agents.GameIntentTranslation.MaxTokens,
                 Temperature = 0,
                 Tools = [],
                 SystemPrompt = BuildSystemPrompt(),

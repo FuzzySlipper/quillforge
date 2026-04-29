@@ -21,8 +21,7 @@ public sealed class NarrativeDirectorAgent
     private readonly CanonPrerequisiteGuard _canonGuard;
     private readonly INarrativeRulesStore _narrativeRulesStore;
     private readonly ILogger<NarrativeDirectorAgent> _logger;
-    private readonly string _model;
-    private readonly NarrativeDirectorBudget _budget;
+    private readonly AppConfig _appConfig;
 
     public NarrativeDirectorAgent(
         ToolLoop toolLoop,
@@ -45,8 +44,7 @@ public sealed class NarrativeDirectorAgent
         _canonGuard = canonGuard;
         _narrativeRulesStore = narrativeRulesStore;
         _logger = logger;
-        _model = appConfig.Models.NarrativeDirector;
-        _budget = appConfig.Agents.NarrativeDirector;
+        _appConfig = appConfig;
     }
 
     public async Task<NarrativeDirectionResult> DirectSceneAsync(
@@ -74,11 +72,12 @@ public sealed class NarrativeDirectorAgent
             new("user", new MessageContent(BuildUserTurnPrompt(request, context.ActiveMode, sessionContext, context.LastAssistantResponse))),
         };
 
+        var budget = _appConfig.Agents.NarrativeDirector;
         var config = new AgentConfig
         {
-            Model = _model,
-            MaxTokens = _budget.MaxTokens,
-            MaxToolRounds = _budget.MaxToolRounds,
+            Model = _appConfig.Models.NarrativeDirector,
+            MaxTokens = budget.MaxTokens,
+            MaxToolRounds = budget.MaxToolRounds,
             SystemPrompt = systemPrompt,
             AgentName = "narrative-director",
         };
@@ -139,9 +138,9 @@ public sealed class NarrativeDirectorAgent
         var response = await _toolLoop.RunAsync(
             new AgentConfig
             {
-                Model = _model,
-                MaxTokens = _budget.MaxTokens,
-                MaxToolRounds = _budget.MaxToolRounds,
+                Model = _appConfig.Models.NarrativeDirector,
+                MaxTokens = _appConfig.Agents.NarrativeDirector.MaxTokens,
+                MaxToolRounds = _appConfig.Agents.NarrativeDirector.MaxToolRounds,
                 SystemPrompt = systemPrompt,
                 AgentName = "narrative-director",
             },

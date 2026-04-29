@@ -12,15 +12,13 @@ public sealed class ForgePlannerAgent
 {
     private readonly ToolLoop _toolLoop;
     private readonly ILogger<ForgePlannerAgent> _logger;
-    private readonly string _model;
-    private readonly ForgePlannerBudget _budget;
+    private readonly AppConfig _appConfig;
 
     public ForgePlannerAgent(ToolLoop toolLoop, AppConfig appConfig, ILogger<ForgePlannerAgent> logger)
     {
         _toolLoop = toolLoop;
         _logger = logger;
-        _model = appConfig.Models.ForgePlanner;
-        _budget = appConfig.Agents.ForgePlanner;
+        _appConfig = appConfig;
     }
 
     /// <summary>
@@ -36,17 +34,19 @@ public sealed class ForgePlannerAgent
         CancellationToken ct = default,
         Action<string>? progress = null)
     {
+        var budget = _appConfig.Agents.ForgePlanner;
+        var model = _appConfig.Models.ForgePlanner;
         _logger.LogInformation("ForgePlanner starting for session {SessionId}", context.SessionId);
-        progress?.Invoke($"ForgePlanner starting (model={_model}, maxTokens={_budget.MaxTokens})");
+        progress?.Invoke($"ForgePlanner starting (model={model}, maxTokens={budget.MaxTokens})");
 
         var systemPrompt = customPrompt ?? DefaultPlannerPrompt;
 
         var config = new AgentConfig
         {
-            Model = _model,
-            MaxTokens = _budget.MaxTokens,
+            Model = model,
+            MaxTokens = budget.MaxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = _budget.MaxToolRounds,
+            MaxToolRounds = budget.MaxToolRounds,
             AgentName = "forge-planner",
         };
 

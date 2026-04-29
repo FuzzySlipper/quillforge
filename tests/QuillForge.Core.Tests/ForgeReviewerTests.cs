@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
+using QuillForge.Core.Services;
 
 namespace QuillForge.Core.Tests;
 
@@ -14,6 +15,30 @@ public class ForgeReviewerTests
             new AppConfig(),
             NullLoggerFactory.Instance.CreateLogger<ForgeReviewerAgent>())
         { PassThreshold = passThreshold };
+    }
+
+    [Fact]
+    public async Task ReviewAsync_UsesRuntimeModelAliasAfterAgentConstruction()
+    {
+        var completion = new CapturingCompletionService();
+        var appConfig = new AppConfig
+        {
+            Models = new ModelsConfig { ForgeReviewer = "initial-reviewer" },
+        };
+        var reviewer = new ForgeReviewerAgent(
+            completion,
+            appConfig,
+            NullLoggerFactory.Instance.CreateLogger<ForgeReviewerAgent>());
+        appConfig.Models = appConfig.Models with { ForgeReviewer = "updated-reviewer" };
+
+        await reviewer.ReviewAsync(
+            "chapter draft",
+            "chapter brief",
+            "style guide",
+            previousChapterTail: null);
+
+        Assert.NotNull(completion.LastRequest);
+        Assert.Equal("updated-reviewer", completion.LastRequest!.Model);
     }
 
     [Fact]
@@ -124,5 +149,32 @@ public class ForgeReviewerTests
 
         Assert.Equal(6.0, result.Overall, 1);
         Assert.True(result.Passed); // 6.0 >= 5.0
+    }
+
+    private sealed class CapturingCompletionService : ICompletionService
+    {
+        public CompletionRequest? LastRequest { get; private set; }
+
+        public Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
+        {
+            LastRequest = request;
+            return Task.FromResult(new CompletionResponse
+            {
+                Content = new MessageContent("""
+                    {"continuity": 8, "brief_adherence": 8, "voice_consistency": 8, "quality": 8, "feedback": "ok"}
+                    """),
+                StopReason = StopReason.EndTurn,
+                Usage = new TokenUsage(1, 1),
+            });
+        }
+
+        public async IAsyncEnumerable<StreamEvent> StreamAsync(
+            CompletionRequest request,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            var response = await CompleteAsync(request, ct);
+            yield return new TextDeltaEvent(response.Content.GetText());
+            yield return new DoneEvent(response.StopReason, response.Usage);
+        }
     }
 }

@@ -13,8 +13,7 @@ public sealed class ForgeReviewerAgent
 {
     private readonly ICompletionService _completionService;
     private readonly ILogger<ForgeReviewerAgent> _logger;
-    private readonly string _model;
-    private readonly int _maxTokens;
+    private readonly AppConfig _appConfig;
 
     /// <summary>
     /// Weighted scoring rubric. Overall = weighted average.
@@ -33,8 +32,7 @@ public sealed class ForgeReviewerAgent
     {
         _completionService = completionService;
         _logger = logger;
-        _model = appConfig.Models.ForgeReviewer;
-        _maxTokens = appConfig.Agents.ForgeReviewer.MaxTokens;
+        _appConfig = appConfig;
     }
 
     /// <summary>
@@ -64,8 +62,8 @@ public sealed class ForgeReviewerAgent
 
         var request = new CompletionRequest
         {
-            Model = _model,
-            MaxTokens = _maxTokens,
+            Model = _appConfig.Models.ForgeReviewer,
+            MaxTokens = _appConfig.Agents.ForgeReviewer.MaxTokens,
             SystemPrompt = systemPrompt,
             Messages = [new CompletionMessage("user", new MessageContent(userMessage))],
         };

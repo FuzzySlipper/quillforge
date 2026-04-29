@@ -159,6 +159,22 @@ public class DependencyBoundaryTests
     }
 
     [Fact]
+    public void SingletonAgents_DoNotCacheAppConfigModelAliasesAtConstruction()
+    {
+        var agentsRoot = Path.Combine(RepoRoot, "src", "QuillForge.Core", "Agents");
+        var sourceFiles = Directory.GetFiles(agentsRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .ToArray();
+
+        foreach (var sourceFile in sourceFiles)
+        {
+            var sourceText = File.ReadAllText(sourceFile);
+            Assert.DoesNotContain("private readonly string _model", sourceText, StringComparison.Ordinal);
+            Assert.DoesNotContain("= appConfig.Models", sourceText, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void GameCoreServices_DoNotUseRawJsonNavigationForGameplayContracts()
     {
         var coreServicesRoot = Path.Combine(RepoRoot, "src", "QuillForge.Core", "Services");

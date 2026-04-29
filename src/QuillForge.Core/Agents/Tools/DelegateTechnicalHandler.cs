@@ -12,15 +12,13 @@ public sealed class DelegateTechnicalHandler : IToolHandler
 {
     private readonly ICompletionService _completionService;
     private readonly ILogger<DelegateTechnicalHandler> _logger;
-    private readonly string _model;
-    private readonly int _maxTokens;
+    private readonly AppConfig _appConfig;
 
     public DelegateTechnicalHandler(ICompletionService completionService, AppConfig appConfig, ILogger<DelegateTechnicalHandler> logger)
     {
         _completionService = completionService;
         _logger = logger;
-        _model = appConfig.Models.DelegateTechnical;
-        _maxTokens = appConfig.Agents.DelegateTechnical.MaxTokens;
+        _appConfig = appConfig;
     }
 
     public string Name => "delegate_technical";
@@ -44,8 +42,8 @@ public sealed class DelegateTechnicalHandler : IToolHandler
 
         var request = new CompletionRequest
         {
-            Model = _model,
-            MaxTokens = _maxTokens,
+            Model = _appConfig.Models.DelegateTechnical,
+            MaxTokens = _appConfig.Agents.DelegateTechnical.MaxTokens,
             SystemPrompt = "You are a knowledgeable assistant. Answer the question concisely and accurately.",
             Messages = [new CompletionMessage("user", new MessageContent(question))],
         };

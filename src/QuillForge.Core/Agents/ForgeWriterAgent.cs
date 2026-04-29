@@ -13,15 +13,13 @@ public sealed class ForgeWriterAgent
 {
     private readonly ToolLoop _toolLoop;
     private readonly ILogger<ForgeWriterAgent> _logger;
-    private readonly string _model;
-    private readonly ForgeWriterBudget _budget;
+    private readonly AppConfig _appConfig;
 
     public ForgeWriterAgent(ToolLoop toolLoop, AppConfig appConfig, ILogger<ForgeWriterAgent> logger)
     {
         _toolLoop = toolLoop;
         _logger = logger;
-        _model = appConfig.Models.ForgeWriter;
-        _budget = appConfig.Agents.ForgeWriter;
+        _appConfig = appConfig;
     }
 
     /// <summary>
@@ -40,17 +38,19 @@ public sealed class ForgeWriterAgent
         CancellationToken ct = default,
         Action<string>? progress = null)
     {
+        var budget = _appConfig.Agents.ForgeWriter;
+        var model = _appConfig.Models.ForgeWriter;
         _logger.LogInformation("ForgeWriter starting chapter for session {SessionId}", context.SessionId);
-        progress?.Invoke($"ForgeWriter starting (model={_model}, maxTokens={_budget.MaxTokens})");
+        progress?.Invoke($"ForgeWriter starting (model={model}, maxTokens={budget.MaxTokens})");
 
         var systemPrompt = BuildSystemPrompt(writingStyle, customPrompt);
 
         var config = new AgentConfig
         {
-            Model = _model,
-            MaxTokens = _budget.MaxTokens,
+            Model = model,
+            MaxTokens = budget.MaxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = _budget.MaxToolRounds,
+            MaxToolRounds = budget.MaxToolRounds,
             AgentName = "forge-writer",
         };
 
