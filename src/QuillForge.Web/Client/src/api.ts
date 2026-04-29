@@ -35,9 +35,46 @@ async function request<T>(
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`${res.status}: ${body}`);
+    throw new Error(formatErrorBody(res.status, body));
   }
   return res.json();
+}
+
+function formatErrorBody(status: number, body: string): string {
+  if (!body.trim()) return `${status}: Request failed`;
+
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    const message = typeof parsed.message === "string"
+      ? parsed.message
+      : typeof parsed.Message === "string"
+        ? parsed.Message
+        : typeof parsed.error === "string"
+          ? parsed.error
+          : typeof parsed.Error === "string"
+            ? parsed.Error
+            : body;
+    const reasonCode = typeof parsed.reasonCode === "string"
+      ? parsed.reasonCode
+      : typeof parsed.ReasonCode === "string"
+        ? parsed.ReasonCode
+        : typeof parsed.error === "string"
+          ? parsed.error
+          : typeof parsed.Error === "string"
+            ? parsed.Error
+            : null;
+    const diagnosticHint = typeof parsed.diagnosticHint === "string"
+      ? parsed.diagnosticHint
+      : typeof parsed.DiagnosticHint === "string"
+        ? parsed.DiagnosticHint
+        : null;
+    const prefix = reasonCode && reasonCode !== message ? `${status} ${reasonCode}` : `${status}`;
+    return diagnosticHint
+      ? `${prefix}: ${message} ${diagnosticHint}`
+      : `${prefix}: ${message}`;
+  } catch {
+    return `${status}: ${body}`;
+  }
 }
 
 export async function getStatus(sessionId?: string | null): Promise<Status> {

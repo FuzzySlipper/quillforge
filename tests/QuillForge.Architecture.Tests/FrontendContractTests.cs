@@ -536,6 +536,17 @@ public sealed class FrontendContractTests
     }
 
     [Fact]
+    public void ApiClient_FormatsStructuredGameErrorsForUserVisibleAlerts()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("api.ts"));
+
+        Assert.Contains("formatErrorBody", source, StringComparison.Ordinal);
+        Assert.Contains("reasonCode", source, StringComparison.Ordinal);
+        Assert.Contains("diagnosticHint", source, StringComparison.Ordinal);
+        Assert.Contains("JSON.parse(body)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GamesWorkspace_UsesTypedGameEndpointsAndRendersNoGameState()
     {
         var source = File.ReadAllText(GetFrontendFilePath("components", "GamesWorkspace.tsx"));

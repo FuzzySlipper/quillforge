@@ -45,6 +45,7 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
         }
 
         AddRuntimeSnapshot(events, runtime, now);
+        AddRuntimeHealthEvents(events, runtime, now);
         AddHostRecords(events, runtime);
         AddEngineEvents(events, runtime);
         AddCommunicationEvents(events, runtime);
@@ -101,6 +102,19 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
 
     private static void AddRuntimeSnapshot(List<EventDraft> events, GameRuntimeState runtime, DateTimeOffset now)
     {
+        var liveState = runtime.EngineSnapshot?.ToState();
+        var waitingInputs = liveState?.PendingInputs
+            .Where(input => input.Status == PendingInputStatus.Waiting)
+            .ToArray() ?? [];
+        var participantKinds = runtime.ParticipantBindings.ToDictionary(
+            binding => binding.ParticipantId,
+            binding => binding.Kind,
+            StringComparer.Ordinal);
+        var waitingHumanInputs = waitingInputs.Count(input =>
+            participantKinds.TryGetValue(input.ParticipantId.Value, out var kind) && kind == GameRuntimeParticipantKind.Human);
+        var waitingAgentInputs = waitingInputs.Count(input =>
+            participantKinds.TryGetValue(input.ParticipantId.Value, out var kind) && kind == GameRuntimeParticipantKind.Agent);
+
         events.Add(new EventDraft(
             runtime.StartedAt ?? runtime.LastUpdatedAt ?? now,
             GameDiagnosticLogLevel.Info,
@@ -117,10 +131,73 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
                 ["seed"] = runtime.Seed?.ToString(),
                 ["startedAt"] = runtime.StartedAt?.ToString("O"),
                 ["lastUpdatedAt"] = runtime.LastUpdatedAt?.ToString("O"),
+                ["stageId"] = liveState?.Stage.StageId.Value,
+                ["stageName"] = liveState?.Stage.DisplayName,
                 ["participantCount"] = runtime.ParticipantBindings.Count.ToString(),
+                ["waitingInputCount"] = waitingInputs.Length.ToString(),
+                ["waitingHumanInputCount"] = waitingHumanInputs.ToString(),
+                ["waitingAgentInputCount"] = waitingAgentInputs.ToString(),
+                ["promptEnvelopeCount"] = runtime.PromptEnvelopes.Count.ToString(),
+                ["publicChannelMessageCount"] = runtime.Communication.ChannelMessages.Count.ToString(),
+                ["directMessageCount"] = runtime.Communication.DirectMessages.Count.ToString(),
                 ["hostAllowsPublicMessages"] = runtime.HostAllowsPublicMessages.ToString(),
                 ["hostAllowsDirectMessages"] = runtime.HostAllowsDirectMessages.ToString(),
             }));
+    }
+
+    private static void AddRuntimeHealthEvents(List<EventDraft> events, GameRuntimeState runtime, DateTimeOffset now)
+    {
+        var liveState = runtime.EngineSnapshot?.ToState();
+        if (liveState is null)
+        {
+            return;
+        }
+
+        var waitingInputs = liveState.PendingInputs
+            .Where(input => input.Status == PendingInputStatus.Waiting)
+            .ToArray();
+        var participantKinds = runtime.ParticipantBindings.ToDictionary(
+            binding => binding.ParticipantId,
+            binding => binding.Kind,
+            StringComparer.Ordinal);
+        var waitingAgentInputs = waitingInputs
+            .Where(input => participantKinds.TryGetValue(input.ParticipantId.Value, out var kind) && kind == GameRuntimeParticipantKind.Agent)
+            .ToArray();
+
+        if (runtime.IsActive && waitingInputs.Length == 0)
+        {
+            events.Add(new EventDraft(
+                runtime.LastUpdatedAt ?? runtime.StartedAt ?? now,
+                GameDiagnosticLogLevel.Warning,
+                GameDiagnosticLogCategory.RuntimeMutation,
+                "QuillForge.Core.Services.GameDiagnosticLogService",
+                "runtime_waiting_without_pending_inputs",
+                $"Runtime is active in stage '{liveState.Stage.StageId.Value}' with no waiting inputs; host or rules orchestration may need to request the next action.",
+                Details: new Dictionary<string, string?>
+                {
+                    ["runtimeStatus"] = runtime.Status.ToString(),
+                    ["stageId"] = liveState.Stage.StageId.Value,
+                    ["stageName"] = liveState.Stage.DisplayName,
+                    ["promptEnvelopeCount"] = runtime.PromptEnvelopes.Count.ToString(),
+                }));
+        }
+
+        if (waitingAgentInputs.Length > 0)
+        {
+            events.Add(new EventDraft(
+                runtime.LastUpdatedAt ?? runtime.StartedAt ?? now,
+                GameDiagnosticLogLevel.Warning,
+                GameDiagnosticLogCategory.AgentPrompt,
+                "QuillForge.Core.Services.GameDiagnosticLogService",
+                "pending_agent_turns_waiting",
+                $"{waitingAgentInputs.Length} agent pending input(s) are waiting for the game agent turn runner.",
+                Details: new Dictionary<string, string?>
+                {
+                    ["participantIds"] = string.Join(",", waitingAgentInputs.Select(input => input.ParticipantId.Value).Distinct().Order(StringComparer.Ordinal)),
+                    ["pendingInputIds"] = string.Join(",", waitingAgentInputs.Select(input => input.PendingInputId.Value).Order(StringComparer.Ordinal)),
+                    ["promptEnvelopeCount"] = runtime.PromptEnvelopes.Count.ToString(),
+                }));
+        }
     }
 
     private static void AddHostRecords(List<EventDraft> events, GameRuntimeState runtime)

@@ -642,7 +642,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
                 "runtime_not_active",
                 runtime.Status);
             return SessionMutationResult<GameRuntimeCommunicationMutationResult>.Invalid(
-                "The game runtime is not active.");
+                "runtime_not_active: The game runtime is not active.");
         }
 
         var communicationResult = apply(runtime);
@@ -664,7 +664,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
                 operationName,
                 issue.Code);
             return SessionMutationResult<GameRuntimeCommunicationMutationResult>.Invalid(
-                issue.Message);
+                $"{issue.Code}: {issue.Message}");
         }
 
         runtime.LastUpdatedAt = occurredAt;

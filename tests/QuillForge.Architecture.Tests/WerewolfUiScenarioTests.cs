@@ -33,6 +33,48 @@ public sealed class WerewolfUiScenarioTests
     }
 
     [Fact]
+    public async Task StartThenNightPublicMessageRejection_IsVisibleInDiagnosticLog()
+    {
+        var fixture = CreateFixture();
+        var sessionId = Guid.NewGuid();
+
+        var start = await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("werewolf-test-template", "Human", 42, Instant(0)));
+
+        Assert.Equal(SessionMutationStatus.Success, start.Status);
+        Assert.Equal("night", start.Value!.View.StageId);
+
+        var post = await fixture.Bridge.PostPublicMessageAsync(
+            sessionId,
+            new PostGameRuntimePublicMessageCommand(
+                Guid.CreateVersion7(),
+                "human-1",
+                ParticipantMessageAuthorKind.Human,
+                "Is anyone there?",
+                Instant(1)));
+
+        Assert.Equal(SessionMutationStatus.Invalid, post.Status);
+        Assert.StartsWith("public_channel_forbidden:", post.Error, StringComparison.Ordinal);
+
+        var diagnosticLog = new GameDiagnosticLogService(
+            fixture.Runtime,
+            new InMemoryTokenUsageTracker(NullLogger<InMemoryTokenUsageTracker>.Instance));
+        var log = await diagnosticLog.GetLogAsync(sessionId);
+        var snapshot = Assert.Single(log.Events, item => item.Operation == "runtime_snapshot");
+        Assert.Equal("night", snapshot.Details["stageId"]);
+        Assert.Equal("0", snapshot.Details["waitingInputCount"]);
+        Assert.Contains(log.Events, item =>
+            item.Operation == "runtime_waiting_without_pending_inputs"
+            && item.Level == GameDiagnosticLogLevel.Warning
+            && item.Details["stageId"] == "night");
+        Assert.Contains(log.Events, item =>
+            item.Category == GameDiagnosticLogCategory.Rejection
+            && item.ReasonCode == "public_channel_forbidden"
+            && item.Summary.Contains("Public channel message rejected", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task WerewolfBridge_Playthrough_ProjectsRoleStageVoteAndOutcomeWithoutLeakingRoles()
     {
         var fixture = CreateFixture();

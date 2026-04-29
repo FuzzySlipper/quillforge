@@ -77,3 +77,16 @@ public sealed record GameMutationResponse
 
     public required IReadOnlyList<string> CommunicationEventTypes { get; init; }
 }
+
+public sealed record GameMutationErrorResponse
+{
+    public required string Error { get; init; }
+
+    public required string Message { get; init; }
+
+    public string? ReasonCode { get; init; }
+
+    public string? Operation { get; init; }
+
+    public required string DiagnosticHint { get; init; }
+}

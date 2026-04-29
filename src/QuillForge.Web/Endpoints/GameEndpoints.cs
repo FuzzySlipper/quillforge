@@ -66,7 +66,7 @@ public static class GameEndpoints
                     request.Seed,
                     DateTimeOffset.UtcNow),
                 ct);
-            return ToMutationResult(result);
+            return ToMutationResult(result, "start_game_from_template");
         });
 
         group.MapPost("/actions", async (
@@ -84,12 +84,15 @@ public static class GameEndpoints
                         request.Text,
                         DateTimeOffset.UtcNow),
                     ct);
-                return ToMutationResult(textResult);
+                return ToMutationResult(textResult, "submit_game_action");
             }
 
             if (string.IsNullOrWhiteSpace(request.PendingInputId) || string.IsNullOrWhiteSpace(request.ChoiceName))
             {
-                return Results.BadRequest(new { Error = "Either text or pendingInputId plus choiceName is required." });
+                return Results.BadRequest(CreateErrorResponse(
+                    "game_action_invalid",
+                    "Either text or pendingInputId plus choiceName is required.",
+                    operation: "submit_game_action"));
             }
 
             var typedResult = await bridge.SubmitTypedActionAsync(
@@ -100,7 +103,7 @@ public static class GameEndpoints
                     request.ChoiceName,
                     DateTimeOffset.UtcNow),
                 ct);
-            return ToMutationResult(typedResult);
+            return ToMutationResult(typedResult, "submit_game_action");
         });
 
         group.MapPost("/messages", async (
@@ -115,17 +118,17 @@ public static class GameEndpoints
                 sessionId,
                 request.ParticipantId,
                 request.AuthorKind,
-                request.Text.Length);
+                request.Text?.Length ?? 0);
             var result = await bridge.PostPublicMessageAsync(
                 sessionId,
                 new PostGameRuntimePublicMessageCommand(
                     Guid.CreateVersion7(),
-                    request.ParticipantId,
+                    request.ParticipantId ?? string.Empty,
                     request.AuthorKind,
-                    request.Text,
+                    request.Text ?? string.Empty,
                     DateTimeOffset.UtcNow),
                 ct);
-            return ToMutationResult(result);
+            return ToMutationResult(result, "post_game_public_message");
         });
 
         group.MapPost("/direct-messages", async (
@@ -138,13 +141,13 @@ public static class GameEndpoints
                 sessionId,
                 new SendGameRuntimeDirectMessageCommand(
                     Guid.CreateVersion7(),
-                    request.ParticipantId,
+                    request.ParticipantId ?? string.Empty,
                     request.AuthorKind,
                     request.RecipientParticipantIds,
-                    request.Text,
+                    request.Text ?? string.Empty,
                     DateTimeOffset.UtcNow),
                 ct);
-            return ToMutationResult(result);
+            return ToMutationResult(result, "send_game_direct_message");
         });
 
         group.MapPost("/end", async (
@@ -160,7 +163,7 @@ public static class GameEndpoints
                     request.OutcomeName,
                     DateTimeOffset.UtcNow),
                 ct);
-            return ToMutationResult(result);
+            return ToMutationResult(result, "end_game");
         });
 
         group.MapPost("/abort", async (
@@ -176,20 +179,30 @@ public static class GameEndpoints
                     request.ReasonCode,
                     DateTimeOffset.UtcNow),
                 ct);
-            return ToMutationResult(result);
+            return ToMutationResult(result, "abort_game");
         });
     }
 
-    private static IResult ToMutationResult(SessionMutationResult<GameBridgeMutationResult> result)
+    private static IResult ToMutationResult(
+        SessionMutationResult<GameBridgeMutationResult> result,
+        string operation)
     {
         if (result.Status == SessionMutationStatus.Busy)
         {
-            return Results.Conflict(new { Error = result.Error });
+            return Results.Conflict(CreateErrorResponse(
+                "session_busy",
+                result.Error ?? "Another mutating operation is already running for this session.",
+                operation));
         }
 
         if (result.Status == SessionMutationStatus.Invalid || result.Value is null)
         {
-            return Results.BadRequest(new { Error = result.Error ?? "Game mutation failed." });
+            var (reasonCode, message) = SplitReasonCode(result.Error ?? "Game mutation failed.");
+            return Results.BadRequest(CreateErrorResponse(
+                "game_mutation_invalid",
+                message,
+                operation,
+                reasonCode));
         }
 
         return Results.Ok(new GameMutationResponse
@@ -199,5 +212,38 @@ public static class GameEndpoints
             EngineEventTypes = result.Value.EngineEvents.Select(item => item.GetType().Name).ToArray(),
             CommunicationEventTypes = result.Value.CommunicationEvents.Select(item => item.GetType().Name).ToArray(),
         });
+    }
+
+    private static GameMutationErrorResponse CreateErrorResponse(
+        string error,
+        string message,
+        string? operation,
+        string? reasonCode = null) =>
+        new()
+        {
+            Error = error,
+            Message = string.IsNullOrWhiteSpace(message) ? "Game operation failed." : message,
+            ReasonCode = string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim(),
+            Operation = string.IsNullOrWhiteSpace(operation) ? null : operation,
+            DiagnosticHint = "Open the game diagnostic log for persisted runtime, rejection, communication, and provider details.",
+        };
+
+    private static (string? ReasonCode, string Message) SplitReasonCode(string error)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(error) ? "Game mutation failed." : error.Trim();
+        var separator = trimmed.IndexOf(':', StringComparison.Ordinal);
+        if (separator <= 0)
+        {
+            return (null, trimmed);
+        }
+
+        var prefix = trimmed[..separator].Trim();
+        if (prefix.Length == 0 || prefix.Any(character => !char.IsLetterOrDigit(character) && character != '_' && character != '-'))
+        {
+            return (null, trimmed);
+        }
+
+        var message = trimmed[(separator + 1)..].Trim();
+        return (prefix, string.IsNullOrWhiteSpace(message) ? trimmed : message);
     }
 }
