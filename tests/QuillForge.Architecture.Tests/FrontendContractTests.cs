@@ -317,6 +317,61 @@ public sealed class FrontendContractTests
     }
 
     [Fact]
+    public void GameDiagnosticLogResponse_StaysInSyncWith_GameDiagnosticLogResponseInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("GameDiagnosticLogResponse");
+        var jsonKeys = SerializeTopLevelKeys(new GameDiagnosticLogResponse
+        {
+            Log = SampleGameDiagnosticLogProjection(),
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("GameDiagnosticLogProjection", shape["log"]);
+    }
+
+    [Fact]
+    public void GameDiagnosticLogProjection_StaysInSyncWith_GameDiagnosticLogProjectionInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("GameDiagnosticLogProjection");
+        var jsonKeys = SerializeTopLevelKeys(SampleGameDiagnosticLogProjection());
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("string", shape["sessionId"]);
+        Assert.Equal("boolean", shape["hasGame"]);
+        Assert.Equal("GameDiagnosticLogEvent[]", shape["events"]);
+    }
+
+    [Fact]
+    public void GameDiagnosticLogEvent_StaysInSyncWith_GameDiagnosticLogEventInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("GameDiagnosticLogEvent");
+        var jsonKeys = SerializeTopLevelKeys(new GameDiagnosticLogEvent
+        {
+            Sequence = 1,
+            Timestamp = DateTimeOffset.Parse("2026-04-29T20:00:00+00:00"),
+            Level = GameDiagnosticLogLevel.Warning,
+            Category = GameDiagnosticLogCategory.Rejection,
+            Source = "GameRuntimeService",
+            Operation = "CommunicationRejected",
+            Summary = "Public messages are disabled.",
+            ReasonCode = "public_messages_disabled",
+            ParticipantId = "seat-1",
+            ProviderAlias = "local",
+            Model = "llama3.2",
+            PromptTokens = 10,
+            ResponseTokens = 2,
+            PromptPreview = "prompt",
+            ResponsePreview = "response",
+            Details = new Dictionary<string, string?> { ["endpoint"] = "post-public-message" },
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("GameDiagnosticLogLevel", shape["level"]);
+        Assert.Equal("GameDiagnosticLogCategory", shape["category"]);
+        Assert.Equal("Record<string, string | null>", shape["details"]);
+    }
+
+    [Fact]
     public void GameTemplateListResponse_StaysInSyncWith_GameTemplateListResponseInterface()
     {
         var shape = GetTypeScriptInterfaceShape("GameTemplateListResponse");
@@ -762,6 +817,32 @@ public sealed class FrontendContractTests
             [],
             new GameBridgePublicView([], []),
             null);
+
+    private static GameDiagnosticLogProjection SampleGameDiagnosticLogProjection() =>
+        new()
+        {
+            SessionId = Guid.CreateVersion7(),
+            HasGame = true,
+            GameInstanceId = "game-1",
+            TemplateId = "village",
+            ModuleId = "werewolf",
+            RuntimeStatus = "Running",
+            PrivacyNotice = "Host-level diagnostic log includes private prompt previews.",
+            Events =
+            [
+                new GameDiagnosticLogEvent
+                {
+                    Sequence = 1,
+                    Timestamp = DateTimeOffset.Parse("2026-04-29T20:00:00+00:00"),
+                    Level = GameDiagnosticLogLevel.Info,
+                    Category = GameDiagnosticLogCategory.Endpoint,
+                    Source = "GameEndpoints",
+                    Operation = "DiagnosticsRequested",
+                    Summary = "Diagnostic log requested.",
+                    Details = new Dictionary<string, string?> { ["route"] = "/diagnostics" },
+                },
+            ],
+        };
 
     private static GameTemplate SampleGameTemplate() =>
         new()
