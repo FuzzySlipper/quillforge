@@ -189,6 +189,27 @@ public sealed class GameAgentMemoryServiceTests
         Assert.Equal("summary-trimmed", participant.ReasonCode);
     }
 
+    [Fact]
+    public async Task RunRoundEndMemorySummaries_UsesProviderReportedTokensInsteadOfWordCountProxy()
+    {
+        var summary = "one two three four five";
+        var completion = new ScriptedCompletionService(_ => SummaryJson(summary), new TokenUsage(10, 3));
+        var fixture = CreateFixture(completion, memoryTokenBudget: 3);
+        var sessionId = Guid.NewGuid();
+        await StartRuntimeAsync(fixture.Runtime, sessionId, singleAgent: true, memoryTokenBudget: 3);
+        await EndRoundAsync(fixture.Runtime, sessionId, Instant(1));
+
+        var result = await fixture.Memory.RunRoundEndMemorySummariesAsync(sessionId, new RunGameAgentMemorySummariesCommand(Instant(2)));
+
+        var memory = Assert.Single(result.Value!.Game!.AgentMemories);
+        Assert.Equal(summary, memory.Summary);
+        var decision = Assert.Single(result.Value.Game.MemorySummaryDecisions);
+        Assert.False(decision.ExceededTokenBudget);
+        Assert.False(decision.Trimmed);
+        var participant = Assert.Single(result.Value.ParticipantResults);
+        Assert.Equal("recorded", participant.ReasonCode);
+    }
+
     private static Fixture CreateFixture(ICompletionService completionService, int memoryTokenBudget = 128)
     {
         var registry = new GameModuleRegistry();

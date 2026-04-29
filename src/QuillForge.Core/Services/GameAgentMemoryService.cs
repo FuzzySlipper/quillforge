@@ -436,14 +436,54 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
         int tokenBudget,
         int responseTokens)
     {
-        var words = summary.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        var exceeded = responseTokens > tokenBudget || words.Length > tokenBudget;
-        if (!exceeded || words.Length <= tokenBudget)
+        var measuredTokens = responseTokens > 0
+            ? responseTokens
+            : EstimateSummaryTokens(summary);
+        var exceeded = measuredTokens > tokenBudget;
+        if (!exceeded)
         {
-            return (summary, exceeded, false);
+            return (summary, false, false);
         }
 
-        return (string.Join(' ', words.Take(tokenBudget)), true, true);
+        var trimmed = TrimSummaryToTokenBudget(summary, tokenBudget, measuredTokens);
+        return (trimmed, true, !string.Equals(trimmed, summary, StringComparison.Ordinal));
+    }
+
+    private static int EstimateSummaryTokens(string summary)
+    {
+        var normalizedLength = summary.ReplaceLineEndings("\n").Length;
+        return Math.Max(1, (int)Math.Ceiling(normalizedLength / 4.0));
+    }
+
+    private static string TrimSummaryToTokenBudget(
+        string summary,
+        int tokenBudget,
+        int measuredTokens)
+    {
+        if (string.IsNullOrWhiteSpace(summary) || measuredTokens <= tokenBudget)
+        {
+            return summary;
+        }
+
+        var targetLength = Math.Max(1, (int)Math.Floor(summary.Length * (tokenBudget / (double)measuredTokens)));
+        if (targetLength >= summary.Length)
+        {
+            return summary;
+        }
+
+        var candidate = summary[..targetLength].TrimEnd();
+        if (targetLength < summary.Length && char.IsWhiteSpace(summary[targetLength]))
+        {
+            return candidate;
+        }
+
+        var boundary = candidate.LastIndexOfAny([' ', '\t', '\r', '\n']);
+        if (boundary > 0 && boundary >= targetLength / 2)
+        {
+            candidate = candidate[..boundary].TrimEnd();
+        }
+
+        return string.IsNullOrWhiteSpace(candidate) ? summary[..targetLength].TrimEnd() : candidate;
     }
 
     private static void AppendVisibleEvents(StringBuilder builder, IReadOnlyList<VisibleGameEvent> events)
