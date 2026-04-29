@@ -91,11 +91,40 @@ public sealed class GameEventJournalTests
     }
 
     [Fact]
+    public void StoredGameEvent_FromUnknownEventPreservesClrFallbackName()
+    {
+        var gameId = new GameInstanceId("game-1");
+        var unknown = new UnknownModuleEvent(
+            default,
+            0,
+            gameId,
+            default,
+            GameEventVisibility.Public,
+            "module-specific-debug-data");
+
+        var stored = StoredGameEvent.FromEvent(unknown);
+
+        Assert.Equal(nameof(UnknownModuleEvent), stored.EventType);
+    }
+
+    [Fact]
     public void Append_RejectsEventsForDifferentGameInstances()
     {
         var journal = GameEventJournal.Empty(new GameInstanceId("game-1"));
         var foreignEvent = GameEndedEvent.Create(new GameInstanceId("game-2"), "other");
 
         Assert.Throws<ArgumentException>(() => journal.Append(foreignEvent));
+    }
+
+    private sealed record UnknownModuleEvent(
+        GameEventId EventId,
+        long Sequence,
+        GameInstanceId GameInstanceId,
+        DateTimeOffset OccurredAt,
+        GameEventVisibility Visibility,
+        string DebugValue) : GameEventBase(EventId, Sequence, GameInstanceId, OccurredAt, Visibility)
+    {
+        public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
+            this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
     }
 }

@@ -160,6 +160,30 @@ public sealed class GameBridgeServiceTests
     }
 
     [Fact]
+    public async Task SubmitTextAction_RejectsTranslatorUnknownPendingInputBeforeEngineSubmission()
+    {
+        var translator = new ScriptedTranslationAgent(GameIntentTranslationResult.Accepted(
+            "unknown-pending-input",
+            "approve",
+            0.95,
+            "hallucinated pending input"));
+        var fixture = CreateFixture(translator);
+        var sessionId = Guid.NewGuid();
+        await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("test-template", "Human Player", 42, Instant(0)));
+
+        fixture.Store.ResetLoadCount();
+        var result = await fixture.Bridge.SubmitTextActionAsync(
+            sessionId,
+            new SubmitGameTextActionCommand("human-1", "I approve it.", Instant(1)));
+
+        Assert.Equal(SessionMutationStatus.Invalid, result.Status);
+        Assert.Contains("translator_unknown_pending_input", result.Error, StringComparison.Ordinal);
+        Assert.Equal(1, fixture.Store.LoadCount);
+    }
+
+    [Fact]
     public async Task SubmitTextAction_RejectsTranslatorChoiceOutsideLegalOptionsBeforeEngineSubmission()
     {
         var translator = new ScriptedTranslationAgent(GameIntentTranslationResult.Accepted(
@@ -184,6 +208,32 @@ public sealed class GameBridgeServiceTests
         var persisted = await fixture.Store.LoadAsync(sessionId);
         Assert.Equal(GameRuntimeStatus.Running, persisted.Game!.Status);
         Assert.DoesNotContain(persisted.Game.EngineSnapshot!.EventJournal.Events, gameEvent => gameEvent is PlayerChoiceSubmittedEvent);
+    }
+
+    [Fact]
+    public async Task SubmitTextAction_RejectsTranslatorMissingActionBeforeEngineSubmission()
+    {
+        var translator = new ScriptedTranslationAgent(new GameIntentTranslationResult(
+            true,
+            null,
+            null,
+            0.95,
+            "translated",
+            "missing action"));
+        var fixture = CreateFixture(translator);
+        var sessionId = Guid.NewGuid();
+        await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("test-template", "Human Player", 42, Instant(0)));
+
+        fixture.Store.ResetLoadCount();
+        var result = await fixture.Bridge.SubmitTextActionAsync(
+            sessionId,
+            new SubmitGameTextActionCommand("human-1", "I approve it.", Instant(1)));
+
+        Assert.Equal(SessionMutationStatus.Invalid, result.Status);
+        Assert.Contains("translator_missing_action", result.Error, StringComparison.Ordinal);
+        Assert.Equal(1, fixture.Store.LoadCount);
     }
 
     [Fact]
@@ -231,6 +281,29 @@ public sealed class GameBridgeServiceTests
         Assert.Contains("not the game master", prompt, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("must not decide outcomes", prompt, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Return only compact JSON", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GameIntentTranslationAgent_RejectsAcceptedUnknownPendingInput()
+    {
+        var completion = new ScriptedCompletionService(
+            """
+            {"accepted":true,"pendingInputId":"unknown-pending-input","choiceName":"approve","confidence":0.95,"reasonCode":"translated","message":"hallucinated pending input"}
+            """);
+        var agent = new GameIntentTranslationAgent(
+            completion,
+            new AppConfig(),
+            NullLogger<GameIntentTranslationAgent>.Instance);
+
+        var result = await agent.TranslateAsync(new GameIntentTranslationRequest(
+            "game-001",
+            "human-1",
+            "I approve it",
+            [CreatePendingInput()],
+            Instant(1)));
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal("translator_unknown_pending_input", result.ReasonCode);
     }
 
     [Fact]
