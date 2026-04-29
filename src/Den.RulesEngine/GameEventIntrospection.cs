@@ -9,9 +9,9 @@ public static class GameEventIntrospection
         return new GameEventIntrospectionFacts(
             ParticipantIdFor(gameEvent),
             PendingInputIdFor(gameEvent),
-            gameEvent is PlayerChoiceSubmittedEvent choice ? choice.ChoiceName : null,
+            ChoiceNameFor(gameEvent),
             ReasonCodeFor(gameEvent),
-            gameEvent is GameEndedEvent ended ? ended.OutcomeName : null);
+            OutcomeNameFor(gameEvent));
     }
 
     public static string? ParticipantIdFor(IGameEvent gameEvent)
@@ -42,6 +42,17 @@ public static class GameEventIntrospection
         };
     }
 
+    public static string? ChoiceNameFor(IGameEvent gameEvent)
+    {
+        ArgumentNullException.ThrowIfNull(gameEvent);
+
+        return gameEvent switch
+        {
+            PlayerChoiceSubmittedEvent choice => choice.ChoiceName,
+            _ => null,
+        };
+    }
+
     public static string? ReasonCodeFor(IGameEvent gameEvent)
     {
         ArgumentNullException.ThrowIfNull(gameEvent);
@@ -53,6 +64,17 @@ public static class GameEventIntrospection
             IntentCommandRejectedEvent rejected => rejected.ReasonCode,
             GameAbortedEvent aborted => aborted.ReasonCode,
             RoundEndedEvent roundEnded => roundEnded.ReasonCode,
+            _ => null,
+        };
+    }
+
+    public static string? OutcomeNameFor(IGameEvent gameEvent)
+    {
+        ArgumentNullException.ThrowIfNull(gameEvent);
+
+        return gameEvent switch
+        {
+            GameEndedEvent ended => ended.OutcomeName,
             _ => null,
         };
     }
