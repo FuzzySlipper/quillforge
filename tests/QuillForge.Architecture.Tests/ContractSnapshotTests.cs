@@ -1182,6 +1182,7 @@ public sealed class ContractSnapshotTests
                 {
                     Alias = "local",
                     Type = "Ollama",
+                    Model = "llama3.2",
                     DefaultModel = "llama3.2",
                     ContextLimit = 8192,
                 },

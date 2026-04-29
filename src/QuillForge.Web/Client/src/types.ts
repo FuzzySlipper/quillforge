@@ -417,6 +417,7 @@ export interface GameTemplateProjectionCapabilitiesOption {
 export interface GameTemplateProviderOption {
   alias: string;
   type: string;
+  model: string | null;
   defaultModel: string | null;
   contextLimit: number | null;
 }

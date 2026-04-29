@@ -35,6 +35,7 @@ public static class GameTemplateEndpoints
                 {
                     Alias = config.Alias,
                     Type = config.Type.ToString(),
+                    Model = config.DefaultModel,
                     DefaultModel = config.DefaultModel,
                     ContextLimit = config.ContextLimit,
                 })

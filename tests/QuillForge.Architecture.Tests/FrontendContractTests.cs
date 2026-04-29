@@ -384,12 +384,33 @@ public sealed class FrontendContractTests
                     },
                 },
             ],
-            Providers = [new GameTemplateProviderOption { Alias = "local", Type = "Ollama", DefaultModel = "llama3.2", ContextLimit = 8192 }],
+            Providers = [new GameTemplateProviderOption { Alias = "local", Type = "Ollama", Model = "llama3.2", DefaultModel = "llama3.2", ContextLimit = 8192 }],
         });
 
         Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
         Assert.Equal("GameTemplateModuleOption[]", shape["modules"]);
         Assert.Equal("GameTemplateProviderOption[]", shape["providers"]);
+    }
+
+    [Fact]
+    public void GameTemplateProviderOption_StaysInSyncWith_GameTemplateProviderOptionInterface()
+    {
+        var shape = GetTypeScriptInterfaceShape("GameTemplateProviderOption");
+        var jsonKeys = SerializeTopLevelKeys(new GameTemplateProviderOption
+        {
+            Alias = "local",
+            Type = "Ollama",
+            Model = "llama3.2",
+            DefaultModel = "llama3.2",
+            ContextLimit = 8192,
+        });
+
+        Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
+        Assert.Equal("string", shape["alias"]);
+        Assert.Equal("string", shape["type"]);
+        Assert.Equal("string | null", shape["model"]);
+        Assert.Equal("string | null", shape["defaultModel"]);
+        Assert.Equal("number | null", shape["contextLimit"]);
     }
 
     [Fact]
@@ -433,6 +454,7 @@ public sealed class FrontendContractTests
         Assert.Contains("Validation issues from template service", source, StringComparison.Ordinal);
         Assert.Contains("Provider alias", source, StringComparison.Ordinal);
         Assert.Contains("Provider model", source, StringComparison.Ordinal);
+        Assert.Contains("provider.model ?? provider.defaultModel", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Default model", source, StringComparison.Ordinal);
         Assert.Contains("characterPrompt", source, StringComparison.Ordinal);
         Assert.Contains("personality", source, StringComparison.Ordinal);

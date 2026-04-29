@@ -156,6 +156,8 @@ public sealed record GameTemplateProviderOption
 
     public required string Type { get; init; }
 
+    public string? Model { get; init; }
+
     public string? DefaultModel { get; init; }
 
     public int? ContextLimit { get; init; }

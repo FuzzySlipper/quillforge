@@ -79,6 +79,7 @@
     {
       "alias": "local",
       "type": "Ollama",
+      "model": "llama3.2",
       "defaultModel": "llama3.2",
       "contextLimit": 8192
     }

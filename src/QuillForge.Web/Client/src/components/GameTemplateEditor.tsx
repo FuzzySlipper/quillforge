@@ -181,8 +181,13 @@ function mergeModuleDefaults(
   return normalizeRoster(merged, providerAlias, rosterSize);
 }
 
+function providerModel(provider: GameTemplateProviderOption): string | null {
+  return provider.model ?? provider.defaultModel;
+}
+
 function providerLabel(provider: GameTemplateProviderOption): string {
-  const model = provider.defaultModel ? ` · ${provider.defaultModel}` : " · no provider model";
+  const providerModelName = providerModel(provider);
+  const model = providerModelName ? ` · ${providerModelName}` : " · no provider model";
   return `${provider.alias} (${provider.type}${model})`;
 }
 
@@ -678,7 +683,7 @@ export default function GameTemplateEditor({
                 <div className="md:col-span-2 flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-medium text-text">{agent.participantId}</div>
-                    <div className="text-xs text-text-muted">Provider model: {provider?.defaultModel ?? "none"}</div>
+                    <div className="text-xs text-text-muted">Provider model: {provider ? (providerModel(provider) ?? "none") : "none"}</div>
                   </div>
                   <select
                     value={agent.randomNameBehavior}
@@ -704,7 +709,7 @@ export default function GameTemplateEditor({
                   <input
                     value={agent.modelOverride ?? ""}
                     onChange={(event) => updateAgent(agent.participantId, (current) => ({ ...current, modelOverride: event.target.value || null }))}
-                    placeholder={provider?.defaultModel ?? "use provider model"}
+                    placeholder={provider ? (providerModel(provider) ?? "use provider model") : "use provider model"}
                     className="rounded-lg border border-border bg-input-bg px-3 py-2 text-sm text-text"
                   />
                 </label>
