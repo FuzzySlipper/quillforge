@@ -478,7 +478,7 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
         }
 
         var boundary = candidate.LastIndexOfAny([' ', '\t', '\r', '\n']);
-        if (boundary > 0 && boundary >= targetLength / 2)
+        if (boundary > 0)
         {
             candidate = candidate[..boundary].TrimEnd();
         }

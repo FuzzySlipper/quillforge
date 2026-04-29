@@ -190,6 +190,24 @@ public sealed class GameAgentMemoryServiceTests
     }
 
     [Fact]
+    public async Task RunRoundEndMemorySummaries_TrimsAtWordBoundaryWhenBudgetCutsInsideLongWord()
+    {
+        var completion = new ScriptedCompletionService(_ => SummaryJson("alpha betagammadelta"), new TokenUsage(10, 20));
+        var fixture = CreateFixture(completion, memoryTokenBudget: 10);
+        var sessionId = Guid.NewGuid();
+        await StartRuntimeAsync(fixture.Runtime, sessionId, singleAgent: true, memoryTokenBudget: 10);
+        await EndRoundAsync(fixture.Runtime, sessionId, Instant(1));
+
+        var result = await fixture.Memory.RunRoundEndMemorySummariesAsync(sessionId, new RunGameAgentMemorySummariesCommand(Instant(2)));
+
+        var memory = Assert.Single(result.Value!.Game!.AgentMemories);
+        Assert.Equal("alpha", memory.Summary);
+        var decision = Assert.Single(result.Value.Game.MemorySummaryDecisions);
+        Assert.True(decision.ExceededTokenBudget);
+        Assert.True(decision.Trimmed);
+    }
+
+    [Fact]
     public async Task RunRoundEndMemorySummaries_UsesProviderReportedTokensInsteadOfWordCountProxy()
     {
         var summary = "one two three four five";

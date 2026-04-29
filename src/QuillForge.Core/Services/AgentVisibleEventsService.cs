@@ -111,8 +111,16 @@ public sealed class AgentVisibleEventsService
         return !priorPrivateEventIds.Contains(visibleEvent.EventId.ToString());
     }
 
-    private static Dictionary<GameEventId, GameEventVisibilityKind> BuildVisibilityLookup(GameEventJournal eventJournal) =>
-        eventJournal.Events.ToDictionary(gameEvent => gameEvent.EventId, gameEvent => gameEvent.Visibility.Kind);
+    private static Dictionary<GameEventId, GameEventVisibilityKind> BuildVisibilityLookup(GameEventJournal eventJournal)
+    {
+        var lookup = new Dictionary<GameEventId, GameEventVisibilityKind>();
+        foreach (var gameEvent in eventJournal.Events)
+        {
+            lookup.TryAdd(gameEvent.EventId, gameEvent.Visibility.Kind);
+        }
+
+        return lookup;
+    }
 
     private static bool IsPublicEvent(
         IReadOnlyDictionary<GameEventId, GameEventVisibilityKind> visibilityByEventId,
