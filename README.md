@@ -99,18 +99,20 @@ You can add providers through the UI or through the API.
 # Anthropic
 curl -X POST http://localhost:5204/api/providers \
   -H "Content-Type: application/json" \
-  -d '{"alias":"claude","type":"Anthropic","apiKey":"sk-ant-...","defaultModel":"claude-sonnet-4-20250514"}'
+  -d '{"alias":"claude","type":"Anthropic","apiKey":"sk-ant-...","model":"claude-sonnet-4-20250514"}'
 
 # OpenAI
 curl -X POST http://localhost:5204/api/providers \
   -H "Content-Type: application/json" \
-  -d '{"alias":"gpt","type":"OpenAI","apiKey":"sk-...","defaultModel":"gpt-4o"}'
+  -d '{"alias":"gpt","type":"OpenAI","apiKey":"sk-...","model":"gpt-4o"}'
 
 # Local Ollama
 curl -X POST http://localhost:5204/api/providers \
   -H "Content-Type: application/json" \
-  -d '{"alias":"local","type":"Ollama","baseUrl":"http://localhost:11434","defaultModel":"qwen2.5:14b"}'
+  -d '{"alias":"local","type":"Ollama","baseUrl":"http://localhost:11434","model":"qwen2.5:14b"}'
 ```
+
+Provider records still persist that value in the legacy `defaultModel` field for backward compatibility, and the API continues to accept `defaultModel` from older scripts. New UI/API flows present it as the provider's model. Saving a provider fills any blank or legacy `default` agent model assignments with that provider alias without overwriting explicit agent assignments.
 
 ## Configuration
 

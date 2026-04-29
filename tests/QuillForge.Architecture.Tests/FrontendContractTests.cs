@@ -432,7 +432,8 @@ public sealed class FrontendContractTests
         Assert.Contains("validateGameTemplate", source, StringComparison.Ordinal);
         Assert.Contains("Validation issues from template service", source, StringComparison.Ordinal);
         Assert.Contains("Provider alias", source, StringComparison.Ordinal);
-        Assert.Contains("Default model", source, StringComparison.Ordinal);
+        Assert.Contains("Provider model", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Default model", source, StringComparison.Ordinal);
         Assert.Contains("characterPrompt", source, StringComparison.Ordinal);
         Assert.Contains("personality", source, StringComparison.Ordinal);
         Assert.Contains("...current", source, StringComparison.Ordinal);
@@ -440,6 +441,19 @@ public sealed class FrontendContractTests
         Assert.Contains("...current.communication", source, StringComparison.Ordinal);
         Assert.Contains("...current.naming", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"game-template-editor\"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProviderManager_DoesNotExposeDefaultModelAssignmentOptions()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("components", "ProviderManager.tsx"));
+
+        Assert.Contains("Saving a provider fills unassigned agent rows", source, StringComparison.Ordinal);
+        Assert.Contains("Choose provider...", source, StringComparison.Ordinal);
+        Assert.Contains("model-id (or click Fetch Models)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("default (primary model)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Default model", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("use provider default", source, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -132,10 +132,10 @@ export default function CouncilConfigPanel({ open, onClose }: CouncilConfigPanel
             onChange={(e) => setForm({ ...form, providerAlias: e.target.value })}
             className="w-full rounded bg-bg border border-border px-3 py-2 text-sm text-text"
           >
-            <option value="">Default</option>
+            <option value="">Use assigned provider</option>
             {providers.map((p) => (
               <option key={p.alias} value={p.alias}>
-                {p.alias} ({p.defaultModel || "no model"})
+                {p.alias} ({p.model || "no model"})
               </option>
             ))}
           </select>
@@ -145,7 +145,7 @@ export default function CouncilConfigPanel({ open, onClose }: CouncilConfigPanel
             type="text"
             value={form.model}
             onChange={(e) => setForm({ ...form, model: e.target.value })}
-            placeholder="Leave blank to use provider default"
+            placeholder="Leave blank to use the provider model"
             className="w-full rounded bg-bg border border-border px-3 py-2 text-sm text-text"
           />
 

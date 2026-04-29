@@ -859,7 +859,8 @@ export interface ProviderInfo {
   type: string;
   baseUrl: string | null;
   modelsUrl: string | null;
-  defaultModel: string;
+  model: string | null;
+  defaultModel?: string | null;
   contextLimit?: number;
   requiresReasoning?: boolean | null;
   requiresReasoningEffective?: boolean;
@@ -879,7 +880,7 @@ export async function createProvider(provider: {
   baseUrl?: string | null;
   modelsUrl?: string | null;
   apiKey?: string;
-  defaultModel: string;
+  model: string;
   contextLimit?: number;
   requiresReasoning?: boolean | null;
   options?: Record<string, unknown>;
@@ -898,6 +899,7 @@ export async function updateProvider(
     baseUrl?: string | null;
     modelsUrl?: string | null;
     apiKey?: string;
+    model?: string;
     defaultModel?: string;
     contextLimit?: number;
     requiresReasoning?: boolean | null;

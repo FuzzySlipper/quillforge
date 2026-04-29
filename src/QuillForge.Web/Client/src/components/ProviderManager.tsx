@@ -57,7 +57,7 @@ interface FormState {
   baseUrl: string;
   modelsUrl: string;
   apiKey: string;
-  defaultModel: string;
+  model: string;
   contextLimit: number;
   requiresReasoning: ReasoningOverride;
 }
@@ -69,7 +69,7 @@ const EMPTY_FORM: FormState = {
   baseUrl: "",
   modelsUrl: "",
   apiKey: "",
-  defaultModel: "",
+  model: "",
   contextLimit: 128000,
   requiresReasoning: "auto",
 };
@@ -169,6 +169,10 @@ function optionTriStateValue(options: Record<string, unknown> | null, key: strin
   if (value === false) return "off";
   if (value === "auto") return "auto";
   return "unset";
+}
+
+function isUnsetAssignment(value: string): boolean {
+  return value.trim() === "" || value.toLowerCase() === "default";
 }
 
 const TEMPLATES = [
@@ -276,7 +280,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
       baseUrl: p.baseUrl || "",
       modelsUrl: p.modelsUrl || "",
       apiKey: "",
-      defaultModel: p.defaultModel,
+      model: p.model || "",
       contextLimit: p.contextLimit ?? 128000,
       requiresReasoning: reasoningOverrideFromProvider(p),
     });
@@ -383,7 +387,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
           baseUrl: form.baseUrl || null,
           modelsUrl: form.modelsUrl || null,
           apiKey: form.apiKey || undefined,
-          defaultModel: form.defaultModel,
+          model: form.model,
           contextLimit: form.contextLimit,
           requiresReasoning,
           options: opts,
@@ -391,7 +395,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
       } else if (editing) {
         const updates: Record<string, unknown> = {};
         if (form.name) updates.name = form.name;
-        if (form.defaultModel) updates.defaultModel = form.defaultModel;
+        if (form.model) updates.model = form.model;
         if (form.apiKey) updates.apiKey = form.apiKey;
         if (form.baseUrl !== undefined) updates.baseUrl = form.baseUrl || null;
         if (form.modelsUrl !== undefined) updates.modelsUrl = form.modelsUrl || null;
@@ -530,9 +534,9 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                 {models.map((m) => (
                   <button
                     key={m}
-                    onClick={() => setForm({ ...form, defaultModel: m })}
+                    onClick={() => setForm({ ...form, model: m })}
                     className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                      m === form.defaultModel
+                      m === form.model
                         ? "bg-accent/20 text-accent"
                         : "hover:bg-input-bg text-text"
                     }`}
@@ -544,8 +548,8 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
             ) : (
               <input
                 type="text"
-                value={form.defaultModel}
-                onChange={(e) => setForm({ ...form, defaultModel: e.target.value })}
+                value={form.model}
+                onChange={(e) => setForm({ ...form, model: e.target.value })}
                 placeholder="model-id (or click Fetch Models)"
                 className={inputClass}
               />
@@ -590,7 +594,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                 setOptionsOpen(opening);
                 // Auto-suggest options when opening with blank/empty options
                 if (opening && optionsText.trim() === "{}") {
-                  const suggested = suggestOptions(form.defaultModel, form.type);
+                  const suggested = suggestOptions(form.model, form.type);
                   if (suggested) {
                     setOptionsText(JSON.stringify(suggested, null, 2));
                   }
@@ -665,7 +669,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || (isNew && (!form.alias || !form.defaultModel))}
+              disabled={saving || (isNew && (!form.alias || !form.model))}
               className="text-sm bg-accent text-accent-contrast rounded-lg px-4 py-1.5 disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save"}
@@ -711,7 +715,7 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                     )}
                   </div>
                   <div className="text-xs text-text-muted mt-0.5">
-                    {p.defaultModel || "no model selected"}
+                    {p.model || "no model selected"}
                   </div>
                   {(p.usedBy ?? []).length > 0 && (
                     <div className="text-[10px] text-accent/70 mt-0.5">
@@ -765,32 +769,39 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
         {assignments && providers.length > 0 && (
           <div>
             <div className="text-xs text-text-muted uppercase tracking-wider mb-2">Agent Assignments</div>
+            <p className="mb-2 text-[11px] text-text-muted">
+              Saving a provider fills unassigned agent rows with that provider. Explicit assignments are kept.
+            </p>
             <div className="flex flex-col gap-2">
-              {(["orchestrator", "narrativeDirector", "proseWriter", "librarian", "delegateTechnical", "artifact", "research", "forgeWriter", "forgePlanner", "forgeReviewer"] as const).map((agent) => (
-                <div key={agent} className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-text min-w-[100px]">
-                    {agent.replace(/([A-Z])/g, " $1").toLowerCase()}
-                  </span>
-                  <select
-                    value={assignments[agent]}
-                    onChange={(e) => handleAssignmentChange(agent, e.target.value)}
-                    className="flex-1 bg-input-bg text-text border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent"
-                  >
-                    <option value="default">default (primary model)</option>
-                    {providers.map((p) => (
-                      <option key={p.alias} value={p.alias}>
-                        {p.alias} ({p.defaultModel || "no model"})
-                      </option>
-                    ))}
-                    {/* Show current value if it doesn't match any provider or "default" */}
-                    {assignments[agent] !== "default" && !providers.some((p) => p.alias === assignments[agent]) && (
-                      <option value={assignments[agent]}>
-                        {assignments[agent]} (not configured)
-                      </option>
-                    )}
-                  </select>
-                </div>
-              ))}
+              {(["orchestrator", "narrativeDirector", "proseWriter", "librarian", "delegateTechnical", "artifact", "research", "forgeWriter", "forgePlanner", "forgeReviewer"] as const).map((agent) => {
+                const assignment = assignments[agent];
+                const selectedValue = isUnsetAssignment(assignment) ? "" : assignment;
+                return (
+                  <div key={agent} className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-text min-w-[100px]">
+                      {agent.replace(/([A-Z])/g, " $1").toLowerCase()}
+                    </span>
+                    <select
+                      value={selectedValue}
+                      onChange={(e) => handleAssignmentChange(agent, e.target.value)}
+                      className="flex-1 bg-input-bg text-text border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent"
+                    >
+                      <option value="" disabled>Choose provider...</option>
+                      {providers.map((p) => (
+                        <option key={p.alias} value={p.alias}>
+                          {p.alias} ({p.model || "no model"})
+                        </option>
+                      ))}
+                      {/* Show current value if it doesn't match any provider. */}
+                      {!isUnsetAssignment(assignment) && !providers.some((p) => p.alias === assignment) && (
+                        <option value={assignment}>
+                          {assignment} (not configured)
+                        </option>
+                      )}
+                    </select>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

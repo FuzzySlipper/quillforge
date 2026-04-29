@@ -1,5 +1,6 @@
 using System.Text.Json;
 using QuillForge.Core.Models;
+using QuillForge.Core.Services;
 using QuillForge.Providers.Registry;
 using QuillForge.Storage.FileSystem;
 
@@ -22,6 +23,7 @@ public static class ProviderEndpoints
                         Alias = p.Alias,
                         Name = p.Alias,
                         Type = p.Type.ToString(),
+                        Model = config?.DefaultModel,
                         DefaultModel = config?.DefaultModel,
                         BaseUrl = config?.BaseUrl,
                         ModelsUrl = config?.ModelsUrl ?? DefaultModelsUrl(config),
@@ -36,7 +38,7 @@ public static class ProviderEndpoints
             return Results.Ok(new { Providers = providers });
         });
 
-        group.MapPost("/", async (HttpContext httpContext, ProviderRegistry registry, ProviderConfigStore store, ILogger<ProviderRegistry> logger) =>
+        group.MapPost("/", async (HttpContext httpContext, ProviderRegistry registry, ProviderConfigStore store, IAppConfigStore appConfigStore, AppConfig runtimeConfig, ILogger<ProviderRegistry> logger, CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body);
             var root = body.RootElement;
@@ -45,7 +47,7 @@ public static class ProviderEndpoints
             var typeStr = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() ?? "Custom" : "Custom";
             var apiKey = root.TryGetProperty("apiKey", out var keyEl) ? keyEl.GetString() ?? "" : "";
             var baseUrl = root.TryGetProperty("baseUrl", out var urlEl) ? urlEl.GetString() : null;
-            var defaultModel = root.TryGetProperty("defaultModel", out var modelEl) ? modelEl.GetString() : null;
+            var model = ReadOptionalString(root, "model") ?? ReadOptionalString(root, "defaultModel");
             var modelsUrl = root.TryGetProperty("modelsUrl", out var muEl) ? muEl.GetString() : null;
             var contextLimit = root.TryGetProperty("contextLimit", out var clEl) && clEl.TryGetInt32(out var clVal) ? clVal : (int?)null;
 
@@ -77,7 +79,7 @@ public static class ProviderEndpoints
                 ApiKey = apiKey,
                 BaseUrl = baseUrl,
                 ModelsUrl = modelsUrl,
-                DefaultModel = defaultModel,
+                DefaultModel = model,
                 ContextLimit = contextLimit,
                 RequiresReasoning = requiresReasoning,
                 Options = options,
@@ -85,14 +87,15 @@ public static class ProviderEndpoints
 
             logger.LogInformation(
                 "Registering provider: alias={Alias}, type={Type}, baseUrl={BaseUrl}, model={Model}",
-                alias, providerType, baseUrl, defaultModel);
+                alias, providerType, baseUrl, model);
 
             registry.Register(config);
             await SaveProvidersToDisk(registry, store);
+            await FillBlankAgentModelAssignmentsAsync(config.Alias, appConfigStore, runtimeConfig, ct);
             return Results.Ok(new { Registered = config.Alias });
         });
 
-        group.MapPut("/{alias}", async (string alias, HttpContext httpContext, ProviderRegistry registry, ProviderConfigStore store) =>
+        group.MapPut("/{alias}", async (string alias, HttpContext httpContext, ProviderRegistry registry, ProviderConfigStore store, IAppConfigStore appConfigStore, AppConfig runtimeConfig, CancellationToken ct) =>
         {
             var body = await JsonDocument.ParseAsync(httpContext.Request.Body);
             var root = body.RootElement;
@@ -112,11 +115,13 @@ public static class ProviderEndpoints
                 ? ReadNullableBool(rrEl3)
                 : existing.RequiresReasoning;
 
+            var model = ReadOptionalString(root, "model") ?? ReadOptionalString(root, "defaultModel") ?? existing.DefaultModel;
+
             var config = existing with
             {
                 ApiKey = !string.IsNullOrEmpty(newApiKey) ? newApiKey : existing.ApiKey,
                 BaseUrl = root.TryGetProperty("baseUrl", out var urlEl) ? urlEl.GetString() ?? existing.BaseUrl : existing.BaseUrl,
-                DefaultModel = root.TryGetProperty("defaultModel", out var modelEl) ? modelEl.GetString() ?? existing.DefaultModel : existing.DefaultModel,
+                DefaultModel = string.IsNullOrWhiteSpace(model) ? existing.DefaultModel : model,
                 ModelsUrl = root.TryGetProperty("modelsUrl", out var muEl) ? muEl.GetString() ?? existing.ModelsUrl : existing.ModelsUrl,
                 ContextLimit = root.TryGetProperty("contextLimit", out var clEl) && clEl.TryGetInt32(out var clVal) ? clVal : existing.ContextLimit,
                 RequiresReasoning = newRequiresReasoning,
@@ -125,6 +130,7 @@ public static class ProviderEndpoints
 
             registry.Register(config);
             await SaveProvidersToDisk(registry, store);
+            await FillBlankAgentModelAssignmentsAsync(config.Alias, appConfigStore, runtimeConfig, ct);
             return Results.Ok(new { Updated = alias });
         });
 
@@ -283,6 +289,48 @@ public static class ProviderEndpoints
         }).ToList();
         await store.SaveAsync(dtos);
     }
+
+    private static async Task FillBlankAgentModelAssignmentsAsync(
+        string providerAlias,
+        IAppConfigStore appConfigStore,
+        AppConfig runtimeConfig,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(providerAlias))
+        {
+            return;
+        }
+
+        var updatedConfig = await appConfigStore.UpdateAsync(current => current with
+        {
+            Models = current.Models with
+            {
+                Orchestrator = FillIfBlank(current.Models.Orchestrator, providerAlias),
+                NarrativeDirector = FillIfBlank(current.Models.NarrativeDirector, providerAlias),
+                ProseWriter = FillIfBlank(current.Models.ProseWriter, providerAlias),
+                Librarian = FillIfBlank(current.Models.Librarian, providerAlias),
+                Canonizer = FillIfBlank(current.Models.Canonizer, providerAlias),
+                ForgeWriter = FillIfBlank(current.Models.ForgeWriter, providerAlias),
+                ForgePlanner = FillIfBlank(current.Models.ForgePlanner, providerAlias),
+                ForgeReviewer = FillIfBlank(current.Models.ForgeReviewer, providerAlias),
+                DelegateTechnical = FillIfBlank(current.Models.DelegateTechnical, providerAlias),
+                Artifact = FillIfBlank(current.Models.Artifact, providerAlias),
+                Research = FillIfBlank(current.Models.Research, providerAlias),
+                GameIntentTranslator = FillIfBlank(current.Models.GameIntentTranslator, providerAlias),
+            },
+        }, ct);
+
+        AppConfigRuntimeSync.CopyFrom(runtimeConfig, updatedConfig);
+    }
+
+    private static string FillIfBlank(string value, string providerAlias) =>
+        IsBlankAgentModelAssignment(value) ? providerAlias : value;
+
+    private static bool IsBlankAgentModelAssignment(string value) =>
+        string.IsNullOrWhiteSpace(value) || string.Equals(value, "default", StringComparison.OrdinalIgnoreCase);
+
+    private static string? ReadOptionalString(JsonElement root, string propertyName) =>
+        root.TryGetProperty(propertyName, out var element) ? element.GetString() : null;
 
     private static bool? ReadNullableBool(JsonElement element)
     {

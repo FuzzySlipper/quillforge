@@ -182,7 +182,7 @@ function mergeModuleDefaults(
 }
 
 function providerLabel(provider: GameTemplateProviderOption): string {
-  const model = provider.defaultModel ? ` · ${provider.defaultModel}` : " · no default model";
+  const model = provider.defaultModel ? ` · ${provider.defaultModel}` : " · no provider model";
   return `${provider.alias} (${provider.type}${model})`;
 }
 
@@ -678,7 +678,7 @@ export default function GameTemplateEditor({
                 <div className="md:col-span-2 flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-medium text-text">{agent.participantId}</div>
-                    <div className="text-xs text-text-muted">Default model: {provider?.defaultModel ?? "none"}</div>
+                    <div className="text-xs text-text-muted">Provider model: {provider?.defaultModel ?? "none"}</div>
                   </div>
                   <select
                     value={agent.randomNameBehavior}
@@ -704,7 +704,7 @@ export default function GameTemplateEditor({
                   <input
                     value={agent.modelOverride ?? ""}
                     onChange={(event) => updateAgent(agent.participantId, (current) => ({ ...current, modelOverride: event.target.value || null }))}
-                    placeholder={provider?.defaultModel ?? "use provider default"}
+                    placeholder={provider?.defaultModel ?? "use provider model"}
                     className="rounded-lg border border-border bg-input-bg px-3 py-2 text-sm text-text"
                   />
                 </label>
