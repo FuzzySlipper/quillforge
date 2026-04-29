@@ -73,7 +73,12 @@ public sealed class GameEventNarrationComposerTests
         GameEventVisibility Visibility) : GameEventBase(EventId, Sequence, GameInstanceId, OccurredAt, Visibility)
     {
         public static SyntheticSecondModuleEvent Create(GameInstanceId gameInstanceId) =>
-            new(default, 0, gameInstanceId, default, GameEventVisibility.Public);
+            new(
+                GameEventId.NewId(),
+                1,
+                gameInstanceId,
+                DateTimeOffset.Parse("2026-04-29T12:00:00+00:00"),
+                GameEventVisibility.Public);
 
         public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
             this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
