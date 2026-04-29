@@ -170,7 +170,9 @@ public class DependencyBoundaryTests
         {
             var sourceText = File.ReadAllText(sourceFile);
             Assert.DoesNotContain("private readonly string _model", sourceText, StringComparison.Ordinal);
+            Assert.DoesNotContain("private readonly int _maxToolRounds", sourceText, StringComparison.Ordinal);
             Assert.DoesNotContain("= appConfig.Models", sourceText, StringComparison.Ordinal);
+            Assert.DoesNotContain("= appConfig.Agents.Orchestrator", sourceText, StringComparison.Ordinal);
         }
     }
 

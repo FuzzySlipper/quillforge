@@ -17,7 +17,7 @@ public sealed class OrchestratorAgent
     private readonly IAssistantPromptStore _assistantPromptStore;
     private readonly IInteractiveSessionContextService _sessionContextService;
     private readonly ILogger<OrchestratorAgent> _logger;
-    private readonly int _maxToolRounds;
+    private readonly AppConfig _appConfig;
 
     public OrchestratorAgent(
         ToolLoop toolLoop,
@@ -27,7 +27,7 @@ public sealed class OrchestratorAgent
         AppConfig appConfig,
         ILogger<OrchestratorAgent> logger)
     {
-        _maxToolRounds = appConfig.Agents.Orchestrator.MaxToolRounds;
+        _appConfig = appConfig;
         _toolLoop = toolLoop;
         _assistantPromptStore = assistantPromptStore;
         _sessionContextService = sessionContextService;
@@ -83,7 +83,7 @@ public sealed class OrchestratorAgent
             Model = model,
             MaxTokens = maxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = _maxToolRounds,
+            MaxToolRounds = _appConfig.Agents.Orchestrator.MaxToolRounds,
             AgentName = "orchestrator",
         };
 
@@ -137,7 +137,7 @@ public sealed class OrchestratorAgent
             Model = model,
             MaxTokens = maxTokens,
             SystemPrompt = systemPrompt,
-            MaxToolRounds = _maxToolRounds,
+            MaxToolRounds = _appConfig.Agents.Orchestrator.MaxToolRounds,
             AgentName = "orchestrator",
         };
 
