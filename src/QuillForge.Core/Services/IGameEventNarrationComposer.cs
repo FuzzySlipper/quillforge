@@ -7,6 +7,45 @@ public interface IGameEventNarrationComposer
     string ComposeSummary(IGameEvent gameEvent);
 }
 
+public interface IGameModuleEventNarrationComposer
+{
+    bool CanCompose(IGameEvent gameEvent);
+
+    string ComposeSummary(IGameEvent gameEvent);
+}
+
+public sealed class CompositeGameEventNarrationComposer : IGameEventNarrationComposer
+{
+    private readonly IReadOnlyList<IGameModuleEventNarrationComposer> _moduleComposers;
+    private readonly DefaultGameEventNarrationComposer _fallback;
+
+    public CompositeGameEventNarrationComposer(
+        IEnumerable<IGameModuleEventNarrationComposer> moduleComposers,
+        DefaultGameEventNarrationComposer fallback)
+    {
+        ArgumentNullException.ThrowIfNull(moduleComposers);
+        ArgumentNullException.ThrowIfNull(fallback);
+
+        _moduleComposers = moduleComposers.ToArray();
+        _fallback = fallback;
+    }
+
+    public string ComposeSummary(IGameEvent gameEvent)
+    {
+        ArgumentNullException.ThrowIfNull(gameEvent);
+
+        foreach (var composer in _moduleComposers)
+        {
+            if (composer.CanCompose(gameEvent))
+            {
+                return composer.ComposeSummary(gameEvent);
+            }
+        }
+
+        return _fallback.ComposeSummary(gameEvent);
+    }
+}
+
 public sealed class DefaultGameEventNarrationComposer : IGameEventNarrationComposer
 {
     public string ComposeSummary(IGameEvent gameEvent)

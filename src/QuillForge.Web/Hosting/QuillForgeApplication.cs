@@ -205,7 +205,11 @@ internal static class QuillForgeApplication
         builder.Services.AddSingleton<GameSetupValidationService>();
         builder.Services.AddSingleton(sp => new RulesEngineService(sp.GetRequiredService<GameModuleRegistry>()));
         builder.Services.AddSingleton<GameVisibilityProjector>();
-        builder.Services.AddSingleton<IGameEventNarrationComposer, WerewolfGameEventNarrationComposer>();
+        builder.Services.AddSingleton<DefaultGameEventNarrationComposer>();
+        builder.Services.AddSingleton<IGameModuleEventNarrationComposer, WerewolfGameEventNarrationComposer>();
+        builder.Services.AddSingleton<IGameEventNarrationComposer>(sp => new CompositeGameEventNarrationComposer(
+            sp.GetServices<IGameModuleEventNarrationComposer>(),
+            sp.GetRequiredService<DefaultGameEventNarrationComposer>()));
         builder.Services.AddSingleton<ParticipantChannelService>();
         builder.Services.AddSingleton<AgentVisibleEventsService>();
         builder.Services.AddSingleton<IGameRuntimeService, GameRuntimeService>();

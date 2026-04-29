@@ -4,9 +4,23 @@ using QuillForge.Core.Services;
 
 namespace QuillForge.Web.Services;
 
-public sealed class WerewolfGameEventNarrationComposer : IGameEventNarrationComposer
+public sealed class WerewolfGameEventNarrationComposer : IGameEventNarrationComposer, IGameModuleEventNarrationComposer
 {
     private readonly DefaultGameEventNarrationComposer _fallback = new();
+
+    public bool CanCompose(IGameEvent gameEvent)
+    {
+        ArgumentNullException.ThrowIfNull(gameEvent);
+
+        return gameEvent is WerewolfRoleRevealedEvent
+            or WerewolfTeamRevealedEvent
+            or WerewolfStageStartedEvent
+            or WerewolfNightActionsResolvedEvent
+            or WerewolfVoteRecordedEvent
+            or WerewolfVoteResolvedEvent
+            or WerewolfPlayerEliminatedEvent
+            or WerewolfWinConditionResolvedEvent;
+    }
 
     public string ComposeSummary(IGameEvent gameEvent)
     {
