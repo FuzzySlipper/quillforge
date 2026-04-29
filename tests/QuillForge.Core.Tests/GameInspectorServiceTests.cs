@@ -25,7 +25,23 @@ public sealed class GameInspectorServiceTests
         Assert.NotNull(projection.Engine);
         Assert.Contains(projection.Engine!.EventJournal, item => item.EventType == nameof(PlayerChoiceSubmittedEvent)
             && item.ParticipantId == "agent-1"
+            && item.PendingInputId == "pending-agent"
             && item.Visibility == GameEventVisibilityKind.PrivateToParticipant.ToString());
+        Assert.Contains(projection.Engine.EventJournal, item => item.EventType == nameof(PendingInputRequestedEvent)
+            && item.ParticipantId == "human-1"
+            && item.PendingInputId == "pending-human");
+        Assert.Contains(projection.Engine.EventJournal, item => item.EventType == nameof(AgentResponseRejectedEvent)
+            && item.ParticipantId == "agent-1"
+            && item.PendingInputId == "pending-agent"
+            && item.ReasonCode == "parse-fail");
+        Assert.Contains(projection.Engine.EventJournal, item => item.EventType == nameof(NoActionTakenEvent)
+            && item.ParticipantId == "agent-1"
+            && item.PendingInputId == "pending-agent"
+            && item.ReasonCode == "parse-fail");
+        Assert.Contains(projection.Engine.EventJournal, item => item.EventType == nameof(RoundEndedEvent)
+            && item.ReasonCode == "inspector-round-boundary");
+        Assert.Contains(projection.Engine.EventJournal, item => item.EventType == nameof(GameEndedEvent)
+            && item.OutcomeName == "inspector-outcome");
         Assert.DoesNotContain("secret-werewolf", projection.Engine.EventJournal.Select(item => item.ToString()));
         Assert.Contains(projection.Engine.PendingInputs, input => input.ParticipantId == "human-1" && input.Status == PendingInputStatus.Waiting.ToString());
         Assert.Single(projection.PromptEnvelopes);
@@ -67,12 +83,33 @@ public sealed class GameInspectorServiceTests
         {
             EventJournal = state.EventJournal
                 .Append(GameStartedEvent.Create(gameId, module.ModuleId, module.ModuleVersion, 99))
+                .Append(PendingInputRequestedEvent.Create(
+                    gameId,
+                    new PendingInputId("pending-human"),
+                    new ParticipantId("human-1"),
+                    new GameStageId("vote"),
+                    "vote"))
                 .Append(PlayerChoiceSubmittedEvent.Create(
                     gameId,
                     new PendingInputId("pending-agent"),
                     new ParticipantId("agent-1"),
                     "secret-werewolf",
-                    GameEventVisibility.PrivateToParticipant(new ParticipantId("agent-1")))),
+                    GameEventVisibility.PrivateToParticipant(new ParticipantId("agent-1"))))
+                .Append(AgentResponseRejectedEvent.Create(
+                    gameId,
+                    new PendingInputId("pending-agent"),
+                    new ParticipantId("agent-1"),
+                    "parse-fail",
+                    "The response was not JSON.",
+                    GameEventVisibility.HiddenSystemOnly))
+                .Append(NoActionTakenEvent.Create(
+                    gameId,
+                    new PendingInputId("pending-agent"),
+                    new ParticipantId("agent-1"),
+                    "parse-fail",
+                    GameEventVisibility.HiddenSystemOnly))
+                .Append(RoundEndedEvent.Create(gameId, 1, "inspector-round-boundary"))
+                .Append(GameEndedEvent.Create(gameId, "inspector-outcome")),
         };
 
         return new GameRuntimeState
@@ -108,7 +145,7 @@ public sealed class GameInspectorServiceTests
                 {
                     ParticipantId = "agent-1",
                     LastDeliveredPublicEngineEventSequence = 1,
-                    DeliveredPrivateEventIds = [state.EventJournal.Events[1].EventId.ToString()],
+                    DeliveredPrivateEventIds = [state.EventJournal.Events[2].EventId.ToString()],
                     CommunicationDeliveredThroughSequence = 2,
                     MemoryRevision = 1,
                     LastPromptEnvelopeId = "env-latest",
@@ -136,7 +173,7 @@ public sealed class GameInspectorServiceTests
                     ContentHash = "hash-memory",
                     LastSummarizedRoundNumber = 1,
                     LastSummarizedPublicEngineEventSequence = 1,
-                    LastSummarizedPrivateEventIds = [state.EventJournal.Events[1].EventId.ToString()],
+                    LastSummarizedPrivateEventIds = [state.EventJournal.Events[2].EventId.ToString()],
                     LastSummarizedCommunicationSequence = 2,
                 },
             ],

@@ -111,19 +111,22 @@ public sealed class GameInspectorService : IGameInspectorService
             .ToArray();
     }
 
-    private static GameInspectorEventProjection ToEventProjection(IGameEvent gameEvent) =>
-        new()
+    private static GameInspectorEventProjection ToEventProjection(IGameEvent gameEvent)
+    {
+        var facts = GameEventIntrospection.Inspect(gameEvent);
+        return new GameInspectorEventProjection
         {
             EventId = gameEvent.EventId.ToString(),
             Sequence = gameEvent.Sequence,
             EventType = gameEvent.GetType().Name,
             OccurredAt = gameEvent.OccurredAt,
             Visibility = gameEvent.Visibility.Kind.ToString(),
-            ParticipantId = ParticipantIdFor(gameEvent),
-            PendingInputId = PendingInputIdFor(gameEvent),
-            ReasonCode = ReasonCodeFor(gameEvent),
-            OutcomeName = gameEvent is GameEndedEvent ended ? ended.OutcomeName : null,
+            ParticipantId = facts.ParticipantId,
+            PendingInputId = facts.PendingInputId,
+            ReasonCode = facts.ReasonCode,
+            OutcomeName = facts.OutcomeName,
         };
+    }
 
     private static GameInspectorPendingInputProjection ToPendingInputProjection(PendingInputState input) =>
         new()
@@ -189,37 +192,6 @@ public sealed class GameInspectorService : IGameInspectorService
             ResponseContentHash = envelope.ResponseContentHash,
             PromptPreview = Preview(envelope.PromptText, 600),
             ResponsePreview = Preview(envelope.ResponseText, 300),
-        };
-
-    private static string? ParticipantIdFor(IGameEvent gameEvent) =>
-        gameEvent switch
-        {
-            PlayerChoiceSubmittedEvent choice => choice.ParticipantId.Value,
-            AgentResponseRejectedEvent rejected => rejected.ParticipantId.Value,
-            NoActionTakenEvent noAction => noAction.ParticipantId.Value,
-            PendingInputRequestedEvent requested => requested.ParticipantId.Value,
-            _ => null,
-        };
-
-    private static string? PendingInputIdFor(IGameEvent gameEvent) =>
-        gameEvent switch
-        {
-            PlayerChoiceSubmittedEvent choice => choice.PendingInputId.Value,
-            AgentResponseRejectedEvent rejected => rejected.PendingInputId.Value,
-            NoActionTakenEvent noAction => noAction.PendingInputId.Value,
-            PendingInputRequestedEvent requested => requested.PendingInputId.Value,
-            _ => null,
-        };
-
-    private static string? ReasonCodeFor(IGameEvent gameEvent) =>
-        gameEvent switch
-        {
-            AgentResponseRejectedEvent rejected => rejected.ReasonCode,
-            NoActionTakenEvent noAction => noAction.ReasonCode,
-            IntentCommandRejectedEvent rejected => rejected.ReasonCode,
-            GameAbortedEvent aborted => aborted.ReasonCode,
-            RoundEndedEvent roundEnded => roundEnded.ReasonCode,
-            _ => null,
         };
 
     private static string? Preview(string? value, int maxLength)
