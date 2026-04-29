@@ -52,8 +52,8 @@ public static class GameIntentCommandValidationService
             RequestPendingInputIntentCommand request => ValidateRequestPendingInput(state, request),
             AdvanceStageIntentCommand => IntentCommandValidationResult.Accepted,
             EndRoundIntentCommand => IntentCommandValidationResult.Accepted,
-            EndGameIntentCommand => IntentCommandValidationResult.Accepted,
-            AbortGameIntentCommand => IntentCommandValidationResult.Accepted,
+            EndGameIntentCommand => ValidateTerminalCommand(state),
+            AbortGameIntentCommand => ValidateTerminalCommand(state),
             _ => IntentCommandValidationResult.Rejected(new ValidationIssue("unknown_intent_command", "Intent command type is not recognized."))
         };
     }
@@ -71,6 +71,13 @@ public static class GameIntentCommandValidationService
         var issue = result.Issues[0];
         return IntentCommandRejectedEvent.Create(command, issue.Code, issue.Message);
     }
+
+    private static IntentCommandValidationResult ValidateTerminalCommand(RulesGameState state) =>
+        state.Status is RulesGameStatus.Running or RulesGameStatus.WaitingForInput or RulesGameStatus.Resolving
+            ? IntentCommandValidationResult.Accepted
+            : IntentCommandValidationResult.Rejected(new ValidationIssue(
+                "game_not_active",
+                "Terminal commands require an active game."));
 
     private static IntentCommandValidationResult ValidateSubmitPlayerChoice(
         RulesGameState state,

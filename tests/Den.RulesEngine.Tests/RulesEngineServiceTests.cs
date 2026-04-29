@@ -216,6 +216,53 @@ public sealed class RulesEngineServiceTests
     }
 
     [Fact]
+    public void Apply_AbortGame_RunsModuleLifecycleBeforeTerminalFactAndClearsInputs()
+    {
+        var module = new TransitionTestModule(emitTerminalLifecycleEvent: true);
+        var service = CreateService(module);
+        var state = CreateRunningState(module) with
+        {
+            PendingInputs =
+            [
+                new PendingInputState(
+                    new PendingInputId("input-1"),
+                    Alice,
+                    DayStage.StageId,
+                    "vote",
+                    PendingInputStatus.Waiting,
+                    [new LegalIntentOption("vote", "Vote", "Choose a target.")])
+            ]
+        };
+
+        var result = service.Apply(state, new AbortGameIntentCommand(
+            GameIntentCommandId.NewId(),
+            GameId,
+            "host_cancelled"));
+
+        Assert.True(result.IsAccepted);
+        Assert.Equal(RulesGameStatus.Aborted, result.State.Status);
+        Assert.Empty(result.State.PendingInputs);
+        Assert.Equal(CleanupStage, result.State.Stage);
+        Assert.Collection(
+            result.Events,
+            gameEvent =>
+            {
+                var lifecycle = Assert.IsType<DeterministicEffectsAdvancedEvent>(gameEvent);
+                Assert.Equal("module-aborting", lifecycle.EffectName);
+                Assert.Equal(1, lifecycle.Sequence);
+            },
+            gameEvent =>
+            {
+                var aborted = Assert.IsType<GameAbortedEvent>(gameEvent);
+                Assert.Equal("host_cancelled", aborted.ReasonCode);
+                Assert.Equal(2, aborted.Sequence);
+            });
+        Assert.Equal(
+            [RulesResolutionPhase.CanStart, RulesResolutionPhase.OnRun, RulesResolutionPhase.OnEnd],
+            result.TraceRecords.Select(record => record.Phase).ToArray());
+    }
+
+    [Fact]
     public void Apply_AbortGame_AllowsModuleLifecycleToRejectTerminalCommand()
     {
         var module = new TransitionTestModule(rejectAbort: true);
@@ -247,6 +294,27 @@ public sealed class RulesEngineServiceTests
         Assert.Equal("abort_vetoed", rejected.ReasonCode);
         Assert.Equal(1, rejected.Sequence);
         Assert.Equal([RulesResolutionPhase.CanStart], result.TraceRecords.Select(record => record.Phase).ToArray());
+    }
+
+    [Fact]
+    public void Apply_TerminalCommand_RejectsAlreadyTerminalGameWithoutRunningModuleLifecycle()
+    {
+        var module = new TransitionTestModule(emitTerminalLifecycleEvent: true);
+        var service = CreateService(module);
+        var state = CreateRunningState(module) with { Status = RulesGameStatus.Ended };
+
+        var result = service.Apply(state, new EndGameIntentCommand(
+            GameIntentCommandId.NewId(),
+            GameId,
+            "duplicate"));
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal(RulesGameStatus.Ended, result.State.Status);
+        Assert.Equal("game_not_active", Assert.Single(result.Issues).Code);
+        Assert.Empty(result.TraceRecords);
+        var rejected = Assert.IsType<IntentCommandRejectedEvent>(Assert.Single(result.Events));
+        Assert.Equal("game_not_active", rejected.ReasonCode);
+        Assert.DoesNotContain(result.State.EventJournal.Events, gameEvent => gameEvent is GameEndedEvent);
     }
 
     [Fact]
@@ -403,6 +471,14 @@ public sealed class RulesEngineServiceTests
                 return GameModuleTransitionResult.Accepted(
                     next,
                     [DeterministicEffectsAdvancedEvent.Create(context.State.GameInstanceId, "module-ending")]);
+            }
+
+            if (context.Command is AbortGameIntentCommand && context.Phase == RulesResolutionPhase.OnRun && _emitTerminalLifecycleEvent)
+            {
+                var next = context.State with { Stage = CleanupStage };
+                return GameModuleTransitionResult.Accepted(
+                    next,
+                    [DeterministicEffectsAdvancedEvent.Create(context.State.GameInstanceId, "module-aborting")]);
             }
 
             if (context.Command is not AdvanceDeterministicEffectsIntentCommand advance
