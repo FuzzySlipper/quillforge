@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Den.RulesEngine;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
@@ -85,9 +86,17 @@ public sealed class GameIntentTranslationAgent : IGameIntentTranslationAgent
             return GameIntentTranslationResult.Rejected("translator_low_confidence", "The game input translator was not confident enough to submit an action.");
         }
 
+        var pendingInputId = parsed.PendingInputId.Trim();
+        var choiceName = parsed.ChoiceName.Trim();
+        var legalChoiceIssue = ValidateLegalChoice(request.PendingInputs, pendingInputId, choiceName);
+        if (legalChoiceIssue is not null)
+        {
+            return legalChoiceIssue;
+        }
+
         return GameIntentTranslationResult.Accepted(
-            parsed.PendingInputId.Trim(),
-            parsed.ChoiceName.Trim(),
+            pendingInputId,
+            choiceName,
             parsed.Confidence,
             NormalizeMessage(parsed.Message, "Translated player text into a typed game action."));
     }
@@ -140,6 +149,30 @@ public sealed class GameIntentTranslationAgent : IGameIntentTranslationAgent
         {
             return null;
         }
+    }
+
+    private static GameIntentTranslationResult? ValidateLegalChoice(
+        IReadOnlyList<PendingInputState> pendingInputs,
+        string pendingInputId,
+        string choiceName)
+    {
+        var pendingInput = pendingInputs.FirstOrDefault(input =>
+            string.Equals(input.PendingInputId.Value, pendingInputId, StringComparison.Ordinal));
+        if (pendingInput is null)
+        {
+            return GameIntentTranslationResult.Rejected(
+                "translator_unknown_pending_input",
+                $"The game input translator selected unknown pending input '{pendingInputId}'.");
+        }
+
+        if (!pendingInput.LegalOptions.Any(option => string.Equals(option.IntentName, choiceName, StringComparison.Ordinal)))
+        {
+            return GameIntentTranslationResult.Rejected(
+                "translator_illegal_choice",
+                $"The game input translator selected illegal choice '{choiceName}' for pending input '{pendingInputId}'.");
+        }
+
+        return null;
     }
 
     private static string NormalizeReasonCode(string? reasonCode, string fallback) =>

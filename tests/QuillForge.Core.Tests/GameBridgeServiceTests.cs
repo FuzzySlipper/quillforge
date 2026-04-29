@@ -148,13 +148,42 @@ public sealed class GameBridgeServiceTests
             sessionId,
             new StartGameFromTemplateCommand("test-template", "Human Player", 42, Instant(0)));
 
+        fixture.Store.ResetLoadCount();
         var result = await fixture.Bridge.SubmitTextActionAsync(
             sessionId,
             new SubmitGameTextActionCommand("human-1", "I reject it.", Instant(1)));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.True(fixture.Store.LoadCount <= 3, $"Expected text action submit to avoid redundant pre-submit reloads, saw {fixture.Store.LoadCount} loads.");
         Assert.Contains(result.Value!.EngineEvents, gameEvent => gameEvent is PlayerChoiceSubmittedEvent submitted
             && submitted.ChoiceName == "reject");
+    }
+
+    [Fact]
+    public async Task SubmitTextAction_RejectsTranslatorChoiceOutsideLegalOptionsBeforeEngineSubmission()
+    {
+        var translator = new ScriptedTranslationAgent(GameIntentTranslationResult.Accepted(
+            TestGameModule.PendingInputId,
+            "invent-new-rule",
+            0.95,
+            "hallucinated choice"));
+        var fixture = CreateFixture(translator);
+        var sessionId = Guid.NewGuid();
+        await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("test-template", "Human Player", 42, Instant(0)));
+
+        fixture.Store.ResetLoadCount();
+        var result = await fixture.Bridge.SubmitTextActionAsync(
+            sessionId,
+            new SubmitGameTextActionCommand("human-1", "Do something new.", Instant(1)));
+
+        Assert.Equal(SessionMutationStatus.Invalid, result.Status);
+        Assert.Contains("translator_illegal_choice", result.Error, StringComparison.Ordinal);
+        Assert.Equal(1, fixture.Store.LoadCount);
+        var persisted = await fixture.Store.LoadAsync(sessionId);
+        Assert.Equal(GameRuntimeStatus.Running, persisted.Game!.Status);
+        Assert.DoesNotContain(persisted.Game.EngineSnapshot!.EventJournal.Events, gameEvent => gameEvent is PlayerChoiceSubmittedEvent);
     }
 
     [Fact]
@@ -202,6 +231,29 @@ public sealed class GameBridgeServiceTests
         Assert.Contains("not the game master", prompt, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("must not decide outcomes", prompt, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Return only compact JSON", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GameIntentTranslationAgent_RejectsAcceptedChoiceOutsideLegalOptions()
+    {
+        var completion = new ScriptedCompletionService(
+            """
+            {"accepted":true,"pendingInputId":"pending-human-choice","choiceName":"invent-new-rule","confidence":0.95,"reasonCode":"translated","message":"hallucinated action"}
+            """);
+        var agent = new GameIntentTranslationAgent(
+            completion,
+            new AppConfig(),
+            NullLogger<GameIntentTranslationAgent>.Instance);
+
+        var result = await agent.TranslateAsync(new GameIntentTranslationRequest(
+            "game-001",
+            "human-1",
+            "do something surprising",
+            [CreatePendingInput()],
+            Instant(1)));
+
+        Assert.False(result.IsAccepted);
+        Assert.Equal("translator_illegal_choice", result.ReasonCode);
     }
 
     private static Fixture CreateFixture(IGameIntentTranslationAgent? translationAgent = null)
@@ -263,6 +315,17 @@ public sealed class GameBridgeServiceTests
     private static DateTimeOffset Instant(int minutes) =>
         DateTimeOffset.Parse("2026-04-27T12:00:00+00:00").AddMinutes(minutes);
 
+    private static PendingInputState CreatePendingInput() => new(
+        new PendingInputId(TestGameModule.PendingInputId),
+        new ParticipantId("human-1"),
+        new GameStageId("choice"),
+        "choice",
+        PendingInputStatus.Waiting,
+        [
+            new LegalIntentOption("approve", "Approve", "Approve the proposal."),
+            new LegalIntentOption("reject", "Reject", "Reject the proposal."),
+        ]);
+
     private sealed record Fixture(GameBridgeService Bridge, InMemoryStateStore Store);
 
     private sealed class ScriptedTranslationAgent : IGameIntentTranslationAgent
@@ -282,6 +345,29 @@ public sealed class GameBridgeServiceTests
         {
             Requests.Add(request);
             return Task.FromResult(_result);
+        }
+    }
+
+    private sealed class ScriptedCompletionService : ICompletionService
+    {
+        private readonly string _response;
+
+        public ScriptedCompletionService(string response)
+        {
+            _response = response;
+        }
+
+        public Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default) =>
+            Task.FromResult(new CompletionResponse
+            {
+                Content = new MessageContent(_response),
+                StopReason = StopReason.EndTurn,
+                Usage = new TokenUsage(1, 1),
+            });
+
+        public IAsyncEnumerable<StreamEvent> StreamAsync(CompletionRequest request, CancellationToken ct = default)
+        {
+            throw new NotSupportedException();
         }
     }
 
@@ -321,8 +407,13 @@ public sealed class GameBridgeServiceTests
     {
         private readonly Dictionary<Guid, SessionState> _states = [];
 
+        public int LoadCount { get; private set; }
+
+        public void ResetLoadCount() => LoadCount = 0;
+
         public Task<SessionState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
         {
+            LoadCount++;
             if (sessionId is null)
             {
                 return Task.FromResult(new SessionState());

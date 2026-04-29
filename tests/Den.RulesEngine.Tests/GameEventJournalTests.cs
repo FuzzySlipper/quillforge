@@ -78,6 +78,19 @@ public sealed class GameEventJournalTests
     }
 
     [Fact]
+    public void StoredGameEvent_FromKnownEventUsesDiscriminatorEventType()
+    {
+        var gameId = new GameInstanceId("game-1");
+        var journaled = GameEventJournal.Empty(gameId)
+            .Append(GameStartedEvent.Create(gameId, new GameModuleId("test"), new GameModuleVersion("1.0.0"), seed: 42))
+            .Events[0];
+
+        var stored = StoredGameEvent.FromEvent(journaled);
+
+        Assert.Equal("game_started", stored.EventType);
+    }
+
+    [Fact]
     public void Append_RejectsEventsForDifferentGameInstances()
     {
         var journal = GameEventJournal.Empty(new GameInstanceId("game-1"));

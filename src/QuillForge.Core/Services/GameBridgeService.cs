@@ -119,17 +119,7 @@ public sealed class GameBridgeService : IGameBridgeService
             return SessionMutationResult<GameBridgeMutationResult>.Invalid("No game runtime is available for this session.");
         }
 
-        var engineCommand = new SubmitPlayerChoiceIntentCommand(
-            GameIntentCommandId.NewId(),
-            runtime.EngineSnapshot.GameInstanceId,
-            new PendingInputId(command.PendingInputId),
-            new ParticipantId(command.ParticipantId),
-            command.ChoiceName);
-        var result = await _runtimeService.ApplyEngineCommandAsync(
-            sessionId,
-            new ApplyGameRuntimeEngineCommand(engineCommand, command.OccurredAt),
-            ct);
-        return await ToBridgeResultAsync(sessionId, result, command.ParticipantId, ct);
+        return await SubmitTypedActionCoreAsync(sessionId, runtime, command, ct);
     }
 
     public async Task<SessionMutationResult<GameBridgeMutationResult>> SubmitTextActionAsync(
@@ -175,12 +165,30 @@ public sealed class GameBridgeService : IGameBridgeService
                 $"{translation.ReasonCode}: {translation.Message}");
         }
 
+        var translatedPendingInputId = translation.PendingInputId?.Trim();
+        var translatedChoiceName = translation.ChoiceName?.Trim();
+        var translatedActionIssue = ValidateTranslatedAction(
+            playerProjection.PendingInputs,
+            translatedPendingInputId,
+            translatedChoiceName);
+        if (translatedActionIssue is not null)
+        {
+            _logger.LogInformation(
+                "Game text action rejected after translator returned illegal action: session={SessionId} game={GameInstanceId} participant={ParticipantId} reason={ReasonCode}",
+                sessionId,
+                runtime.GameInstanceId,
+                command.ParticipantId,
+                translatedActionIssue.ReasonCode);
+            return SessionMutationResult<GameBridgeMutationResult>.Invalid(
+                $"{translatedActionIssue.ReasonCode}: {translatedActionIssue.Message}");
+        }
+
         var typed = new SubmitGameTypedActionCommand(
             command.ParticipantId,
-            translation.PendingInputId!,
-            translation.ChoiceName!,
+            translatedPendingInputId!,
+            translatedChoiceName!,
             command.OccurredAt);
-        return await SubmitTypedActionAsync(sessionId, typed, ct);
+        return await SubmitTypedActionCoreAsync(sessionId, runtime, typed, ct);
     }
 
     public async Task<SessionMutationResult<GameBridgeMutationResult>> PostPublicMessageAsync(
@@ -230,6 +238,25 @@ public sealed class GameBridgeService : IGameBridgeService
     {
         var result = await _runtimeService.AbortAsync(sessionId, command, ct);
         return await ToBridgeResultAsync(sessionId, result, null, ct);
+    }
+
+    private async Task<SessionMutationResult<GameBridgeMutationResult>> SubmitTypedActionCoreAsync(
+        Guid sessionId,
+        GameRuntimeState runtime,
+        SubmitGameTypedActionCommand command,
+        CancellationToken ct)
+    {
+        var engineCommand = new SubmitPlayerChoiceIntentCommand(
+            GameIntentCommandId.NewId(),
+            runtime.EngineSnapshot!.GameInstanceId,
+            new PendingInputId(command.PendingInputId),
+            new ParticipantId(command.ParticipantId),
+            command.ChoiceName);
+        var result = await _runtimeService.ApplyEngineCommandAsync(
+            sessionId,
+            new ApplyGameRuntimeEngineCommand(engineCommand, command.OccurredAt),
+            ct);
+        return await ToBridgeResultAsync(sessionId, result, command.ParticipantId, ct);
     }
 
     private async Task<SessionMutationResult<GameBridgeMutationResult>> ToBridgeResultAsync(
@@ -532,6 +559,37 @@ public sealed class GameBridgeService : IGameBridgeService
             GameTemplateRuleOptionValueKind.ParticipantSet => new ParticipantSetGameSetupValue(value.Name, value.ParticipantSetValue.Select(item => new ParticipantId(item)).ToArray()),
             _ => throw new ArgumentException($"Unsupported template rule option kind '{value.Kind}'.", nameof(value)),
         };
+
+    private static GameIntentTranslationResult? ValidateTranslatedAction(
+        IReadOnlyList<PendingInputState> pendingInputs,
+        string? pendingInputId,
+        string? choiceName)
+    {
+        if (string.IsNullOrWhiteSpace(pendingInputId) || string.IsNullOrWhiteSpace(choiceName))
+        {
+            return GameIntentTranslationResult.Rejected(
+                "translator_missing_action",
+                "The game input translator omitted the pending input or choice name.");
+        }
+
+        var input = pendingInputs.FirstOrDefault(item =>
+            string.Equals(item.PendingInputId.Value, pendingInputId, StringComparison.Ordinal));
+        if (input is null)
+        {
+            return GameIntentTranslationResult.Rejected(
+                "translator_unknown_pending_input",
+                $"The game input translator selected unknown pending input '{pendingInputId}'.");
+        }
+
+        if (!input.LegalOptions.Any(option => string.Equals(option.IntentName, choiceName, StringComparison.Ordinal)))
+        {
+            return GameIntentTranslationResult.Rejected(
+                "translator_illegal_choice",
+                $"The game input translator selected illegal choice '{choiceName}' for pending input '{pendingInputId}'.");
+        }
+
+        return null;
+    }
 
     private static string NormalizeDisplayName(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();

@@ -272,7 +272,7 @@ public sealed record StoredGameEvent(
             gameEvent.GameInstanceId,
             gameEvent.OccurredAt,
             gameEvent.Visibility,
-            gameEvent.GetType().Name);
+            GameEventJsonConverter.StoredEventType(gameEvent));
 
     public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
         this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };
@@ -320,6 +320,19 @@ public sealed class GameEventJsonConverter : JsonConverter<IGameEvent>
         where T : IGameEvent =>
         JsonSerializer.Deserialize<T>(json, options)
         ?? throw new JsonException($"Could not deserialize game event payload as {typeof(T).Name}.");
+
+    internal static string StoredEventType(IGameEvent gameEvent)
+    {
+        if (gameEvent is StoredGameEvent stored)
+        {
+            return stored.EventType;
+        }
+
+        var discriminator = Discriminator(gameEvent);
+        return discriminator == "stored_game_event"
+            ? gameEvent.GetType().Name
+            : discriminator;
+    }
 
     private static string Discriminator(IGameEvent gameEvent) => gameEvent switch
     {
