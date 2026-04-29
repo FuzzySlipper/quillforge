@@ -71,6 +71,32 @@ public sealed class GameTemplateModuleValidatorTests
         Assert.Contains(result.Issues, issue => issue.Code == "unsupported_setup_option" && issue.Source == GameTemplateValidationSources.Module);
     }
 
+    [Fact]
+    public async Task ValidateAsync_ReturnsTypedIssueWhenRegistryLoadStateIsInconsistent()
+    {
+        var module = new FlappingDescriptorModule();
+        var registry = new GameModuleRegistry();
+        Assert.True(registry.Register(module).IsValid);
+        var validator = new GameTemplateModuleValidator(registry, new GameSetupValidationService(registry));
+        var template = CreateTemplate() with
+        {
+            Module = new GameTemplateModuleSelection
+            {
+                ModuleId = FlappingDescriptorModule.ModuleIdValue,
+                MinimumVersion = "1.0.0",
+                MaximumVersion = "1.0.0",
+            },
+            RulesOptions = new GameTemplateRulesOptions { Values = [] },
+        };
+
+        var result = await validator.ValidateAsync(template);
+
+        var issue = Assert.Single(result.Issues);
+        Assert.Equal("loadable_module_missing", issue.Code);
+        Assert.Equal("module", issue.Field);
+        Assert.Equal(GameTemplateValidationSources.Module, issue.Source);
+    }
+
     private static GameTemplateModuleValidator CreateValidator()
     {
         var registryResult = new GameModuleRegistryFactory().Create([new WerewolfModule()]);
@@ -110,4 +136,42 @@ public sealed class GameTemplateModuleValidatorTests
                 ],
             },
         };
+
+    private sealed class FlappingDescriptorModule : IGameModule
+    {
+        public const string ModuleIdValue = "flapping-module";
+
+        private int _descriptorAccessCount;
+
+        public GameModuleDescriptor Descriptor
+        {
+            get
+            {
+                _descriptorAccessCount++;
+                var version = _descriptorAccessCount <= 2 ? "1.0.0" : "9.0.0";
+                return new GameModuleDescriptor(
+                    new GameModuleId(ModuleIdValue),
+                    new GameModuleVersion(version),
+                    new GameTemplateVersion("1.0.0"),
+                    new GameTemplateVersion("1.0.0"),
+                    "Flapping Module",
+                    new PlayerCountRange(1, 8),
+                    []);
+            }
+        }
+
+        public ValidationResult ValidateSetup(GameSetupValidationContext context) => ValidationResult.Valid;
+
+        public RulesGameState CreateInitialState(GameSetupInitializationContext context) =>
+            RulesGameState.CreateNotStarted(context.GameInstanceId, context.Descriptor, 1, []);
+
+        public IReadOnlyList<LegalIntentDescriptor> GetLegalIntentDescriptors(RulesGameState state, ParticipantId participantId) => [];
+
+        public GameModuleTransitionResult HandleIntentCommand(GameModuleTransitionContext context) =>
+            GameModuleTransitionResult.Accepted(context.State, []);
+
+        public IReadOnlyList<GameRuleHandlerDescriptor> GetRuleHandlerDescriptors() => [];
+
+        public IReadOnlyList<GamePromptAsset> GetPromptAssets() => [];
+    }
 }

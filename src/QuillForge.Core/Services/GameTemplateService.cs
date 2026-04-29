@@ -357,7 +357,7 @@ public sealed class GameTemplateService : IGameTemplateService
         var normalized = NormalizeOptional(templateId);
         if (normalized is null)
         {
-            throw new ArgumentException("Template id is required.", parameterName);
+            throw new ArgumentException($"{parameterName} is required.");
         }
 
         return normalized;

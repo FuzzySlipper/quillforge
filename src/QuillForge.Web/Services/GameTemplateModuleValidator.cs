@@ -31,8 +31,19 @@ public sealed class GameTemplateModuleValidator : IGameTemplateModuleValidator
             return Task.FromResult(GameTemplateValidationResult.FromIssues(issues));
         }
 
-        var module = _registry.FindLoadable(loadRequest)
-            ?? throw new InvalidOperationException("Registry CanLoad succeeded but no loadable module was found.");
+        var module = _registry.FindLoadable(loadRequest);
+        if (module is null)
+        {
+            issues.Add(new GameTemplateValidationIssue
+            {
+                Code = "loadable_module_missing",
+                Field = "module",
+                Message = $"Module '{template.Module.ModuleId}' passed load validation but no compatible module version could be loaded.",
+                Source = GameTemplateValidationSources.Module,
+            });
+            return Task.FromResult(GameTemplateValidationResult.FromIssues(issues));
+        }
+
         var setup = ToGameSetup(template.RulesOptions.Values);
         var participants = ToParticipants(template.Roster);
         var setupResult = _setupValidationService.Validate(

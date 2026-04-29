@@ -191,6 +191,20 @@ public sealed class GameTemplateServiceTests
         Assert.Equal("Copy Template", clone.Template.DisplayName);
     }
 
+    [Fact]
+    public async Task CloneAsync_RejectsMissingTargetTemplateIdWithSpecificFieldMessage()
+    {
+        var service = CreateService(
+            new InMemoryGameTemplateStore(),
+            new FakeProviderCatalog(["local"]),
+            new FakeModuleValidator());
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.CloneAsync("source", " ", displayName: null));
+
+        Assert.Equal("targetTemplateId is required.", exception.Message);
+    }
+
     private static GameTemplateService CreateService(
         IGameTemplateStore store,
         IGameTemplateProviderCatalog providerCatalog,
