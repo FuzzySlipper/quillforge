@@ -124,7 +124,9 @@ function PendingInputCard({
   const pendingInputId = valueOf(input.pendingInputId);
   const stageId = valueOf(input.stageId);
   const form = actionForms.find(candidate => candidate.intentName === input.intentName && candidate.stageId === stageId);
-  const fieldHint = form?.fields.find(field => field.name === "choiceName")?.description;
+  const choiceField = form?.fields.find(field => field.valueKind === "ChoiceName");
+  const fieldHint = choiceField?.description;
+  const unsupportedFields = form?.fields.filter(field => field.valueKind !== "ChoiceName") ?? [];
 
   return (
     <div className="qf-shell-card border-accent/30 bg-accent/10 px-4 py-4">
@@ -133,6 +135,11 @@ function PendingInputCard({
       <div className="mt-1 text-xs text-text-muted">stage · {stageId}</div>
       {form?.description && <p className="mt-2 text-xs leading-5 text-text-muted">{form.description}</p>}
       {fieldHint && <p className="mt-1 text-xs leading-5 text-text-muted">{fieldHint}</p>}
+      {unsupportedFields.length > 0 && (
+        <p className="mt-1 text-xs leading-5 text-text-muted">
+          Additional module fields are described in metadata, but this workspace only submits typed legal choices.
+        </p>
+      )}
       <div className="mt-3 flex flex-col gap-2">
         {input.legalOptions.map((option) => (
           <button

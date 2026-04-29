@@ -42,7 +42,7 @@ public sealed record GameModuleAuthoringHooks(
     IReadOnlyList<GameActionFormDescriptor> ActionForms,
     GameProjectionCapabilities ProjectionCapabilities)
 {
-    public static GameModuleAuthoringHooks Empty { get; } = new([], [], new GameProjectionCapabilities(true, true, true));
+    public static GameModuleAuthoringHooks Empty { get; } = new([], [], new GameProjectionCapabilities(false, false, false));
 }
 
 public sealed record GameStageDescriptor(

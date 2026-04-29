@@ -3,6 +3,14 @@ namespace Den.RulesEngine.Tests;
 public sealed class GameModuleRegistryTests
 {
     [Fact]
+    public void EmptyAuthoringHooks_DefaultToNoProjectionCapabilities()
+    {
+        Assert.False(GameModuleAuthoringHooks.Empty.ProjectionCapabilities.SupportsPublicEventProjection);
+        Assert.False(GameModuleAuthoringHooks.Empty.ProjectionCapabilities.SupportsParticipantPrivateProjection);
+        Assert.False(GameModuleAuthoringHooks.Empty.ProjectionCapabilities.SupportsHostInspectorProjection);
+    }
+
+    [Fact]
     public void Register_StoresExplicitModulesByIdAndVersion()
     {
         var registry = new GameModuleRegistry();

@@ -4,12 +4,34 @@ using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Web.Contracts;
 using QuillForge.Web.Services;
 
 namespace QuillForge.Architecture.Tests;
 
 public sealed class WerewolfUiScenarioTests
 {
+    [Fact]
+    public async Task GameViewResponse_NormalBridgePath_ProjectsPopulatedModuleAuthoring()
+    {
+        var fixture = CreateFixture();
+        var sessionId = Guid.NewGuid();
+
+        var start = await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("werewolf-test-template", "Human", 42, Instant(0)));
+
+        Assert.Equal(SessionMutationStatus.Success, start.Status);
+        var response = new GameViewResponse { View = start.Value!.View };
+
+        Assert.NotNull(response.View.ModuleAuthoring);
+        Assert.Contains(response.View.ModuleAuthoring!.Stages, stage => stage.StageId == "night" && stage.DisplayName == "Night");
+        Assert.Contains(response.View.ModuleAuthoring.ActionForms, form =>
+            form.IntentName == "night-action" && form.Fields.Any(field => field.ValueKind == "ChoiceName"));
+        Assert.True(response.View.ModuleAuthoring.ProjectionCapabilities.SupportsPublicEventProjection);
+        Assert.True(response.View.ModuleAuthoring.ProjectionCapabilities.SupportsParticipantPrivateProjection);
+    }
+
     [Fact]
     public async Task WerewolfBridge_Playthrough_ProjectsRoleStageVoteAndOutcomeWithoutLeakingRoles()
     {

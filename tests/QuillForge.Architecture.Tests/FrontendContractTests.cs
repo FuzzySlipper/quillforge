@@ -469,6 +469,9 @@ public sealed class FrontendContractTests
         Assert.Contains("<WerewolfGamePanel", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"games-no-game-state\"", source, StringComparison.Ordinal);
         Assert.Contains("No game is running in this session.", source, StringComparison.Ordinal);
+        Assert.Contains("field.valueKind === \"ChoiceName\"", source, StringComparison.Ordinal);
+        Assert.Contains("this workspace only submits typed legal choices", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("field.name === \"choiceName\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("sendChatStream", source, StringComparison.Ordinal);
     }
 
