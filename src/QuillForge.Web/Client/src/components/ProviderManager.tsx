@@ -554,6 +554,11 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                 className={inputClass}
               />
             )}
+            {editing && editing !== "__new__" && (
+              <div className="text-[10px] text-text-muted mt-1">
+                Leave blank while editing to keep the current provider model. Select or enter a model to replace it.
+              </div>
+            )}
           </div>
 
           <div>

@@ -112,7 +112,7 @@ curl -X POST http://localhost:5204/api/providers \
   -d '{"alias":"local","type":"Ollama","baseUrl":"http://localhost:11434","model":"qwen2.5:14b"}'
 ```
 
-Provider records still persist that value in the legacy `defaultModel` field for backward compatibility, and the API continues to accept `defaultModel` from older scripts. New UI/API flows present it as the provider's model. Game-template catalog responses expose `model` as the primary provider model field while keeping legacy `defaultModel` for compatibility. Saving a provider fills any blank or legacy `default` agent model assignments with that provider alias without overwriting explicit agent assignments.
+Provider records still persist that value in the legacy `defaultModel` field for backward compatibility, and the API continues to accept `defaultModel` from older scripts. New UI/API flows present it as the provider's model. Game-template catalog responses expose `model` as the primary provider model field while keeping legacy `defaultModel` for compatibility. Saving a provider fills any blank or legacy `default` agent model assignments with that provider alias without overwriting explicit agent assignments. When editing a provider, leaving the model blank keeps the currently stored provider model; choose or enter another model to replace it.
 
 ## Configuration
 

@@ -473,6 +473,8 @@ public sealed class FrontendContractTests
         Assert.Contains("Saving a provider fills unassigned agent rows", source, StringComparison.Ordinal);
         Assert.Contains("Choose provider...", source, StringComparison.Ordinal);
         Assert.Contains("model-id (or click Fetch Models)", source, StringComparison.Ordinal);
+        Assert.Contains("Leave blank while editing to keep the current provider model", source, StringComparison.Ordinal);
+        Assert.Contains("if (form.model) updates.model = form.model", source, StringComparison.Ordinal);
         Assert.DoesNotContain("default (primary model)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Default model", source, StringComparison.Ordinal);
         Assert.DoesNotContain("use provider default", source, StringComparison.Ordinal);
