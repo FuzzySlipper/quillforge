@@ -153,64 +153,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
         }
 
         var state = await _store.LoadAsync(sessionId, ct);
-        var runtime = state.Game;
-        if (runtime?.EngineSnapshot is null)
-        {
-            return SessionMutationResult<GameRuntimeMutationResult>.Invalid("No game runtime is available for this session.");
-        }
-
-        if (!string.Equals(runtime.GameInstanceId, command.EngineCommand.GameInstanceId.Value, StringComparison.Ordinal))
-        {
-            return SessionMutationResult<GameRuntimeMutationResult>.Invalid("Engine command targets a different game instance.");
-        }
-
-        var liveState = runtime.EngineSnapshot.ToState();
-        var applyResult = _rulesEngine.Apply(liveState, command.EngineCommand);
-        if (!applyResult.IsAccepted)
-        {
-            runtime.EngineSnapshot = RulesGameStateSnapshot.FromState(applyResult.State);
-            runtime.Status = ToRuntimeStatus(applyResult.State.Status);
-            runtime.LastUpdatedAt = command.OccurredAt;
-            GameRuntimeStateCloner.AppendHostRecord(
-                runtime,
-                GameRuntimeHostRecordKind.EngineCommandApplied,
-                command.OccurredAt,
-                applyResult.Issues[0].Code,
-                $"Engine command rejected: {applyResult.Issues[0].Message}");
-            await _store.SaveAsync(state, ct);
-            return Invalid(applyResult.Issues[0]);
-        }
-
-        UpdateRuntimeFromApplyResult(runtime, applyResult.State, command.OccurredAt);
-        LinkEngineEventsToCommunication(runtime, applyResult.State, applyResult.Events);
-        var hostRecordKind = runtime.Status == GameRuntimeStatus.Aborted
-            ? GameRuntimeHostRecordKind.Aborted
-            : GameRuntimeHostRecordKind.EngineCommandApplied;
-        GameRuntimeStateCloner.AppendHostRecord(
-            runtime,
-            hostRecordKind,
-            command.OccurredAt,
-            "engine_command_applied",
-            $"Applied {command.EngineCommand.GetType().Name}.");
-        await _store.SaveAsync(state, ct);
-
-        _logger.LogInformation(
-            "Game engine command applied: session={SessionId} game={GameInstanceId} command={CommandType} status={Status} eventCount={EventCount}",
-            sessionId,
-            runtime.GameInstanceId,
-            command.EngineCommand.GetType().Name,
-            runtime.Status,
-            applyResult.Events.Count);
-
-        var runtimeEvent = new GameRuntimeEngineCommandAppliedEvent(
-            runtime.GameInstanceId!,
-            command.EngineCommand.CommandId,
-            command.EngineCommand.GetType().Name,
-            runtime.Status,
-            applyResult.Events,
-            command.OccurredAt);
-        return SessionMutationResult<GameRuntimeMutationResult>.Success(
-            new GameRuntimeMutationResult(GameRuntimeStateCloner.Clone(runtime)!, [runtimeEvent], applyResult.Events));
+        return await ApplyEngineCommandCoreAsync(sessionId, state, command, ct);
     }
 
     public async Task<SessionMutationResult<GameRuntimeMutationResult>> ResumeAsync(
@@ -548,11 +491,84 @@ public sealed class GameRuntimeService : IGameRuntimeService
             new GameRuntimeMemorySummaryMutationResult(GameRuntimeStateCloner.Clone(runtime)!, [runtimeEvent]));
     }
 
+    private async Task<SessionMutationResult<GameRuntimeMutationResult>> ApplyEngineCommandCoreAsync(
+        Guid sessionId,
+        SessionState state,
+        ApplyGameRuntimeEngineCommand command,
+        CancellationToken ct)
+    {
+        var runtime = state.Game;
+        if (runtime?.EngineSnapshot is null)
+        {
+            return SessionMutationResult<GameRuntimeMutationResult>.Invalid("No game runtime is available for this session.");
+        }
+
+        if (!string.Equals(runtime.GameInstanceId, command.EngineCommand.GameInstanceId.Value, StringComparison.Ordinal))
+        {
+            return SessionMutationResult<GameRuntimeMutationResult>.Invalid("Engine command targets a different game instance.");
+        }
+
+        var liveState = runtime.EngineSnapshot.ToState();
+        var applyResult = _rulesEngine.Apply(liveState, command.EngineCommand);
+        if (!applyResult.IsAccepted)
+        {
+            runtime.EngineSnapshot = RulesGameStateSnapshot.FromState(applyResult.State);
+            runtime.Status = ToRuntimeStatus(applyResult.State.Status);
+            runtime.LastUpdatedAt = command.OccurredAt;
+            GameRuntimeStateCloner.AppendHostRecord(
+                runtime,
+                GameRuntimeHostRecordKind.EngineCommandApplied,
+                command.OccurredAt,
+                applyResult.Issues[0].Code,
+                $"Engine command rejected: {applyResult.Issues[0].Message}");
+            await _store.SaveAsync(state, ct);
+            return Invalid(applyResult.Issues[0]);
+        }
+
+        UpdateRuntimeFromApplyResult(runtime, applyResult.State, command.OccurredAt);
+        LinkEngineEventsToCommunication(runtime, applyResult.State, applyResult.Events);
+        var hostRecordKind = runtime.Status == GameRuntimeStatus.Aborted
+            ? GameRuntimeHostRecordKind.Aborted
+            : GameRuntimeHostRecordKind.EngineCommandApplied;
+        GameRuntimeStateCloner.AppendHostRecord(
+            runtime,
+            hostRecordKind,
+            command.OccurredAt,
+            "engine_command_applied",
+            $"Applied {command.EngineCommand.GetType().Name}.");
+        await _store.SaveAsync(state, ct);
+
+        _logger.LogInformation(
+            "Game engine command applied: session={SessionId} game={GameInstanceId} command={CommandType} status={Status} eventCount={EventCount}",
+            sessionId,
+            runtime.GameInstanceId,
+            command.EngineCommand.GetType().Name,
+            runtime.Status,
+            applyResult.Events.Count);
+
+        var runtimeEvent = new GameRuntimeEngineCommandAppliedEvent(
+            runtime.GameInstanceId!,
+            command.EngineCommand.CommandId,
+            command.EngineCommand.GetType().Name,
+            runtime.Status,
+            applyResult.Events,
+            command.OccurredAt);
+        return SessionMutationResult<GameRuntimeMutationResult>.Success(
+            new GameRuntimeMutationResult(GameRuntimeStateCloner.Clone(runtime)!, [runtimeEvent], applyResult.Events));
+    }
+
     private async Task<SessionMutationResult<GameRuntimeMutationResult>> AbortAsyncCore(
         Guid sessionId,
         AbortGameRuntimeCommand command,
         CancellationToken ct)
     {
+        const string operationName = "abort_game_runtime";
+        await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
+        if (lease is null)
+        {
+            return Busy();
+        }
+
         var state = await _store.LoadAsync(sessionId, ct);
         var runtime = state.Game;
         if (runtime?.EngineSnapshot is null || string.IsNullOrWhiteSpace(runtime.GameInstanceId))
@@ -564,8 +580,9 @@ public sealed class GameRuntimeService : IGameRuntimeService
             command.CommandId,
             runtime.EngineSnapshot.GameInstanceId,
             NormalizeReasonCode(command.ReasonCode));
-        var result = await ApplyEngineCommandAsync(
+        var result = await ApplyEngineCommandCoreAsync(
             sessionId,
+            state,
             new ApplyGameRuntimeEngineCommand(abortIntent, command.AbortedAt),
             ct);
         if (result.Status != SessionMutationStatus.Success || result.Value is null)

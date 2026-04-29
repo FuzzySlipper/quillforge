@@ -37,6 +37,24 @@ public sealed class GameRuntimeServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_RejectsOverlappingSameSessionStartAsBusy()
+    {
+        var sessionId = Guid.NewGuid();
+        var store = new InMemorySessionRuntimeStore();
+        var gate = new InMemorySessionMutationGate(NullLogger<InMemorySessionMutationGate>.Instance);
+        var service = CreateService(store, gate);
+
+        await using var heldLease = await gate.TryAcquireAsync(sessionId, "held_by_other_game_mutation");
+        Assert.NotNull(heldLease);
+
+        var result = await service.StartAsync(sessionId, CreateStartCommand());
+
+        Assert.Equal(SessionMutationStatus.Busy, result.Status);
+        var persisted = await store.LoadAsync(sessionId);
+        Assert.Null(persisted.Game);
+    }
+
+    [Fact]
     public async Task ResumeAsync_RecordsResumeWithoutChangingEngineSnapshot()
     {
         var sessionId = Guid.NewGuid();
@@ -63,10 +81,12 @@ public sealed class GameRuntimeServiceTests
         await service.StartAsync(sessionId, CreateStartCommand());
 
         var abortedAt = DateTimeOffset.Parse("2026-04-27T12:05:00+00:00");
+        store.ResetLoadCount();
         var result = await service.AbortAsync(
             sessionId,
             new AbortGameRuntimeCommand(GameIntentCommandId.NewId(), "user_aborted", abortedAt));
 
+        Assert.Equal(1, store.LoadCount);
         Assert.Equal(SessionMutationStatus.Success, result.Status);
         Assert.Equal(GameRuntimeStatus.Aborted, result.Value!.Game.Status);
         Assert.Equal(abortedAt, result.Value.Game.EndedAt);
@@ -251,8 +271,13 @@ public sealed class GameRuntimeServiceTests
     {
         private readonly Dictionary<Guid, SessionState> _states = new();
 
+        public int LoadCount { get; private set; }
+
+        public void ResetLoadCount() => LoadCount = 0;
+
         public Task<SessionState> LoadAsync(Guid? sessionId, CancellationToken ct = default)
         {
+            LoadCount++;
             if (!sessionId.HasValue)
             {
                 return Task.FromResult(new SessionState());
