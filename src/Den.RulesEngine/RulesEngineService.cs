@@ -150,7 +150,8 @@ public sealed class RulesEngineService
             state.GameInstanceId,
             command.PendingInputId,
             command.ParticipantId,
-            NormalizeReasonCode(command.ReasonCode));
+            NormalizeReasonCode(command.ReasonCode),
+            command.Visibility);
 
         var serviceResult = AcceptWithEvents(working, [noAction]);
         var moduleResult = ApplyModulePhases(serviceResult.State, module, command, []);

@@ -84,6 +84,41 @@ public sealed class WerewolfModuleTests
     }
 
     [Fact]
+    public void NightNoActionTimeouts_ResolveToDayDiscussionBoundaryWhenAllPlayersFinish()
+    {
+        var started = StartGame(seed: 99);
+        var service = CreateService();
+        var requested = service.Apply(started.State, new RequestPendingInputIntentCommand(
+            GameIntentCommandId.NewId(),
+            GameId,
+            WerewolfConstants.NightStage.StageId,
+            "night-action",
+            [new LegalIntentOption(WerewolfConstants.SkipNightChoice, "Skip", "No night action.")],
+            PendingInputAudience.AllActiveParticipants));
+
+        var state = requested.State;
+        RulesEngineApplyResult? last = null;
+        foreach (var pendingInput in requested.State.PendingInputs.ToArray())
+        {
+            last = service.Apply(state, new RecordNoActionTakenIntentCommand(
+                GameIntentCommandId.NewId(),
+                GameId,
+                pendingInput.PendingInputId,
+                pendingInput.ParticipantId,
+                "retry-exhaustion",
+                GameEventVisibility.HiddenSystemOnly));
+            state = last.State;
+        }
+
+        Assert.NotNull(last);
+        Assert.True(last.IsAccepted);
+        Assert.Equal(WerewolfConstants.DayDiscussionStage.StageId, last.State.Stage.StageId);
+        Assert.Empty(last.State.PendingInputs);
+        Assert.Contains(last.Events, gameEvent => gameEvent is WerewolfNightActionsResolvedEvent);
+        Assert.Contains(last.Events.OfType<WerewolfStageStartedEvent>(), gameEvent => gameEvent.StageId == WerewolfConstants.DayDiscussionStage.StageId);
+    }
+
+    [Fact]
     public void Voting_EliminatesWerewolfAndEndsWithVillagerWin()
     {
         var started = StartGame(seed: 42);

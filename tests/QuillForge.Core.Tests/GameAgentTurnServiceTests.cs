@@ -107,8 +107,83 @@ public sealed class GameAgentTurnServiceTests
             sessionId,
             new RunGameAgentTurnsCommand(Instant(1)));
 
-        var rejected = Assert.Single(result.Value!.EngineEvents.OfType<AgentResponseRejectedEvent>());
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        var participant = Assert.Single(result.Value!.ParticipantResults);
+        Assert.Equal("hidden-info-attempt", participant.ReasonCode);
+        var rejected = Assert.Single(result.Value.EngineEvents.OfType<AgentResponseRejectedEvent>());
         Assert.Equal(GameEventVisibilityKind.HiddenSystemOnly, rejected.Visibility.Kind);
+        var noAction = Assert.Single(result.Value.EngineEvents.OfType<NoActionTakenEvent>());
+        Assert.Equal("hidden-info-attempt", noAction.ReasonCode);
+        Assert.Equal(GameEventVisibilityKind.HiddenSystemOnly, noAction.Visibility.Kind);
+
+        var publicProjection = new GameVisibilityProjector().ProjectPublic(result.Value.Game!.EngineSnapshot!.ToState().EventJournal);
+        Assert.DoesNotContain(publicProjection.Events, gameEvent => gameEvent.EventType == nameof(NoActionTakenEvent));
+    }
+
+    [Fact]
+    public async Task RunPendingAgentTurns_MissingProviderAliasRecordsProviderLevelNoActionWithoutProviderCall()
+    {
+        var completion = new ScriptedCompletionService(_ => AcceptedJson("approve"));
+        var fixture = CreateFixture(completion);
+        var sessionId = Guid.NewGuid();
+        await StartRuntimeAsync(fixture.Runtime, sessionId, singleAgent: true);
+        fixture.Store.SetAgentProviderAlias(sessionId, "agent-a", " ");
+
+        var result = await fixture.AgentTurns.RunPendingAgentTurnsAsync(
+            sessionId,
+            new RunGameAgentTurnsCommand(Instant(1)));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.Empty(completion.Requests);
+        var participant = Assert.Single(result.Value!.ParticipantResults);
+        Assert.Equal(GameAgentTurnOutcome.Rejected, participant.Outcome);
+        Assert.Equal("provider-level-failure", participant.ReasonCode);
+        Assert.Null(participant.ProviderAlias);
+        Assert.Contains(result.Value.EngineEvents.OfType<AgentResponseRejectedEvent>(), rejected => rejected.ReasonCode == "provider-level-failure");
+        Assert.Contains(result.Value.EngineEvents.OfType<NoActionTakenEvent>(), noAction => noAction.ReasonCode == "provider-level-failure");
+    }
+
+    [Fact]
+    public async Task RunPendingAgentTurns_ProviderExceptionRecordsProviderLevelNoAction()
+    {
+        var completion = new ThrowingCompletionService(new InvalidOperationException("provider boom"));
+        var fixture = CreateFixture(completion);
+        var sessionId = Guid.NewGuid();
+        await StartRuntimeAsync(fixture.Runtime, sessionId, singleAgent: true);
+
+        var result = await fixture.AgentTurns.RunPendingAgentTurnsAsync(
+            sessionId,
+            new RunGameAgentTurnsCommand(Instant(1)));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.Single(completion.Requests);
+        var participant = Assert.Single(result.Value!.ParticipantResults);
+        Assert.Equal(GameAgentTurnOutcome.Rejected, participant.Outcome);
+        Assert.Equal("provider-level-failure", participant.ReasonCode);
+        Assert.Contains("provider boom", participant.Message, StringComparison.Ordinal);
+        Assert.Contains(result.Value.EngineEvents.OfType<AgentResponseRejectedEvent>(), rejected => rejected.ReasonCode == "provider-level-failure");
+        Assert.Contains(result.Value.EngineEvents.OfType<NoActionTakenEvent>(), noAction => noAction.ReasonCode == "provider-level-failure");
+    }
+
+    [Fact]
+    public async Task RunPendingAgentTurns_ResponseTimeoutRecordsRetryExhaustionNoAction()
+    {
+        var completion = new TimeoutCompletionService();
+        var fixture = CreateFixture(completion);
+        var sessionId = Guid.NewGuid();
+        await StartRuntimeAsync(fixture.Runtime, sessionId, singleAgent: true);
+
+        var result = await fixture.AgentTurns.RunPendingAgentTurnsAsync(
+            sessionId,
+            new RunGameAgentTurnsCommand(Instant(1), ResponseTimeout: TimeSpan.FromMilliseconds(1)));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.Single(completion.Requests);
+        var participant = Assert.Single(result.Value!.ParticipantResults);
+        Assert.Equal(GameAgentTurnOutcome.Rejected, participant.Outcome);
+        Assert.Equal("retry-exhaustion", participant.ReasonCode);
+        Assert.Contains(result.Value.EngineEvents.OfType<AgentResponseRejectedEvent>(), rejected => rejected.ReasonCode == "retry-exhaustion");
+        Assert.Contains(result.Value.EngineEvents.OfType<NoActionTakenEvent>(), noAction => noAction.ReasonCode == "retry-exhaustion");
     }
 
     [Fact]
@@ -287,6 +362,50 @@ public sealed class GameAgentTurnServiceTests
         }
     }
 
+    private sealed class ThrowingCompletionService : ICompletionService
+    {
+        private readonly Exception _exception;
+
+        public ThrowingCompletionService(Exception exception)
+        {
+            _exception = exception;
+        }
+
+        public List<CompletionRequest> Requests { get; } = [];
+
+        public Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
+        {
+            Requests.Add(request);
+            throw _exception;
+        }
+
+        public async IAsyncEnumerable<StreamEvent> StreamAsync(CompletionRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            var response = await CompleteAsync(request, ct);
+            yield return new TextDeltaEvent(response.Content.GetText());
+            yield return new DoneEvent(response.StopReason, response.Usage);
+        }
+    }
+
+    private sealed class TimeoutCompletionService : ICompletionService
+    {
+        public List<CompletionRequest> Requests { get; } = [];
+
+        public async Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
+        {
+            Requests.Add(request);
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new InvalidOperationException("Timeout delay unexpectedly completed.");
+        }
+
+        public async IAsyncEnumerable<StreamEvent> StreamAsync(CompletionRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            var response = await CompleteAsync(request, ct);
+            yield return new TextDeltaEvent(response.Content.GetText());
+            yield return new DoneEvent(response.StopReason, response.Usage);
+        }
+    }
+
     private sealed class InMemoryStateStore : ISessionStateStore
     {
         private readonly Dictionary<Guid, SessionState> _states = [];
@@ -328,6 +447,12 @@ public sealed class GameAgentTurnServiceTests
             var memory = _states[sessionId].Game!.AgentMemories.Single(item => item.ParticipantId == participantId);
             memory.Summary = summary;
             memory.Revision = 1;
+        }
+
+        public void SetAgentProviderAlias(Guid sessionId, string participantId, string? providerAlias)
+        {
+            var binding = _states[sessionId].Game!.ParticipantBindings.Single(item => item.ParticipantId == participantId);
+            binding.ProviderAlias = providerAlias;
         }
     }
 

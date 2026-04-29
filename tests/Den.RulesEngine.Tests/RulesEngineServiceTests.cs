@@ -136,6 +136,38 @@ public sealed class RulesEngineServiceTests
     }
 
     [Fact]
+    public void Apply_NoActionTaken_UsesRequestedVisibilityAndMarksInputTimedOut()
+    {
+        var module = new TransitionTestModule();
+        var service = CreateService(module);
+        var pendingInput = new PendingInputState(
+            new PendingInputId("input-1"),
+            Alice,
+            DayStage.StageId,
+            "vote",
+            PendingInputStatus.Waiting,
+            [new LegalIntentOption("vote", "Vote", "Choose a target.")]);
+        var state = CreateRunningState(module) with
+        {
+            PendingInputs = [pendingInput]
+        };
+
+        var result = service.Apply(state, new RecordNoActionTakenIntentCommand(
+            GameIntentCommandId.NewId(),
+            GameId,
+            pendingInput.PendingInputId,
+            Alice,
+            "hidden-info-attempt",
+            GameEventVisibility.HiddenSystemOnly));
+
+        Assert.True(result.IsAccepted);
+        Assert.Equal(PendingInputStatus.TimedOut, Assert.Single(result.State.PendingInputs).Status);
+        var noAction = Assert.IsType<NoActionTakenEvent>(Assert.Single(result.Events));
+        Assert.Equal("hidden-info-attempt", noAction.ReasonCode);
+        Assert.Equal(GameEventVisibilityKind.HiddenSystemOnly, noAction.Visibility.Kind);
+    }
+
+    [Fact]
     public void Apply_EndRound_EmitsRoundBoundaryFactsAndLeavesMemoryUpdatesOutOfScope()
     {
         var module = new TransitionTestModule();

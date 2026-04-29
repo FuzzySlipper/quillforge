@@ -352,9 +352,13 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         var currentRuntime = await _runtimeService.LoadViewAsync(sessionId, ct);
         if (currentRuntime?.EngineSnapshot is not null)
         {
-            var visibility = reasonCode == "hidden-info-attempt"
+            var isSensitiveReason = reasonCode == "hidden-info-attempt";
+            var visibility = isSensitiveReason
                 ? GameEventVisibility.HiddenSystemOnly
                 : GameEventVisibility.PrivateToParticipant(completion.PendingInput.ParticipantId);
+            var noActionVisibility = isSensitiveReason
+                ? GameEventVisibility.HiddenSystemOnly
+                : GameEventVisibility.Public;
             var rejection = await _runtimeService.ApplyEngineCommandAsync(
                 sessionId,
                 new ApplyGameRuntimeEngineCommand(
@@ -385,7 +389,8 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
                             refreshed.EngineSnapshot.GameInstanceId,
                             completion.PendingInput.PendingInputId,
                             completion.PendingInput.ParticipantId,
-                            reasonCode),
+                            reasonCode,
+                            noActionVisibility),
                         occurredAt),
                     ct);
                 if (noAction.Status == SessionMutationStatus.Success && noAction.Value is not null)

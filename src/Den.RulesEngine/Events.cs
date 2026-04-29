@@ -138,8 +138,9 @@ public sealed record NoActionTakenEvent(
         GameInstanceId gameInstanceId,
         PendingInputId pendingInputId,
         ParticipantId participantId,
-        string reasonCode) =>
-        new(default, 0, gameInstanceId, default, GameEventVisibility.Public, pendingInputId, participantId, reasonCode);
+        string reasonCode,
+        GameEventVisibility? visibility = null) =>
+        new(default, 0, gameInstanceId, default, visibility ?? GameEventVisibility.Public, pendingInputId, participantId, reasonCode);
 
     public override IGameEvent WithJournalMetadata(GameEventId eventId, long sequence, DateTimeOffset occurredAt) =>
         this with { EventId = eventId, Sequence = sequence, OccurredAt = occurredAt };

@@ -42,7 +42,8 @@ public sealed record RecordNoActionTakenIntentCommand(
     GameInstanceId GameInstanceId,
     PendingInputId PendingInputId,
     ParticipantId ParticipantId,
-    string ReasonCode) : IGameIntentCommand;
+    string ReasonCode,
+    GameEventVisibility? Visibility = null) : IGameIntentCommand;
 
 public sealed record RequestPendingInputIntentCommand(
     GameIntentCommandId CommandId,
