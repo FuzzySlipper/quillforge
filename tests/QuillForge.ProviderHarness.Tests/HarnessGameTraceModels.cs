@@ -172,6 +172,8 @@ public sealed record HarnessGameFailureSurfaceTrace
 {
     public IReadOnlyList<HarnessGameAgentFailureTrace> AgentResponseRejected { get; init; } = [];
     public IReadOnlyList<HarnessGameNoActionTrace> NoActionTaken { get; init; } = [];
+    public IReadOnlyList<HarnessGameIntentCommandRejectedTrace> IntentCommandRejected { get; init; } = [];
+    public IReadOnlyList<HarnessGameAbortedTrace> GameAborted { get; init; } = [];
     public IReadOnlyList<HarnessGameMemoryDecisionFailureTrace> MemoryDecisionFlags { get; init; } = [];
 }
 
@@ -186,6 +188,16 @@ public sealed record HarnessGameAgentFailureTrace(
 public sealed record HarnessGameNoActionTrace(
     string ParticipantId,
     string PendingInputId,
+    string ReasonCode,
+    long Sequence);
+
+public sealed record HarnessGameIntentCommandRejectedTrace(
+    string CommandId,
+    string ReasonCode,
+    string Reason,
+    long Sequence);
+
+public sealed record HarnessGameAbortedTrace(
     string ReasonCode,
     long Sequence);
 

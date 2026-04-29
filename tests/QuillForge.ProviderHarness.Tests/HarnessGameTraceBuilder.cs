@@ -263,6 +263,18 @@ public static class HarnessGameTraceBuilder
                     item.ReasonCode,
                     item.Sequence))
                 .ToArray(),
+            IntentCommandRejected = engineEvents.OfType<IntentCommandRejectedEvent>()
+                .Select(item => new HarnessGameIntentCommandRejectedTrace(
+                    item.CommandId.ToString(),
+                    item.ReasonCode,
+                    item.Reason,
+                    item.Sequence))
+                .ToArray(),
+            GameAborted = engineEvents.OfType<GameAbortedEvent>()
+                .Select(item => new HarnessGameAbortedTrace(
+                    item.ReasonCode,
+                    item.Sequence))
+                .ToArray(),
             MemoryDecisionFlags = memoryDecisions
                 .Where(item => item.ExceededTokenBudget || item.Trimmed || item.Retried || !string.IsNullOrWhiteSpace(item.RejectionReason))
                 .Select(item => new HarnessGameMemoryDecisionFailureTrace(

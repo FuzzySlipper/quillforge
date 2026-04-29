@@ -1,6 +1,11 @@
+using System.Text.RegularExpressions;
+using Den.RulesEngine.Werewolf;
+using QuillForge.Core.Models;
+using QuillForge.Core.Services;
+
 namespace QuillForge.ProviderHarness.Tests;
 
-public sealed class HarnessGameScenarioTests
+public sealed partial class HarnessGameScenarioTests
 {
     [Fact]
     public async Task WerewolfVillageWinScenario_CapturesStableGameTraceAndFailureTaxonomy()
@@ -60,6 +65,60 @@ public sealed class HarnessGameScenarioTests
     }
 
     [Fact]
+    public async Task AbortEdgeCaseScenario_CapturesCommandRejectionAndAbortFailureSurface()
+    {
+        var artifactRoot = Path.Combine(Path.GetTempPath(), "quillforge-game-harness-tests", Guid.NewGuid().ToString("N"));
+        var artifactStore = new HarnessRunArtifactStore("game-werewolf-abort-edge-case", artifactRoot);
+        var runner = new HarnessGameScenarioRunner(artifactStore);
+
+        var report = await runner.RunWerewolfAbortEdgeCaseAsync();
+
+        Assert.Equal("game-werewolf-abort-edge-case", report.ScenarioName);
+        Assert.Equal("scripted-fake-completion", report.GameTrace.DeterminismMode);
+        Assert.False(report.GameTrace.LiveProviderRun);
+        Assert.Equal("Aborted", report.GameTrace.Status);
+        Assert.Null(report.GameTrace.FinalOutcome);
+        Assert.Contains(report.GameTrace.EngineEvents, item =>
+            item.EventType == "IntentCommandRejectedEvent" && item.ReasonCode == "unknown_pending_input");
+        Assert.Contains(report.GameTrace.EngineEvents, item =>
+            item.EventType == "GameAbortedEvent" && item.ReasonCode == "harness-abort-edge-case");
+        Assert.Contains(report.GameTrace.RuntimeEvents, item => item.EventName == "GameRuntimeAbortedEvent");
+        Assert.Contains(report.GameTrace.FailureSurface.IntentCommandRejected, item =>
+            item.ReasonCode == "unknown_pending_input" && item.Reason.Contains("Pending input", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(report.GameTrace.FailureSurface.GameAborted, item => item.ReasonCode == "harness-abort-edge-case");
+
+        var jsonPath = Path.Combine(artifactStore.RunDirectory, report.PersistedReport!.AppTraceFile!.Replace('/', Path.DirectorySeparatorChar));
+        var json = await File.ReadAllTextAsync(jsonPath);
+        Assert.Contains("intentCommandRejected", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("gameAborted", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("harness-abort-edge-case", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExploratoryNightEntryPoint_AcceptsFakeCompletionServiceForSmokeGuard()
+    {
+        var artifactRoot = Path.Combine(Path.GetTempPath(), "quillforge-game-harness-tests", Guid.NewGuid().ToString("N"));
+        var artifactStore = new HarnessRunArtifactStore("game-werewolf-exploratory-smoke", artifactRoot);
+        var runner = new HarnessGameScenarioRunner(artifactStore);
+        var template = HarnessGameScenarioRunner.CreateWerewolfHarnessTemplate(memoryTokenBudget: 64) with
+        {
+            TemplateId = "werewolf-harness-exploratory-smoke",
+        };
+
+        var report = await runner.RunWerewolfExploratoryNightAsync(
+            new ExploratorySmokeCompletionService(),
+            template,
+            scenarioName: "game-werewolf-exploratory-smoke");
+
+        Assert.Equal("game-werewolf-exploratory-smoke", report.ScenarioName);
+        Assert.Equal("live-provider-exploratory", report.GameTrace.DeterminismMode);
+        Assert.True(report.GameTrace.LiveProviderRun);
+        Assert.NotEmpty(report.GameTrace.PromptEnvelopes);
+        Assert.Contains(report.GameTrace.Actions, action => action.Outcome == "Applied" && action.ChoiceName == WerewolfConstants.SkipNightChoice);
+        Assert.NotNull(report.PersistedReport);
+    }
+
+    [Fact]
     public async Task RoundBoundaryMemoryScenario_CapturesMemorySummariesCursorsAndTrimFlags()
     {
         var artifactRoot = Path.Combine(Path.GetTempPath(), "quillforge-game-harness-tests", Guid.NewGuid().ToString("N"));
@@ -95,5 +154,38 @@ public sealed class HarnessGameScenarioTests
         Assert.Contains("memorySummaries", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("summary-trimmed", json, StringComparison.Ordinal);
         Assert.Contains("promptCursor", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed partial class ExploratorySmokeCompletionService : ICompletionService
+    {
+        public Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
+        {
+            var prompt = request.Messages.Count == 0 ? string.Empty : request.Messages[0].Content.GetText();
+            var pendingInputId = ExtractPendingInputId(prompt);
+            return Task.FromResult(new CompletionResponse
+            {
+                Content = new MessageContent("{\"accepted\":true,\"pendingInputId\":\"" + pendingInputId + "\",\"choiceName\":\"" + WerewolfConstants.SkipNightChoice + "\",\"message\":\"smoke guard choice\"}"),
+                StopReason = StopReason.EndTurn,
+                Usage = new TokenUsage(13, 7),
+            });
+        }
+
+        public async IAsyncEnumerable<StreamEvent> StreamAsync(
+            CompletionRequest request,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            var response = await CompleteAsync(request, ct);
+            yield return new TextDeltaEvent(response.Content.GetText());
+            yield return new DoneEvent(response.StopReason, response.Usage);
+        }
+
+        private static string ExtractPendingInputId(string prompt)
+        {
+            var match = PendingInputLineRegex().Match(prompt);
+            return match.Success ? match.Groups[1].Value : "missing-pending-input";
+        }
+
+        [GeneratedRegex(@"pendingInputId: ([^\r\n]+)")]
+        private static partial Regex PendingInputLineRegex();
     }
 }

@@ -49,7 +49,7 @@ public sealed partial class HarnessGameScenarioRunner
             ct);
         await SubmitHumanPendingInputAsync(fixture.Bridge, sessionId, "alice", WerewolfConstants.SkipNightChoice, Instant(1).AddSeconds(30), runtimeEvents, ct);
 
-        completion.RejectNextForParticipant("drew", "parse-fail-fixture");
+        completion.RejectNextForParticipant("drew", "scripted-invalid-response");
         var night = await fixture.AgentTurns.RunPendingAgentTurnsAsync(
             sessionId,
             new RunGameAgentTurnsCommand(Instant(2), MaxConcurrency: 1),
@@ -186,6 +186,75 @@ public sealed partial class HarnessGameScenarioRunner
         return report;
     }
 
+    public async Task<HarnessGameScenarioReport> RunWerewolfAbortEdgeCaseAsync(CancellationToken ct = default)
+    {
+        var scenarioName = "game-werewolf-abort-edge-case";
+        var sessionId = Guid.NewGuid();
+        var completion = new ScriptedGameCompletionService();
+        var fixture = CreateFixture(completion, memoryTokenBudget: 64);
+        var runtimeEvents = new List<IGameRuntimeEvent>();
+        var actionResults = new List<GameAgentTurnParticipantResult>();
+        var memoryResults = new List<GameAgentMemorySummaryParticipantResult>();
+
+        var start = await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("werewolf-harness-template", "Alice", 42, Instant(30)),
+            ct);
+        RequireSuccess(start.Status, start.Error, "start Werewolf abort edge-case game");
+        runtimeEvents.AddRange(start.Value!.RuntimeEvents);
+
+        var startedRuntime = await fixture.Runtime.LoadViewAsync(sessionId, ct)
+            ?? throw new InvalidOperationException("Game runtime disappeared before abort edge-case commands.");
+        var invalidChoice = await fixture.Runtime.ApplyEngineCommandAsync(
+            sessionId,
+            new ApplyGameRuntimeEngineCommand(
+                new SubmitPlayerChoiceIntentCommand(
+                    GameIntentCommandId.NewId(),
+                    startedRuntime.EngineSnapshot!.GameInstanceId,
+                    new PendingInputId("missing-pending-input"),
+                    new ParticipantId("alice"),
+                    WerewolfConstants.AbstainChoice),
+                Instant(31)),
+            ct);
+        if (invalidChoice.Status != SessionMutationStatus.Invalid ||
+            invalidChoice.Error?.StartsWith("unknown_pending_input", StringComparison.Ordinal) != true)
+        {
+            throw new InvalidOperationException($"Expected invalid player choice to be rejected as unknown_pending_input; got {invalidChoice.Status}: {invalidChoice.Error}");
+        }
+
+        var abort = await fixture.Bridge.AbortAsync(
+            sessionId,
+            new AbortGameRuntimeCommand(GameIntentCommandId.NewId(), "harness-abort-edge-case", Instant(32)),
+            ct);
+        RequireSuccess(abort.Status, abort.Error, "abort Werewolf edge-case game");
+        runtimeEvents.AddRange(abort.Value!.RuntimeEvents);
+
+        var finalRuntime = await fixture.Runtime.LoadViewAsync(sessionId, ct)
+            ?? throw new InvalidOperationException("Game runtime disappeared after abort edge-case scenario.");
+        var publicView = await fixture.Bridge.GetViewAsync(sessionId, null, ct);
+        var playerViews = await CapturePlayerViewsAsync(fixture.Bridge, sessionId, finalRuntime, ct);
+        var trace = HarnessGameTraceBuilder.FromRuntime(
+            _artifactStore.RunId,
+            scenarioName,
+            sessionId,
+            finalRuntime,
+            publicView,
+            playerViews,
+            actionResults,
+            memoryResults,
+            runtimeEvents,
+            DeterministicMode,
+            DeterministicDescription,
+            liveProviderRun: false);
+        var report = new HarnessGameScenarioReport
+        {
+            ScenarioName = scenarioName,
+            GameTrace = trace,
+        };
+        report = report with { PersistedReport = HarnessRunReportWriter.WriteGameReport(_artifactStore, report) };
+        return report;
+    }
+
     public async Task<HarnessGameScenarioReport> RunWerewolfMemoryAfterRoundAsync(CancellationToken ct = default)
     {
         var scenarioName = "game-werewolf-round-memory";
@@ -279,7 +348,7 @@ public sealed partial class HarnessGameScenarioRunner
     }
 
     private static Fixture CreateFixture(ICompletionService completion, int memoryTokenBudget) =>
-        CreateFixture(completion, CreateTemplate(memoryTokenBudget));
+        CreateFixture(completion, CreateWerewolfHarnessTemplate(memoryTokenBudget));
 
     private static Fixture CreateFixture(ICompletionService completion, GameTemplate template)
     {
@@ -328,7 +397,7 @@ public sealed partial class HarnessGameScenarioRunner
         return new Fixture(runtime, bridge, agentTurns, memory);
     }
 
-    private static GameTemplate CreateTemplate(int memoryTokenBudget) => new()
+    internal static GameTemplate CreateWerewolfHarnessTemplate(int memoryTokenBudget) => new()
     {
         TemplateId = "werewolf-harness-template",
         DisplayName = "Werewolf Harness Template",
@@ -569,9 +638,9 @@ public sealed partial class HarnessGameScenarioRunner
 
         public List<CompletionRequest> Requests { get; } = [];
 
-        public void RejectNextForParticipant(string participantId, string reasonCode)
+        public void RejectNextForParticipant(string participantId, string localDiscriminator)
         {
-            _rejectOnce.Add($"{participantId}:{reasonCode}");
+            _rejectOnce.Add($"{participantId}:{localDiscriminator}");
         }
 
         public Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)

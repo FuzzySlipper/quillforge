@@ -41,11 +41,11 @@ The game trace captures:
 - memory summaries with participant, round, outcome, decision id, provider/model, token usage, trim/retry/refusal fields, and summary hash.
 - public feed plus per-participant private events and private feed entries.
 - engine/runtime events normalized into greppable event names and reason codes.
-- failure-surface taxonomy: `AgentResponseRejected`, `NoActionTaken`, and memory decision flags such as `ExceededTokenBudget`, `Trimmed`, `Retried`, and `RejectionReason`.
+- failure-surface taxonomy: `AgentResponseRejected`, `NoActionTaken`, `IntentCommandRejected`, `GameAborted`, and memory decision flags such as `ExceededTokenBudget`, `Trimmed`, `Retried`, and `RejectionReason`.
 
 ## Current Scenarios
 
-`HarnessGameScenarioRunner` currently provides two scripted Werewolf scenarios plus one optional live-provider exploratory night run:
+`HarnessGameScenarioRunner` currently provides three scripted Werewolf scenarios plus one optional live-provider exploratory night run:
 
 1. `game-werewolf-village-win`
    - starts a Werewolf template with four scripted agent participants.
@@ -59,9 +59,15 @@ The game trace captures:
    - uses a deliberately small memory budget so memory trim flags are present in the trace.
    - records memory cursors, summaries, token usage, and prompt envelopes after the round boundary.
 
-3. `game-werewolf-live-exploratory-night`
+3. `game-werewolf-abort-edge-case`
+   - starts a Werewolf template and records an invalid player-choice command to exercise `IntentCommandRejected` trace capture.
+   - aborts the active game through the runtime/bridge boundary to exercise `GameAborted` and runtime-abort trace capture.
+   - persists the same stable JSON/Markdown artifact shape as the happy-path scenarios.
+
+4. `game-werewolf-live-exploratory-night`
    - available through `RunWerewolfExploratoryNightAsync` for manual/live-provider exploration.
    - uses the caller-provided `ICompletionService` and `GameTemplate`, so configured provider aliases/models come from the supplied template.
+   - has a deterministic fake-completion smoke guard in tests to protect the entrypoint signature without requiring live providers.
    - captures the same trace shape but marks `liveProviderRun: true` and `determinismMode: live-provider-exploratory`.
 
 ## Running The Harness Tests
@@ -83,7 +89,7 @@ For future live-provider exploratory runs:
 - compare provider/model metadata first so runs are not mistaken for equivalent samples.
 - inspect prompt cursor fields to see which public engine events, private event ids, communication feed entries, and memory revisions the agent was shown.
 - compare `PromptPreview`/`ResponsePreview` hashes and token usage to identify prompt drift or truncation.
-- treat `AgentResponseRejected`, `NoActionTaken`, `model-refusal`, `parse-fail`, `schema-fail`, `illegal-action`, memory `Trimmed`, and memory `RejectionReason` as first-class failure signals.
+- treat `AgentResponseRejected`, `NoActionTaken`, `IntentCommandRejected`, `GameAborted`, `model-refusal`, `parse-fail`, `schema-fail`, `illegal-action`, memory `Trimmed`, and memory `RejectionReason` as first-class failure signals.
 - use final outcome as a benchmark clue, not proof that a live provider behaved correctly or incorrectly.
 
 ## Boundary Rules
