@@ -82,6 +82,16 @@ function defaultRuleValue(field: GameTemplateSetupFieldOption): GameTemplateRule
 }
 
 const DEFAULT_PROMPT_SELECTION: GamePromptTemplateSelection = { source: "Default", userPromptName: null };
+const DEFAULT_PROMPT_OPTION: GamePromptTemplateOption = {
+  value: "default",
+  displayName: "Default",
+  source: "Default",
+  userPromptName: null,
+  isDefault: true,
+  tokens: 0,
+  size: null,
+  relativePath: null,
+};
 const NONE_PERSONA_SELECTION: GamePersonaPromptSelection = { source: "None", userPromptName: null };
 
 function defaultAgent(participantId: string, providerAlias: string): GameTemplateAgentPlayerConfig {
@@ -145,6 +155,21 @@ function promptSelectionFromValue(value: string): GamePromptTemplateSelection {
   return value.startsWith("user:")
     ? { source: "User", userPromptName: value.slice(5) }
     : DEFAULT_PROMPT_SELECTION;
+}
+
+function promptSelectionIsAvailable(
+  selection: GamePromptTemplateSelection | null | undefined,
+  options: GamePromptTemplateOption[],
+): boolean {
+  const value = promptSelectionValue(selection);
+  return value === "default" || options.some((option) => option.value === value);
+}
+
+function promptSelectionValueForOptions(
+  selection: GamePromptTemplateSelection | null | undefined,
+  options: GamePromptTemplateOption[],
+): string {
+  return promptSelectionIsAvailable(selection, options) ? promptSelectionValue(selection) : "default";
 }
 
 function createDefaultTemplate(
@@ -225,6 +250,7 @@ function mergeModuleDefaults(
   const existingValues = new Map(template.rulesOptions.values.map((value) => [value.name, value]));
   const values = module.setupFields.map((field) => existingValues.get(field.name) ?? defaultRuleValue(field));
   const rosterSize = Math.min(Math.max(template.roster.rosterSize, module.minimumPlayers), module.maximumPlayers);
+  const moduleChanged = template.module.moduleId !== module.moduleId;
   const merged: GameTemplate = {
     ...template,
     module: {
@@ -245,7 +271,21 @@ function mergeModuleDefaults(
     },
   };
 
-  return normalizeRoster(merged, providerAlias, rosterSize);
+  const normalized = normalizeRoster(merged, providerAlias, rosterSize);
+  if (!moduleChanged) {
+    return normalized;
+  }
+
+  return {
+    ...normalized,
+    roster: {
+      ...normalized.roster,
+      agentPlayers: normalized.roster.agentPlayers.map((agent) => ({
+        ...agent,
+        systemPromptTemplate: DEFAULT_PROMPT_SELECTION,
+      })),
+    },
+  };
 }
 
 function providerModel(provider: GameTemplateProviderOption): string | null {
@@ -298,6 +338,7 @@ export default function GameTemplateEditor({
   const [validation, setValidation] = useState<GameTemplateValidationResult | null>(null);
   const [cloneTargetId, setCloneTargetId] = useState("");
   const [promptOptions, setPromptOptions] = useState<GamePromptTemplateOption[]>([]);
+  const [promptOptionsModuleId, setPromptOptionsModuleId] = useState<string | null>(null);
   const [personaOptions, setPersonaOptions] = useState<GamePersonaPromptOption[]>([
     { value: "none", displayName: "None", source: "None", userPromptName: null, isNone: true, tokens: 0, size: null, relativePath: null },
   ]);
@@ -328,6 +369,11 @@ export default function GameTemplateEditor({
       ?? null;
   }, [catalog, template]);
   const defaultProviderAlias = catalog?.providers[0]?.alias ?? "";
+  const promptOptionsLoadedForSelectedModule = !selectedModule || promptOptionsModuleId === selectedModule.moduleId;
+  const promptOptionsForSelect = useMemo(() => {
+    const options = promptOptionsLoadedForSelectedModule ? promptOptions : [DEFAULT_PROMPT_OPTION];
+    return options.some((option) => option.value === "default") ? options : [DEFAULT_PROMPT_OPTION, ...options];
+  }, [promptOptions, promptOptionsLoadedForSelectedModule]);
 
   async function refreshCatalog(): Promise<GameTemplateCatalogResponse> {
     const nextCatalog = await getGameTemplateCatalog();
@@ -419,7 +465,8 @@ export default function GameTemplateEditor({
 
     async function loadPromptOptions() {
       if (!selectedModule) {
-        setPromptOptions([{ value: "default", displayName: "Default", source: "Default", userPromptName: null, isDefault: true, tokens: 0, size: null, relativePath: null }]);
+        setPromptOptions([DEFAULT_PROMPT_OPTION]);
+        setPromptOptionsModuleId(null);
         return;
       }
 
@@ -427,11 +474,13 @@ export default function GameTemplateEditor({
         const response = await listGamePromptTemplates(selectedModule.moduleId);
         if (!cancelled) {
           setPromptOptions(response.prompts);
+          setPromptOptionsModuleId(selectedModule.moduleId);
         }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load game prompt templates");
-          setPromptOptions([{ value: "default", displayName: "Default", source: "Default", userPromptName: null, isDefault: true, tokens: 0, size: null, relativePath: null }]);
+          setPromptOptions([DEFAULT_PROMPT_OPTION]);
+          setPromptOptionsModuleId(selectedModule.moduleId);
         }
       }
     }
@@ -581,7 +630,10 @@ export default function GameTemplateEditor({
 
     setPromptEditorWarning(null);
     await runOperation(async () => {
-      const document = await openGamePromptTemplate(selectedModule.moduleId, normalizePromptSelection(agent.systemPromptTemplate));
+      const selection = promptSelectionIsAvailable(agent.systemPromptTemplate, promptOptionsForSelect)
+        ? normalizePromptSelection(agent.systemPromptTemplate)
+        : DEFAULT_PROMPT_SELECTION;
+      const document = await openGamePromptTemplate(selectedModule.moduleId, selection);
       updateAgent(agent.participantId, (current) => ({ ...current, systemPromptTemplate: document.selection }));
       const refreshed = await listGamePromptTemplates(selectedModule.moduleId);
       setPromptOptions(refreshed.prompts);
@@ -798,7 +850,13 @@ export default function GameTemplateEditor({
               onChange={(event) => {
                 const [moduleId, moduleVersion] = event.target.value.split(":", 2);
                 const module = catalog?.modules.find((item) => item.moduleId === moduleId && item.moduleVersion === moduleVersion);
-                if (module) updateTemplate((current) => mergeModuleDefaults(current, module, defaultProviderAlias));
+                if (module) {
+                  const moduleChanged = template.module.moduleId !== module.moduleId;
+                  updateTemplate((current) => mergeModuleDefaults(current, module, defaultProviderAlias));
+                  if (moduleChanged) {
+                    setMessage("Module changed. AI player system prompt selections were reset to Default for the new module.");
+                  }
+                }
               }}
               className="rounded-lg border border-border bg-input-bg px-3 py-2 text-sm text-text"
             >
@@ -941,6 +999,8 @@ export default function GameTemplateEditor({
         <div className="flex flex-col gap-3">
           {template.roster.agentPlayers.map((agent) => {
             const provider = catalog?.providers.find((item) => item.alias === agent.providerAlias) ?? null;
+            const promptSelectValue = promptSelectionValueForOptions(agent.systemPromptTemplate, promptOptionsForSelect);
+            const promptSelectionUnavailable = promptOptionsLoadedForSelectedModule && !promptSelectionIsAvailable(agent.systemPromptTemplate, promptOptionsForSelect);
             return (
               <div key={agent.participantId} className="qf-shell-card grid gap-3 px-3 py-3 md:grid-cols-2">
                 <div className="md:col-span-2 flex items-center justify-between gap-3">
@@ -988,11 +1048,11 @@ export default function GameTemplateEditor({
                   <span>AI player system prompt</span>
                   <div className="flex gap-2">
                     <select
-                      value={promptSelectionValue(agent.systemPromptTemplate)}
+                      value={promptSelectValue}
                       onChange={(event) => updateAgent(agent.participantId, (current) => ({ ...current, systemPromptTemplate: promptSelectionFromValue(event.target.value) }))}
                       className="min-w-0 flex-1 rounded-lg border border-border bg-input-bg px-3 py-2 text-sm text-text"
                     >
-                      {promptOptions.map((prompt) => (
+                      {promptOptionsForSelect.map((prompt) => (
                         <option key={prompt.value} value={prompt.value}>
                           {prompt.isDefault ? "Default" : prompt.displayName}
                         </option>
@@ -1010,6 +1070,11 @@ export default function GameTemplateEditor({
                   <span className="text-[11px] leading-4 text-text-muted">
                     Default is bundled with the module. Editing Default creates a user-owned markdown copy.
                   </span>
+                  {promptSelectionUnavailable && (
+                    <span className="rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-[11px] leading-4 text-warning-text">
+                      Saved prompt selection is unavailable for this module, so the selector is showing Default. Choose a prompt or save the template to clear the stale selection.
+                    </span>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1 text-xs text-text-muted md:col-span-2">
                   <span>Persona/character prompt</span>

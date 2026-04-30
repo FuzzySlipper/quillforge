@@ -517,6 +517,16 @@ public sealed class FrontendContractTests
         Assert.Contains("writeGamePromptTemplate", source, StringComparison.Ordinal);
         Assert.Contains("AI player system prompt", source, StringComparison.Ordinal);
         Assert.Contains("Editing Default creates a user-owned markdown copy", source, StringComparison.Ordinal);
+        Assert.Contains("promptSelectionValueForOptions", source, StringComparison.Ordinal);
+        Assert.Contains("promptSelectionIsAvailable", source, StringComparison.Ordinal);
+        Assert.Contains("promptOptionsForSelect", source, StringComparison.Ordinal);
+        Assert.Contains("promptOptionsModuleId", source, StringComparison.Ordinal);
+        Assert.Contains("promptOptionsLoadedForSelectedModule", source, StringComparison.Ordinal);
+        Assert.Contains("systemPromptTemplate: DEFAULT_PROMPT_SELECTION", source, StringComparison.Ordinal);
+        Assert.Contains("Module changed. AI player system prompt selections were reset to Default", source, StringComparison.Ordinal);
+        Assert.Contains("Saved prompt selection is unavailable for this module", source, StringComparison.Ordinal);
+        Assert.Contains("value={promptSelectValue}", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("value={promptSelectionValue(agent.systemPromptTemplate)}", source, StringComparison.Ordinal);
         Assert.Contains("<MDEditor", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"game-prompt-editor-overlay\"", source, StringComparison.Ordinal);
         Assert.Contains("role=\"dialog\"", source, StringComparison.Ordinal);
