@@ -37,6 +37,9 @@ public sealed record AppendGameRuntimeHostRecordCommand(
     Guid? SourceSessionId = null,
     Guid? TargetSessionId = null);
 
+public sealed record AppendGameRuntimeHostRecordsCommand(
+    IReadOnlyList<AppendGameRuntimeHostRecordCommand> Records);
+
 public sealed record PostGameRuntimePublicMessageCommand(
     Guid MessageId,
     string ParticipantId,

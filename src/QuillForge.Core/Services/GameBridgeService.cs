@@ -341,12 +341,11 @@ public sealed class GameBridgeService : IGameBridgeService
         var engineEvents = new List<IGameEvent>();
         var initialRuntime = await _runtimeService.LoadViewAsync(sessionId, ct);
         var passLimit = EstimateCoordinatorPassLimit(initialRuntime);
-        await RecordCoordinatorHostRecordAsync(
-            sessionId,
+        var coordinatorRecords = new CoordinatorHostRecordBuffer(_runtimeService, _logger, sessionId);
+        coordinatorRecords.Add(
             occurredAt,
             "coordinator_started",
-            $"Game coordinator started after a start or typed player action. Public/direct messages and end/abort intentionally do not trigger coordination. Safety limit: {passLimit} pass(es).",
-            ct);
+            $"Game coordinator started after a start or typed player action. Public/direct messages and end/abort intentionally do not trigger coordination. Safety limit: {passLimit} pass(es).");
 
         for (var iteration = 0; iteration < passLimit; iteration++)
         {
@@ -355,6 +354,7 @@ public sealed class GameBridgeService : IGameBridgeService
             var requestResult = await RequestStageInputsIfNeededAsync(sessionId, occurredAt, ct);
             if (requestResult.Status != SessionMutationStatus.Success)
             {
+                await coordinatorRecords.FlushAsync(ct);
                 return new SessionMutationResult<GameBridgeCoordinationResult>
                 {
                     Status = requestResult.Status,
@@ -367,12 +367,10 @@ public sealed class GameBridgeService : IGameBridgeService
                 changed = true;
                 runtimeEvents.AddRange(requestResult.Value.RuntimeEvents);
                 engineEvents.AddRange(requestResult.Value.EngineEvents);
-                await RecordCoordinatorHostRecordAsync(
-                    sessionId,
+                coordinatorRecords.Add(
                     occurredAt,
                     "coordinator_requested_pending_inputs",
-                    $"Game coordinator pass {passNumber} requested pending input(s) for the current stage.",
-                    ct);
+                    $"Game coordinator pass {passNumber} requested pending input(s) for the current stage.");
             }
 
             var agentTurns = await _agentTurnService.RunPendingAgentTurnsAsync(
@@ -381,6 +379,7 @@ public sealed class GameBridgeService : IGameBridgeService
                 ct);
             if (agentTurns.Status != SessionMutationStatus.Success)
             {
+                await coordinatorRecords.FlushAsync(ct);
                 return new SessionMutationResult<GameBridgeCoordinationResult>
                 {
                     Status = agentTurns.Status,
@@ -393,36 +392,31 @@ public sealed class GameBridgeService : IGameBridgeService
                 changed = true;
                 runtimeEvents.AddRange(agentTurns.Value.RuntimeEvents);
                 engineEvents.AddRange(agentTurns.Value.EngineEvents);
-                await RecordCoordinatorHostRecordAsync(
-                    sessionId,
+                coordinatorRecords.Add(
                     occurredAt,
                     "coordinator_ran_agent_turns",
-                    $"Game coordinator pass {passNumber} ran pending agent turn work.",
-                    ct);
+                    $"Game coordinator pass {passNumber} ran pending agent turn work.");
             }
 
             if (!changed)
             {
-                await RecordCoordinatorHostRecordAsync(
-                    sessionId,
+                coordinatorRecords.Add(
                     occurredAt,
                     "coordinator_converged",
-                    $"Game coordinator converged after {passNumber} pass(es) with no additional pending input requests or agent turns.",
-                    ct);
+                    $"Game coordinator converged after {passNumber} pass(es) with no additional pending input requests or agent turns.");
                 break;
             }
 
             if (passNumber == passLimit)
             {
-                await RecordCoordinatorHostRecordAsync(
-                    sessionId,
+                coordinatorRecords.Add(
                     occurredAt,
                     "coordinator_safety_limit_reached",
-                    $"Game coordinator stopped after reaching the safety limit of {passLimit} pass(es); no-progress detection did not converge before the limit.",
-                    ct);
+                    $"Game coordinator stopped after reaching the safety limit of {passLimit} pass(es); no-progress detection did not converge before the limit.");
             }
         }
 
+        await coordinatorRecords.FlushAsync(ct);
         return SessionMutationResult<GameBridgeCoordinationResult>.Success(new GameBridgeCoordinationResult(runtimeEvents, engineEvents));
     }
 
@@ -437,32 +431,6 @@ public sealed class GameBridgeService : IGameBridgeService
         var activeParticipants = liveState.Participants.Count(participant => participant.IsActive);
         var waitingInputs = liveState.PendingInputs.Count(input => input.Status == PendingInputStatus.Waiting);
         return Math.Clamp(activeParticipants + waitingInputs + 2, MinimumCoordinatorPassLimit, MaximumCoordinatorPassLimit);
-    }
-
-    private async Task RecordCoordinatorHostRecordAsync(
-        Guid sessionId,
-        DateTimeOffset occurredAt,
-        string reasonCode,
-        string summary,
-        CancellationToken ct)
-    {
-        var result = await _runtimeService.AppendHostRecordAsync(
-            sessionId,
-            new AppendGameRuntimeHostRecordCommand(
-                GameRuntimeHostRecordKind.Coordinator,
-                occurredAt,
-                reasonCode,
-                summary),
-            ct);
-        if (result.Status != SessionMutationStatus.Success)
-        {
-            _logger.LogWarning(
-                "Game coordinator host record was not persisted: session={SessionId} reason={ReasonCode} status={Status} error={Error}",
-                sessionId,
-                reasonCode,
-                result.Status,
-                result.Error);
-        }
     }
 
     private async Task<SessionMutationResult<GameRuntimeMutationResult?>> RequestStageInputsIfNeededAsync(
@@ -583,6 +551,58 @@ public sealed class GameBridgeService : IGameBridgeService
     private sealed record GameBridgeCoordinationResult(
         IReadOnlyList<IGameRuntimeEvent> RuntimeEvents,
         IReadOnlyList<IGameEvent> EngineEvents);
+
+    private sealed class CoordinatorHostRecordBuffer
+    {
+        private readonly IGameRuntimeService _runtimeService;
+        private readonly ILogger<GameBridgeService> _logger;
+        private readonly Guid _sessionId;
+        private readonly List<AppendGameRuntimeHostRecordCommand> _records = [];
+
+        public CoordinatorHostRecordBuffer(
+            IGameRuntimeService runtimeService,
+            ILogger<GameBridgeService> logger,
+            Guid sessionId)
+        {
+            _runtimeService = runtimeService;
+            _logger = logger;
+            _sessionId = sessionId;
+        }
+
+        public void Add(DateTimeOffset occurredAt, string reasonCode, string summary)
+        {
+            _records.Add(new AppendGameRuntimeHostRecordCommand(
+                GameRuntimeHostRecordKind.Coordinator,
+                occurredAt,
+                reasonCode,
+                summary));
+        }
+
+        public async Task FlushAsync(CancellationToken ct)
+        {
+            if (_records.Count == 0)
+            {
+                return;
+            }
+
+            var records = _records.ToArray();
+            _records.Clear();
+            var result = await _runtimeService.AppendHostRecordsAsync(
+                _sessionId,
+                new AppendGameRuntimeHostRecordsCommand(records),
+                ct);
+            if (result.Status != SessionMutationStatus.Success)
+            {
+                _logger.LogWarning(
+                    "Game coordinator host records were not persisted: session={SessionId} recordCount={RecordCount} reasonCodes={ReasonCodes} status={Status} error={Error}",
+                    _sessionId,
+                    records.Length,
+                    string.Join(',', records.Select(record => record.ReasonCode)),
+                    result.Status,
+                    result.Error);
+            }
+        }
+    }
 
     private async Task<SessionMutationResult<GameBridgeMutationResult>> ToBridgeResultAsync(
         Guid sessionId,

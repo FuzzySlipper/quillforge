@@ -243,6 +243,8 @@ public sealed class GameDiagnosticLogServiceTests
 
         public Task<SessionMutationResult<GameRuntimeMutationResult>> AppendHostRecordAsync(Guid sessionId, AppendGameRuntimeHostRecordCommand command, CancellationToken ct = default) => throw new NotSupportedException();
 
+        public Task<SessionMutationResult<GameRuntimeMutationResult>> AppendHostRecordsAsync(Guid sessionId, AppendGameRuntimeHostRecordsCommand command, CancellationToken ct = default) => throw new NotSupportedException();
+
         public Task<SessionMutationResult<GameRuntimeCommunicationMutationResult>> PostPublicMessageAsync(Guid sessionId, PostGameRuntimePublicMessageCommand command, CancellationToken ct = default) => throw new NotSupportedException();
 
         public Task<SessionMutationResult<GameRuntimeCommunicationMutationResult>> SendDirectMessageAsync(Guid sessionId, SendGameRuntimeDirectMessageCommand command, CancellationToken ct = default) => throw new NotSupportedException();

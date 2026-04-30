@@ -1,4 +1,5 @@
 using Den.RulesEngine;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Models;
@@ -37,6 +38,58 @@ public sealed class GameBridgeServiceTests
             && record.ReasonCode == "coordinator_started");
         Assert.Contains(persisted.Game.HostRecords, record => record.Kind == GameRuntimeHostRecordKind.Coordinator
             && record.ReasonCode == "coordinator_converged");
+    }
+
+    [Fact]
+    public async Task CoordinatorSafetyLimit_PersistsBatchedHostRecordWhenWorkDoesNotConverge()
+    {
+        AlwaysBusyAgentTurnService? agentTurnService = null;
+        var fixture = CreateFixture(agentTurnFactory: runtime =>
+        {
+            agentTurnService = new AlwaysBusyAgentTurnService(runtime);
+            return agentTurnService;
+        });
+        var sessionId = Guid.NewGuid();
+
+        var result = await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("test-template", "Human Player", 42, Instant(0)));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.NotNull(agentTurnService);
+        Assert.Equal(5, agentTurnService!.RunCount);
+        var persisted = await fixture.Store.LoadAsync(sessionId);
+        Assert.Contains(persisted.Game!.HostRecords, record => record.Kind == GameRuntimeHostRecordKind.Coordinator
+            && record.ReasonCode == "coordinator_safety_limit_reached");
+        Assert.Equal(5, persisted.Game.HostRecords.Count(record => record.Kind == GameRuntimeHostRecordKind.Coordinator
+            && record.ReasonCode == "coordinator_ran_agent_turns"));
+        Assert.DoesNotContain(persisted.Game.HostRecords, record => record.Kind == GameRuntimeHostRecordKind.Coordinator
+            && record.ReasonCode == "coordinator_converged");
+    }
+
+    [Fact]
+    public async Task MultiFormStage_LogsWarningAndAutoRequestsDeterministicFirstForm()
+    {
+        var logger = new CapturingLogger<GameBridgeService>();
+        var fixture = CreateFixture(
+            module: new MultiFormTestModule(),
+            template: CreateTemplate(MultiFormTestModule.ModuleId, MultiFormTestModule.ModuleVersion),
+            bridgeLogger: logger);
+        var sessionId = Guid.NewGuid();
+
+        var result = await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("test-template", "Human Player", 42, Instant(0)));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        Assert.Contains(logger.Messages, message => message.Level == LogLevel.Warning
+            && message.Message.Contains("multiple action forms", StringComparison.Ordinal)
+            && message.Message.Contains("alpha", StringComparison.Ordinal));
+        var persisted = await fixture.Store.LoadAsync(sessionId);
+        var pendingInputs = persisted.Game!.EngineSnapshot!.ToState().PendingInputs;
+        Assert.NotEmpty(pendingInputs);
+        Assert.All(pendingInputs, input => Assert.Equal("alpha", input.IntentName));
+        Assert.DoesNotContain(pendingInputs, input => input.IntentName == "omega");
     }
 
     [Fact]
@@ -160,7 +213,7 @@ public sealed class GameBridgeServiceTests
             new SubmitGameTextActionCommand("human-1", "I reject it.", Instant(1)));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
-        Assert.Equal(8, fixture.Store.LoadCount);
+        Assert.Equal(7, fixture.Store.LoadCount);
         Assert.Contains(result.Value!.EngineEvents, gameEvent => gameEvent is PlayerChoiceSubmittedEvent submitted
             && submitted.ChoiceName == "reject");
     }
@@ -341,10 +394,16 @@ public sealed class GameBridgeServiceTests
         Assert.Equal("translator_illegal_choice", result.ReasonCode);
     }
 
-    private static Fixture CreateFixture(IGameIntentTranslationAgent? translationAgent = null)
+    private static Fixture CreateFixture(
+        IGameIntentTranslationAgent? translationAgent = null,
+        IGameModule? module = null,
+        GameTemplate? template = null,
+        Func<IGameRuntimeService, IGameAgentTurnService>? agentTurnFactory = null,
+        ILogger<GameBridgeService>? bridgeLogger = null)
     {
         var registry = new GameModuleRegistry();
-        var register = registry.Register(new TestGameModule());
+        var registeredModule = module ?? new TestGameModule();
+        var register = registry.Register(registeredModule);
         Assert.True(register.IsValid);
 
         var store = new InMemoryStateStore();
@@ -358,28 +417,30 @@ public sealed class GameBridgeServiceTests
             NullLogger<GameRuntimeService>.Instance);
         var channel = new ParticipantChannelService();
         var bridge = new GameBridgeService(
-            new StaticTemplateService(CreateTemplate()),
+            new StaticTemplateService(template ?? CreateTemplate()),
             runtime,
             registry,
             translationAgent ?? new ScriptedTranslationAgent(GameIntentTranslationResult.Accepted(TestGameModule.PendingInputId, "approve", 0.9, "parsed")),
-            new NoOpGameAgentTurnService(runtime),
+            agentTurnFactory?.Invoke(runtime) ?? new NoOpGameAgentTurnService(runtime),
             channel,
             new GameVisibilityProjector(),
             new DefaultGameEventNarrationComposer(),
-            NullLogger<GameBridgeService>.Instance);
+            bridgeLogger ?? NullLogger<GameBridgeService>.Instance);
         return new Fixture(bridge, store);
     }
 
-    private static GameTemplate CreateTemplate() => new()
+    private static GameTemplate CreateTemplate(
+        string moduleId = TestGameModule.ModuleId,
+        string moduleVersion = TestGameModule.ModuleVersion) => new()
     {
         TemplateId = "test-template",
         DisplayName = "Test Template",
         TemplateVersion = "1.0.0",
         Module = new GameTemplateModuleSelection
         {
-            ModuleId = TestGameModule.ModuleId,
-            MinimumVersion = TestGameModule.ModuleVersion,
-            MaximumVersion = TestGameModule.ModuleVersion,
+            ModuleId = moduleId,
+            MinimumVersion = moduleVersion,
+            MaximumVersion = moduleVersion,
         },
         Roster = new GameTemplateRosterSettings
         {
@@ -432,6 +493,52 @@ public sealed class GameBridgeServiceTests
                 [],
                 [],
                 []));
+    }
+
+    private sealed class AlwaysBusyAgentTurnService : IGameAgentTurnService
+    {
+        private readonly IGameRuntimeService _runtime;
+
+        public AlwaysBusyAgentTurnService(IGameRuntimeService runtime)
+        {
+            _runtime = runtime;
+        }
+
+        public int RunCount { get; private set; }
+
+        public async Task<SessionMutationResult<GameAgentTurnRunResult>> RunPendingAgentTurnsAsync(
+            Guid sessionId,
+            RunGameAgentTurnsCommand command,
+            CancellationToken ct = default)
+        {
+            RunCount++;
+            return SessionMutationResult<GameAgentTurnRunResult>.Success(new GameAgentTurnRunResult(
+                await _runtime.LoadViewAsync(sessionId, ct),
+                [new GameAgentTurnParticipantResult("agent-1", null, GameAgentTurnOutcome.NoAction, "still_pending", "Still pending.", null, null, new TokenUsage(0, 0))],
+                [],
+                []));
+        }
+    }
+
+    private sealed record CapturedLogMessage(LogLevel Level, string Message);
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<CapturedLogMessage> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(new CapturedLogMessage(logLevel, formatter(state, exception)));
+        }
     }
 
     private sealed class ScriptedTranslationAgent : IGameIntentTranslationAgent
@@ -549,6 +656,80 @@ public sealed class GameBridgeServiceTests
 
         public Task<IReadOnlyList<Guid>> FindSessionIdsByProfileIdAsync(string profileId, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<Guid>>([]);
+    }
+
+    private sealed class MultiFormTestModule : IGameModule
+    {
+        public const string ModuleId = "test-multi-form-game";
+        public const string ModuleVersion = "1.0.0";
+
+        private static readonly GameStageId ChoiceStageId = new("choice");
+
+        public GameModuleDescriptor Descriptor { get; } = new(
+            new GameModuleId(ModuleId),
+            new GameModuleVersion(ModuleVersion),
+            new GameTemplateVersion("1.0.0"),
+            new GameTemplateVersion("1.0.0"),
+            "Test Multi-Form Game",
+            new PlayerCountRange(2, 2),
+            [])
+        {
+            CommunicationCapabilities = new GameCommunicationCapabilities(true, true),
+            ParticipantRequirements = new GameParticipantRequirements(true, true, false, 1, 1),
+            AuthoringHooks = new GameModuleAuthoringHooks(
+                [new GameStageDescriptor(ChoiceStageId, "Choice", "Choose an option.", 1, true, true)],
+                [
+                    new GameActionFormDescriptor(
+                        "omega",
+                        ChoiceStageId,
+                        "Omega choice",
+                        "Second form by ordinal intent name.",
+                        GameActionFormLayout.ButtonList,
+                        [new GameActionFieldDescriptor("choiceName", GameActionFieldKind.ChoiceName, true, "Outcome", "Choose one.")]),
+                    new GameActionFormDescriptor(
+                        "alpha",
+                        ChoiceStageId,
+                        "Alpha choice",
+                        "First form by ordinal intent name.",
+                        GameActionFormLayout.ButtonList,
+                        [new GameActionFieldDescriptor("choiceName", GameActionFieldKind.ChoiceName, true, "Outcome", "Choose one.")]),
+                ],
+                new GameProjectionCapabilities(true, true, true)),
+        };
+
+        public ValidationResult ValidateSetup(GameSetupValidationContext context) => ValidationResult.Valid;
+
+        public RulesGameState CreateInitialState(GameSetupInitializationContext context)
+        {
+            var participants = context.Participants
+                .Select(participant => new ParticipantState(
+                    participant.ParticipantId,
+                    participant.DisplayName,
+                    participant.Kind,
+                    []))
+                .ToArray();
+            return RulesGameState.CreateNotStarted(context.GameInstanceId, Descriptor, context.Seed, participants) with
+            {
+                Stage = new GameStageState(ChoiceStageId, "Choice", 1, true, true),
+            };
+        }
+
+        public IReadOnlyList<LegalIntentDescriptor> GetLegalIntentDescriptors(RulesGameState state, ParticipantId participantId) =>
+        [
+            new LegalIntentDescriptor(
+                "one",
+                "One",
+                "Choose one.",
+                ChoiceStageId,
+                participantId),
+        ];
+
+        public GameModuleTransitionResult HandleIntentCommand(GameModuleTransitionContext context) =>
+            GameModuleTransitionResult.Accepted(context.State, []);
+
+        public IReadOnlyList<GameRuleHandlerDescriptor> GetRuleHandlerDescriptors() => [];
+
+        public IReadOnlyList<GamePromptAsset> GetPromptAssets() => [];
     }
 
     private sealed class TestGameModule : IGameModule

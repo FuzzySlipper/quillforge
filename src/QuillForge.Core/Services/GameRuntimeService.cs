@@ -198,12 +198,23 @@ public sealed class GameRuntimeService : IGameRuntimeService
         return AbortAsyncCore(sessionId, command, ct);
     }
 
-    public async Task<SessionMutationResult<GameRuntimeMutationResult>> AppendHostRecordAsync(
+    public Task<SessionMutationResult<GameRuntimeMutationResult>> AppendHostRecordAsync(
         Guid sessionId,
         AppendGameRuntimeHostRecordCommand command,
+        CancellationToken ct = default) =>
+        AppendHostRecordsAsync(sessionId, new AppendGameRuntimeHostRecordsCommand([command]), ct);
+
+    public async Task<SessionMutationResult<GameRuntimeMutationResult>> AppendHostRecordsAsync(
+        Guid sessionId,
+        AppendGameRuntimeHostRecordsCommand command,
         CancellationToken ct = default)
     {
-        const string operationName = "append_game_host_record";
+        if (command.Records.Count == 0)
+        {
+            return SessionMutationResult<GameRuntimeMutationResult>.Invalid("At least one game host record is required.");
+        }
+
+        const string operationName = "append_game_host_records";
         await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
         if (lease is null)
         {
@@ -217,15 +228,19 @@ public sealed class GameRuntimeService : IGameRuntimeService
             return SessionMutationResult<GameRuntimeMutationResult>.Invalid("No game runtime is available for this session.");
         }
 
-        GameRuntimeStateCloner.AppendHostRecord(
-            runtime,
-            command.Kind,
-            command.OccurredAt,
-            command.ReasonCode,
-            command.Summary,
-            command.SourceSessionId,
-            command.TargetSessionId);
-        runtime.LastUpdatedAt = command.OccurredAt;
+        foreach (var record in command.Records)
+        {
+            GameRuntimeStateCloner.AppendHostRecord(
+                runtime,
+                record.Kind,
+                record.OccurredAt,
+                record.ReasonCode,
+                record.Summary,
+                record.SourceSessionId,
+                record.TargetSessionId);
+        }
+
+        runtime.LastUpdatedAt = command.Records[^1].OccurredAt;
         await _store.SaveAsync(state, ct);
 
         return SessionMutationResult<GameRuntimeMutationResult>.Success(new GameRuntimeMutationResult(
