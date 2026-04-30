@@ -164,6 +164,8 @@ export interface GameDiagnosticLogProjection {
   sessionId: string;
   hasGame: boolean;
   gameInstanceId: string | null;
+  requestedGameInstanceId: string | null;
+  scopeMatchesActiveGame: boolean;
   templateId: string | null;
   moduleId: string | null;
   runtimeStatus: string | null;

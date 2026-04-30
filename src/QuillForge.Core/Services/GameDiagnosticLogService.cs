@@ -22,10 +22,12 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
     public async Task<GameDiagnosticLogProjection> GetLogAsync(
         Guid sessionId,
         int promptPreviewCharacters = 1200,
+        string? requestedGameInstanceId = null,
         CancellationToken ct = default)
     {
         var runtime = await _runtimeService.LoadViewAsync(sessionId, ct);
         var events = new List<EventDraft>();
+        var normalizedRequestedGameInstanceId = Normalize(requestedGameInstanceId);
         var usage = _tokenUsageTracker.GetSessionUsage(sessionId);
         var now = DateTimeOffset.UtcNow;
 
@@ -40,8 +42,32 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
                 "No game runtime has been persisted for this session.",
                 Details: new Dictionary<string, string?> { ["sessionId"] = sessionId.ToString() }));
 
-            events.Add(TokenUsageDraft(now, usage));
-            return BuildProjection(sessionId, null, events);
+            if (normalizedRequestedGameInstanceId is null)
+            {
+                events.Add(TokenUsageDraft(now, usage));
+            }
+
+            return BuildProjection(sessionId, null, events, normalizedRequestedGameInstanceId, scopeMatchesActiveGame: normalizedRequestedGameInstanceId is null);
+        }
+
+        if (normalizedRequestedGameInstanceId is not null
+            && !string.Equals(runtime.GameInstanceId, normalizedRequestedGameInstanceId, StringComparison.Ordinal))
+        {
+            events.Add(new EventDraft(
+                now,
+                GameDiagnosticLogLevel.Warning,
+                GameDiagnosticLogCategory.Endpoint,
+                "QuillForge.Web.Endpoints.GameEndpoints",
+                "diagnostic_scope_mismatch",
+                "The requested game diagnostic scope does not match the session's current game runtime; current runtime details were not included to avoid mixing game logs.",
+                Details: new Dictionary<string, string?>
+                {
+                    ["sessionId"] = sessionId.ToString(),
+                    ["requestedGameInstanceId"] = normalizedRequestedGameInstanceId,
+                    ["currentGameInstanceId"] = runtime.GameInstanceId,
+                    ["currentRuntimeStatus"] = runtime.Status.ToString(),
+                }));
+            return BuildProjection(sessionId, null, events, normalizedRequestedGameInstanceId, scopeMatchesActiveGame: false);
         }
 
         AddRuntimeSnapshot(events, runtime, now);
@@ -52,15 +78,20 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
         AddPromptEnvelopeEvents(events, runtime, promptPreviewCharacters);
         AddPromptCursorEvents(events, runtime);
         AddMemoryEvents(events, runtime, now);
-        events.Add(TokenUsageDraft(runtime.LastUpdatedAt ?? now, usage));
+        if (normalizedRequestedGameInstanceId is null)
+        {
+            events.Add(TokenUsageDraft(runtime.LastUpdatedAt ?? now, usage));
+        }
 
-        return BuildProjection(sessionId, runtime, events);
+        return BuildProjection(sessionId, runtime, events, normalizedRequestedGameInstanceId, scopeMatchesActiveGame: true);
     }
 
     private static GameDiagnosticLogProjection BuildProjection(
         Guid sessionId,
         GameRuntimeState? runtime,
-        List<EventDraft> drafts)
+        List<EventDraft> drafts,
+        string? requestedGameInstanceId,
+        bool scopeMatchesActiveGame)
     {
         var ordered = drafts
             .OrderBy(item => item.Timestamp)
@@ -92,6 +123,8 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
             SessionId = sessionId,
             HasGame = runtime is not null,
             GameInstanceId = runtime?.GameInstanceId,
+            RequestedGameInstanceId = requestedGameInstanceId,
+            ScopeMatchesActiveGame = scopeMatchesActiveGame,
             TemplateId = runtime?.TemplateId,
             ModuleId = runtime?.ModuleId,
             RuntimeStatus = runtime?.Status.ToString(),
@@ -220,6 +253,7 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
                 {
                     ["recordId"] = record.RecordId.ToString(),
                     ["hostRecordSequence"] = record.Sequence.ToString(),
+                    ["gameInstanceId"] = runtime.GameInstanceId,
                     ["sourceSessionId"] = record.SourceSessionId?.ToString(),
                     ["targetSessionId"] = record.TargetSessionId?.ToString(),
                 }));

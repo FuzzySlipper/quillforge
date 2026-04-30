@@ -15,6 +15,10 @@ public sealed record GameDiagnosticLogProjection
 
     public string? GameInstanceId { get; init; }
 
+    public string? RequestedGameInstanceId { get; init; }
+
+    public bool ScopeMatchesActiveGame { get; init; } = true;
+
     public string? TemplateId { get; init; }
 
     public string? ModuleId { get; init; }

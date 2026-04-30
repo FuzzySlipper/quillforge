@@ -97,6 +97,8 @@ public sealed class GameDiagnosticLogServiceTests
 
         Assert.True(log.HasGame);
         Assert.Equal("game-test", log.GameInstanceId);
+        Assert.Null(log.RequestedGameInstanceId);
+        Assert.True(log.ScopeMatchesActiveGame);
         Assert.Contains("Provider API keys", log.PrivacyNotice, StringComparison.Ordinal);
         Assert.Equal(log.Events.Select(item => item.Timestamp).OrderBy(item => item).ToArray(), log.Events.Select(item => item.Timestamp).ToArray());
         Assert.Contains(log.Events, item => item.Category == GameDiagnosticLogCategory.Communication && item.Operation == "public_message_posted");
@@ -104,6 +106,46 @@ public sealed class GameDiagnosticLogServiceTests
         Assert.Contains(log.Events, item => item.Category == GameDiagnosticLogCategory.Rejection && item.ReasonCode == "public_messages_disabled");
         Assert.Contains(log.Events, item => item.Category == GameDiagnosticLogCategory.TokenUsage && item.Summary.Contains("123 input tokens", StringComparison.Ordinal));
         Assert.Contains(log.Events, item => item.Category == GameDiagnosticLogCategory.Persistence && item.Operation == "session_state_persisted");
+    }
+
+    [Fact]
+    public async Task GetLogAsync_WhenRequestedGameScopeDoesNotMatch_DoesNotIncludeCurrentRuntimeEvents()
+    {
+        var sessionId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        var runtime = new GameRuntimeState
+        {
+            Status = GameRuntimeStatus.Running,
+            GameInstanceId = "game-old",
+            TemplateId = "village",
+            ModuleId = "werewolf",
+            ModuleVersion = "0.1.0",
+            StartedAt = Instant(0),
+            LastUpdatedAt = Instant(1),
+            HostRecords =
+            [
+                new GameRuntimeHostRecord
+                {
+                    Sequence = 1,
+                    Kind = GameRuntimeHostRecordKind.CommunicationRejected,
+                    OccurredAt = Instant(1),
+                    ReasonCode = "public_channel_forbidden",
+                    Summary = "Old game rejection should not leak into requested scope.",
+                },
+            ],
+        };
+        var service = new GameDiagnosticLogService(
+            new FakeGameRuntimeService(runtime),
+            new InMemoryTokenUsageTracker(NullLogger<InMemoryTokenUsageTracker>.Instance));
+
+        var log = await service.GetLogAsync(sessionId, requestedGameInstanceId: "game-new");
+
+        Assert.False(log.HasGame);
+        Assert.Null(log.GameInstanceId);
+        Assert.Equal("game-new", log.RequestedGameInstanceId);
+        Assert.False(log.ScopeMatchesActiveGame);
+        Assert.Contains(log.Events, item => item.Operation == "diagnostic_scope_mismatch");
+        Assert.DoesNotContain(log.Events, item => item.ReasonCode == "public_channel_forbidden");
+        Assert.DoesNotContain(log.Events, item => item.Operation == "runtime_snapshot");
     }
 
     private static DateTimeOffset Instant(int seconds) =>

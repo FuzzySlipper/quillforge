@@ -433,8 +433,9 @@ export async function getGameView(sessionId: string, participantId?: string | nu
   return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/${query}`);
 }
 
-export async function getGameDiagnosticLog(sessionId: string): Promise<GameDiagnosticLogResponse> {
-  return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/diagnostics`);
+export async function getGameDiagnosticLog(sessionId: string, gameInstanceId?: string | null): Promise<GameDiagnosticLogResponse> {
+  const query = gameInstanceId ? `?gameInstanceId=${encodeURIComponent(gameInstanceId)}` : "";
+  return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/diagnostics${query}`);
 }
 
 export async function startGameFromTemplate(

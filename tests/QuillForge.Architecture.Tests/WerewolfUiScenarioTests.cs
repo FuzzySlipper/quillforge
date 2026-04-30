@@ -75,6 +75,54 @@ public sealed class WerewolfUiScenarioTests
     }
 
     [Fact]
+    public async Task StartingSecondGame_DiagnosticLogOmitsPriorGameRejectionsByDefault()
+    {
+        var fixture = CreateFixture();
+        var sessionId = Guid.NewGuid();
+
+        var firstStart = await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("werewolf-test-template", "Human", 42, Instant(0)));
+        Assert.Equal(SessionMutationStatus.Success, firstStart.Status);
+
+        var rejectedPost = await fixture.Bridge.PostPublicMessageAsync(
+            sessionId,
+            new PostGameRuntimePublicMessageCommand(
+                Guid.CreateVersion7(),
+                "human-1",
+                ParticipantMessageAuthorKind.Human,
+                "Old game public message.",
+                Instant(1)));
+        Assert.Equal(SessionMutationStatus.Invalid, rejectedPost.Status);
+        Assert.StartsWith("public_channel_forbidden:", rejectedPost.Error, StringComparison.Ordinal);
+
+        var abort = await fixture.Bridge.AbortAsync(
+            sessionId,
+            new AbortGameRuntimeCommand(GameIntentCommandId.NewId(), "test_reset", Instant(2)));
+        Assert.Equal(SessionMutationStatus.Success, abort.Status);
+
+        var secondStart = await fixture.Bridge.StartFromTemplateAsync(
+            sessionId,
+            new StartGameFromTemplateCommand("werewolf-test-template", "Human", 43, Instant(3)));
+        Assert.Equal(SessionMutationStatus.Success, secondStart.Status);
+        var secondGameId = secondStart.Value!.View.GameInstanceId;
+        Assert.NotNull(secondGameId);
+
+        var diagnosticLog = new GameDiagnosticLogService(
+            fixture.Runtime,
+            new InMemoryTokenUsageTracker(NullLogger<InMemoryTokenUsageTracker>.Instance));
+        var log = await diagnosticLog.GetLogAsync(sessionId, requestedGameInstanceId: secondGameId);
+
+        Assert.True(log.HasGame);
+        Assert.True(log.ScopeMatchesActiveGame);
+        Assert.Equal(secondGameId, log.GameInstanceId);
+        Assert.Equal(secondGameId, log.RequestedGameInstanceId);
+        Assert.Contains(log.Events, item => item.Operation == "runtime_snapshot" && item.Details["gameInstanceId"] == secondGameId);
+        Assert.DoesNotContain(log.Events, item => item.ReasonCode == "public_channel_forbidden");
+        Assert.DoesNotContain(log.Events, item => item.Summary.Contains("Old game public message", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task WerewolfBridge_Playthrough_ProjectsRoleStageVoteAndOutcomeWithoutLeakingRoles()
     {
         var fixture = CreateFixture();

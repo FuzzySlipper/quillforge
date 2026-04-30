@@ -24,20 +24,20 @@ public sealed record SubmitGameActionRequest
 
 public sealed record PostGamePublicMessageRequest
 {
-    public required string ParticipantId { get; init; }
+    public string? ParticipantId { get; init; }
 
-    public string Text { get; init; } = string.Empty;
+    public string? Text { get; init; }
 
     public ParticipantMessageAuthorKind AuthorKind { get; init; } = ParticipantMessageAuthorKind.Human;
 }
 
 public sealed record SendGameDirectMessageRequest
 {
-    public required string ParticipantId { get; init; }
+    public string? ParticipantId { get; init; }
 
     public IReadOnlyList<string> RecipientParticipantIds { get; init; } = [];
 
-    public string Text { get; init; } = string.Empty;
+    public string? Text { get; init; }
 
     public ParticipantMessageAuthorKind AuthorKind { get; init; } = ParticipantMessageAuthorKind.Human;
 }

@@ -338,6 +338,8 @@ public sealed class FrontendContractTests
         Assert.Equal(shape.Keys.OrderBy(key => key), jsonKeys.OrderBy(key => key));
         Assert.Equal("string", shape["sessionId"]);
         Assert.Equal("boolean", shape["hasGame"]);
+        Assert.Equal("string | null", shape["requestedGameInstanceId"]);
+        Assert.Equal("boolean", shape["scopeMatchesActiveGame"]);
         Assert.Equal("GameDiagnosticLogEvent[]", shape["events"]);
     }
 
@@ -562,6 +564,9 @@ public sealed class FrontendContractTests
         Assert.Contains("submitGameAction", source, StringComparison.Ordinal);
         Assert.Contains("postGamePublicMessage", source, StringComparison.Ordinal);
         Assert.Contains("getGameDiagnosticLog", source, StringComparison.Ordinal);
+        Assert.Contains("diagnosticScopeGameInstanceId", source, StringComparison.Ordinal);
+        Assert.Contains("scopeMatchesActiveGame", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"game-diagnostic-log-scope\"", source, StringComparison.Ordinal);
         Assert.Contains("Diagnostic Log", source, StringComparison.Ordinal);
         Assert.Contains("Copy JSON", source, StringComparison.Ordinal);
         Assert.Contains("Export JSON", source, StringComparison.Ordinal);
@@ -868,6 +873,8 @@ public sealed class FrontendContractTests
             SessionId = Guid.CreateVersion7(),
             HasGame = true,
             GameInstanceId = "game-1",
+            RequestedGameInstanceId = "game-1",
+            ScopeMatchesActiveGame = true,
             TemplateId = "village",
             ModuleId = "werewolf",
             RuntimeStatus = "Running",

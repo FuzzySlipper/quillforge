@@ -37,17 +37,20 @@ public static class GameEndpoints
         group.MapGet("/diagnostics", async (
             Guid sessionId,
             int? promptPreviewCharacters,
+            string? gameInstanceId,
             IGameDiagnosticLogService diagnosticLog,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
             logger.LogInformation(
-                "Game diagnostic log requested: session={SessionId} promptPreviewCharacters={PromptPreviewCharacters}",
+                "Game diagnostic log requested: session={SessionId} game={GameInstanceId} promptPreviewCharacters={PromptPreviewCharacters}",
                 sessionId,
+                gameInstanceId,
                 promptPreviewCharacters);
             var projection = await diagnosticLog.GetLogAsync(
                 sessionId,
                 promptPreviewCharacters ?? 1200,
+                gameInstanceId,
                 ct);
             return Results.Ok(new GameDiagnosticLogResponse { Log = projection });
         });
@@ -119,13 +122,33 @@ public static class GameEndpoints
                 request.ParticipantId,
                 request.AuthorKind,
                 request.Text?.Length ?? 0);
+            if (string.IsNullOrWhiteSpace(request.ParticipantId))
+            {
+                return Results.BadRequest(CreateErrorResponse(
+                    "game_request_invalid",
+                    "participantId is required.",
+                    operation: "post_game_public_message",
+                    reasonCode: "missing_participant",
+                    diagnosticHint: PreRuntimeDiagnosticHint));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Text))
+            {
+                return Results.BadRequest(CreateErrorResponse(
+                    "game_request_invalid",
+                    "text is required.",
+                    operation: "post_game_public_message",
+                    reasonCode: "empty_message",
+                    diagnosticHint: PreRuntimeDiagnosticHint));
+            }
+
             var result = await bridge.PostPublicMessageAsync(
                 sessionId,
                 new PostGameRuntimePublicMessageCommand(
                     Guid.CreateVersion7(),
-                    request.ParticipantId ?? string.Empty,
+                    request.ParticipantId.Trim(),
                     request.AuthorKind,
-                    request.Text ?? string.Empty,
+                    request.Text.Trim(),
                     DateTimeOffset.UtcNow),
                 ct);
             return ToMutationResult(result, "post_game_public_message");
@@ -137,14 +160,34 @@ public static class GameEndpoints
             IGameBridgeService bridge,
             CancellationToken ct) =>
         {
+            if (string.IsNullOrWhiteSpace(request.ParticipantId))
+            {
+                return Results.BadRequest(CreateErrorResponse(
+                    "game_request_invalid",
+                    "participantId is required.",
+                    operation: "send_game_direct_message",
+                    reasonCode: "missing_participant",
+                    diagnosticHint: PreRuntimeDiagnosticHint));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Text))
+            {
+                return Results.BadRequest(CreateErrorResponse(
+                    "game_request_invalid",
+                    "text is required.",
+                    operation: "send_game_direct_message",
+                    reasonCode: "empty_message",
+                    diagnosticHint: PreRuntimeDiagnosticHint));
+            }
+
             var result = await bridge.SendDirectMessageAsync(
                 sessionId,
                 new SendGameRuntimeDirectMessageCommand(
                     Guid.CreateVersion7(),
-                    request.ParticipantId ?? string.Empty,
+                    request.ParticipantId.Trim(),
                     request.AuthorKind,
                     request.RecipientParticipantIds,
-                    request.Text ?? string.Empty,
+                    request.Text.Trim(),
                     DateTimeOffset.UtcNow),
                 ct);
             return ToMutationResult(result, "send_game_direct_message");
@@ -183,6 +226,8 @@ public static class GameEndpoints
         });
     }
 
+    private const string PreRuntimeDiagnosticHint = "This request was rejected before a game runtime mutation was attempted, so it may not appear in the backend diagnostic log.";
+
     private static IResult ToMutationResult(
         SessionMutationResult<GameBridgeMutationResult> result,
         string operation)
@@ -218,14 +263,17 @@ public static class GameEndpoints
         string error,
         string message,
         string? operation,
-        string? reasonCode = null) =>
+        string? reasonCode = null,
+        string? diagnosticHint = null) =>
         new()
         {
             Error = error,
             Message = string.IsNullOrWhiteSpace(message) ? "Game operation failed." : message,
             ReasonCode = string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim(),
             Operation = string.IsNullOrWhiteSpace(operation) ? null : operation,
-            DiagnosticHint = "Open the game diagnostic log for persisted runtime, rejection, communication, and provider details.",
+            DiagnosticHint = string.IsNullOrWhiteSpace(diagnosticHint)
+                ? "Open the game diagnostic log for persisted runtime, rejection, communication, and provider details."
+                : diagnosticHint.Trim(),
         };
 
     private static (string? ReasonCode, string Message) SplitReasonCode(string error)

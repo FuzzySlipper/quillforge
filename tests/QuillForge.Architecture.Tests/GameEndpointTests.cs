@@ -70,6 +70,26 @@ public sealed class GameEndpointTests
     }
 
     [Fact]
+    public async Task PostPublicMessage_WhenMissingParticipant_ReturnsStructuredPreRuntimeError()
+    {
+        await using var app = BuildGameApp(new FakeGameBridgeService());
+        var sessionId = Guid.CreateVersion7();
+
+        var response = await InvokePostJsonAsync(
+            app,
+            $"/api/sessions/{sessionId}/game/messages",
+            """{"text":"hello"}""");
+
+        Assert.Equal(400, response.StatusCode);
+        using var document = JsonDocument.Parse(response.Body);
+        var root = document.RootElement;
+        Assert.Equal("game_request_invalid", root.GetProperty("error").GetString());
+        Assert.Equal("missing_participant", root.GetProperty("reasonCode").GetString());
+        Assert.Equal("post_game_public_message", root.GetProperty("operation").GetString());
+        Assert.Contains("before a game runtime mutation", root.GetProperty("diagnosticHint").GetString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task PostPublicMessage_WhenRejected_ReturnsStructuredDiagnosticError()
     {
         var bridge = new FakeGameBridgeService
@@ -207,11 +227,17 @@ public sealed class GameEndpointTests
 
     private sealed class FakeGameDiagnosticLogService : IGameDiagnosticLogService
     {
-        public Task<GameDiagnosticLogProjection> GetLogAsync(Guid sessionId, int promptPreviewCharacters = 1200, CancellationToken ct = default) =>
+        public Task<GameDiagnosticLogProjection> GetLogAsync(
+            Guid sessionId,
+            int promptPreviewCharacters = 1200,
+            string? requestedGameInstanceId = null,
+            CancellationToken ct = default) =>
             Task.FromResult(new GameDiagnosticLogProjection
             {
                 SessionId = sessionId,
                 HasGame = false,
+                RequestedGameInstanceId = requestedGameInstanceId,
+                ScopeMatchesActiveGame = requestedGameInstanceId is null,
                 PrivacyNotice = GameDiagnosticLogService.PrivacyNotice,
                 Events = [],
             });

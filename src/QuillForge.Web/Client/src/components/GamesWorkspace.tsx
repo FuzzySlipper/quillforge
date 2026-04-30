@@ -257,6 +257,15 @@ function DiagnosticLogPanel({
           <p className="mt-2 max-w-4xl text-sm leading-6 text-text-muted">
             {log?.privacyNotice ?? "Host-level debug view for local game diagnostics. Prompt and private game previews may be shown when a game is active."}
           </p>
+          {log && (
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-text-muted" data-testid="game-diagnostic-log-scope">
+              <span className="qf-shell-card px-2 py-1">session · {log.sessionId}</span>
+              <span className="qf-shell-card px-2 py-1">game · {log.gameInstanceId ?? log.requestedGameInstanceId ?? "none"}</span>
+              {log.templateId && <span className="qf-shell-card px-2 py-1">template · {log.templateId}</span>}
+              {log.moduleId && <span className="qf-shell-card px-2 py-1">module · {log.moduleId}</span>}
+              {log.runtimeStatus && <span className="qf-shell-card px-2 py-1">runtime · {log.runtimeStatus}</span>}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton label="Refresh Log" disabled={loading} onClick={onRefresh} />
@@ -269,6 +278,16 @@ function DiagnosticLogPanel({
       {error && (
         <div role="alert" className="mt-3 rounded-lg border border-danger-border bg-danger-soft px-4 py-3 text-sm text-danger-text">
           {error}
+        </div>
+      )}
+      {log && !log.scopeMatchesActiveGame && (
+        <div role="alert" className="mt-3 rounded-lg border border-warning-text/30 bg-warning-soft px-4 py-3 text-sm text-warning-text">
+          The diagnostic scope no longer matches the active game. Refresh the table or log to avoid reading stale game data.
+        </div>
+      )}
+      {log && log.scopeMatchesActiveGame && log.gameInstanceId === null && log.requestedGameInstanceId && (
+        <div role="alert" className="mt-3 rounded-lg border border-warning-text/30 bg-warning-soft px-4 py-3 text-sm text-warning-text">
+          No diagnostic events were included for requested game {log.requestedGameInstanceId}; the session may have moved to a different game.
         </div>
       )}
       {loading && <div className="mt-3 text-sm text-text-muted">Loading diagnostic events...</div>}
@@ -510,6 +529,7 @@ export default function GamesWorkspace({
   const narration = activeView?.public.narration ?? [];
   const playerEvents = currentPlayer?.engineEvents ?? [];
   const pendingInputs = currentPlayer?.pendingInputs ?? [];
+  const diagnosticScopeGameInstanceId = activeView?.gameInstanceId ?? null;
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.templateId === selectedTemplateId) ?? null,
     [templates, selectedTemplateId],
@@ -527,7 +547,7 @@ export default function GamesWorkspace({
     setDiagnosticLoading(true);
     setDiagnosticError(null);
     try {
-      const response = await getGameDiagnosticLog(sessionId);
+      const response = await getGameDiagnosticLog(sessionId, diagnosticScopeGameInstanceId);
       setDiagnosticLog(response.log);
     } catch (err) {
       setDiagnosticError(err instanceof Error ? err.message : "Failed to load game diagnostic log");
@@ -541,6 +561,14 @@ export default function GamesWorkspace({
     void refreshDiagnosticLog();
   }
 
+  useEffect(() => {
+    setDiagnosticLog(null);
+    setDiagnosticError(null);
+    if (diagnosticOpen) {
+      void refreshDiagnosticLog();
+    }
+  }, [sessionId, diagnosticScopeGameInstanceId]);
+
   async function withMutation(action: () => Promise<void>) {
     setMutating(true);
     setError(null);
@@ -551,7 +579,7 @@ export default function GamesWorkspace({
     } finally {
       setMutating(false);
       if (diagnosticOpen) {
-        void refreshDiagnosticLog();
+        await refreshDiagnosticLog();
       }
     }
   }
