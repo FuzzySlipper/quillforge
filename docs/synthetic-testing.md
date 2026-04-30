@@ -109,7 +109,7 @@ curl "http://localhost:5000/api/sessions/$SESSION_ID/game/diagnostics?gameInstan
 curl "http://localhost:5000/api/sessions/$SESSION_ID/game/diagnostics?gameInstanceId=$GAME_INSTANCE_ID&limit=50&beforeSequence=$NEXT_BEFORE_SEQUENCE&categories=LlmProvider,AgentPrompt"
 ```
 
-Omitting `limit`, `beforeSequence`, and `category`/`categories` preserves the default full active-game diagnostic log for local debugging.
+Omitting `limit`, `beforeSequence`, and `categories` preserves the default full active-game diagnostic log for local debugging. The endpoint still accepts the older singular `category` parameter for compatibility.
 
 ## Expected Deliverable
 

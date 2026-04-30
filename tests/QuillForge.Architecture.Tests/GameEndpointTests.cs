@@ -81,7 +81,7 @@ public sealed class GameEndpointTests
 
         var response = await InvokeGetAsync(
             app,
-            $"/api/sessions/{sessionId}/game/diagnostics?gameInstanceId=game-1&limit=25&beforeSequence=40&category=Rejection,Error");
+            $"/api/sessions/{sessionId}/game/diagnostics?gameInstanceId=game-1&limit=25&beforeSequence=40&categories=Rejection,Error");
 
         Assert.Equal(200, response.StatusCode);
         Assert.NotNull(diagnostics.LastQuery);

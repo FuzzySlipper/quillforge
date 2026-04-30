@@ -459,6 +459,7 @@ export interface GameDiagnosticLogQueryOptions {
   promptPreviewCharacters?: number | null;
   limit?: number | null;
   beforeSequence?: number | null;
+  categories?: string | null;
   category?: string | null;
 }
 
@@ -471,7 +472,8 @@ export async function getGameDiagnosticLog(sessionId: string, options?: GameDiag
   if (queryOptions.promptPreviewCharacters !== null && queryOptions.promptPreviewCharacters !== undefined) params.set("promptPreviewCharacters", String(queryOptions.promptPreviewCharacters));
   if (queryOptions.limit !== null && queryOptions.limit !== undefined) params.set("limit", String(queryOptions.limit));
   if (queryOptions.beforeSequence !== null && queryOptions.beforeSequence !== undefined) params.set("beforeSequence", String(queryOptions.beforeSequence));
-  if (queryOptions.category) params.set("category", queryOptions.category);
+  const categoryFilter = queryOptions.categories ?? queryOptions.category;
+  if (categoryFilter) params.set("categories", categoryFilter);
   const query = params.size > 0 ? `?${params.toString()}` : "";
   return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/diagnostics${query}`);
 }

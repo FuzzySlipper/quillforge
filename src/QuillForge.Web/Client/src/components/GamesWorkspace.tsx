@@ -609,7 +609,7 @@ export default function GamesWorkspace({
         gameInstanceId: scopeGameInstanceId,
         limit: diagnosticLimitFilter,
         beforeSequence,
-        category: diagnosticCategoryFilter || null,
+        categories: diagnosticCategoryFilter || null,
       });
       if (beforeSequence !== null && diagnosticLog) {
         const existingSequences = new Set(diagnosticLog.events.map((event) => event.sequence));

@@ -608,6 +608,7 @@ public sealed class FrontendContractTests
         Assert.Contains("nextBeforeSequence", source, StringComparison.Ordinal);
         Assert.Contains("diagnosticCategoryFilter", source, StringComparison.Ordinal);
         Assert.Contains("diagnosticLimitFilter", source, StringComparison.Ordinal);
+        Assert.Contains("categories: diagnosticCategoryFilter || null", source, StringComparison.Ordinal);
         Assert.Contains("withMutation(action: () => Promise<string | null | undefined>)", source, StringComparison.Ordinal);
         Assert.Contains("refreshDiagnosticLog(hasNextDiagnosticScope ? nextDiagnosticScope : diagnosticScopeGameInstanceId)", source, StringComparison.Ordinal);
         Assert.Contains("Diagnostic Log", source, StringComparison.Ordinal);

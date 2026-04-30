@@ -27,7 +27,7 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
         var normalizedQuery = NormalizeQuery(query);
         var runtime = await _runtimeService.LoadViewAsync(sessionId, ct);
         var events = new List<EventDraft>();
-        var normalizedRequestedGameInstanceId = Normalize(normalizedQuery.RequestedGameInstanceId);
+        var requestedGameInstanceId = normalizedQuery.RequestedGameInstanceId;
         var usage = _tokenUsageTracker.GetSessionUsage(sessionId);
         var now = DateTimeOffset.UtcNow;
 
@@ -42,16 +42,16 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
                 "No game runtime has been persisted for this session.",
                 Details: new Dictionary<string, string?> { ["sessionId"] = sessionId.ToString() }));
 
-            if (normalizedRequestedGameInstanceId is null)
+            if (requestedGameInstanceId is null)
             {
                 events.Add(TokenUsageDraft(now, usage));
             }
 
-            return BuildProjection(sessionId, null, events, normalizedQuery with { RequestedGameInstanceId = normalizedRequestedGameInstanceId }, scopeMatchesActiveGame: normalizedRequestedGameInstanceId is null);
+            return BuildProjection(sessionId, null, events, normalizedQuery, scopeMatchesActiveGame: requestedGameInstanceId is null);
         }
 
-        if (normalizedRequestedGameInstanceId is not null
-            && !string.Equals(runtime.GameInstanceId, normalizedRequestedGameInstanceId, StringComparison.Ordinal))
+        if (requestedGameInstanceId is not null
+            && !string.Equals(runtime.GameInstanceId, requestedGameInstanceId, StringComparison.Ordinal))
         {
             events.Add(new EventDraft(
                 now,
@@ -63,11 +63,11 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
                 Details: new Dictionary<string, string?>
                 {
                     ["sessionId"] = sessionId.ToString(),
-                    ["requestedGameInstanceId"] = normalizedRequestedGameInstanceId,
+                    ["requestedGameInstanceId"] = requestedGameInstanceId,
                     ["currentGameInstanceId"] = runtime.GameInstanceId,
                     ["currentRuntimeStatus"] = runtime.Status.ToString(),
                 }));
-            return BuildProjection(sessionId, null, events, normalizedQuery with { RequestedGameInstanceId = normalizedRequestedGameInstanceId }, scopeMatchesActiveGame: false);
+            return BuildProjection(sessionId, null, events, normalizedQuery, scopeMatchesActiveGame: false);
         }
 
         AddRuntimeSnapshot(events, runtime, now);
@@ -78,12 +78,12 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
         AddPromptEnvelopeEvents(events, runtime, normalizedQuery.PromptPreviewCharacters);
         AddPromptCursorEvents(events, runtime);
         AddMemoryEvents(events, runtime, now);
-        if (normalizedRequestedGameInstanceId is null)
+        if (requestedGameInstanceId is null)
         {
             events.Add(TokenUsageDraft(runtime.LastUpdatedAt ?? now, usage));
         }
 
-        return BuildProjection(sessionId, runtime, events, normalizedQuery with { RequestedGameInstanceId = normalizedRequestedGameInstanceId }, scopeMatchesActiveGame: true);
+        return BuildProjection(sessionId, runtime, events, normalizedQuery, scopeMatchesActiveGame: true);
     }
 
     private static GameDiagnosticLogProjection BuildProjection(
