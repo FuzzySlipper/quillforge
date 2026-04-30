@@ -38,19 +38,45 @@ public static class GameEndpoints
             Guid sessionId,
             int? promptPreviewCharacters,
             string? gameInstanceId,
+            int? limit,
+            long? beforeSequence,
+            string? category,
+            string? categories,
             IGameDiagnosticLogService diagnosticLog,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
+            var categoryResult = TryParseDiagnosticCategories(category, categories);
+            if (!categoryResult.IsValid)
+            {
+                return Results.BadRequest(new GameMutationErrorResponse
+                {
+                    Error = "game_diagnostic_query_invalid",
+                    Message = categoryResult.ErrorMessage ?? "Diagnostic category filter is invalid.",
+                    ReasonCode = "invalid_diagnostic_category",
+                    Operation = "get_game_diagnostics",
+                    DiagnosticHint = "Use category names such as Rejection, Error, Communication, LlmProvider, AgentPrompt, or comma-separated category lists.",
+                });
+            }
+
             logger.LogInformation(
-                "Game diagnostic log requested: session={SessionId} game={GameInstanceId} promptPreviewCharacters={PromptPreviewCharacters}",
+                "Game diagnostic log requested: session={SessionId} game={GameInstanceId} promptPreviewCharacters={PromptPreviewCharacters} limit={Limit} beforeSequence={BeforeSequence} categories={Categories}",
                 sessionId,
                 gameInstanceId,
-                promptPreviewCharacters);
+                promptPreviewCharacters,
+                limit,
+                beforeSequence,
+                string.Join(",", categoryResult.Categories));
             var projection = await diagnosticLog.GetLogAsync(
                 sessionId,
-                promptPreviewCharacters ?? 1200,
-                gameInstanceId,
+                new GameDiagnosticLogQuery
+                {
+                    PromptPreviewCharacters = promptPreviewCharacters ?? GameDiagnosticLogQuery.DefaultPromptPreviewCharacters,
+                    RequestedGameInstanceId = gameInstanceId,
+                    Limit = limit,
+                    BeforeSequence = beforeSequence,
+                    Categories = categoryResult.Categories,
+                },
                 ct);
             return Results.Ok(new GameDiagnosticLogResponse { Log = projection });
         });
@@ -228,6 +254,32 @@ public static class GameEndpoints
 
     private const string PreRuntimeDiagnosticHint = "This request was rejected before a game runtime mutation was attempted, so it may not appear in the backend diagnostic log.";
 
+    private static DiagnosticCategoryParseResult TryParseDiagnosticCategories(string? category, string? categories)
+    {
+        var values = new[] { category, categories }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .SelectMany(value => value!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (values.Length == 0)
+        {
+            return new DiagnosticCategoryParseResult(true, [], null);
+        }
+
+        var parsed = new List<GameDiagnosticLogCategory>();
+        foreach (var value in values)
+        {
+            if (!Enum.TryParse<GameDiagnosticLogCategory>(value, ignoreCase: true, out var categoryValue))
+            {
+                return new DiagnosticCategoryParseResult(false, [], $"Unknown diagnostic category '{value}'.");
+            }
+
+            parsed.Add(categoryValue);
+        }
+
+        return new DiagnosticCategoryParseResult(true, parsed.Distinct().OrderBy(item => item.ToString(), StringComparer.Ordinal).ToArray(), null);
+    }
+
     private static IResult ToMutationResult(
         SessionMutationResult<GameBridgeMutationResult> result,
         string operation)
@@ -275,6 +327,11 @@ public static class GameEndpoints
                 ? "Open the game diagnostic log for persisted runtime, rejection, communication, and provider details."
                 : diagnosticHint.Trim(),
         };
+
+    private sealed record DiagnosticCategoryParseResult(
+        bool IsValid,
+        IReadOnlyList<GameDiagnosticLogCategory> Categories,
+        string? ErrorMessage);
 
     private static (string? ReasonCode, string Message) SplitReasonCode(string error)
     {

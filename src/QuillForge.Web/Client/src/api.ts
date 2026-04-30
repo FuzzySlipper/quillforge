@@ -454,8 +454,25 @@ export async function getGameView(sessionId: string, participantId?: string | nu
   return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/${query}`);
 }
 
-export async function getGameDiagnosticLog(sessionId: string, gameInstanceId?: string | null): Promise<GameDiagnosticLogResponse> {
-  const query = gameInstanceId ? `?gameInstanceId=${encodeURIComponent(gameInstanceId)}` : "";
+export interface GameDiagnosticLogQueryOptions {
+  gameInstanceId?: string | null;
+  promptPreviewCharacters?: number | null;
+  limit?: number | null;
+  beforeSequence?: number | null;
+  category?: string | null;
+}
+
+export async function getGameDiagnosticLog(sessionId: string, options?: GameDiagnosticLogQueryOptions | string | null): Promise<GameDiagnosticLogResponse> {
+  const params = new URLSearchParams();
+  const queryOptions: GameDiagnosticLogQueryOptions = typeof options === "string" || options === null
+    ? { gameInstanceId: options }
+    : options ?? {};
+  if (queryOptions.gameInstanceId) params.set("gameInstanceId", queryOptions.gameInstanceId);
+  if (queryOptions.promptPreviewCharacters !== null && queryOptions.promptPreviewCharacters !== undefined) params.set("promptPreviewCharacters", String(queryOptions.promptPreviewCharacters));
+  if (queryOptions.limit !== null && queryOptions.limit !== undefined) params.set("limit", String(queryOptions.limit));
+  if (queryOptions.beforeSequence !== null && queryOptions.beforeSequence !== undefined) params.set("beforeSequence", String(queryOptions.beforeSequence));
+  if (queryOptions.category) params.set("category", queryOptions.category);
+  const query = params.size > 0 ? `?${params.toString()}` : "";
   return request(`/api/sessions/${encodeURIComponent(sessionId)}/game/diagnostics${query}`);
 }
 

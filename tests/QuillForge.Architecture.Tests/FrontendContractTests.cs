@@ -340,6 +340,14 @@ public sealed class FrontendContractTests
         Assert.Equal("boolean", shape["hasGame"]);
         Assert.Equal("string | null", shape["requestedGameInstanceId"]);
         Assert.Equal("boolean", shape["scopeMatchesActiveGame"]);
+        Assert.Equal("number | null", shape["limit"]);
+        Assert.Equal("number | null", shape["beforeSequence"]);
+        Assert.Equal("GameDiagnosticLogCategory[]", shape["categories"]);
+        Assert.Equal("number", shape["totalEventCount"]);
+        Assert.Equal("number", shape["filteredEventCount"]);
+        Assert.Equal("number", shape["returnedEventCount"]);
+        Assert.Equal("boolean", shape["hasMore"]);
+        Assert.Equal("number | null", shape["nextBeforeSequence"]);
         Assert.Equal("GameDiagnosticLogEvent[]", shape["events"]);
     }
 
@@ -595,6 +603,11 @@ public sealed class FrontendContractTests
         Assert.Contains("diagnosticScopeGameInstanceId", source, StringComparison.Ordinal);
         Assert.Contains("scopeMatchesActiveGame", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"game-diagnostic-log-scope\"", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"game-diagnostic-log-filters\"", source, StringComparison.Ordinal);
+        Assert.Contains("Load Older", source, StringComparison.Ordinal);
+        Assert.Contains("nextBeforeSequence", source, StringComparison.Ordinal);
+        Assert.Contains("diagnosticCategoryFilter", source, StringComparison.Ordinal);
+        Assert.Contains("diagnosticLimitFilter", source, StringComparison.Ordinal);
         Assert.Contains("withMutation(action: () => Promise<string | null | undefined>)", source, StringComparison.Ordinal);
         Assert.Contains("refreshDiagnosticLog(hasNextDiagnosticScope ? nextDiagnosticScope : diagnosticScopeGameInstanceId)", source, StringComparison.Ordinal);
         Assert.Contains("Diagnostic Log", source, StringComparison.Ordinal);
@@ -917,6 +930,14 @@ public sealed class FrontendContractTests
             ModuleId = "werewolf",
             RuntimeStatus = "Running",
             PrivacyNotice = "Host-level diagnostic log includes private prompt previews.",
+            Limit = 50,
+            BeforeSequence = 100,
+            Categories = [GameDiagnosticLogCategory.Rejection],
+            TotalEventCount = 8,
+            FilteredEventCount = 2,
+            ReturnedEventCount = 1,
+            HasMore = true,
+            NextBeforeSequence = 40,
             Events =
             [
                 new GameDiagnosticLogEvent

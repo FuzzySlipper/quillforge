@@ -170,6 +170,14 @@ export interface GameDiagnosticLogProjection {
   moduleId: string | null;
   runtimeStatus: string | null;
   privacyNotice: string;
+  limit: number | null;
+  beforeSequence: number | null;
+  categories: GameDiagnosticLogCategory[];
+  totalEventCount: number;
+  filteredEventCount: number;
+  returnedEventCount: number;
+  hasMore: boolean;
+  nextBeforeSequence: number | null;
   events: GameDiagnosticLogEvent[];
 }
 

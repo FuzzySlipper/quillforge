@@ -73,6 +73,43 @@ public sealed class GameEndpointTests
     }
 
     [Fact]
+    public async Task GetDiagnostics_ForwardsPagingAndCategoryQueryOptions()
+    {
+        var diagnostics = new FakeGameDiagnosticLogService();
+        await using var app = BuildGameApp(new FakeGameBridgeService(), diagnostics);
+        var sessionId = Guid.CreateVersion7();
+
+        var response = await InvokeGetAsync(
+            app,
+            $"/api/sessions/{sessionId}/game/diagnostics?gameInstanceId=game-1&limit=25&beforeSequence=40&category=Rejection,Error");
+
+        Assert.Equal(200, response.StatusCode);
+        Assert.NotNull(diagnostics.LastQuery);
+        Assert.Equal("game-1", diagnostics.LastQuery!.RequestedGameInstanceId);
+        Assert.Equal(25, diagnostics.LastQuery.Limit);
+        Assert.Equal(40, diagnostics.LastQuery.BeforeSequence);
+        Assert.Equal([GameDiagnosticLogCategory.Error, GameDiagnosticLogCategory.Rejection], diagnostics.LastQuery.Categories.OrderBy(item => item.ToString(), StringComparer.Ordinal).ToArray());
+    }
+
+    [Fact]
+    public async Task GetDiagnostics_WhenCategoryIsInvalid_ReturnsStructuredQueryError()
+    {
+        await using var app = BuildGameApp(new FakeGameBridgeService());
+        var sessionId = Guid.CreateVersion7();
+
+        var response = await InvokeGetAsync(
+            app,
+            $"/api/sessions/{sessionId}/game/diagnostics?category=Nope");
+
+        Assert.Equal(400, response.StatusCode);
+        using var document = JsonDocument.Parse(response.Body);
+        var root = document.RootElement;
+        Assert.Equal("game_diagnostic_query_invalid", root.GetProperty("error").GetString());
+        Assert.Equal("invalid_diagnostic_category", root.GetProperty("reasonCode").GetString());
+        Assert.Equal("get_game_diagnostics", root.GetProperty("operation").GetString());
+    }
+
+    [Fact]
     public async Task PostPublicMessage_WhenMissingParticipant_ReturnsStructuredPreRuntimeError()
     {
         await using var app = BuildGameApp(new FakeGameBridgeService());
@@ -177,7 +214,9 @@ public sealed class GameEndpointTests
         Assert.Contains("diagnostic log", root.GetProperty("diagnosticHint").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static WebApplication BuildGameApp(IGameBridgeService bridge)
+    private static WebApplication BuildGameApp(
+        IGameBridgeService bridge,
+        IGameDiagnosticLogService? diagnosticLog = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -187,33 +226,45 @@ public sealed class GameEndpointTests
         builder.Services.AddLogging();
         builder.Services.AddSingleton(bridge);
         builder.Services.AddSingleton<IGameInspectorService, FakeGameInspectorService>();
-        builder.Services.AddSingleton<IGameDiagnosticLogService, FakeGameDiagnosticLogService>();
+        builder.Services.AddSingleton(diagnosticLog ?? new FakeGameDiagnosticLogService());
         var app = builder.Build();
         app.MapGameEndpoints();
         return app;
     }
 
-    private static async Task<EndpointResponse> InvokePostJsonAsync(WebApplication app, string route, string jsonBody)
+    private static Task<EndpointResponse> InvokeGetAsync(WebApplication app, string routeAndQuery) =>
+        InvokeEndpointAsync(app, routeAndQuery, "GET", null);
+
+    private static Task<EndpointResponse> InvokePostJsonAsync(WebApplication app, string route, string jsonBody) =>
+        InvokeEndpointAsync(app, route, "POST", jsonBody);
+
+    private static async Task<EndpointResponse> InvokeEndpointAsync(WebApplication app, string routeAndQuery, string method, string? jsonBody)
     {
+        var uri = new Uri($"http://localhost{routeAndQuery}");
+        var route = uri.AbsolutePath;
         var endpoint = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
-            .First(candidate => RouteMatches(candidate.RoutePattern, route) && EndpointSupportsMethod(candidate, "POST"));
+            .First(candidate => RouteMatches(candidate.RoutePattern, route) && EndpointSupportsMethod(candidate, method));
 
         var context = new DefaultHttpContext
         {
             RequestServices = app.Services,
         };
-        context.Request.Method = "POST";
+        context.Request.Method = method;
         context.Request.Scheme = "http";
         context.Request.Host = new HostString("localhost");
         context.Request.Path = route;
+        context.Request.QueryString = QueryString.FromUriComponent(uri.Query);
         ApplyRouteValues(endpoint.RoutePattern, route, context.Request.RouteValues);
-        context.Request.ContentType = "application/json";
-        var bodyBytes = Encoding.UTF8.GetBytes(jsonBody);
-        context.Request.ContentLength = bodyBytes.Length;
-        context.Request.Body = new MemoryStream(bodyBytes);
-        context.Features.Set<IHttpRequestBodyDetectionFeature>(new TestRequestBodyDetectionFeature());
+        if (jsonBody is not null)
+        {
+            context.Request.ContentType = "application/json";
+            var bodyBytes = Encoding.UTF8.GetBytes(jsonBody);
+            context.Request.ContentLength = bodyBytes.Length;
+            context.Request.Body = new MemoryStream(bodyBytes);
+            context.Features.Set<IHttpRequestBodyDetectionFeature>(new TestRequestBodyDetectionFeature());
+        }
         context.Response.Body = new MemoryStream();
 
         var requestDelegate = endpoint.RequestDelegate;
@@ -289,20 +340,31 @@ public sealed class GameEndpointTests
 
     private sealed class FakeGameDiagnosticLogService : IGameDiagnosticLogService
     {
+        public GameDiagnosticLogQuery? LastQuery { get; private set; }
+
         public Task<GameDiagnosticLogProjection> GetLogAsync(
             Guid sessionId,
-            int promptPreviewCharacters = 1200,
-            string? requestedGameInstanceId = null,
-            CancellationToken ct = default) =>
-            Task.FromResult(new GameDiagnosticLogProjection
+            GameDiagnosticLogQuery? query = null,
+            CancellationToken ct = default)
+        {
+            LastQuery = query;
+            var requestedGameInstanceId = query?.RequestedGameInstanceId;
+            return Task.FromResult(new GameDiagnosticLogProjection
             {
                 SessionId = sessionId,
                 HasGame = false,
                 RequestedGameInstanceId = requestedGameInstanceId,
                 ScopeMatchesActiveGame = requestedGameInstanceId is null,
                 PrivacyNotice = GameDiagnosticLogService.PrivacyNotice,
+                Limit = query?.Limit,
+                BeforeSequence = query?.BeforeSequence,
+                Categories = query?.Categories ?? [],
+                TotalEventCount = 0,
+                FilteredEventCount = 0,
+                ReturnedEventCount = 0,
                 Events = [],
             });
+        }
     }
 
     private sealed class FakeGameBridgeService : IGameBridgeService

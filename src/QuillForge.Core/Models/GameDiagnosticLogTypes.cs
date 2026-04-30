@@ -27,7 +27,40 @@ public sealed record GameDiagnosticLogProjection
 
     public required string PrivacyNotice { get; init; }
 
+    public int? Limit { get; init; }
+
+    public long? BeforeSequence { get; init; }
+
+    public required IReadOnlyList<GameDiagnosticLogCategory> Categories { get; init; }
+
+    public required int TotalEventCount { get; init; }
+
+    public required int FilteredEventCount { get; init; }
+
+    public required int ReturnedEventCount { get; init; }
+
+    public bool HasMore { get; init; }
+
+    public long? NextBeforeSequence { get; init; }
+
     public required IReadOnlyList<GameDiagnosticLogEvent> Events { get; init; }
+}
+
+public sealed record GameDiagnosticLogQuery
+{
+    public const int DefaultPromptPreviewCharacters = 1200;
+
+    public const int MaxLimit = 500;
+
+    public int PromptPreviewCharacters { get; init; } = DefaultPromptPreviewCharacters;
+
+    public int? Limit { get; init; }
+
+    public long? BeforeSequence { get; init; }
+
+    public IReadOnlyList<GameDiagnosticLogCategory> Categories { get; init; } = [];
+
+    public string? RequestedGameInstanceId { get; init; }
 }
 
 public sealed record GameDiagnosticLogEvent

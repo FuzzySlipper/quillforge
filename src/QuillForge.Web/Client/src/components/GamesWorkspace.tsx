@@ -117,21 +117,23 @@ function diagnosticLevelLabel(level: GameDiagnosticLogEvent["level"]): string {
   return typeof level === "string" ? level : ["Info", "Warning", "Error"][level] ?? String(level);
 }
 
+const DIAGNOSTIC_CATEGORY_OPTIONS = [
+  "Endpoint",
+  "Service",
+  "RuntimeMutation",
+  "RulesEngine",
+  "Communication",
+  "LlmProvider",
+  "AgentPrompt",
+  "TokenUsage",
+  "Persistence",
+  "Rejection",
+  "Error",
+] as const;
+
 function diagnosticCategoryLabel(category: GameDiagnosticLogEvent["category"]): string {
   if (typeof category === "string") return category;
-  return [
-    "Endpoint",
-    "Service",
-    "RuntimeMutation",
-    "RulesEngine",
-    "Communication",
-    "LlmProvider",
-    "AgentPrompt",
-    "TokenUsage",
-    "Persistence",
-    "Rejection",
-    "Error",
-  ][category] ?? String(category);
+  return DIAGNOSTIC_CATEGORY_OPTIONS[category] ?? String(category);
 }
 
 function TemplateEditorDialog({
@@ -227,13 +229,23 @@ function DiagnosticLogPanel({
   log,
   loading,
   error,
+  categoryFilter,
+  limitFilter,
+  onCategoryFilterChange,
+  onLimitFilterChange,
   onRefresh,
+  onLoadOlder,
   onClose,
 }: {
   log: GameDiagnosticLogProjection | null;
   loading: boolean;
   error: string | null;
+  categoryFilter: string;
+  limitFilter: number | null;
+  onCategoryFilterChange: (category: string) => void;
+  onLimitFilterChange: (limit: number | null) => void;
   onRefresh: () => void;
+  onLoadOlder: () => void;
   onClose: () => void;
 }) {
   const serializedLog = useMemo(() => JSON.stringify(log, null, 2), [log]);
@@ -270,6 +282,9 @@ function DiagnosticLogPanel({
               {log.templateId && <span className="qf-shell-card px-2 py-1">template · {log.templateId}</span>}
               {log.moduleId && <span className="qf-shell-card px-2 py-1">module · {log.moduleId}</span>}
               {log.runtimeStatus && <span className="qf-shell-card px-2 py-1">runtime · {log.runtimeStatus}</span>}
+              <span className="qf-shell-card px-2 py-1" data-testid="game-diagnostic-log-counts">
+                showing · {log.events.length}/{log.filteredEventCount} filtered · {log.totalEventCount} total
+              </span>
             </div>
           )}
         </div>
@@ -296,6 +311,37 @@ function DiagnosticLogPanel({
           No diagnostic events were included for requested game {log.requestedGameInstanceId}; the session may have moved to a different game.
         </div>
       )}
+      <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-border/60 bg-background/40 px-4 py-3" data-testid="game-diagnostic-log-filters">
+        <label className="text-xs text-text-muted">
+          <span className="block pb-1 uppercase tracking-wide">Category</span>
+          <select
+            value={categoryFilter}
+            onChange={(event) => onCategoryFilterChange(event.target.value)}
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+          >
+            <option value="">All categories</option>
+            {DIAGNOSTIC_CATEGORY_OPTIONS.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-text-muted">
+          <span className="block pb-1 uppercase tracking-wide">Page size</span>
+          <select
+            value={limitFilter ?? ""}
+            onChange={(event) => onLimitFilterChange(event.target.value ? Number(event.target.value) : null)}
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+          >
+            <option value="">All events</option>
+            <option value="25">Latest 25</option>
+            <option value="50">Latest 50</option>
+            <option value="100">Latest 100</option>
+            <option value="200">Latest 200</option>
+          </select>
+        </label>
+        <ActionButton label="Load Older" disabled={!log?.hasMore || loading} onClick={onLoadOlder} />
+      </div>
+
       {loading && <div className="mt-3 text-sm text-text-muted">Loading diagnostic events...</div>}
 
       <div className="mt-4 max-h-[42vh] overflow-y-auto rounded-xl border border-border/70 bg-background/40">
@@ -432,6 +478,8 @@ export default function GamesWorkspace({
   const [diagnosticLog, setDiagnosticLog] = useState<GameDiagnosticLogProjection | null>(null);
   const [diagnosticLoading, setDiagnosticLoading] = useState(false);
   const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
+  const [diagnosticCategoryFilter, setDiagnosticCategoryFilter] = useState("");
+  const [diagnosticLimitFilter, setDiagnosticLimitFilter] = useState<number | null>(null);
 
   async function reloadTemplates(preferredTemplateId?: string) {
     try {
@@ -549,13 +597,34 @@ export default function GamesWorkspace({
     onRefresh(sessionId);
   }
 
-  async function refreshDiagnosticLog(scopeGameInstanceId: string | null = diagnosticScopeGameInstanceId) {
+  async function refreshDiagnosticLog(
+    scopeGameInstanceId: string | null = diagnosticScopeGameInstanceId,
+    beforeSequence: number | null = null,
+  ) {
     if (!sessionId) return;
     setDiagnosticLoading(true);
     setDiagnosticError(null);
     try {
-      const response = await getGameDiagnosticLog(sessionId, scopeGameInstanceId);
-      setDiagnosticLog(response.log);
+      const response = await getGameDiagnosticLog(sessionId, {
+        gameInstanceId: scopeGameInstanceId,
+        limit: diagnosticLimitFilter,
+        beforeSequence,
+        category: diagnosticCategoryFilter || null,
+      });
+      if (beforeSequence !== null && diagnosticLog) {
+        const existingSequences = new Set(diagnosticLog.events.map((event) => event.sequence));
+        const mergedEvents = [
+          ...response.log.events.filter((event) => !existingSequences.has(event.sequence)),
+          ...diagnosticLog.events,
+        ];
+        setDiagnosticLog({
+          ...response.log,
+          events: mergedEvents,
+          returnedEventCount: mergedEvents.length,
+        });
+      } else {
+        setDiagnosticLog(response.log);
+      }
     } catch (err) {
       setDiagnosticError(err instanceof Error ? err.message : "Failed to load game diagnostic log");
     } finally {
@@ -583,7 +652,7 @@ export default function GamesWorkspace({
     if (diagnosticOpen) {
       void refreshDiagnosticLog();
     }
-  }, [sessionId, diagnosticScopeGameInstanceId]);
+  }, [sessionId, diagnosticScopeGameInstanceId, diagnosticCategoryFilter, diagnosticLimitFilter]);
 
   async function withMutation(action: () => Promise<string | null | undefined>) {
     setMutating(true);
@@ -704,7 +773,12 @@ export default function GamesWorkspace({
           log={diagnosticLog}
           loading={diagnosticLoading}
           error={diagnosticError}
+          categoryFilter={diagnosticCategoryFilter}
+          limitFilter={diagnosticLimitFilter}
+          onCategoryFilterChange={setDiagnosticCategoryFilter}
+          onLimitFilterChange={setDiagnosticLimitFilter}
           onRefresh={() => { void refreshDiagnosticLog(); }}
+          onLoadOlder={() => { void refreshDiagnosticLog(diagnosticLog?.requestedGameInstanceId ?? diagnosticScopeGameInstanceId, diagnosticLog?.nextBeforeSequence ?? null); }}
           onClose={() => setDiagnosticOpen(false)}
         />
       )}

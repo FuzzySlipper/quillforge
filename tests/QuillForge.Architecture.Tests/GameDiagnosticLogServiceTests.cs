@@ -100,12 +100,73 @@ public sealed class GameDiagnosticLogServiceTests
         Assert.Null(log.RequestedGameInstanceId);
         Assert.True(log.ScopeMatchesActiveGame);
         Assert.Contains("Provider API keys", log.PrivacyNotice, StringComparison.Ordinal);
+        Assert.Null(log.Limit);
+        Assert.Null(log.BeforeSequence);
+        Assert.Empty(log.Categories);
+        Assert.Equal(log.Events.Count, log.TotalEventCount);
+        Assert.Equal(log.Events.Count, log.FilteredEventCount);
+        Assert.Equal(log.Events.Count, log.ReturnedEventCount);
+        Assert.False(log.HasMore);
+        Assert.Null(log.NextBeforeSequence);
         Assert.Equal(log.Events.Select(item => item.Timestamp).OrderBy(item => item).ToArray(), log.Events.Select(item => item.Timestamp).ToArray());
         Assert.Contains(log.Events, item => item.Category == GameDiagnosticLogCategory.Communication && item.Operation == "public_message_posted");
         Assert.Contains(log.Events, item => item.Category == GameDiagnosticLogCategory.LlmProvider && item.PromptPreview!.Contains("private prompt", StringComparison.Ordinal));
         Assert.Contains(log.Events, item => item.Category == GameDiagnosticLogCategory.Rejection && item.ReasonCode == "public_messages_disabled");
         Assert.Contains(log.Events, item => item.Category == GameDiagnosticLogCategory.TokenUsage && item.Summary.Contains("123 input tokens", StringComparison.Ordinal));
         Assert.Contains(log.Events, item => item.Category == GameDiagnosticLogCategory.Persistence && item.Operation == "session_state_persisted");
+    }
+
+    [Fact]
+    public async Task GetLogAsync_AppliesCategoryLimitAndBeforeSequenceWithoutRenumberingEvents()
+    {
+        var sessionId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        var runtime = new GameRuntimeState
+        {
+            Status = GameRuntimeStatus.Running,
+            GameInstanceId = "game-test",
+            TemplateId = "village",
+            ModuleId = "werewolf",
+            ModuleVersion = "0.1.0",
+            StartedAt = Instant(0),
+            LastUpdatedAt = Instant(5),
+            HostRecords =
+            [
+                RejectionRecord(1, "first_rejection", Instant(1)),
+                RejectionRecord(2, "second_rejection", Instant(2)),
+                RejectionRecord(3, "third_rejection", Instant(3)),
+            ],
+        };
+        var service = new GameDiagnosticLogService(
+            new FakeGameRuntimeService(runtime),
+            new InMemoryTokenUsageTracker(NullLogger<InMemoryTokenUsageTracker>.Instance));
+
+        var latest = await service.GetLogAsync(sessionId, new GameDiagnosticLogQuery
+        {
+            Limit = 1,
+            Categories = [GameDiagnosticLogCategory.Rejection],
+        });
+
+        Assert.Equal(1, latest.Limit);
+        Assert.Equal([GameDiagnosticLogCategory.Rejection], latest.Categories);
+        Assert.Single(latest.Events);
+        Assert.Equal(3, latest.FilteredEventCount);
+        Assert.Equal(1, latest.ReturnedEventCount);
+        Assert.True(latest.HasMore);
+        Assert.Equal(GameDiagnosticLogCategory.Rejection, latest.Events.Single().Category);
+        Assert.Equal("third_rejection", latest.Events.Single().ReasonCode);
+        Assert.Equal(latest.Events.Single().Sequence, latest.NextBeforeSequence);
+
+        var older = await service.GetLogAsync(sessionId, new GameDiagnosticLogQuery
+        {
+            Limit = 1,
+            BeforeSequence = latest.NextBeforeSequence,
+            Categories = [GameDiagnosticLogCategory.Rejection],
+        });
+
+        Assert.Equal(latest.NextBeforeSequence, older.BeforeSequence);
+        Assert.Single(older.Events);
+        Assert.Equal("second_rejection", older.Events.Single().ReasonCode);
+        Assert.True(older.Events.Single().Sequence < latest.Events.Single().Sequence);
     }
 
     [Fact]
@@ -137,7 +198,7 @@ public sealed class GameDiagnosticLogServiceTests
             new FakeGameRuntimeService(runtime),
             new InMemoryTokenUsageTracker(NullLogger<InMemoryTokenUsageTracker>.Instance));
 
-        var log = await service.GetLogAsync(sessionId, requestedGameInstanceId: "game-new");
+        var log = await service.GetLogAsync(sessionId, new GameDiagnosticLogQuery { RequestedGameInstanceId = "game-new" });
 
         Assert.False(log.HasGame);
         Assert.Null(log.GameInstanceId);
@@ -147,6 +208,16 @@ public sealed class GameDiagnosticLogServiceTests
         Assert.DoesNotContain(log.Events, item => item.ReasonCode == "public_channel_forbidden");
         Assert.DoesNotContain(log.Events, item => item.Operation == "runtime_snapshot");
     }
+
+    private static GameRuntimeHostRecord RejectionRecord(int sequence, string reasonCode, DateTimeOffset occurredAt) =>
+        new()
+        {
+            Sequence = sequence,
+            Kind = GameRuntimeHostRecordKind.CommunicationRejected,
+            OccurredAt = occurredAt,
+            ReasonCode = reasonCode,
+            Summary = $"Communication rejected: {reasonCode}.",
+        };
 
     private static DateTimeOffset Instant(int seconds) =>
         DateTimeOffset.Parse("2026-04-29T12:00:00+00:00").AddSeconds(seconds);

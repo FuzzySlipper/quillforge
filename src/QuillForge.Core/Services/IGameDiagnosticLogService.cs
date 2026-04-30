@@ -6,7 +6,6 @@ public interface IGameDiagnosticLogService
 {
     Task<GameDiagnosticLogProjection> GetLogAsync(
         Guid sessionId,
-        int promptPreviewCharacters = 1200,
-        string? requestedGameInstanceId = null,
+        GameDiagnosticLogQuery? query = null,
         CancellationToken ct = default);
 }

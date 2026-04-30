@@ -93,9 +93,23 @@ The log is a local host-level debug stream, not a player-visible projection. It 
 Recommended bug-report capture:
 1. Reproduce the game issue in Games mode.
 2. Click **Diagnostic Log**.
-3. Click **Refresh Log** immediately after the failed action.
-4. Use **Copy JSON** for paste-friendly reports or **Export JSON** for an attachment.
-5. Include the failed UI action or endpoint call, the visible status/stage, and the first rejection/error event in the exported stream.
+3. Use the in-panel **Category** and **Page size** controls to focus the stream when the game has run for many turns. Start with **Rejection**, **Error**, **LlmProvider**, or **AgentPrompt** and **Latest 50**.
+4. Click **Refresh Log** immediately after the failed action.
+5. Use **Load Older** if the selected page has more matching entries.
+6. Use **Copy JSON** for paste-friendly reports or **Export JSON** for an attachment.
+7. Include the failed UI action or endpoint call, the visible status/stage, and the first rejection/error event in the exported stream.
+
+Focused endpoint examples:
+
+```bash
+# Latest 50 rejection/error events for the active game scope shown in the UI.
+curl "http://localhost:5000/api/sessions/$SESSION_ID/game/diagnostics?gameInstanceId=$GAME_INSTANCE_ID&limit=50&categories=Rejection,Error"
+
+# Page older focused provider/prompt events. Use nextBeforeSequence from the prior response.
+curl "http://localhost:5000/api/sessions/$SESSION_ID/game/diagnostics?gameInstanceId=$GAME_INSTANCE_ID&limit=50&beforeSequence=$NEXT_BEFORE_SEQUENCE&categories=LlmProvider,AgentPrompt"
+```
+
+Omitting `limit`, `beforeSequence`, and `category`/`categories` preserves the default full active-game diagnostic log for local debugging.
 
 ## Expected Deliverable
 

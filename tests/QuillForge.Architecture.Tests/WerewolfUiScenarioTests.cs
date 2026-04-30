@@ -119,7 +119,7 @@ public sealed class WerewolfUiScenarioTests
         var diagnosticLog = new GameDiagnosticLogService(
             fixture.Runtime,
             new InMemoryTokenUsageTracker(NullLogger<InMemoryTokenUsageTracker>.Instance));
-        var log = await diagnosticLog.GetLogAsync(sessionId, requestedGameInstanceId: secondGameId);
+        var log = await diagnosticLog.GetLogAsync(sessionId, new GameDiagnosticLogQuery { RequestedGameInstanceId = secondGameId });
 
         Assert.True(log.HasGame);
         Assert.True(log.ScopeMatchesActiveGame);

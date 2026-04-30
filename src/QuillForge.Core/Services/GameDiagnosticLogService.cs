@@ -21,13 +21,13 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
 
     public async Task<GameDiagnosticLogProjection> GetLogAsync(
         Guid sessionId,
-        int promptPreviewCharacters = 1200,
-        string? requestedGameInstanceId = null,
+        GameDiagnosticLogQuery? query = null,
         CancellationToken ct = default)
     {
+        var normalizedQuery = NormalizeQuery(query);
         var runtime = await _runtimeService.LoadViewAsync(sessionId, ct);
         var events = new List<EventDraft>();
-        var normalizedRequestedGameInstanceId = Normalize(requestedGameInstanceId);
+        var normalizedRequestedGameInstanceId = Normalize(normalizedQuery.RequestedGameInstanceId);
         var usage = _tokenUsageTracker.GetSessionUsage(sessionId);
         var now = DateTimeOffset.UtcNow;
 
@@ -47,7 +47,7 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
                 events.Add(TokenUsageDraft(now, usage));
             }
 
-            return BuildProjection(sessionId, null, events, normalizedRequestedGameInstanceId, scopeMatchesActiveGame: normalizedRequestedGameInstanceId is null);
+            return BuildProjection(sessionId, null, events, normalizedQuery with { RequestedGameInstanceId = normalizedRequestedGameInstanceId }, scopeMatchesActiveGame: normalizedRequestedGameInstanceId is null);
         }
 
         if (normalizedRequestedGameInstanceId is not null
@@ -67,7 +67,7 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
                     ["currentGameInstanceId"] = runtime.GameInstanceId,
                     ["currentRuntimeStatus"] = runtime.Status.ToString(),
                 }));
-            return BuildProjection(sessionId, null, events, normalizedRequestedGameInstanceId, scopeMatchesActiveGame: false);
+            return BuildProjection(sessionId, null, events, normalizedQuery with { RequestedGameInstanceId = normalizedRequestedGameInstanceId }, scopeMatchesActiveGame: false);
         }
 
         AddRuntimeSnapshot(events, runtime, now);
@@ -75,7 +75,7 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
         AddHostRecords(events, runtime);
         AddEngineEvents(events, runtime);
         AddCommunicationEvents(events, runtime);
-        AddPromptEnvelopeEvents(events, runtime, promptPreviewCharacters);
+        AddPromptEnvelopeEvents(events, runtime, normalizedQuery.PromptPreviewCharacters);
         AddPromptCursorEvents(events, runtime);
         AddMemoryEvents(events, runtime, now);
         if (normalizedRequestedGameInstanceId is null)
@@ -83,16 +83,21 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
             events.Add(TokenUsageDraft(runtime.LastUpdatedAt ?? now, usage));
         }
 
-        return BuildProjection(sessionId, runtime, events, normalizedRequestedGameInstanceId, scopeMatchesActiveGame: true);
+        return BuildProjection(sessionId, runtime, events, normalizedQuery with { RequestedGameInstanceId = normalizedRequestedGameInstanceId }, scopeMatchesActiveGame: true);
     }
 
     private static GameDiagnosticLogProjection BuildProjection(
         Guid sessionId,
         GameRuntimeState? runtime,
         List<EventDraft> drafts,
-        string? requestedGameInstanceId,
+        GameDiagnosticLogQuery query,
         bool scopeMatchesActiveGame)
     {
+        var categoryFilter = query.Categories
+            .Distinct()
+            .OrderBy(item => item.ToString(), StringComparer.Ordinal)
+            .ToArray();
+        var categoryFilterSet = categoryFilter.ToHashSet();
         var ordered = drafts
             .OrderBy(item => item.Timestamp)
             .ThenBy(item => item.SortSequence)
@@ -117,19 +122,40 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
                 Details = item.Details ?? new Dictionary<string, string?>(),
             })
             .ToArray();
+        var totalEventCount = ordered.Length;
+        var categoryFiltered = categoryFilterSet.Count == 0
+            ? ordered
+            : ordered.Where(item => categoryFilterSet.Contains(item.Category)).ToArray();
+        var filteredEventCount = categoryFiltered.Length;
+        var cursorFiltered = query.BeforeSequence is null
+            ? categoryFiltered
+            : categoryFiltered.Where(item => item.Sequence < query.BeforeSequence.Value).ToArray();
+        var limited = ApplyLimit(cursorFiltered, query.Limit);
+        var hasMore = query.Limit is not null && cursorFiltered.Length > limited.Length;
+        var nextBeforeSequence = hasMore && limited.Length > 0
+            ? limited.Min(item => item.Sequence)
+            : (long?)null;
 
         return new GameDiagnosticLogProjection
         {
             SessionId = sessionId,
             HasGame = runtime is not null,
             GameInstanceId = runtime?.GameInstanceId,
-            RequestedGameInstanceId = requestedGameInstanceId,
+            RequestedGameInstanceId = query.RequestedGameInstanceId,
             ScopeMatchesActiveGame = scopeMatchesActiveGame,
             TemplateId = runtime?.TemplateId,
             ModuleId = runtime?.ModuleId,
             RuntimeStatus = runtime?.Status.ToString(),
             PrivacyNotice = PrivacyNotice,
-            Events = ordered,
+            Limit = query.Limit,
+            BeforeSequence = query.BeforeSequence,
+            Categories = categoryFilter,
+            TotalEventCount = totalEventCount,
+            FilteredEventCount = filteredEventCount,
+            ReturnedEventCount = limited.Length,
+            HasMore = hasMore,
+            NextBeforeSequence = nextBeforeSequence,
+            Events = limited,
         };
     }
 
@@ -586,6 +612,39 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
         }
 
         return normalized.Length <= maxLength ? normalized : normalized[..maxLength] + "…";
+    }
+
+    private static GameDiagnosticLogQuery NormalizeQuery(GameDiagnosticLogQuery? query)
+    {
+        query ??= new GameDiagnosticLogQuery();
+        var limit = query.Limit is null
+            ? (int?)null
+            : Math.Clamp(query.Limit.Value, 1, GameDiagnosticLogQuery.MaxLimit);
+        var beforeSequence = query.BeforeSequence is > 0 ? query.BeforeSequence : null;
+        var promptPreviewCharacters = Math.Clamp(query.PromptPreviewCharacters, 0, 10000);
+        var categories = query.Categories
+            .Distinct()
+            .OrderBy(item => item.ToString(), StringComparer.Ordinal)
+            .ToArray();
+
+        return query with
+        {
+            PromptPreviewCharacters = promptPreviewCharacters,
+            Limit = limit,
+            BeforeSequence = beforeSequence,
+            Categories = categories,
+            RequestedGameInstanceId = Normalize(query.RequestedGameInstanceId),
+        };
+    }
+
+    private static GameDiagnosticLogEvent[] ApplyLimit(GameDiagnosticLogEvent[] events, int? limit)
+    {
+        if (limit is null || events.Length <= limit.Value)
+        {
+            return events;
+        }
+
+        return events.Skip(events.Length - limit.Value).ToArray();
     }
 
     private static string? Normalize(string? value) =>
