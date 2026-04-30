@@ -269,6 +269,7 @@ export default function GameTemplateEditor({
     content: string;
     originalContent: string;
   } | null>(null);
+  const [promptEditorWarning, setPromptEditorWarning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -483,8 +484,32 @@ export default function GameTemplateEditor({
     });
   }
 
+  function promptEditorHasUnsavedChanges(): boolean {
+    return Boolean(promptEditor && promptEditor.content !== promptEditor.originalContent);
+  }
+
+  function handleClosePromptEditor() {
+    if (promptEditorHasUnsavedChanges()) {
+      const warning = "Save or discard the prompt changes before closing the editor.";
+      setPromptEditorWarning(warning);
+      setError(warning);
+      return;
+    }
+
+    setPromptEditorWarning(null);
+    setPromptEditor(null);
+  }
+
   async function handleEditPrompt(agent: GameTemplateAgentPlayerConfig) {
     if (!selectedModule) return;
+    if (promptEditorHasUnsavedChanges()) {
+      const warning = "Save or discard the open prompt before editing another prompt.";
+      setPromptEditorWarning(warning);
+      setError(warning);
+      return;
+    }
+
+    setPromptEditorWarning(null);
     await runOperation(async () => {
       const document = await openGamePromptTemplate(selectedModule.moduleId, normalizePromptSelection(agent.systemPromptTemplate));
       updateAgent(agent.participantId, (current) => ({ ...current, systemPromptTemplate: document.selection }));
@@ -512,6 +537,7 @@ export default function GameTemplateEditor({
       setPromptEditor((current) => current
         ? { ...current, originalContent: current.content, document: { ...current.document, content: current.content, tokens: current.content.length / 4 } }
         : current);
+      setPromptEditorWarning(null);
       setMessage("Prompt template saved.");
     });
   }
@@ -873,53 +899,78 @@ export default function GameTemplateEditor({
       </section>
 
       {promptEditor && (
-        <section className="rounded-xl border border-border/60 bg-surface/60 px-3 py-3">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <div className="qf-shell-folio">Game Prompt Editor</div>
-              <div className="mt-1 text-xs text-text-muted">
-                {promptEditor.document.relativePath} · selected for {promptEditor.agentParticipantId}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="game-prompt-editor-title"
+          data-testid="game-prompt-editor-overlay"
+        >
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-xl border border-border bg-surface shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+              <div>
+                <div id="game-prompt-editor-title" className="qf-shell-folio">Game Prompt Editor</div>
+                <div className="mt-2 text-sm font-medium text-text">{promptEditor.document.displayName}</div>
+                <div className="mt-1 text-xs leading-5 text-text-muted">
+                  {promptEditor.document.relativePath} · module {promptEditor.moduleId} · selected for {promptEditor.agentParticipantId} in {template.displayName || template.templateId}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleClosePromptEditor}
+                className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border"
+              >
+                Close
+              </button>
+            </div>
+            <div className="min-h-0 overflow-y-auto px-5 py-4">
+              {promptEditorWarning && (
+                <div className="mb-3 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning-text">
+                  {promptEditorWarning}
+                </div>
+              )}
+              <div data-color-mode="dark">
+                <MDEditor
+                  value={promptEditor.content}
+                  onChange={(value) => {
+                    setPromptEditorWarning(null);
+                    setPromptEditor((current) => current ? { ...current, content: value ?? "" } : current);
+                  }}
+                  height={520}
+                  preview="edit"
+                  visibleDragbar
+                />
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setPromptEditor(null)}
-              className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border"
-            >
-              Close
-            </button>
-          </div>
-          <div data-color-mode="dark">
-            <MDEditor
-              value={promptEditor.content}
-              onChange={(value) => setPromptEditor((current) => current ? { ...current, content: value ?? "" } : current)}
-              height={360}
-              preview="edit"
-              visibleDragbar
-            />
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <span className="text-xs text-text-muted">~{Math.round(promptEditor.content.length / 4)} tokens</span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={busy || promptEditor.content === promptEditor.originalContent}
-                onClick={() => setPromptEditor((current) => current ? { ...current, content: current.originalContent } : current)}
-                className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border disabled:opacity-50"
-              >
-                Discard
-              </button>
-              <button
-                type="button"
-                disabled={busy || promptEditor.content === promptEditor.originalContent}
-                onClick={() => { void handleSavePrompt(); }}
-                className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
-              >
-                Save prompt
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-5 py-4">
+              <span className="text-xs text-text-muted">
+                ~{Math.round(promptEditor.content.length / 4)} tokens
+                {promptEditor.content !== promptEditor.originalContent ? " · unsaved changes" : " · saved"}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={busy || promptEditor.content === promptEditor.originalContent}
+                  onClick={() => {
+                    setPromptEditorWarning(null);
+                    setPromptEditor((current) => current ? { ...current, content: current.originalContent } : current);
+                  }}
+                  className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border disabled:opacity-50"
+                >
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || promptEditor.content === promptEditor.originalContent}
+                  onClick={() => { void handleSavePrompt(); }}
+                  className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
+                >
+                  Save prompt
+                </button>
+              </div>
             </div>
           </div>
-        </section>
+        </div>
       )}
 
       <div className="flex flex-wrap gap-2">

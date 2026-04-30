@@ -514,6 +514,13 @@ public sealed class FrontendContractTests
         Assert.Contains("AI player system prompt", source, StringComparison.Ordinal);
         Assert.Contains("Editing Default creates a user-owned markdown copy", source, StringComparison.Ordinal);
         Assert.Contains("<MDEditor", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"game-prompt-editor-overlay\"", source, StringComparison.Ordinal);
+        Assert.Contains("role=\"dialog\"", source, StringComparison.Ordinal);
+        Assert.Contains("aria-modal=\"true\"", source, StringComparison.Ordinal);
+        Assert.Contains("Save or discard the prompt changes before closing the editor.", source, StringComparison.Ordinal);
+        Assert.Contains("selected for {promptEditor.agentParticipantId}", source, StringComparison.Ordinal);
+        Assert.Contains("fixed inset-0", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-testid=\"game-prompt-editor-inline\"", source, StringComparison.Ordinal);
         Assert.Contains("Validation issues from template service", source, StringComparison.Ordinal);
         Assert.Contains("Provider alias", source, StringComparison.Ordinal);
         Assert.Contains("Provider model", source, StringComparison.Ordinal);
