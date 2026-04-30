@@ -26,6 +26,11 @@ public interface IGameRuntimeService
         AbortGameRuntimeCommand command,
         CancellationToken ct = default);
 
+    Task<SessionMutationResult<GameRuntimeMutationResult>> AppendHostRecordAsync(
+        Guid sessionId,
+        AppendGameRuntimeHostRecordCommand command,
+        CancellationToken ct = default);
+
     Task<SessionMutationResult<GameRuntimeCommunicationMutationResult>> PostPublicMessageAsync(
         Guid sessionId,
         PostGameRuntimePublicMessageCommand command,

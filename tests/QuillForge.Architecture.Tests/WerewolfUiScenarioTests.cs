@@ -70,6 +70,9 @@ public sealed class WerewolfUiScenarioTests
         Assert.Equal("1", snapshot.Details["waitingInputCount"]);
         Assert.Equal("1", snapshot.Details["waitingHumanInputCount"]);
         Assert.Equal("0", snapshot.Details["waitingAgentInputCount"]);
+        Assert.Contains(log.Events, item => item.Operation == "Coordinator" && item.ReasonCode == "coordinator_started");
+        Assert.Contains(log.Events, item => item.Operation == "Coordinator" && item.ReasonCode == "coordinator_ran_agent_turns");
+        Assert.Contains(log.Events, item => item.Operation == "Coordinator" && item.ReasonCode == "coordinator_converged");
         Assert.Contains(log.Events, item => item.Operation == nameof(PendingInputRequestedEvent));
         Assert.Contains(log.Events, item => item.Operation == nameof(PlayerChoiceSubmittedEvent) && item.ParticipantId == "agent-a");
         Assert.DoesNotContain(log.Events, item => item.Operation == "runtime_waiting_without_pending_inputs");

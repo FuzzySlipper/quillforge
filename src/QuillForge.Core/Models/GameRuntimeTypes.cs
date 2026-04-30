@@ -217,5 +217,6 @@ public enum GameRuntimeHostRecordKind
     CommunicationPosted,
     CommunicationRejected,
     AgentPromptRecorded,
-    AgentMemorySummaryRecorded
+    AgentMemorySummaryRecorded,
+    Coordinator
 }

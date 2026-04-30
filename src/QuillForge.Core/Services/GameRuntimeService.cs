@@ -198,6 +198,42 @@ public sealed class GameRuntimeService : IGameRuntimeService
         return AbortAsyncCore(sessionId, command, ct);
     }
 
+    public async Task<SessionMutationResult<GameRuntimeMutationResult>> AppendHostRecordAsync(
+        Guid sessionId,
+        AppendGameRuntimeHostRecordCommand command,
+        CancellationToken ct = default)
+    {
+        const string operationName = "append_game_host_record";
+        await using var lease = await _gate.TryAcquireAsync(sessionId, operationName, ct);
+        if (lease is null)
+        {
+            return Busy();
+        }
+
+        var state = await _store.LoadAsync(sessionId, ct);
+        var runtime = state.Game;
+        if (runtime?.EngineSnapshot is null || string.IsNullOrWhiteSpace(runtime.GameInstanceId))
+        {
+            return SessionMutationResult<GameRuntimeMutationResult>.Invalid("No game runtime is available for this session.");
+        }
+
+        GameRuntimeStateCloner.AppendHostRecord(
+            runtime,
+            command.Kind,
+            command.OccurredAt,
+            command.ReasonCode,
+            command.Summary,
+            command.SourceSessionId,
+            command.TargetSessionId);
+        runtime.LastUpdatedAt = command.OccurredAt;
+        await _store.SaveAsync(state, ct);
+
+        return SessionMutationResult<GameRuntimeMutationResult>.Success(new GameRuntimeMutationResult(
+            GameRuntimeStateCloner.Clone(runtime)!,
+            [],
+            []));
+    }
+
     public Task<SessionMutationResult<GameRuntimeCommunicationMutationResult>> PostPublicMessageAsync(
         Guid sessionId,
         PostGameRuntimePublicMessageCommand command,

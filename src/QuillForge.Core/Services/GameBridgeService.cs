@@ -6,6 +6,9 @@ namespace QuillForge.Core.Services;
 
 public sealed class GameBridgeService : IGameBridgeService
 {
+    private const int MinimumCoordinatorPassLimit = 4;
+    private const int MaximumCoordinatorPassLimit = 16;
+
     private readonly IGameTemplateService _templateService;
     private readonly IGameRuntimeService _runtimeService;
     private readonly GameModuleRegistry _moduleRegistry;
@@ -336,10 +339,19 @@ public sealed class GameBridgeService : IGameBridgeService
     {
         var runtimeEvents = new List<IGameRuntimeEvent>();
         var engineEvents = new List<IGameEvent>();
+        var initialRuntime = await _runtimeService.LoadViewAsync(sessionId, ct);
+        var passLimit = EstimateCoordinatorPassLimit(initialRuntime);
+        await RecordCoordinatorHostRecordAsync(
+            sessionId,
+            occurredAt,
+            "coordinator_started",
+            $"Game coordinator started after a start or typed player action. Public/direct messages and end/abort intentionally do not trigger coordination. Safety limit: {passLimit} pass(es).",
+            ct);
 
-        for (var iteration = 0; iteration < 4; iteration++)
+        for (var iteration = 0; iteration < passLimit; iteration++)
         {
             var changed = false;
+            var passNumber = iteration + 1;
             var requestResult = await RequestStageInputsIfNeededAsync(sessionId, occurredAt, ct);
             if (requestResult.Status != SessionMutationStatus.Success)
             {
@@ -355,6 +367,12 @@ public sealed class GameBridgeService : IGameBridgeService
                 changed = true;
                 runtimeEvents.AddRange(requestResult.Value.RuntimeEvents);
                 engineEvents.AddRange(requestResult.Value.EngineEvents);
+                await RecordCoordinatorHostRecordAsync(
+                    sessionId,
+                    occurredAt,
+                    "coordinator_requested_pending_inputs",
+                    $"Game coordinator pass {passNumber} requested pending input(s) for the current stage.",
+                    ct);
             }
 
             var agentTurns = await _agentTurnService.RunPendingAgentTurnsAsync(
@@ -375,15 +393,76 @@ public sealed class GameBridgeService : IGameBridgeService
                 changed = true;
                 runtimeEvents.AddRange(agentTurns.Value.RuntimeEvents);
                 engineEvents.AddRange(agentTurns.Value.EngineEvents);
+                await RecordCoordinatorHostRecordAsync(
+                    sessionId,
+                    occurredAt,
+                    "coordinator_ran_agent_turns",
+                    $"Game coordinator pass {passNumber} ran pending agent turn work.",
+                    ct);
             }
 
             if (!changed)
             {
+                await RecordCoordinatorHostRecordAsync(
+                    sessionId,
+                    occurredAt,
+                    "coordinator_converged",
+                    $"Game coordinator converged after {passNumber} pass(es) with no additional pending input requests or agent turns.",
+                    ct);
                 break;
+            }
+
+            if (passNumber == passLimit)
+            {
+                await RecordCoordinatorHostRecordAsync(
+                    sessionId,
+                    occurredAt,
+                    "coordinator_safety_limit_reached",
+                    $"Game coordinator stopped after reaching the safety limit of {passLimit} pass(es); no-progress detection did not converge before the limit.",
+                    ct);
             }
         }
 
         return SessionMutationResult<GameBridgeCoordinationResult>.Success(new GameBridgeCoordinationResult(runtimeEvents, engineEvents));
+    }
+
+    private static int EstimateCoordinatorPassLimit(GameRuntimeState? runtime)
+    {
+        var liveState = runtime?.EngineSnapshot?.ToState();
+        if (liveState is null)
+        {
+            return MinimumCoordinatorPassLimit;
+        }
+
+        var activeParticipants = liveState.Participants.Count(participant => participant.IsActive);
+        var waitingInputs = liveState.PendingInputs.Count(input => input.Status == PendingInputStatus.Waiting);
+        return Math.Clamp(activeParticipants + waitingInputs + 2, MinimumCoordinatorPassLimit, MaximumCoordinatorPassLimit);
+    }
+
+    private async Task RecordCoordinatorHostRecordAsync(
+        Guid sessionId,
+        DateTimeOffset occurredAt,
+        string reasonCode,
+        string summary,
+        CancellationToken ct)
+    {
+        var result = await _runtimeService.AppendHostRecordAsync(
+            sessionId,
+            new AppendGameRuntimeHostRecordCommand(
+                GameRuntimeHostRecordKind.Coordinator,
+                occurredAt,
+                reasonCode,
+                summary),
+            ct);
+        if (result.Status != SessionMutationStatus.Success)
+        {
+            _logger.LogWarning(
+                "Game coordinator host record was not persisted: session={SessionId} reason={ReasonCode} status={Status} error={Error}",
+                sessionId,
+                reasonCode,
+                result.Status,
+                result.Error);
+        }
     }
 
     private async Task<SessionMutationResult<GameRuntimeMutationResult?>> RequestStageInputsIfNeededAsync(
@@ -404,10 +483,7 @@ public sealed class GameBridgeService : IGameBridgeService
             return SessionMutationResult<GameRuntimeMutationResult?>.Invalid("Registered game module is not available for this runtime.");
         }
 
-        var form = module.Descriptor.AuthoringHooks.ActionForms
-            .Where(candidate => candidate.StageId == liveState.Stage.StageId)
-            .OrderBy(candidate => candidate.IntentName, StringComparer.Ordinal)
-            .FirstOrDefault();
+        var form = SelectAutoRequestedActionForm(module, liveState.Stage.StageId);
         if (form is null)
         {
             return SessionMutationResult<GameRuntimeMutationResult?>.Success(null);
@@ -476,6 +552,29 @@ public sealed class GameBridgeService : IGameBridgeService
         return latestGame is null
             ? SessionMutationResult<GameRuntimeMutationResult?>.Success(null)
             : SessionMutationResult<GameRuntimeMutationResult?>.Success(new GameRuntimeMutationResult(latestGame, runtimeEvents, engineEvents));
+    }
+
+    private GameActionFormDescriptor? SelectAutoRequestedActionForm(IGameModule module, GameStageId stageId)
+    {
+        // LegalIntentDescriptor is currently stage-scoped rather than form-scoped, so the coordinator
+        // intentionally auto-requests one deterministic action form per stage. Additional forms still
+        // project to the UI through module authoring metadata, but modules that need multiple concurrent
+        // automatic input groups must add form-scoped legal intent descriptors before the coordinator
+        // can safely request them without duplicating ambiguous legal options.
+        var forms = module.Descriptor.AuthoringHooks.ActionForms
+            .Where(candidate => candidate.StageId == stageId)
+            .OrderBy(candidate => candidate.IntentName, StringComparer.Ordinal)
+            .ToArray();
+        if (forms.Length > 1)
+        {
+            _logger.LogWarning(
+                "Game coordinator found multiple action forms for stage {StageId} in module {ModuleId}; auto-requesting deterministic first form {IntentName} only.",
+                stageId.Value,
+                module.Descriptor.ModuleId.Value,
+                forms[0].IntentName);
+        }
+
+        return forms.FirstOrDefault();
     }
 
     private static string LegalOptionsKey(IReadOnlyList<LegalIntentOption> options) =>

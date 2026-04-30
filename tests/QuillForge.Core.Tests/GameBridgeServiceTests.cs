@@ -31,6 +31,12 @@ public sealed class GameBridgeServiceTests
         Assert.NotNull(view.Player);
         Assert.Equal("human-1", view.Player!.ParticipantId);
         Assert.Contains(view.Player.PendingInputs, input => input.PendingInputId.Value == TestGameModule.PendingInputId);
+
+        var persisted = await fixture.Store.LoadAsync(sessionId);
+        Assert.Contains(persisted.Game!.HostRecords, record => record.Kind == GameRuntimeHostRecordKind.Coordinator
+            && record.ReasonCode == "coordinator_started");
+        Assert.Contains(persisted.Game.HostRecords, record => record.Kind == GameRuntimeHostRecordKind.Coordinator
+            && record.ReasonCode == "coordinator_converged");
     }
 
     [Fact]
@@ -154,7 +160,7 @@ public sealed class GameBridgeServiceTests
             new SubmitGameTextActionCommand("human-1", "I reject it.", Instant(1)));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
-        Assert.Equal(5, fixture.Store.LoadCount);
+        Assert.Equal(8, fixture.Store.LoadCount);
         Assert.Contains(result.Value!.EngineEvents, gameEvent => gameEvent is PlayerChoiceSubmittedEvent submitted
             && submitted.ChoiceName == "reject");
     }
@@ -245,12 +251,18 @@ public sealed class GameBridgeServiceTests
             sessionId,
             new StartGameFromTemplateCommand("test-template", "Human Player", 42, Instant(0)));
 
+        var beforeCommunication = await fixture.Store.LoadAsync(sessionId);
+        var coordinatorRecordsBeforeCommunication = beforeCommunication.Game!.HostRecords.Count(record => record.Kind == GameRuntimeHostRecordKind.Coordinator);
+
         await fixture.Bridge.PostPublicMessageAsync(
             sessionId,
             new PostGameRuntimePublicMessageCommand(Guid.NewGuid(), "human-1", ParticipantMessageAuthorKind.Human, "hello table", Instant(1)));
         await fixture.Bridge.SendDirectMessageAsync(
             sessionId,
             new SendGameRuntimeDirectMessageCommand(Guid.NewGuid(), "human-1", ParticipantMessageAuthorKind.Human, ["agent-1"], "secret", Instant(2)));
+
+        var afterCommunication = await fixture.Store.LoadAsync(sessionId);
+        Assert.Equal(coordinatorRecordsBeforeCommunication, afterCommunication.Game!.HostRecords.Count(record => record.Kind == GameRuntimeHostRecordKind.Coordinator));
 
         var publicView = await fixture.Bridge.GetViewAsync(sessionId);
         var agentView = await fixture.Bridge.GetViewAsync(sessionId, "agent-1");

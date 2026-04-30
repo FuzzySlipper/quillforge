@@ -214,6 +214,17 @@ public class DependencyBoundaryTests
     }
 
     [Fact]
+    public void GameBridgeCoordinator_DocumentsMutationPolicyAndSingleAutoRequestedFormRule()
+    {
+        var sourceText = File.ReadAllText(Path.Combine(RepoRoot, "src", "QuillForge.Core", "Services", "GameBridgeService.cs"));
+
+        Assert.Contains("Public/direct messages and end/abort intentionally do not trigger coordination", sourceText, StringComparison.Ordinal);
+        Assert.Contains("LegalIntentDescriptor is currently stage-scoped rather than form-scoped", sourceText, StringComparison.Ordinal);
+        Assert.Contains("auto-requests one deterministic action form per stage", sourceText, StringComparison.Ordinal);
+        Assert.Contains("coordinator_safety_limit_reached", sourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WerewolfModule_DoesNot_Reference_QuillForgeOrHostFrameworks()
     {
         Assert.Contains(

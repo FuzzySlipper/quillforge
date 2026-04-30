@@ -29,6 +29,14 @@ public sealed record AbortGameRuntimeCommand(
     string ReasonCode,
     DateTimeOffset AbortedAt);
 
+public sealed record AppendGameRuntimeHostRecordCommand(
+    GameRuntimeHostRecordKind Kind,
+    DateTimeOffset OccurredAt,
+    string ReasonCode,
+    string Summary,
+    Guid? SourceSessionId = null,
+    Guid? TargetSessionId = null);
+
 public sealed record PostGameRuntimePublicMessageCommand(
     Guid MessageId,
     string ParticipantId,
