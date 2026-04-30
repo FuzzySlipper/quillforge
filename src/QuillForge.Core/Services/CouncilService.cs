@@ -56,7 +56,6 @@ public sealed class CouncilService : ICouncilService
             UserPrompt = query,
             ProviderAlias = m.ProviderAlias ?? "default",
             ModelOverride = m.Model,
-            Temperature = (float)_budget.Temperature,
             MaxTokens = _budget.MaxTokens,
         });
 

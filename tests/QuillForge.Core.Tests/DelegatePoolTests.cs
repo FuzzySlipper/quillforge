@@ -41,6 +41,33 @@ public class DelegatePoolTests
     }
 
     [Fact]
+    public async Task RunAsync_DoesNotInjectSamplingParameters_WhenTaskDoesNotConfigureThem()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueText("delegate response");
+        var pool = new DelegatePool(_ => fake, NullLogger<DelegatePool>.Instance);
+
+        await pool.RunAsync([CreateTask("analyst", "default")]);
+
+        var request = Assert.Single(fake.ReceivedRequests);
+        Assert.Equal("default", request.ProviderAlias);
+        Assert.Null(request.Temperature);
+    }
+
+    [Fact]
+    public async Task RunAsync_UsesExplicitTemperature_WhenTaskConfiguresIt()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueText("delegate response");
+        var pool = new DelegatePool(_ => fake, NullLogger<DelegatePool>.Instance);
+
+        await pool.RunAsync([CreateTask("analyst", "default") with { Temperature = 0.4f }]);
+
+        var request = Assert.Single(fake.ReceivedRequests);
+        Assert.Equal(0.4, request.Temperature!.Value, precision: 5);
+    }
+
+    [Fact]
     public async Task RunAsync_UsesResolvedProviderAlias_WhenAliasResolverMapsAlias()
     {
         var fake = new FakeCompletionService();
@@ -67,6 +94,7 @@ public class DelegatePoolTests
         Assert.Equal(["claude"], serviceAliases);
         var result = Assert.Single(results.Values);
         Assert.Equal("claude", result.ProviderAlias);
+        Assert.Equal("claude", Assert.Single(fake.ReceivedRequests).ProviderAlias);
         Assert.Null(result.Error);
         Assert.Equal("delegate response", result.Content);
     }

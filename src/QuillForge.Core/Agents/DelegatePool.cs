@@ -14,7 +14,7 @@ public sealed record DelegateTask
     public required string UserPrompt { get; init; }
     public required string ProviderAlias { get; init; }
     public string? ModelOverride { get; init; }
-    public float Temperature { get; init; } = 0.7f;
+    public float? Temperature { get; init; }
     public int MaxTokens { get; init; } = 1024;
     public IReadOnlyDictionary<string, string>? Metadata { get; init; }
 }
@@ -205,6 +205,7 @@ public sealed class DelegatePool
             var service = _serviceFactory(task.ProviderAlias);
             var request = new CompletionRequest
             {
+                ProviderAlias = task.ProviderAlias,
                 Model = model,
                 MaxTokens = task.MaxTokens,
                 Temperature = task.Temperature,
