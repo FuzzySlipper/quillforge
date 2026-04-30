@@ -33,7 +33,7 @@ public sealed class WerewolfUiScenarioTests
     }
 
     [Fact]
-    public async Task StartThenNightPublicMessageRejection_IsVisibleInDiagnosticLog()
+    public async Task StartThenNightRequestsHumanInputAndPublicMessageRejection_IsVisibleInDiagnosticLog()
     {
         var fixture = CreateFixture();
         var sessionId = Guid.NewGuid();
@@ -44,6 +44,10 @@ public sealed class WerewolfUiScenarioTests
 
         Assert.Equal(SessionMutationStatus.Success, start.Status);
         Assert.Equal("night", start.Value!.View.StageId);
+        Assert.NotNull(start.Value.View.Player);
+        var pendingInput = Assert.Single(start.Value.View.Player!.PendingInputs);
+        Assert.Equal("human-1", pendingInput.ParticipantId.Value);
+        Assert.Equal(WerewolfConstants.NightActionIntentName, pendingInput.IntentName);
 
         var post = await fixture.Bridge.PostPublicMessageAsync(
             sessionId,
@@ -63,11 +67,12 @@ public sealed class WerewolfUiScenarioTests
         var log = await diagnosticLog.GetLogAsync(sessionId);
         var snapshot = Assert.Single(log.Events, item => item.Operation == "runtime_snapshot");
         Assert.Equal("night", snapshot.Details["stageId"]);
-        Assert.Equal("0", snapshot.Details["waitingInputCount"]);
-        Assert.Contains(log.Events, item =>
-            item.Operation == "runtime_waiting_without_pending_inputs"
-            && item.Level == GameDiagnosticLogLevel.Warning
-            && item.Details["stageId"] == "night");
+        Assert.Equal("1", snapshot.Details["waitingInputCount"]);
+        Assert.Equal("1", snapshot.Details["waitingHumanInputCount"]);
+        Assert.Equal("0", snapshot.Details["waitingAgentInputCount"]);
+        Assert.Contains(log.Events, item => item.Operation == nameof(PendingInputRequestedEvent));
+        Assert.Contains(log.Events, item => item.Operation == nameof(PlayerChoiceSubmittedEvent) && item.ParticipantId == "agent-a");
+        Assert.DoesNotContain(log.Events, item => item.Operation == "runtime_waiting_without_pending_inputs");
         Assert.Contains(log.Events, item =>
             item.Category == GameDiagnosticLogCategory.Rejection
             && item.ReasonCode == "public_channel_forbidden"
@@ -139,20 +144,10 @@ public sealed class WerewolfUiScenarioTests
         Assert.DoesNotContain(start.Value.View.Public.Feed, entry => entry.Summary?.StartsWith("Your role is", StringComparison.Ordinal) == true);
 
         var gameId = new GameInstanceId(start.Value.View.GameInstanceId!);
-        await RequestInputsAsync(fixture.Runtime, sessionId, gameId, WerewolfConstants.NightStage.StageId, "night", [new LegalIntentOption(WerewolfConstants.SkipNightChoice, "Skip night", "No baseline night action.")], Instant(1));
         foreach (var input in (await fixture.Bridge.GetViewAsync(sessionId, "human-1")).Player!.PendingInputs.ToArray())
         {
             await fixture.Bridge.SubmitTypedActionAsync(sessionId, new SubmitGameTypedActionCommand(input.ParticipantId.Value, input.PendingInputId.Value.ToString(), WerewolfConstants.SkipNightChoice, Instant(2)));
         }
-        foreach (var participantId in new[] { "agent-a", "agent-b" })
-        {
-            var view = await fixture.Bridge.GetViewAsync(sessionId, participantId);
-            foreach (var input in view.Player!.PendingInputs.ToArray())
-            {
-                await fixture.Bridge.SubmitTypedActionAsync(sessionId, new SubmitGameTypedActionCommand(participantId, input.PendingInputId.Value.ToString(), WerewolfConstants.SkipNightChoice, Instant(2)));
-            }
-        }
-
         var day = await fixture.Bridge.GetViewAsync(sessionId, "human-1");
         Assert.Equal("day-discussion", day.StageId);
         Assert.Contains(day.Public.Narration, entry => entry.Text.Contains("Day discussion begins", StringComparison.Ordinal));
@@ -175,13 +170,10 @@ public sealed class WerewolfUiScenarioTests
             activeIds.Select(id => new LegalIntentOption(id.Value, $"Vote {id.Value}", $"Vote to eliminate {id.Value}.")).Append(new LegalIntentOption(WerewolfConstants.AbstainChoice, "Abstain", "Do not eliminate anyone.")).ToArray(),
             Instant(4));
 
-        foreach (var participantId in activeIds.Select(id => id.Value))
-        {
-            var view = await fixture.Bridge.GetViewAsync(sessionId, participantId);
-            var pending = Assert.Single(view.Player!.PendingInputs);
-            Assert.Contains(pending.LegalOptions, option => option.IntentName == target.Value);
-            await fixture.Bridge.SubmitTypedActionAsync(sessionId, new SubmitGameTypedActionCommand(participantId, pending.PendingInputId.Value.ToString(), target.Value, Instant(5)));
-        }
+        var voteView = await fixture.Bridge.GetViewAsync(sessionId, "human-1");
+        var pending = Assert.Single(voteView.Player!.PendingInputs);
+        Assert.Contains(pending.LegalOptions, option => option.IntentName == target.Value);
+        await fixture.Bridge.SubmitTypedActionAsync(sessionId, new SubmitGameTypedActionCommand("human-1", pending.PendingInputId.Value.ToString(), target.Value, Instant(5)));
 
         var ended = await fixture.Bridge.GetViewAsync(sessionId, "human-1");
         Assert.Equal(GameRuntimeStatus.Ended, ended.Status);
@@ -227,11 +219,20 @@ public sealed class WerewolfUiScenarioTests
             channel,
             narration,
             NullLogger<GameRuntimeService>.Instance);
+        var agentTurns = new GameAgentTurnService(
+            runtime,
+            registryResult.Registry,
+            new ScriptedCompletionService(),
+            new AgentVisibleEventsService(new GameVisibilityProjector(), channel),
+            new DefaultOnlyGamePromptTemplateService(),
+            new AppConfig(),
+            NullLogger<GameAgentTurnService>.Instance);
         var bridge = new GameBridgeService(
             new StaticTemplateService(CreateTemplate()),
             runtime,
             registryResult.Registry,
             new ScriptedTranslationAgent(),
+            agentTurns,
             channel,
             new GameVisibilityProjector(),
             narration,
@@ -305,6 +306,38 @@ public sealed class WerewolfUiScenarioTests
     {
         public Task<GameIntentTranslationResult> TranslateAsync(GameIntentTranslationRequest request, CancellationToken ct = default) =>
             Task.FromResult(GameIntentTranslationResult.Rejected("not_used", "This scenario submits typed actions."));
+    }
+
+    private sealed class ScriptedCompletionService : ICompletionService
+    {
+        public List<CompletionRequest> Requests { get; } = [];
+
+        public Task<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken ct = default)
+        {
+            Requests.Add(request);
+            var prompt = request.Messages[0].Content.GetText();
+            var pendingInputId = prompt.Split('\n')
+                .Select(line => line.Trim())
+                .First(line => line.StartsWith("- pendingInputId: ", StringComparison.Ordinal))["- pendingInputId: ".Length..];
+            var choiceName = prompt.Contains(WerewolfConstants.SkipNightChoice, StringComparison.Ordinal)
+                ? WerewolfConstants.SkipNightChoice
+                : WerewolfConstants.AbstainChoice;
+            return Task.FromResult(new CompletionResponse
+            {
+                Content = new MessageContent($"{{\"accepted\":true,\"pendingInputId\":\"{pendingInputId}\",\"choiceName\":\"{choiceName}\",\"message\":\"ok\"}}"),
+                StopReason = StopReason.EndTurn,
+                Usage = new TokenUsage(10, 5),
+            });
+        }
+
+        public async IAsyncEnumerable<StreamEvent> StreamAsync(
+            CompletionRequest request,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        {
+            var response = await CompleteAsync(request, ct);
+            yield return new TextDeltaEvent(response.Content.GetText());
+            yield return new DoneEvent(response.StopReason, response.Usage);
+        }
     }
 
     private sealed class InMemoryStateStore : ISessionStateStore

@@ -154,7 +154,7 @@ public sealed class GameBridgeServiceTests
             new SubmitGameTextActionCommand("human-1", "I reject it.", Instant(1)));
 
         Assert.Equal(SessionMutationStatus.Success, result.Status);
-        Assert.Equal(3, fixture.Store.LoadCount);
+        Assert.Equal(5, fixture.Store.LoadCount);
         Assert.Contains(result.Value!.EngineEvents, gameEvent => gameEvent is PlayerChoiceSubmittedEvent submitted
             && submitted.ChoiceName == "reject");
     }
@@ -350,6 +350,7 @@ public sealed class GameBridgeServiceTests
             runtime,
             registry,
             translationAgent ?? new ScriptedTranslationAgent(GameIntentTranslationResult.Accepted(TestGameModule.PendingInputId, "approve", 0.9, "parsed")),
+            new NoOpGameAgentTurnService(runtime),
             channel,
             new GameVisibilityProjector(),
             new DefaultGameEventNarrationComposer(),
@@ -400,6 +401,26 @@ public sealed class GameBridgeServiceTests
         ]);
 
     private sealed record Fixture(GameBridgeService Bridge, InMemoryStateStore Store);
+
+    private sealed class NoOpGameAgentTurnService : IGameAgentTurnService
+    {
+        private readonly IGameRuntimeService _runtime;
+
+        public NoOpGameAgentTurnService(IGameRuntimeService runtime)
+        {
+            _runtime = runtime;
+        }
+
+        public async Task<SessionMutationResult<GameAgentTurnRunResult>> RunPendingAgentTurnsAsync(
+            Guid sessionId,
+            RunGameAgentTurnsCommand command,
+            CancellationToken ct = default) =>
+            SessionMutationResult<GameAgentTurnRunResult>.Success(new GameAgentTurnRunResult(
+                await _runtime.LoadViewAsync(sessionId, ct),
+                [],
+                [],
+                []));
+    }
 
     private sealed class ScriptedTranslationAgent : IGameIntentTranslationAgent
     {

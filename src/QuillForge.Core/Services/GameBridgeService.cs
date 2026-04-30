@@ -10,6 +10,7 @@ public sealed class GameBridgeService : IGameBridgeService
     private readonly IGameRuntimeService _runtimeService;
     private readonly GameModuleRegistry _moduleRegistry;
     private readonly IGameIntentTranslationAgent _translationAgent;
+    private readonly IGameAgentTurnService _agentTurnService;
     private readonly ParticipantChannelService _channelService;
     private readonly GameVisibilityProjector _visibilityProjector;
     private readonly IGameEventNarrationComposer _narrationComposer;
@@ -20,6 +21,7 @@ public sealed class GameBridgeService : IGameBridgeService
         IGameRuntimeService runtimeService,
         GameModuleRegistry moduleRegistry,
         IGameIntentTranslationAgent translationAgent,
+        IGameAgentTurnService agentTurnService,
         ParticipantChannelService channelService,
         GameVisibilityProjector visibilityProjector,
         IGameEventNarrationComposer narrationComposer,
@@ -29,6 +31,7 @@ public sealed class GameBridgeService : IGameBridgeService
         _runtimeService = runtimeService;
         _moduleRegistry = moduleRegistry;
         _translationAgent = translationAgent;
+        _agentTurnService = agentTurnService;
         _channelService = channelService;
         _visibilityProjector = visibilityProjector;
         _narrationComposer = narrationComposer;
@@ -105,7 +108,12 @@ public sealed class GameBridgeService : IGameBridgeService
                 template.Communication.DirectMessagesEnabled),
             ct);
 
-        return await ToBridgeResultAsync(sessionId, runtimeResult, participantId: template.Roster.UserSeatParticipantId, ct);
+        return await ToBridgeResultWithCoordinatorAsync(
+            sessionId,
+            runtimeResult,
+            participantId: template.Roster.UserSeatParticipantId,
+            command.StartedAt,
+            ct);
     }
 
     public async Task<SessionMutationResult<GameBridgeMutationResult>> SubmitTypedActionAsync(
@@ -256,7 +264,7 @@ public sealed class GameBridgeService : IGameBridgeService
             sessionId,
             new ApplyGameRuntimeEngineCommand(engineCommand, command.OccurredAt),
             ct);
-        return await ToBridgeResultAsync(sessionId, result, command.ParticipantId, ct);
+        return await ToBridgeResultWithCoordinatorAsync(sessionId, result, command.ParticipantId, command.OccurredAt, ct);
     }
 
     private async Task<SessionMutationResult<GameBridgeMutationResult>> ToBridgeResultAsync(
@@ -278,6 +286,204 @@ public sealed class GameBridgeService : IGameBridgeService
         return SessionMutationResult<GameBridgeMutationResult>.Success(
             GameBridgeMutationResult.FromRuntime(view, result.Value));
     }
+
+    private async Task<SessionMutationResult<GameBridgeMutationResult>> ToBridgeResultWithCoordinatorAsync(
+        Guid sessionId,
+        SessionMutationResult<GameRuntimeMutationResult> result,
+        string? participantId,
+        DateTimeOffset occurredAt,
+        CancellationToken ct)
+    {
+        if (result.Status != SessionMutationStatus.Success || result.Value is null)
+        {
+            return new SessionMutationResult<GameBridgeMutationResult>
+            {
+                Status = result.Status,
+                Error = result.Error,
+            };
+        }
+
+        var runtimeEvents = result.Value.RuntimeEvents.ToList();
+        var engineEvents = result.Value.EngineEvents.ToList();
+        var coordination = await CoordinatePendingGameWorkAsync(sessionId, occurredAt, ct);
+        if (coordination.Status != SessionMutationStatus.Success)
+        {
+            return new SessionMutationResult<GameBridgeMutationResult>
+            {
+                Status = coordination.Status,
+                Error = coordination.Error,
+            };
+        }
+
+        if (coordination.Value is not null)
+        {
+            runtimeEvents.AddRange(coordination.Value.RuntimeEvents);
+            engineEvents.AddRange(coordination.Value.EngineEvents);
+        }
+
+        var view = ProjectView(await _runtimeService.LoadViewAsync(sessionId, ct), participantId);
+        return SessionMutationResult<GameBridgeMutationResult>.Success(new GameBridgeMutationResult(
+            view,
+            runtimeEvents,
+            engineEvents,
+            []));
+    }
+
+    private async Task<SessionMutationResult<GameBridgeCoordinationResult>> CoordinatePendingGameWorkAsync(
+        Guid sessionId,
+        DateTimeOffset occurredAt,
+        CancellationToken ct)
+    {
+        var runtimeEvents = new List<IGameRuntimeEvent>();
+        var engineEvents = new List<IGameEvent>();
+
+        for (var iteration = 0; iteration < 4; iteration++)
+        {
+            var changed = false;
+            var requestResult = await RequestStageInputsIfNeededAsync(sessionId, occurredAt, ct);
+            if (requestResult.Status != SessionMutationStatus.Success)
+            {
+                return new SessionMutationResult<GameBridgeCoordinationResult>
+                {
+                    Status = requestResult.Status,
+                    Error = requestResult.Error,
+                };
+            }
+
+            if (requestResult.Value is not null)
+            {
+                changed = true;
+                runtimeEvents.AddRange(requestResult.Value.RuntimeEvents);
+                engineEvents.AddRange(requestResult.Value.EngineEvents);
+            }
+
+            var agentTurns = await _agentTurnService.RunPendingAgentTurnsAsync(
+                sessionId,
+                new RunGameAgentTurnsCommand(occurredAt),
+                ct);
+            if (agentTurns.Status != SessionMutationStatus.Success)
+            {
+                return new SessionMutationResult<GameBridgeCoordinationResult>
+                {
+                    Status = agentTurns.Status,
+                    Error = agentTurns.Error,
+                };
+            }
+
+            if (agentTurns.Value?.HasWork == true)
+            {
+                changed = true;
+                runtimeEvents.AddRange(agentTurns.Value.RuntimeEvents);
+                engineEvents.AddRange(agentTurns.Value.EngineEvents);
+            }
+
+            if (!changed)
+            {
+                break;
+            }
+        }
+
+        return SessionMutationResult<GameBridgeCoordinationResult>.Success(new GameBridgeCoordinationResult(runtimeEvents, engineEvents));
+    }
+
+    private async Task<SessionMutationResult<GameRuntimeMutationResult?>> RequestStageInputsIfNeededAsync(
+        Guid sessionId,
+        DateTimeOffset occurredAt,
+        CancellationToken ct)
+    {
+        var runtime = await _runtimeService.LoadViewAsync(sessionId, ct);
+        if (runtime?.EngineSnapshot is null || string.IsNullOrWhiteSpace(runtime.GameInstanceId) || !runtime.IsActive)
+        {
+            return SessionMutationResult<GameRuntimeMutationResult?>.Success(null);
+        }
+
+        var liveState = runtime.EngineSnapshot.ToState();
+        var module = _moduleRegistry.Find(liveState.ModuleId, liveState.ModuleVersion);
+        if (module is null)
+        {
+            return SessionMutationResult<GameRuntimeMutationResult?>.Invalid("Registered game module is not available for this runtime.");
+        }
+
+        var form = module.Descriptor.AuthoringHooks.ActionForms
+            .Where(candidate => candidate.StageId == liveState.Stage.StageId)
+            .OrderBy(candidate => candidate.IntentName, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (form is null)
+        {
+            return SessionMutationResult<GameRuntimeMutationResult?>.Success(null);
+        }
+
+        var existingParticipantIds = liveState.PendingInputs
+            .Where(input => input.StageId == liveState.Stage.StageId
+                && string.Equals(input.IntentName, form.IntentName, StringComparison.Ordinal)
+                && input.Status is PendingInputStatus.Waiting or PendingInputStatus.Submitted)
+            .Select(input => input.ParticipantId)
+            .ToHashSet();
+
+        var requestGroups = liveState.Participants
+            .Where(participant => participant.IsActive && !existingParticipantIds.Contains(participant.ParticipantId))
+            .Select(participant => new
+            {
+                participant.ParticipantId,
+                LegalOptions = module.GetLegalIntentDescriptors(liveState, participant.ParticipantId)
+                    .Where(descriptor => descriptor.StageId == liveState.Stage.StageId)
+                    .Select(descriptor => new LegalIntentOption(descriptor.IntentName, descriptor.DisplayName, descriptor.Description))
+                    .OrderBy(option => option.IntentName, StringComparer.Ordinal)
+                    .ToArray()
+            })
+            .Where(item => item.LegalOptions.Length > 0)
+            .GroupBy(item => LegalOptionsKey(item.LegalOptions))
+            .ToArray();
+
+        if (requestGroups.Length == 0)
+        {
+            return SessionMutationResult<GameRuntimeMutationResult?>.Success(null);
+        }
+
+        GameRuntimeState? latestGame = null;
+        var runtimeEvents = new List<IGameRuntimeEvent>();
+        var engineEvents = new List<IGameEvent>();
+        foreach (var group in requestGroups)
+        {
+            var participantIds = group.Select(item => item.ParticipantId).OrderBy(id => id.Value, StringComparer.Ordinal).ToArray();
+            var options = group.First().LegalOptions;
+            var result = await _runtimeService.ApplyEngineCommandAsync(
+                sessionId,
+                new ApplyGameRuntimeEngineCommand(
+                    new RequestPendingInputIntentCommand(
+                        GameIntentCommandId.NewId(),
+                        liveState.GameInstanceId,
+                        liveState.Stage.StageId,
+                        form.IntentName,
+                        options,
+                        PendingInputAudience.Many(participantIds)),
+                    occurredAt),
+                ct);
+            if (result.Status != SessionMutationStatus.Success || result.Value is null)
+            {
+                return new SessionMutationResult<GameRuntimeMutationResult?>
+                {
+                    Status = result.Status,
+                    Error = result.Error,
+                };
+            }
+
+            latestGame = result.Value.Game;
+            runtimeEvents.AddRange(result.Value.RuntimeEvents);
+            engineEvents.AddRange(result.Value.EngineEvents);
+        }
+
+        return latestGame is null
+            ? SessionMutationResult<GameRuntimeMutationResult?>.Success(null)
+            : SessionMutationResult<GameRuntimeMutationResult?>.Success(new GameRuntimeMutationResult(latestGame, runtimeEvents, engineEvents));
+    }
+
+    private static string LegalOptionsKey(IReadOnlyList<LegalIntentOption> options) =>
+        string.Join("|", options.Select(option => $"{option.IntentName}:{option.DisplayName}:{option.Description}"));
+
+    private sealed record GameBridgeCoordinationResult(
+        IReadOnlyList<IGameRuntimeEvent> RuntimeEvents,
+        IReadOnlyList<IGameEvent> EngineEvents);
 
     private async Task<SessionMutationResult<GameBridgeMutationResult>> ToBridgeResultAsync(
         Guid sessionId,

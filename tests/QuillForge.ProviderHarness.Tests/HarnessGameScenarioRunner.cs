@@ -391,6 +391,7 @@ public sealed partial class HarnessGameScenarioRunner
             runtime,
             registryResult.Registry,
             new RejectedTranslationAgent(),
+            agentTurns,
             channel,
             new GameVisibilityProjector(),
             narration,

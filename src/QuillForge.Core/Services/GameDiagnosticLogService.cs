@@ -199,18 +199,22 @@ public sealed class GameDiagnosticLogService : IGameDiagnosticLogService
 
         if (runtime.IsActive && waitingInputs.Length == 0)
         {
+            var isDiscussionStage = liveState.Stage.AllowsPublicMessages;
             events.Add(new EventDraft(
                 runtime.LastUpdatedAt ?? runtime.StartedAt ?? now,
-                GameDiagnosticLogLevel.Warning,
-                GameDiagnosticLogCategory.RuntimeMutation,
+                isDiscussionStage ? GameDiagnosticLogLevel.Info : GameDiagnosticLogLevel.Warning,
+                isDiscussionStage ? GameDiagnosticLogCategory.Communication : GameDiagnosticLogCategory.RuntimeMutation,
                 "QuillForge.Core.Services.GameDiagnosticLogService",
-                "runtime_waiting_without_pending_inputs",
-                $"Runtime is active in stage '{liveState.Stage.StageId.Value}' with no waiting inputs; host or rules orchestration may need to request the next action.",
+                isDiscussionStage ? "runtime_waiting_for_public_discussion" : "runtime_waiting_without_pending_inputs",
+                isDiscussionStage
+                    ? $"Runtime is active in discussion stage '{liveState.Stage.StageId.Value}' with no waiting inputs; public channel messages are currently the expected human interaction."
+                    : $"Runtime is active in stage '{liveState.Stage.StageId.Value}' with no waiting inputs; host or rules orchestration may need to request the next action.",
                 Details: new Dictionary<string, string?>
                 {
                     ["runtimeStatus"] = runtime.Status.ToString(),
                     ["stageId"] = liveState.Stage.StageId.Value,
                     ["stageName"] = liveState.Stage.DisplayName,
+                    ["allowsPublicMessages"] = liveState.Stage.AllowsPublicMessages.ToString(),
                     ["promptEnvelopeCount"] = runtime.PromptEnvelopes.Count.ToString(),
                 }));
         }
