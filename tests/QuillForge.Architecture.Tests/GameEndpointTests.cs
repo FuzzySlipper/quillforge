@@ -90,6 +90,28 @@ public sealed class GameEndpointTests
         Assert.Equal("missing_participant", root.GetProperty("reasonCode").GetString());
         Assert.Equal("post_game_public_message", root.GetProperty("operation").GetString());
         Assert.Contains("before a game runtime mutation", root.GetProperty("diagnosticHint").GetString(), StringComparison.OrdinalIgnoreCase);
+
+        var nullParticipant = await InvokePostJsonAsync(
+            app,
+            $"/api/sessions/{sessionId}/game/messages",
+            """{"participantId":null,"text":"hello"}""");
+
+        Assert.Equal(400, nullParticipant.StatusCode);
+        using var nullParticipantDocument = JsonDocument.Parse(nullParticipant.Body);
+        var nullParticipantRoot = nullParticipantDocument.RootElement;
+        Assert.Equal("missing_participant", nullParticipantRoot.GetProperty("reasonCode").GetString());
+
+        var emptyText = await InvokePostJsonAsync(
+            app,
+            $"/api/sessions/{sessionId}/game/messages",
+            """{"participantId":"human-1","text":"   "}""");
+
+        Assert.Equal(400, emptyText.StatusCode);
+        using var emptyTextDocument = JsonDocument.Parse(emptyText.Body);
+        var emptyTextRoot = emptyTextDocument.RootElement;
+        Assert.Equal("game_request_invalid", emptyTextRoot.GetProperty("error").GetString());
+        Assert.Equal("empty_message", emptyTextRoot.GetProperty("reasonCode").GetString());
+        Assert.Equal("post_game_public_message", emptyTextRoot.GetProperty("operation").GetString());
     }
 
     [Fact]
@@ -101,7 +123,7 @@ public sealed class GameEndpointTests
         var missingParticipant = await InvokePostJsonAsync(
             app,
             $"/api/sessions/{sessionId}/game/direct-messages",
-            """{"recipientParticipantIds":["agent-a"],"text":"hello"}""");
+            """{"participantId":null,"recipientParticipantIds":["agent-a"],"text":"hello"}""");
 
         Assert.Equal(400, missingParticipant.StatusCode);
         using (var document = JsonDocument.Parse(missingParticipant.Body))
@@ -116,7 +138,7 @@ public sealed class GameEndpointTests
         var missingText = await InvokePostJsonAsync(
             app,
             $"/api/sessions/{sessionId}/game/direct-messages",
-            """{"participantId":"human-1","recipientParticipantIds":["agent-a"]}""");
+            """{"participantId":"human-1","recipientParticipantIds":["agent-a"],"text":""}""");
 
         Assert.Equal(400, missingText.StatusCode);
         using (var document = JsonDocument.Parse(missingText.Body))

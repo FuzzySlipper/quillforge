@@ -566,6 +566,8 @@ public sealed class FrontendContractTests
 
         Assert.Contains("formatErrorBody", source, StringComparison.Ordinal);
         Assert.Contains("reasonCode", source, StringComparison.Ordinal);
+        Assert.Contains("typeof parsed.ReasonCode === \"string\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(": typeof parsed.error === \"string\"\n          ? parsed.error\n          : typeof parsed.Error === \"string\"\n            ? parsed.Error\n            : null;\n    const diagnosticHint", source.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains("diagnosticHint", source, StringComparison.Ordinal);
         Assert.Contains("JSON.parse(body)", source, StringComparison.Ordinal);
     }

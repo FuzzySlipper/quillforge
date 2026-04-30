@@ -64,11 +64,7 @@ function formatErrorBody(status: number, body: string): string {
       ? parsed.reasonCode
       : typeof parsed.ReasonCode === "string"
         ? parsed.ReasonCode
-        : typeof parsed.error === "string"
-          ? parsed.error
-          : typeof parsed.Error === "string"
-            ? parsed.Error
-            : null;
+        : null;
     const diagnosticHint = typeof parsed.diagnosticHint === "string"
       ? parsed.diagnosticHint
       : typeof parsed.DiagnosticHint === "string"
