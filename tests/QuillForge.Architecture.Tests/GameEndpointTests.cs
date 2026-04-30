@@ -90,6 +90,43 @@ public sealed class GameEndpointTests
     }
 
     [Fact]
+    public async Task SendDirectMessage_WhenMissingParticipantOrText_ReturnsStructuredPreRuntimeError()
+    {
+        await using var app = BuildGameApp(new FakeGameBridgeService());
+        var sessionId = Guid.CreateVersion7();
+
+        var missingParticipant = await InvokePostJsonAsync(
+            app,
+            $"/api/sessions/{sessionId}/game/direct-messages",
+            """{"recipientParticipantIds":["agent-a"],"text":"hello"}""");
+
+        Assert.Equal(400, missingParticipant.StatusCode);
+        using (var document = JsonDocument.Parse(missingParticipant.Body))
+        {
+            var root = document.RootElement;
+            Assert.Equal("game_request_invalid", root.GetProperty("error").GetString());
+            Assert.Equal("missing_participant", root.GetProperty("reasonCode").GetString());
+            Assert.Equal("send_game_direct_message", root.GetProperty("operation").GetString());
+            Assert.Contains("before a game runtime mutation", root.GetProperty("diagnosticHint").GetString(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        var missingText = await InvokePostJsonAsync(
+            app,
+            $"/api/sessions/{sessionId}/game/direct-messages",
+            """{"participantId":"human-1","recipientParticipantIds":["agent-a"]}""");
+
+        Assert.Equal(400, missingText.StatusCode);
+        using (var document = JsonDocument.Parse(missingText.Body))
+        {
+            var root = document.RootElement;
+            Assert.Equal("game_request_invalid", root.GetProperty("error").GetString());
+            Assert.Equal("empty_message", root.GetProperty("reasonCode").GetString());
+            Assert.Equal("send_game_direct_message", root.GetProperty("operation").GetString());
+            Assert.Contains("before a game runtime mutation", root.GetProperty("diagnosticHint").GetString(), StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
     public async Task PostPublicMessage_WhenRejected_ReturnsStructuredDiagnosticError()
     {
         var bridge = new FakeGameBridgeService

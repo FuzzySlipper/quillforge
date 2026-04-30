@@ -567,6 +567,8 @@ public sealed class FrontendContractTests
         Assert.Contains("diagnosticScopeGameInstanceId", source, StringComparison.Ordinal);
         Assert.Contains("scopeMatchesActiveGame", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"game-diagnostic-log-scope\"", source, StringComparison.Ordinal);
+        Assert.Contains("withMutation(action: () => Promise<string | null | undefined>)", source, StringComparison.Ordinal);
+        Assert.Contains("refreshDiagnosticLog(hasNextDiagnosticScope ? nextDiagnosticScope : diagnosticScopeGameInstanceId)", source, StringComparison.Ordinal);
         Assert.Contains("Diagnostic Log", source, StringComparison.Ordinal);
         Assert.Contains("Copy JSON", source, StringComparison.Ordinal);
         Assert.Contains("Export JSON", source, StringComparison.Ordinal);

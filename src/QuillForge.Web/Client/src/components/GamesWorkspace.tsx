@@ -542,12 +542,12 @@ export default function GamesWorkspace({
     onRefresh(sessionId);
   }
 
-  async function refreshDiagnosticLog() {
+  async function refreshDiagnosticLog(scopeGameInstanceId: string | null = diagnosticScopeGameInstanceId) {
     if (!sessionId) return;
     setDiagnosticLoading(true);
     setDiagnosticError(null);
     try {
-      const response = await getGameDiagnosticLog(sessionId, diagnosticScopeGameInstanceId);
+      const response = await getGameDiagnosticLog(sessionId, scopeGameInstanceId);
       setDiagnosticLog(response.log);
     } catch (err) {
       setDiagnosticError(err instanceof Error ? err.message : "Failed to load game diagnostic log");
@@ -569,17 +569,23 @@ export default function GamesWorkspace({
     }
   }, [sessionId, diagnosticScopeGameInstanceId]);
 
-  async function withMutation(action: () => Promise<void>) {
+  async function withMutation(action: () => Promise<string | null | undefined>) {
     setMutating(true);
     setError(null);
+    let hasNextDiagnosticScope = false;
+    let nextDiagnosticScope: string | null = null;
     try {
-      await action();
+      const resultScope = await action();
+      if (resultScope !== undefined) {
+        hasNextDiagnosticScope = true;
+        nextDiagnosticScope = resultScope;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Game operation failed");
     } finally {
       setMutating(false);
       if (diagnosticOpen) {
-        await refreshDiagnosticLog();
+        await refreshDiagnosticLog(hasNextDiagnosticScope ? nextDiagnosticScope : diagnosticScopeGameInstanceId);
       }
     }
   }
@@ -597,6 +603,7 @@ export default function GamesWorkspace({
       if (humanParticipant) {
         await refreshGame(humanParticipant);
       }
+      return result.view.gameInstanceId;
     });
   }
 
@@ -606,6 +613,7 @@ export default function GamesWorkspace({
       const result = await submitGameAction(sessionId, currentPlayer.participantId, pendingInputId, choiceName);
       setView(result.view);
       onRefresh(sessionId);
+      return result.view.gameInstanceId;
     });
   }
 
@@ -616,6 +624,7 @@ export default function GamesWorkspace({
       setPublicMessage("");
       setView(result.view);
       onRefresh(sessionId);
+      return result.view.gameInstanceId;
     });
   }
 
@@ -625,6 +634,7 @@ export default function GamesWorkspace({
       const result = await endGame(sessionId);
       setView(result.view);
       onRefresh(sessionId);
+      return result.view.gameInstanceId;
     });
   }
 
@@ -634,6 +644,7 @@ export default function GamesWorkspace({
       const result = await abortGame(sessionId);
       setView(result.view);
       onRefresh(sessionId);
+      return result.view.gameInstanceId;
     });
   }
 
