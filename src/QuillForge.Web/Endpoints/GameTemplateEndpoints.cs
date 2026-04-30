@@ -49,6 +49,62 @@ public static class GameTemplateEndpoints
             });
         });
 
+        group.MapGet("/persona-prompts", async (
+            [FromServices] IGamePersonaPromptService personaPromptService,
+            CancellationToken ct) =>
+        {
+            var userPrompts = await personaPromptService.ListUserPromptsAsync(ct);
+            return Results.Ok(new GamePersonaPromptListResponse
+            {
+                Prompts = ToPersonaPromptOptions(userPrompts),
+            });
+        });
+
+        group.MapPost("/persona-prompts/open", async (
+            OpenGamePersonaPromptRequest request,
+            [FromServices] IGamePersonaPromptService personaPromptService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                if (request.Selection.Source == GamePersonaPromptSource.User
+                    && !string.IsNullOrWhiteSpace(request.Selection.UserPromptName))
+                {
+                    var existing = await personaPromptService.TryOpenUserPromptAsync(request.Selection.UserPromptName, ct);
+                    return existing is null
+                        ? Results.NotFound(new { Error = $"Game persona prompt {request.Selection.UserPromptName} not found" })
+                        : Results.Ok(ToPersonaPromptDocumentResponse(existing, createdCopy: false));
+                }
+
+                var created = await personaPromptService.CreateForEditAsync(request.BaseName, request.SeedContent, ct);
+                return Results.Ok(ToPersonaPromptDocumentResponse(created, createdCopy: true));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
+        group.MapPut("/persona-prompts/{promptName}", async (
+            string promptName,
+            WriteGamePersonaPromptRequest request,
+            [FromServices] IGamePersonaPromptService personaPromptService,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                await personaPromptService.SaveUserPromptAsync(promptName, request.Content, ct);
+                return Results.Ok(new WriteGamePersonaPromptResponse
+                {
+                    Name = promptName,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        });
+
         group.MapGet("/{moduleId}/prompt-templates", async (
             string moduleId,
             [FromServices] IGamePromptTemplateService promptTemplateService,
@@ -224,6 +280,47 @@ public static class GameTemplateEndpoints
         {
             Template = envelope.Template,
             Validation = envelope.Validation,
+        };
+
+    private static IReadOnlyList<GamePersonaPromptOption> ToPersonaPromptOptions(IReadOnlyList<GameUserPersonaPromptInfo> userPrompts)
+    {
+        var options = new List<GamePersonaPromptOption>
+        {
+            new()
+            {
+                Value = "none",
+                DisplayName = "None",
+                Source = GamePersonaPromptSource.None,
+                IsNone = true,
+                Tokens = 0,
+            },
+        };
+        options.AddRange(userPrompts.Select(prompt => new GamePersonaPromptOption
+        {
+            Value = $"user:{prompt.Name}",
+            DisplayName = prompt.Name,
+            Source = GamePersonaPromptSource.User,
+            UserPromptName = prompt.Name,
+            IsNone = false,
+            Tokens = prompt.Tokens,
+            Size = prompt.Size,
+            RelativePath = prompt.RelativePath,
+        }));
+        return options;
+    }
+
+    private static GamePersonaPromptDocumentResponse ToPersonaPromptDocumentResponse(
+        GameUserPersonaPromptDocument document,
+        bool createdCopy) =>
+        new()
+        {
+            Name = document.Name,
+            DisplayName = document.Name,
+            RelativePath = document.RelativePath,
+            Selection = GamePersonaPromptSelection.ForUserPrompt(document.Name),
+            Content = document.Content,
+            Tokens = document.Tokens,
+            CreatedCopy = createdCopy,
         };
 
     private static IReadOnlyList<GamePromptTemplateOption> ToPromptOptions(IReadOnlyList<GameUserPromptTemplateInfo> userPrompts)

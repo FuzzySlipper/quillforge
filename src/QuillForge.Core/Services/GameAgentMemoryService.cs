@@ -13,6 +13,7 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
     private readonly GameModuleRegistry _moduleRegistry;
     private readonly ICompletionService _completionService;
     private readonly AgentVisibleEventsService _visibleEventsService;
+    private readonly IGamePersonaPromptService _personaPromptService;
     private readonly AppConfig _appConfig;
     private readonly ILogger<GameAgentMemoryService> _logger;
 
@@ -21,6 +22,7 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
         GameModuleRegistry moduleRegistry,
         ICompletionService completionService,
         AgentVisibleEventsService visibleEventsService,
+        IGamePersonaPromptService personaPromptService,
         AppConfig appConfig,
         ILogger<GameAgentMemoryService> logger)
     {
@@ -28,6 +30,7 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
         _moduleRegistry = moduleRegistry;
         _completionService = completionService;
         _visibleEventsService = visibleEventsService;
+        _personaPromptService = personaPromptService;
         _appConfig = appConfig;
         _logger = logger;
     }
@@ -104,13 +107,18 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
         user.AppendLine($"Participant: {context.DisplayName} ({context.ParticipantId})");
         user.AppendLine($"Round ended: {context.RoundNumber}");
         user.AppendLine($"Memory token budget: {context.TokenBudget}");
+        if (!string.IsNullOrWhiteSpace(context.PersonaPromptContent))
+        {
+            user.AppendLine("Persona prompt:");
+            user.AppendLine(context.PersonaPromptContent.Trim());
+        }
         if (!string.IsNullOrWhiteSpace(context.Binding.Personality))
         {
-            user.AppendLine($"Personality: {context.Binding.Personality}");
+            user.AppendLine($"Legacy personality: {context.Binding.Personality}");
         }
         if (!string.IsNullOrWhiteSpace(context.Binding.CharacterPrompt))
         {
-            user.AppendLine($"Character prompt: {context.Binding.CharacterPrompt}");
+            user.AppendLine($"Legacy character prompt: {context.Binding.CharacterPrompt}");
         }
 
         user.AppendLine();
@@ -182,7 +190,7 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
         DateTimeOffset occurredAt,
         CancellationToken ct)
     {
-        var context = BuildPromptContext(runtime, liveState, module, job.Binding, job.Memory, job.RoundEnded);
+        var context = await BuildPromptContextAsync(runtime, liveState, module, job.Binding, job.Memory, job.RoundEnded, ct);
         var prompt = BuildMemorySummaryPrompt(context);
         var model = Normalize(job.Binding.ModelOverride) ?? DefaultModelName;
         var providerAlias = Normalize(job.Binding.ProviderAlias);
@@ -369,15 +377,17 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
             result.Value.RuntimeEvents);
     }
 
-    private GameAgentMemorySummaryPromptContext BuildPromptContext(
+    private async Task<GameAgentMemorySummaryPromptContext> BuildPromptContextAsync(
         GameRuntimeState runtime,
         RulesGameState liveState,
         IGameModule module,
         GameRuntimeParticipantBinding binding,
         GameRuntimeAgentMemoryState? memory,
-        RoundEndedEvent roundEnded)
+        RoundEndedEvent roundEnded,
+        CancellationToken ct)
     {
         var visibleEvents = _visibleEventsService.BuildForMemorySummary(runtime, liveState, memory, binding.ParticipantId);
+        var personaPrompt = await _personaPromptService.ResolveAsync(binding.PersonaPrompt, ct);
         return new GameAgentMemorySummaryPromptContext(
             runtime.GameInstanceId!,
             binding.ParticipantId,
@@ -385,6 +395,7 @@ public sealed class GameAgentMemoryService : IGameAgentMemoryService
             roundEnded.RoundNumber,
             module.Descriptor.DisplayName,
             module.GetPromptAssets(),
+            personaPrompt.Content,
             memory?.Summary,
             Math.Max(1, memory?.TokenBudget ?? module.Descriptor.MemoryExpectations.SuggestedSummaryTokenBudget),
             visibleEvents,

@@ -5,13 +5,19 @@ import {
   deleteGameTemplate,
   getGameTemplate,
   getGameTemplateCatalog,
+  listGamePersonaPrompts,
   listGamePromptTemplates,
+  openGamePersonaPrompt,
   openGamePromptTemplate,
   saveGameTemplate,
   validateGameTemplate,
+  writeGamePersonaPrompt,
   writeGamePromptTemplate,
 } from "../api";
 import type {
+  GamePersonaPromptDocumentResponse,
+  GamePersonaPromptOption,
+  GamePersonaPromptSelection,
   GamePromptTemplateDocumentResponse,
   GamePromptTemplateOption,
   GamePromptTemplateSelection,
@@ -76,6 +82,7 @@ function defaultRuleValue(field: GameTemplateSetupFieldOption): GameTemplateRule
 }
 
 const DEFAULT_PROMPT_SELECTION: GamePromptTemplateSelection = { source: "Default", userPromptName: null };
+const NONE_PERSONA_SELECTION: GamePersonaPromptSelection = { source: "None", userPromptName: null };
 
 function defaultAgent(participantId: string, providerAlias: string): GameTemplateAgentPlayerConfig {
   return {
@@ -84,6 +91,7 @@ function defaultAgent(participantId: string, providerAlias: string): GameTemplat
     modelOverride: null,
     characterPrompt: null,
     personality: null,
+    personaPrompt: NONE_PERSONA_SELECTION,
     fixedName: participantId,
     systemPromptTemplate: DEFAULT_PROMPT_SELECTION,
     randomNameBehavior: "UseFixedNameWhenProvided",
@@ -96,6 +104,34 @@ function normalizePromptSelection(selection?: GamePromptTemplateSelection | null
   }
 
   return DEFAULT_PROMPT_SELECTION;
+}
+
+function normalizePersonaSelection(selection?: GamePersonaPromptSelection | null): GamePersonaPromptSelection {
+  if (selection?.source === "User" && selection.userPromptName?.trim()) {
+    return { source: "User", userPromptName: selection.userPromptName.trim() };
+  }
+
+  return NONE_PERSONA_SELECTION;
+}
+
+function personaSelectionValue(selection?: GamePersonaPromptSelection | null): string {
+  const normalized = normalizePersonaSelection(selection);
+  return normalized.source === "User" && normalized.userPromptName
+    ? `user:${normalized.userPromptName}`
+    : "none";
+}
+
+function personaSelectionFromValue(value: string): GamePersonaPromptSelection {
+  return value.startsWith("user:")
+    ? { source: "User", userPromptName: value.slice(5) }
+    : NONE_PERSONA_SELECTION;
+}
+
+function legacyPersonaSeed(agent: GameTemplateAgentPlayerConfig): string | null {
+  const parts: string[] = [];
+  if (agent.personality?.trim()) parts.push(`Personality: ${agent.personality.trim()}`);
+  if (agent.characterPrompt?.trim()) parts.push(agent.characterPrompt.trim());
+  return parts.length === 0 ? null : parts.join("\n\n");
 }
 
 function promptSelectionValue(selection?: GamePromptTemplateSelection | null): string {
@@ -262,6 +298,9 @@ export default function GameTemplateEditor({
   const [validation, setValidation] = useState<GameTemplateValidationResult | null>(null);
   const [cloneTargetId, setCloneTargetId] = useState("");
   const [promptOptions, setPromptOptions] = useState<GamePromptTemplateOption[]>([]);
+  const [personaOptions, setPersonaOptions] = useState<GamePersonaPromptOption[]>([
+    { value: "none", displayName: "None", source: "None", userPromptName: null, isNone: true, tokens: 0, size: null, relativePath: null },
+  ]);
   const [promptEditor, setPromptEditor] = useState<{
     agentParticipantId: string;
     moduleId: string;
@@ -269,7 +308,14 @@ export default function GameTemplateEditor({
     content: string;
     originalContent: string;
   } | null>(null);
+  const [personaEditor, setPersonaEditor] = useState<{
+    agentParticipantId: string;
+    document: GamePersonaPromptDocumentResponse;
+    content: string;
+    originalContent: string;
+  } | null>(null);
   const [promptEditorWarning, setPromptEditorWarning] = useState<string | null>(null);
+  const [personaEditorWarning, setPersonaEditorWarning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -343,6 +389,30 @@ export default function GameTemplateEditor({
       cancelled = true;
     };
   }, [selectedTemplateId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPersonaOptions() {
+      try {
+        const response = await listGamePersonaPrompts();
+        if (!cancelled) {
+          setPersonaOptions(response.prompts);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load game persona prompts");
+          setPersonaOptions([{ value: "none", displayName: "None", source: "None", userPromptName: null, isNone: true, tokens: 0, size: null, relativePath: null }]);
+        }
+      }
+    }
+
+    void loadPersonaOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -539,6 +609,72 @@ export default function GameTemplateEditor({
         : current);
       setPromptEditorWarning(null);
       setMessage("Prompt template saved.");
+    });
+  }
+
+  function personaEditorHasUnsavedChanges(): boolean {
+    return Boolean(personaEditor && personaEditor.content !== personaEditor.originalContent);
+  }
+
+  function handleClosePersonaEditor() {
+    if (personaEditorHasUnsavedChanges()) {
+      const warning = "Save or discard the persona prompt changes before closing the editor.";
+      setPersonaEditorWarning(warning);
+      setError(warning);
+      return;
+    }
+
+    setPersonaEditorWarning(null);
+    setPersonaEditor(null);
+  }
+
+  async function handleEditPersona(agent: GameTemplateAgentPlayerConfig) {
+    if (personaEditorHasUnsavedChanges()) {
+      const warning = "Save or discard the open persona prompt before editing another persona.";
+      setPersonaEditorWarning(warning);
+      setError(warning);
+      return;
+    }
+
+    setPersonaEditorWarning(null);
+    await runOperation(async () => {
+      const selection = normalizePersonaSelection(agent.personaPrompt);
+      const document = await openGamePersonaPrompt(
+        selection,
+        `${agent.fixedName || agent.participantId}-persona`,
+        legacyPersonaSeed(agent),
+      );
+      updateAgent(agent.participantId, (current) => ({
+        ...current,
+        personaPrompt: document.selection,
+        personality: document.createdCopy ? null : current.personality,
+        characterPrompt: document.createdCopy ? null : current.characterPrompt,
+      }));
+      const refreshed = await listGamePersonaPrompts();
+      setPersonaOptions(refreshed.prompts);
+      setPersonaEditor({
+        agentParticipantId: agent.participantId,
+        document,
+        content: document.content,
+        originalContent: document.content,
+      });
+      setMessage(document.createdCopy
+        ? "Created a reusable user persona prompt. Save the template to keep this agent selection."
+        : "Opened existing user persona prompt.");
+    });
+  }
+
+  async function handleSavePersona() {
+    if (!personaEditor) return;
+    await runOperation(async () => {
+      await writeGamePersonaPrompt(personaEditor.document.name, personaEditor.content);
+      const refreshed = await listGamePersonaPrompts();
+      setPersonaOptions(refreshed.prompts);
+      setPersonaEditor((current) => current
+        ? { ...current, originalContent: current.content, document: { ...current.document, content: current.content, tokens: current.content.length / 4 } }
+        : current);
+      setPersonaEditorWarning(null);
+      setMessage("Persona prompt saved.");
     });
   }
 
@@ -875,23 +1011,38 @@ export default function GameTemplateEditor({
                     Default is bundled with the module. Editing Default creates a user-owned markdown copy.
                   </span>
                 </div>
-                <label className="flex flex-col gap-1 text-xs text-text-muted">
-                  Personality
-                  <input
-                    value={agent.personality ?? ""}
-                    onChange={(event) => updateAgent(agent.participantId, (current) => ({ ...current, personality: event.target.value || null }))}
-                    className="rounded-lg border border-border bg-input-bg px-3 py-2 text-sm text-text"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-text-muted md:col-span-2">
-                  Character/personality prompt
-                  <textarea
-                    value={agent.characterPrompt ?? ""}
-                    onChange={(event) => updateAgent(agent.participantId, (current) => ({ ...current, characterPrompt: event.target.value || null }))}
-                    rows={2}
-                    className="rounded-lg border border-border bg-input-bg px-3 py-2 text-sm text-text"
-                  />
-                </label>
+                <div className="flex flex-col gap-1 text-xs text-text-muted md:col-span-2">
+                  <span>Persona/character prompt</span>
+                  <div className="flex gap-2">
+                    <select
+                      value={personaSelectionValue(agent.personaPrompt)}
+                      onChange={(event) => updateAgent(agent.participantId, (current) => ({ ...current, personaPrompt: personaSelectionFromValue(event.target.value) }))}
+                      className="min-w-0 flex-1 rounded-lg border border-border bg-input-bg px-3 py-2 text-sm text-text"
+                    >
+                      {personaOptions.map((prompt) => (
+                        <option key={prompt.value} value={prompt.value}>
+                          {prompt.isNone ? "None" : prompt.displayName}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => { void handleEditPersona(agent); }}
+                      className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border disabled:opacity-50"
+                    >
+                      {normalizePersonaSelection(agent.personaPrompt).source === "User" ? "Edit" : "New"}
+                    </button>
+                  </div>
+                  <span className="text-[11px] leading-4 text-text-muted">
+                    Persona prompts are reusable user-owned markdown files, not module-specific. Legacy personality text still loads and is included until migrated.
+                  </span>
+                  {(agent.personality || agent.characterPrompt) && (
+                    <span className="rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-[11px] leading-4 text-warning-text">
+                      This saved template has legacy personality text. Click New to seed a reusable persona prompt from it, then save the template.
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -968,6 +1119,83 @@ export default function GameTemplateEditor({
                   className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
                 >
                   Save prompt
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {personaEditor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="game-persona-editor-title"
+          data-testid="game-persona-editor-overlay"
+        >
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-xl border border-border bg-surface shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+              <div>
+                <div id="game-persona-editor-title" className="qf-shell-folio">Game Persona Editor</div>
+                <div className="mt-2 text-sm font-medium text-text">{personaEditor.document.displayName}</div>
+                <div className="mt-1 text-xs leading-5 text-text-muted">
+                  {personaEditor.document.relativePath} · selected for {personaEditor.agentParticipantId} in {template.displayName || template.templateId}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleClosePersonaEditor}
+                className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border"
+              >
+                Close
+              </button>
+            </div>
+            <div className="min-h-0 overflow-y-auto px-5 py-4">
+              {personaEditorWarning && (
+                <div className="mb-3 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning-text">
+                  {personaEditorWarning}
+                </div>
+              )}
+              <div data-color-mode="dark">
+                <MDEditor
+                  value={personaEditor.content}
+                  onChange={(value) => {
+                    setPersonaEditorWarning(null);
+                    setError(null);
+                    setPersonaEditor((current) => current ? { ...current, content: value ?? "" } : current);
+                  }}
+                  height={520}
+                  preview="edit"
+                  visibleDragbar
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-5 py-4">
+              <span className="text-xs text-text-muted">
+                ~{Math.round(personaEditor.content.length / 4)} tokens
+                {personaEditor.content !== personaEditor.originalContent ? " · unsaved changes" : " · saved"}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={busy || personaEditor.content === personaEditor.originalContent}
+                  onClick={() => {
+                    setPersonaEditorWarning(null);
+                    setError(null);
+                    setPersonaEditor((current) => current ? { ...current, content: current.originalContent } : current);
+                  }}
+                  className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border disabled:opacity-50"
+                >
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || personaEditor.content === personaEditor.originalContent}
+                  onClick={() => { void handleSavePersona(); }}
+                  className="rounded-lg bg-accent px-4 py-2 text-xs font-medium text-accent-contrast hover:bg-accent-hover disabled:opacity-50"
+                >
+                  Save persona
                 </button>
               </div>
             </div>

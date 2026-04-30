@@ -364,6 +364,7 @@ export interface GameRuntimeEventDeliveryCursor {
 export type GameTemplateRuleOptionValueKind = "String" | "Int" | "Bool" | "ParticipantId" | "ParticipantSet";
 export type GameTemplateRandomNameBehavior = "UseFixedNameWhenProvided" | "AlwaysRandomize" | "NeverRandomize";
 export type GamePromptTemplateSource = "Default" | "User";
+export type GamePersonaPromptSource = "None" | "User";
 export type GameSetupValueKind = "String" | "Int" | "Bool" | "ParticipantId" | "ParticipantSet";
 
 export interface GameTemplateSummary {
@@ -381,6 +382,36 @@ export interface GameTemplateListResponse {
 export interface GameTemplateCatalogResponse {
   modules: GameTemplateModuleOption[];
   providers: GameTemplateProviderOption[];
+}
+
+export interface GamePersonaPromptListResponse {
+  prompts: GamePersonaPromptOption[];
+}
+
+export interface GamePersonaPromptOption {
+  value: string;
+  displayName: string;
+  source: GamePersonaPromptSource;
+  userPromptName: string | null;
+  isNone: boolean;
+  tokens: number;
+  size: number | null;
+  relativePath: string | null;
+}
+
+export interface GamePersonaPromptSelection {
+  source: GamePersonaPromptSource;
+  userPromptName: string | null;
+}
+
+export interface GamePersonaPromptDocumentResponse {
+  name: string;
+  displayName: string;
+  relativePath: string;
+  selection: GamePersonaPromptSelection;
+  content: string;
+  tokens: number;
+  createdCopy: boolean;
 }
 
 export interface GamePromptTemplateListResponse {
@@ -565,6 +596,7 @@ export interface GameTemplateAgentPlayerConfig {
   modelOverride: string | null;
   characterPrompt: string | null;
   personality: string | null;
+  personaPrompt: GamePersonaPromptSelection;
   fixedName: string | null;
   systemPromptTemplate: GamePromptTemplateSelection;
   randomNameBehavior: GameTemplateRandomNameBehavior;

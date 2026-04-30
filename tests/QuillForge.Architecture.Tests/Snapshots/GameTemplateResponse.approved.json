@@ -41,6 +41,10 @@
           "modelOverride": "llama3.2",
           "characterPrompt": "Keep claims concise.",
           "personality": "skeptical villager",
+          "personaPrompt": {
+            "source": "None",
+            "userPromptName": null
+          },
           "fixedName": "Bob",
           "systemPromptTemplate": {
             "source": "Default",
@@ -54,6 +58,10 @@
           "modelOverride": null,
           "characterPrompt": null,
           "personality": null,
+          "personaPrompt": {
+            "source": "None",
+            "userPromptName": null
+          },
           "fixedName": "Carol",
           "systemPromptTemplate": {
             "source": "Default",
@@ -67,6 +75,10 @@
           "modelOverride": null,
           "characterPrompt": null,
           "personality": null,
+          "personaPrompt": {
+            "source": "None",
+            "userPromptName": null
+          },
           "fixedName": "Drew",
           "systemPromptTemplate": {
             "source": "Default",

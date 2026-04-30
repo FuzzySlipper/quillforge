@@ -199,6 +199,68 @@ public sealed record DeleteGameTemplateResponse
     public required string TemplateId { get; init; }
 }
 
+public sealed record GamePersonaPromptListResponse
+{
+    public required IReadOnlyList<GamePersonaPromptOption> Prompts { get; init; }
+}
+
+public sealed record GamePersonaPromptOption
+{
+    public required string Value { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required GamePersonaPromptSource Source { get; init; }
+
+    public string? UserPromptName { get; init; }
+
+    public required bool IsNone { get; init; }
+
+    public required int Tokens { get; init; }
+
+    public long? Size { get; init; }
+
+    public string? RelativePath { get; init; }
+}
+
+public sealed record OpenGamePersonaPromptRequest
+{
+    public GamePersonaPromptSelection Selection { get; init; } = GamePersonaPromptSelection.None;
+
+    public string? BaseName { get; init; }
+
+    public string? SeedContent { get; init; }
+}
+
+public sealed record GamePersonaPromptDocumentResponse
+{
+    public required string Name { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string RelativePath { get; init; }
+
+    public required GamePersonaPromptSelection Selection { get; init; }
+
+    public required string Content { get; init; }
+
+    public required int Tokens { get; init; }
+
+    public required bool CreatedCopy { get; init; }
+}
+
+public sealed record WriteGamePersonaPromptRequest
+{
+    public string Content { get; init; } = string.Empty;
+}
+
+public sealed record WriteGamePersonaPromptResponse
+{
+    public string Status { get; init; } = "ok";
+
+    public required string Name { get; init; }
+}
+
 public sealed record GamePromptTemplateListResponse
 {
     public required string ModuleId { get; init; }

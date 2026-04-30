@@ -225,6 +225,7 @@ public sealed class WerewolfUiScenarioTests
             new ScriptedCompletionService(),
             new AgentVisibleEventsService(new GameVisibilityProjector(), channel),
             new DefaultOnlyGamePromptTemplateService(),
+            new DefaultOnlyGamePersonaPromptService(),
             new AppConfig(),
             NullLogger<GameAgentTurnService>.Instance);
         var bridge = new GameBridgeService(

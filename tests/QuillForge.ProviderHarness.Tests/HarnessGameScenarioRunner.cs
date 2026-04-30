@@ -377,6 +377,7 @@ public sealed partial class HarnessGameScenarioRunner
             completion,
             visibleEvents,
             new DefaultOnlyGamePromptTemplateService(),
+            new DefaultOnlyGamePersonaPromptService(),
             appConfig,
             NullLogger<GameAgentTurnService>.Instance);
         var memory = new GameAgentMemoryService(
@@ -384,6 +385,7 @@ public sealed partial class HarnessGameScenarioRunner
             registryResult.Registry,
             completion,
             visibleEvents,
+            new DefaultOnlyGamePersonaPromptService(),
             appConfig,
             NullLogger<GameAgentMemoryService>.Instance);
         var bridge = new GameBridgeService(

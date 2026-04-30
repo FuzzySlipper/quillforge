@@ -736,6 +736,7 @@ public sealed class GameBridgeService : IGameBridgeService
                     ModelOverride = agent.ModelOverride,
                     CharacterPrompt = agent.CharacterPrompt,
                     Personality = agent.Personality,
+                    PersonaPrompt = agent.PersonaPrompt,
                     SystemPromptTemplate = agent.SystemPromptTemplate,
                 });
                 continue;

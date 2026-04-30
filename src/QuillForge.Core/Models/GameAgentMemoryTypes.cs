@@ -62,6 +62,7 @@ public sealed record GameAgentMemorySummaryPromptContext(
     int RoundNumber,
     string ModuleDisplayName,
     IReadOnlyList<GamePromptAsset> PromptAssets,
+    string? PersonaPromptContent,
     string? PriorMemorySummary,
     int TokenBudget,
     AgentVisibleEventsSnapshot VisibleEvents,

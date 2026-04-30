@@ -105,6 +105,8 @@ public sealed record GameTemplateAgentPlayerConfig
 
     public string? Personality { get; init; }
 
+    public GamePersonaPromptSelection PersonaPrompt { get; init; } = GamePersonaPromptSelection.None;
+
     public string? FixedName { get; init; }
 
     public GamePromptTemplateSelection SystemPromptTemplate { get; init; } = GamePromptTemplateSelection.Default;

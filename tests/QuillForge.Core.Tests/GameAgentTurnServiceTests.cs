@@ -207,6 +207,26 @@ public sealed class GameAgentTurnServiceTests
     }
 
     [Fact]
+    public async Task RunPendingAgentTurns_UsesSelectedPersonaPrompt()
+    {
+        var completion = new ScriptedCompletionService(_ => AcceptedJson("approve"));
+        var fixture = CreateFixture(completion, personaPromptService: new TestGamePersonaPromptService("Custom reusable persona."));
+        var sessionId = Guid.NewGuid();
+        await StartRuntimeAsync(fixture.Runtime, sessionId, singleAgent: true);
+        fixture.Store.SetAgentPersonaSelection(sessionId, "agent-a", GamePersonaPromptSelection.ForUserPrompt("custom-persona"));
+
+        var result = await fixture.AgentTurns.RunPendingAgentTurnsAsync(
+            sessionId,
+            new RunGameAgentTurnsCommand(Instant(1)));
+
+        Assert.Equal(SessionMutationStatus.Success, result.Status);
+        var request = Assert.Single(completion.Requests);
+        var userPrompt = Assert.Single(request.Messages).Content.GetText();
+        Assert.Contains("Persona prompt:", userPrompt, StringComparison.Ordinal);
+        Assert.Contains("Custom reusable persona.", userPrompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RunPendingAgentTurns_FallsBackToModuleDefaultWhenUserPromptIsMissing()
     {
         var completion = new ScriptedCompletionService(_ => AcceptedJson("approve"));
@@ -263,7 +283,10 @@ public sealed class GameAgentTurnServiceTests
     private static Fixture CreateFixture(ICompletionService completionService) =>
         CreateFixture(completionService, new DefaultOnlyGamePromptTemplateService());
 
-    private static Fixture CreateFixture(ICompletionService completionService, IGamePromptTemplateService promptTemplateService)
+    private static Fixture CreateFixture(
+        ICompletionService completionService,
+        IGamePromptTemplateService? promptTemplateService = null,
+        IGamePersonaPromptService? personaPromptService = null)
     {
         var registry = new GameModuleRegistry();
         var register = registry.Register(new AgentTurnTestModule());
@@ -282,7 +305,8 @@ public sealed class GameAgentTurnServiceTests
             registry,
             completionService,
             new AgentVisibleEventsService(new GameVisibilityProjector(), new ParticipantChannelService()),
-            promptTemplateService,
+            promptTemplateService ?? new DefaultOnlyGamePromptTemplateService(),
+            personaPromptService ?? new DefaultOnlyGamePersonaPromptService(),
             new AppConfig(),
             NullLogger<GameAgentTurnService>.Instance);
         return new Fixture(runtime, agentTurns, store);
@@ -503,6 +527,12 @@ public sealed class GameAgentTurnServiceTests
             var binding = _states[sessionId].Game!.ParticipantBindings.Single(item => item.ParticipantId == participantId);
             binding.SystemPromptTemplate = selection;
         }
+
+        public void SetAgentPersonaSelection(Guid sessionId, string participantId, GamePersonaPromptSelection selection)
+        {
+            var binding = _states[sessionId].Game!.ParticipantBindings.Single(item => item.ParticipantId == participantId);
+            binding.PersonaPrompt = selection;
+        }
     }
 
     private sealed class TestGamePromptTemplateService : IGamePromptTemplateService
@@ -543,6 +573,48 @@ public sealed class GameAgentTurnServiceTests
                 Selection = GamePromptTemplateSelection.Default,
                 UsedFallback = selection?.Source == GamePromptTemplateSource.User,
                 FallbackReason = selection?.Source == GamePromptTemplateSource.User ? "user_prompt_missing" : null,
+            });
+        }
+    }
+
+    private sealed class TestGamePersonaPromptService : IGamePersonaPromptService
+    {
+        private readonly string? _userPrompt;
+
+        public TestGamePersonaPromptService(string? userPrompt)
+        {
+            _userPrompt = userPrompt;
+        }
+
+        public Task<IReadOnlyList<GameUserPersonaPromptInfo>> ListUserPromptsAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<GameUserPersonaPromptInfo>>([]);
+
+        public Task<GameUserPersonaPromptDocument> CreateForEditAsync(string? basePromptName, string? seedContent, CancellationToken ct = default) =>
+            throw new NotSupportedException();
+
+        public Task<GameUserPersonaPromptDocument?> TryOpenUserPromptAsync(string promptName, CancellationToken ct = default) =>
+            Task.FromResult<GameUserPersonaPromptDocument?>(null);
+
+        public Task SaveUserPromptAsync(string promptName, string content, CancellationToken ct = default) =>
+            throw new NotSupportedException();
+
+        public Task<GameResolvedPersonaPrompt> ResolveAsync(GamePersonaPromptSelection? selection, CancellationToken ct = default)
+        {
+            if (selection?.Source == GamePersonaPromptSource.User && _userPrompt is not null)
+            {
+                return Task.FromResult(new GameResolvedPersonaPrompt
+                {
+                    Content = _userPrompt,
+                    Selection = selection,
+                });
+            }
+
+            return Task.FromResult(new GameResolvedPersonaPrompt
+            {
+                Content = null,
+                Selection = GamePersonaPromptSelection.None,
+                UsedFallback = selection?.Source == GamePersonaPromptSource.User,
+                FallbackReason = selection?.Source == GamePersonaPromptSource.User ? "persona_prompt_missing" : null,
             });
         }
     }

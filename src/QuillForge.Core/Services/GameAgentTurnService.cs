@@ -14,6 +14,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
     private readonly ICompletionService _completionService;
     private readonly AgentVisibleEventsService _visibleEventsService;
     private readonly IGamePromptTemplateService _promptTemplateService;
+    private readonly IGamePersonaPromptService _personaPromptService;
     private readonly AppConfig _appConfig;
     private readonly ILogger<GameAgentTurnService> _logger;
 
@@ -23,6 +24,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         ICompletionService completionService,
         AgentVisibleEventsService visibleEventsService,
         IGamePromptTemplateService promptTemplateService,
+        IGamePersonaPromptService personaPromptService,
         AppConfig appConfig,
         ILogger<GameAgentTurnService> logger)
     {
@@ -31,6 +33,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         _completionService = completionService;
         _visibleEventsService = visibleEventsService;
         _promptTemplateService = promptTemplateService;
+        _personaPromptService = personaPromptService;
         _appConfig = appConfig;
         _logger = logger;
     }
@@ -452,6 +455,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
             .Where(input => input.IsWaitingFor(pendingInput.ParticipantId))
             .ToArray();
         var promptTemplate = await _promptTemplateService.ResolveAsync(module, binding.SystemPromptTemplate, ct);
+        var personaPrompt = await _personaPromptService.ResolveAsync(binding.PersonaPrompt, ct);
         return new GameAgentPromptContext(
             runtime.GameInstanceId!,
             binding.ParticipantId,
@@ -461,6 +465,7 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
             module.Descriptor.DisplayName,
             module.GetPromptAssets(),
             promptTemplate.Content,
+            personaPrompt.Content,
             visibleEvents,
             pendingInputs,
             memory,
@@ -496,13 +501,18 @@ public sealed class GameAgentTurnService : IGameAgentTurnService
         user.AppendLine($"Game: {context.ModuleDisplayName} ({context.GameInstanceId})");
         user.AppendLine($"Participant: {context.DisplayName} ({context.ParticipantId})");
         user.AppendLine($"Stage: {context.StageName} ({context.StageId})");
+        if (!string.IsNullOrWhiteSpace(context.PersonaPromptContent))
+        {
+            user.AppendLine("Persona prompt:");
+            user.AppendLine(context.PersonaPromptContent.Trim());
+        }
         if (!string.IsNullOrWhiteSpace(context.Binding.Personality))
         {
-            user.AppendLine($"Personality: {context.Binding.Personality}");
+            user.AppendLine($"Legacy personality: {context.Binding.Personality}");
         }
         if (!string.IsNullOrWhiteSpace(context.Binding.CharacterPrompt))
         {
-            user.AppendLine($"Character prompt: {context.Binding.CharacterPrompt}");
+            user.AppendLine($"Legacy character prompt: {context.Binding.CharacterPrompt}");
         }
         user.AppendLine();
         user.AppendLine("Rules reference:");

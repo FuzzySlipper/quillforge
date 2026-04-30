@@ -11,6 +11,9 @@ import type {
   LoreCanonizationDiscardResult,
   DeleteGameTemplateResponse,
   GameTemplate,
+  GamePersonaPromptDocumentResponse,
+  GamePersonaPromptListResponse,
+  GamePersonaPromptSelection,
   GamePromptTemplateDocumentResponse,
   GamePromptTemplateListResponse,
   GamePromptTemplateSelection,
@@ -374,6 +377,28 @@ export async function getGameTemplateCatalog(): Promise<GameTemplateCatalogRespo
 
 export async function getGameTemplate(templateId: string): Promise<GameTemplateResponse> {
   return request(`/api/game-templates/${encodeURIComponent(templateId)}`);
+}
+
+export async function listGamePersonaPrompts(): Promise<GamePersonaPromptListResponse> {
+  return request("/api/game-templates/persona-prompts");
+}
+
+export async function openGamePersonaPrompt(
+  selection: GamePersonaPromptSelection,
+  baseName?: string | null,
+  seedContent?: string | null,
+): Promise<GamePersonaPromptDocumentResponse> {
+  return request("/api/game-templates/persona-prompts/open", {
+    method: "POST",
+    body: JSON.stringify({ selection, baseName, seedContent }),
+  });
+}
+
+export async function writeGamePersonaPrompt(promptName: string, content: string): Promise<unknown> {
+  return request(`/api/game-templates/persona-prompts/${encodeURIComponent(promptName)}`, {
+    method: "PUT",
+    body: JSON.stringify({ content }),
+  });
 }
 
 export async function listGamePromptTemplates(moduleId: string): Promise<GamePromptTemplateListResponse> {

@@ -349,6 +349,7 @@ public sealed class GameTemplateService : IGameTemplateService
             ModelOverride = NormalizeOptional(player.ModelOverride),
             CharacterPrompt = NormalizeOptional(player.CharacterPrompt),
             Personality = NormalizeOptional(player.Personality),
+            PersonaPrompt = NormalizePersonaPromptSelection(player.PersonaPrompt),
             FixedName = NormalizeOptional(player.FixedName),
             SystemPromptTemplate = NormalizePromptTemplateSelection(player.SystemPromptTemplate),
         };
@@ -364,6 +365,19 @@ public sealed class GameTemplateService : IGameTemplateService
         return promptName is null
             ? GamePromptTemplateSelection.Default
             : GamePromptTemplateSelection.ForUserPrompt(promptName);
+    }
+
+    private static GamePersonaPromptSelection NormalizePersonaPromptSelection(GamePersonaPromptSelection? selection)
+    {
+        if (selection is null || selection.Source != GamePersonaPromptSource.User)
+        {
+            return GamePersonaPromptSelection.None;
+        }
+
+        var promptName = NormalizeOptional(selection.UserPromptName);
+        return promptName is null
+            ? GamePersonaPromptSelection.None
+            : GamePersonaPromptSelection.ForUserPrompt(promptName);
     }
 
     private static string NormalizeId(string templateId, string parameterName)

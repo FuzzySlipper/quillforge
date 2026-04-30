@@ -42,6 +42,7 @@ public sealed record GameAgentPromptContext(
     string ModuleDisplayName,
     IReadOnlyList<GamePromptAsset> PromptAssets,
     string SystemPromptTemplateContent,
+    string? PersonaPromptContent,
     AgentVisibleEventsSnapshot VisibleEvents,
     IReadOnlyList<PendingInputState> PendingInputs,
     GameRuntimeAgentMemoryState? Memory,

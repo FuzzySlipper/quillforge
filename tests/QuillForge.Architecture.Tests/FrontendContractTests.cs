@@ -509,6 +509,9 @@ public sealed class FrontendContractTests
         Assert.Contains("cloneGameTemplate", source, StringComparison.Ordinal);
         Assert.Contains("deleteGameTemplate", source, StringComparison.Ordinal);
         Assert.Contains("validateGameTemplate", source, StringComparison.Ordinal);
+        Assert.Contains("listGamePersonaPrompts", source, StringComparison.Ordinal);
+        Assert.Contains("openGamePersonaPrompt", source, StringComparison.Ordinal);
+        Assert.Contains("writeGamePersonaPrompt", source, StringComparison.Ordinal);
         Assert.Contains("listGamePromptTemplates", source, StringComparison.Ordinal);
         Assert.Contains("openGamePromptTemplate", source, StringComparison.Ordinal);
         Assert.Contains("writeGamePromptTemplate", source, StringComparison.Ordinal);
@@ -528,8 +531,12 @@ public sealed class FrontendContractTests
         Assert.Contains("Provider model", source, StringComparison.Ordinal);
         Assert.Contains("provider.model ?? provider.defaultModel", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Default model", source, StringComparison.Ordinal);
+        Assert.Contains("Persona/character prompt", source, StringComparison.Ordinal);
+        Assert.Contains("data-testid=\"game-persona-editor-overlay\"", source, StringComparison.Ordinal);
+        Assert.Contains("Legacy personality text still loads", source, StringComparison.Ordinal);
         Assert.Contains("characterPrompt", source, StringComparison.Ordinal);
         Assert.Contains("personality", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("<input\n                    value={agent.personality", source, StringComparison.Ordinal);
         Assert.Contains("...current", source, StringComparison.Ordinal);
         Assert.Contains("...current.roster", source, StringComparison.Ordinal);
         Assert.Contains("...current.communication", source, StringComparison.Ordinal);

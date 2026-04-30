@@ -316,6 +316,7 @@ public sealed class GameAgentMemoryServiceTests
             registry,
             completionService,
             visibleEvents,
+            new DefaultOnlyGamePersonaPromptService(),
             appConfig ?? new AppConfig(),
             NullLogger<GameAgentMemoryService>.Instance);
         return new Fixture(runtime, memory, store);

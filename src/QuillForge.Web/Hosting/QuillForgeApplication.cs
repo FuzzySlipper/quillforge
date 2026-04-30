@@ -222,6 +222,7 @@ internal static class QuillForgeApplication
         builder.Services.AddSingleton<IGameTemplateProviderCatalog, GameTemplateProviderCatalog>();
         builder.Services.AddSingleton<IGameTemplateModuleValidator, GameTemplateModuleValidator>();
         builder.Services.AddSingleton<IGamePromptTemplateService, GamePromptTemplateService>();
+        builder.Services.AddSingleton<IGamePersonaPromptService, GamePersonaPromptService>();
         builder.Services.AddSingleton<IGameTemplateService, GameTemplateService>();
 
         builder.Services.AddSingleton<DefaultCompletionService>();

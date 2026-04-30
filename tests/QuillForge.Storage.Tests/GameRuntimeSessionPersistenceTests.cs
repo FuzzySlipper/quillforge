@@ -98,6 +98,7 @@ public sealed class GameRuntimeSessionPersistenceTests : IDisposable
             completion,
             new AgentVisibleEventsService(new GameVisibilityProjector(), new ParticipantChannelService()),
             new DefaultOnlyGamePromptTemplateService(),
+            new DefaultOnlyGamePersonaPromptService(),
             new AppConfig(),
             NullLogger<GameAgentTurnService>.Instance);
         var agent = await agentTurns.RunPendingAgentTurnsAsync(

@@ -795,6 +795,7 @@ public sealed class GameRuntimeService : IGameRuntimeService
         ModelOverride = binding.ModelOverride,
         CharacterPrompt = binding.CharacterPrompt,
         Personality = binding.Personality,
+        PersonaPrompt = binding.PersonaPrompt,
         SystemPromptTemplate = binding.SystemPromptTemplate,
         UserSeatId = binding.UserSeatId,
     };

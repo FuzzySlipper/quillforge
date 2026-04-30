@@ -32,6 +32,7 @@ public static class ContentPaths
     public const string Research = "research";
     public const string GameTemplates = "game-templates";
     public const string GamePrompts = "game-prompts";
+    public const string GamePersonas = "game-personas";
 
     // --- Data subdirectories ---
     public const string Data = "data";
