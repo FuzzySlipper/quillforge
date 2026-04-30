@@ -73,6 +73,7 @@ public static class ContentPaths
         Research,
         GameTemplates,
         GamePrompts,
+        GamePersonas,
         DataSessions,
         DataSessionState,
         DataLlmDebug,

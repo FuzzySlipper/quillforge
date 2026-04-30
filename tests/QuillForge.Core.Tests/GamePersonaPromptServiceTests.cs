@@ -51,6 +51,18 @@ public sealed class GamePersonaPromptServiceTests
     }
 
     [Fact]
+    public async Task CreateForEditAsync_UsesDefaultSeedWhenNoLegacyContentExists()
+    {
+        var store = new InMemoryGamePersonaPromptStore();
+        var service = new GamePersonaPromptService(store, NullLogger<GamePersonaPromptService>.Instance);
+
+        var document = await service.CreateForEditAsync("new agent", seedContent: "   ");
+
+        Assert.Equal("new agent", document.Name);
+        Assert.Contains("Describe the reusable persona", store.Documents[document.Name], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CreateForEditAsync_SeedsPromptAndUsesCollisionSafeName()
     {
         var store = new InMemoryGamePersonaPromptStore();
