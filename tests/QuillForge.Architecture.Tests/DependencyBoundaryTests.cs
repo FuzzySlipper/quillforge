@@ -222,6 +222,8 @@ public class DependencyBoundaryTests
         Assert.Contains("LegalIntentDescriptor is currently stage-scoped rather than form-scoped", sourceText, StringComparison.Ordinal);
         Assert.Contains("auto-requests one deterministic action form per stage", sourceText, StringComparison.Ordinal);
         Assert.Contains("coordinator_safety_limit_reached", sourceText, StringComparison.Ordinal);
+        Assert.Contains("NormalizeRequiredText(reasonCode, nameof(reasonCode))", sourceText, StringComparison.Ordinal);
+        Assert.Contains("NormalizeRequiredText(summary, nameof(summary))", sourceText, StringComparison.Ordinal);
     }
 
     [Fact]

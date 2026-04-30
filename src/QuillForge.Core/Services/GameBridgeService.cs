@@ -571,11 +571,23 @@ public sealed class GameBridgeService : IGameBridgeService
 
         public void Add(DateTimeOffset occurredAt, string reasonCode, string summary)
         {
+            var normalizedReasonCode = NormalizeRequiredText(reasonCode, nameof(reasonCode));
+            var normalizedSummary = NormalizeRequiredText(summary, nameof(summary));
             _records.Add(new AppendGameRuntimeHostRecordCommand(
                 GameRuntimeHostRecordKind.Coordinator,
                 occurredAt,
-                reasonCode,
-                summary));
+                normalizedReasonCode,
+                normalizedSummary));
+        }
+
+        private static string NormalizeRequiredText(string value, string parameterName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ArgumentException("Coordinator host records require non-empty text.", parameterName);
+            }
+
+            return value.Trim();
         }
 
         public async Task FlushAsync(CancellationToken ct)
