@@ -501,6 +501,7 @@ public sealed class FrontendContractTests
     public void GameTemplateEditor_UsesTypedTemplateApisAndSurfacesServiceValidation()
     {
         var source = File.ReadAllText(GetFrontendFilePath("components", "GameTemplateEditor.tsx"));
+        var normalizedSource = source.Replace("\r\n", "\n", StringComparison.Ordinal);
 
         Assert.Contains("getGameTemplateCatalog", source, StringComparison.Ordinal);
         Assert.Contains("getGameTemplate", source, StringComparison.Ordinal);
@@ -520,7 +521,8 @@ public sealed class FrontendContractTests
         Assert.Contains("Save or discard the prompt changes before closing the editor.", source, StringComparison.Ordinal);
         Assert.Contains("selected for {promptEditor.agentParticipantId}", source, StringComparison.Ordinal);
         Assert.Contains("fixed inset-0", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-testid=\"game-prompt-editor-inline\"", source, StringComparison.Ordinal);
+        Assert.Contains("setError(null);", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("<section className=\"rounded-xl border border-border/60 bg-surface/60 px-3 py-3\">\n          <div className=\"mb-3 flex items-center justify-between gap-3\">\n            <div>\n              <div className=\"qf-shell-folio\">Game Prompt Editor", normalizedSource, StringComparison.Ordinal);
         Assert.Contains("Validation issues from template service", source, StringComparison.Ordinal);
         Assert.Contains("Provider alias", source, StringComparison.Ordinal);
         Assert.Contains("Provider model", source, StringComparison.Ordinal);

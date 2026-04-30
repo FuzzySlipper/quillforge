@@ -934,6 +934,7 @@ export default function GameTemplateEditor({
                   value={promptEditor.content}
                   onChange={(value) => {
                     setPromptEditorWarning(null);
+                    setError(null);
                     setPromptEditor((current) => current ? { ...current, content: value ?? "" } : current);
                   }}
                   height={520}
@@ -953,6 +954,7 @@ export default function GameTemplateEditor({
                   disabled={busy || promptEditor.content === promptEditor.originalContent}
                   onClick={() => {
                     setPromptEditorWarning(null);
+                    setError(null);
                     setPromptEditor((current) => current ? { ...current, content: current.originalContent } : current);
                   }}
                   className="rounded-lg bg-surface-alt px-3 py-2 text-xs text-text hover:bg-border disabled:opacity-50"
