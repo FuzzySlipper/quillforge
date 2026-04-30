@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   abortGame,
@@ -135,6 +135,7 @@ function diagnosticCategoryLabel(category: GameDiagnosticLogEvent["category"]): 
 }
 
 function TemplateEditorDialog({
+  mounted,
   open,
   templates,
   selectedTemplateId,
@@ -142,6 +143,7 @@ function TemplateEditorDialog({
   onTemplatesChanged,
   onClose,
 }: {
+  mounted: boolean;
   open: boolean;
   templates: GameTemplateSummary[];
   selectedTemplateId: string;
@@ -164,6 +166,10 @@ function TemplateEditorDialog({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div
@@ -415,6 +421,7 @@ export default function GamesWorkspace({
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [editorTemplateId, setEditorTemplateId] = useState("");
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+  const [templateEditorMounted, setTemplateEditorMounted] = useState(false);
   const [view, setView] = useState<GameBridgeView | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [publicMessage, setPublicMessage] = useState("");
@@ -556,6 +563,15 @@ export default function GamesWorkspace({
     }
   }
 
+  const openTemplateEditor = useCallback(() => {
+    setTemplateEditorMounted(true);
+    setTemplateEditorOpen(true);
+  }, []);
+
+  const closeTemplateEditor = useCallback(() => {
+    setTemplateEditorOpen(false);
+  }, []);
+
   function openDiagnosticLog() {
     setDiagnosticOpen(true);
     void refreshDiagnosticLog();
@@ -678,7 +694,7 @@ export default function GamesWorkspace({
           <WorkspaceQuickButton label="Sessions" onClick={() => onOpenSection("sessions")} />
           <WorkspaceQuickButton label="Context" onClick={() => onOpenSection("context")} />
           <WorkspaceQuickButton label="Refresh Table" onClick={() => { void refreshGame(); }} />
-          <WorkspaceQuickButton label="Template Editor" onClick={() => setTemplateEditorOpen(true)} />
+          <WorkspaceQuickButton label="Template Editor" onClick={openTemplateEditor} />
           <WorkspaceQuickButton label="Diagnostic Log" disabled={!sessionId} onClick={openDiagnosticLog} />
         </div>
       </div>
@@ -694,12 +710,13 @@ export default function GamesWorkspace({
       )}
 
       <TemplateEditorDialog
+        mounted={templateEditorMounted}
         open={templateEditorOpen}
         templates={templates}
         selectedTemplateId={editorTemplateId}
         onSelectTemplate={setEditorTemplateId}
         onTemplatesChanged={reloadTemplates}
-        onClose={() => setTemplateEditorOpen(false)}
+        onClose={closeTemplateEditor}
       />
 
       {updateBanner}
@@ -754,7 +771,7 @@ export default function GamesWorkspace({
                   <ActionButton
                     label="Open Template Editor"
                     emphasis="subtle"
-                    onClick={() => setTemplateEditorOpen(true)}
+                    onClick={openTemplateEditor}
                   />
                 </div>
                 <div className="text-xs leading-5 text-text-muted">

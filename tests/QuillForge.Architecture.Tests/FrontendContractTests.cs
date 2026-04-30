@@ -609,6 +609,14 @@ public sealed class FrontendContractTests
         var source = File.ReadAllText(GetFrontendFilePath("components", "GamesWorkspace.tsx"));
 
         Assert.Contains("templateEditorOpen", source, StringComparison.Ordinal);
+        Assert.Contains("templateEditorMounted", source, StringComparison.Ordinal);
+        Assert.Contains("setTemplateEditorMounted(true)", source, StringComparison.Ordinal);
+        Assert.Contains("const openTemplateEditor = useCallback", source, StringComparison.Ordinal);
+        Assert.Contains("const closeTemplateEditor = useCallback", source, StringComparison.Ordinal);
+        Assert.Contains("onClose={closeTemplateEditor}", source, StringComparison.Ordinal);
+        Assert.Contains("if (!mounted) {", source, StringComparison.Ordinal);
+        Assert.Contains("return null;", source, StringComparison.Ordinal);
+        Assert.Contains("mounted={templateEditorMounted}", source, StringComparison.Ordinal);
         Assert.Contains("editorTemplateId", source, StringComparison.Ordinal);
         Assert.Contains("role=\"dialog\"", source, StringComparison.Ordinal);
         Assert.Contains("data-testid=\"game-template-editor-dialog\"", source, StringComparison.Ordinal);
