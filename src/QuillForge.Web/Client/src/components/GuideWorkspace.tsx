@@ -13,6 +13,7 @@ interface GuideWorkspaceProps {
   onOpenSessions: () => void;
   onOpenSection: (section: InspectorSection) => void;
   onQuickPrompt: (prompt: string) => void;
+  onOpenProviders: () => void;
 }
 
 function GuideActionCard({
@@ -74,6 +75,7 @@ export default function GuideWorkspace({
   onOpenSessions,
   onOpenSection,
   onQuickPrompt,
+  onOpenProviders,
 }: GuideWorkspaceProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -94,9 +96,13 @@ export default function GuideWorkspace({
             <span className="qf-shell-card px-3 py-1.5">
               lore · <span className="text-text">{status?.loreFiles ?? 0}</span>
             </span>
-            <span className="qf-shell-card px-3 py-1.5">
+            <button
+              type="button"
+              onClick={onOpenProviders}
+              className="qf-shell-card px-3 py-1.5 cursor-pointer transition-colors hover:border-accent/50 hover:text-accent"
+            >
               model · <span className="text-text">{status?.model ?? "loading"}</span>
-            </span>
+            </button>
           </div>
         </div>
 

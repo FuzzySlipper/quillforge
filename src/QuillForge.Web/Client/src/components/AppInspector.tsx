@@ -25,6 +25,7 @@ interface AppInspectorProps {
   onSelectSection: (section: InspectorSection) => void;
   onOpenLayout: () => void;
   onOpenCouncilConfig: () => void;
+  onOpenProviders?: () => void;
   children?: ReactNode;
 }
 
@@ -71,14 +72,19 @@ function SectionButton({
   );
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
+function MetaRow({ label, value, onClick }: { label: string; value: string; onClick?: () => void }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-1">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`flex w-full items-start justify-between gap-3 py-1 text-left ${onClick ? "cursor-pointer transition-colors hover:text-accent" : ""}`}
+    >
       <span className="qf-shell-folio">{label}</span>
       <span className="text-right text-[13px] leading-5 text-text">
         {value}
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -93,6 +99,7 @@ export default function AppInspector({
   onSelectSection,
   onOpenLayout,
   onOpenCouncilConfig,
+  onOpenProviders,
   children,
 }: AppInspectorProps) {
   const sectionButtons: Array<{ id: InspectorSection; label: string }> = [
@@ -241,7 +248,7 @@ export default function AppInspector({
               <MetaRow label="Project" value={status?.project ?? "not set"} />
               <MetaRow label="Current stage" value={status?.file ?? "pipeline-owned"} />
               <MetaRow label="Lore set" value={status?.loreSet ?? "loading"} />
-              <MetaRow label="Model" value={status?.model ?? "loading"} />
+              <MetaRow label="Model" value={status?.model ?? "loading"} onClick={onOpenProviders} />
             </div>
             <div className="mt-3 space-y-2">
               <InspectorAction
@@ -270,7 +277,7 @@ export default function AppInspector({
               <MetaRow label="Project" value={status?.project ?? "not set"} />
               <MetaRow label="Profile" value={status?.profile ?? "loading"} />
               <MetaRow label="Lore set" value={status?.loreSet ?? "loading"} />
-              <MetaRow label="Model" value={status?.model ?? "loading"} />
+              <MetaRow label="Model" value={status?.model ?? "loading"} onClick={onOpenProviders} />
             </div>
             <div className="mt-3 space-y-2">
               <InspectorAction
@@ -357,7 +364,7 @@ export default function AppInspector({
                 <MetaRow label="Project" value={status?.project ?? "not set"} />
                 <MetaRow label="File" value={status?.file ?? "none"} />
                 <MetaRow label="Lore" value={status ? `${status.loreSet} (${status.loreFiles})` : "loading"} />
-                <MetaRow label="Model" value={status?.model ?? "loading"} />
+                <MetaRow label="Model" value={status?.model ?? "loading"} onClick={onOpenProviders} />
                 <MetaRow label="Theme" value={textThemeName} />
                 <MetaRow label="Layout" value={layoutName} />
               </div>

@@ -1087,6 +1087,7 @@ function App() {
             onQuickPrompt={(prompt) => {
               void handleSend(prompt);
             }}
+            onOpenProviders={() => setProviderOpen(true)}
           />
         );
       case "writer":
@@ -1449,6 +1450,7 @@ function App() {
             onSelectSection={openInspectorSection}
             onOpenLayout={() => setLayoutOpen(true)}
             onOpenCouncilConfig={() => setCouncilConfigOpen(true)}
+            onOpenProviders={() => setProviderOpen(true)}
           >
             {inspectorContent}
           </AppInspector>
