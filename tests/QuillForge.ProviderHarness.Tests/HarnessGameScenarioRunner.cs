@@ -272,6 +272,15 @@ public sealed partial class HarnessGameScenarioRunner
         RequireSuccess(start.Status, start.Error, "start Werewolf memory harness game");
         runtimeEvents.AddRange(start.Value!.RuntimeEvents);
 
+        await RequestInputsAsync(
+            fixture.Runtime,
+            sessionId,
+            WerewolfConstants.NightStage.StageId,
+            "night-action",
+            [new LegalIntentOption(WerewolfConstants.SkipNightChoice, "Skip night", "No baseline night action.")],
+            Instant(11),
+            runtimeEvents,
+            ct);
         await SubmitHumanPendingInputAsync(fixture.Bridge, sessionId, "alice", WerewolfConstants.SkipNightChoice, Instant(11).AddSeconds(30), runtimeEvents, ct);
 
         var night = await fixture.AgentTurns.RunPendingAgentTurnsAsync(
@@ -281,6 +290,9 @@ public sealed partial class HarnessGameScenarioRunner
         RequireSuccess(night.Status, night.Error, "run night agent turns for memory scenario");
         actionResults.AddRange(night.Value!.ParticipantResults);
         runtimeEvents.AddRange(night.Value.RuntimeEvents);
+
+        // Resolve Alice's remaining pending input to advance night→day before posting a public message
+        await SubmitHumanPendingInputAsync(fixture.Bridge, sessionId, "alice", WerewolfConstants.SkipNightChoice, Instant(12).AddSeconds(30), runtimeEvents, ct);
 
         var publicMessage = await fixture.Runtime.PostPublicMessageAsync(
             sessionId,
