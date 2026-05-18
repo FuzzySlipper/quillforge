@@ -58,6 +58,9 @@ public sealed partial class HarnessGameScenarioRunner
         actionResults.AddRange(night.Value!.ParticipantResults);
         runtimeEvents.AddRange(night.Value.RuntimeEvents);
 
+        // Resolve Alice's remaining night input so night→day fires before advancing to voting
+        await SubmitHumanPendingInputAsync(fixture.Bridge, sessionId, "alice", WerewolfConstants.SkipNightChoice, Instant(2).AddSeconds(30), runtimeEvents, ct);
+
         var afterNight = await fixture.Runtime.LoadViewAsync(sessionId, ct)
             ?? throw new InvalidOperationException("Game runtime disappeared after night actions.");
         var liveAfterNight = afterNight.EngineSnapshot!.ToState();
@@ -75,8 +78,8 @@ public sealed partial class HarnessGameScenarioRunner
             Instant(3),
             runtimeEvents,
             ct);
-        await SubmitHumanPendingInputAsync(fixture.Bridge, sessionId, "alice", werewolfTarget, Instant(3).AddSeconds(30), runtimeEvents, ct);
 
+        // Run agent voting turns before human submits, so results are captured
         var vote = await fixture.AgentTurns.RunPendingAgentTurnsAsync(
             sessionId,
             new RunGameAgentTurnsCommand(Instant(4), MaxConcurrency: 1),
@@ -84,6 +87,8 @@ public sealed partial class HarnessGameScenarioRunner
         RequireSuccess(vote.Status, vote.Error, "run voting agent turns");
         actionResults.AddRange(vote.Value!.ParticipantResults);
         runtimeEvents.AddRange(vote.Value.RuntimeEvents);
+
+        await SubmitHumanPendingInputAsync(fixture.Bridge, sessionId, "alice", werewolfTarget, Instant(4).AddSeconds(30), runtimeEvents, ct);
 
         var finalRuntime = await fixture.Runtime.LoadViewAsync(sessionId, ct)
             ?? throw new InvalidOperationException("Game runtime disappeared after voting.");
@@ -140,18 +145,8 @@ public sealed partial class HarnessGameScenarioRunner
             Instant(21),
             runtimeEvents,
             ct);
-        if (!string.IsNullOrWhiteSpace(template.Roster.UserSeatParticipantId))
-        {
-            await SubmitHumanPendingInputAsync(
-                fixture.Bridge,
-                sessionId,
-                template.Roster.UserSeatParticipantId,
-                WerewolfConstants.SkipNightChoice,
-                Instant(21).AddSeconds(30),
-                runtimeEvents,
-                ct);
-        }
 
+        // Run agent turns before human submits, so results are captured before coordinator consumes them
         var night = await fixture.AgentTurns.RunPendingAgentTurnsAsync(
             sessionId,
             new RunGameAgentTurnsCommand(Instant(22), MaxConcurrency: 1),
@@ -159,6 +154,18 @@ public sealed partial class HarnessGameScenarioRunner
         RequireSuccess(night.Status, night.Error, "run exploratory night agent turns");
         actionResults.AddRange(night.Value!.ParticipantResults);
         runtimeEvents.AddRange(night.Value.RuntimeEvents);
+
+        if (!string.IsNullOrWhiteSpace(template.Roster.UserSeatParticipantId))
+        {
+            await SubmitHumanPendingInputAsync(
+                fixture.Bridge,
+                sessionId,
+                template.Roster.UserSeatParticipantId,
+                WerewolfConstants.SkipNightChoice,
+                Instant(22).AddSeconds(30),
+                runtimeEvents,
+                ct);
+        }
 
         var finalRuntime = await fixture.Runtime.LoadViewAsync(sessionId, ct)
             ?? throw new InvalidOperationException("Game runtime disappeared after exploratory night.");

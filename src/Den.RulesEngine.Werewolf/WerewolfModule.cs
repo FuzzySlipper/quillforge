@@ -116,7 +116,9 @@ public sealed class WerewolfModule : IGameModule
             SubmitPlayerChoiceIntentCommand submit when context.State.Stage.StageId == WerewolfConstants.VotingStage.StageId => RecordVoteAndResolveIfReady(context.State, submit),
             RecordNoActionTakenIntentCommand when context.State.Stage.StageId == WerewolfConstants.NightStage.StageId => ResolveNightIfReady(context.State),
             RecordNoActionTakenIntentCommand when context.State.Stage.StageId == WerewolfConstants.VotingStage.StageId => ResolveVoteIfReady(context.State, []),
-            AdvanceStageIntentCommand advance when advance.NextStage.StageId == WerewolfConstants.VotingStage.StageId => GameModuleTransitionResult.Accepted(context.State, [WerewolfStageStartedEvent.Create(context.State.GameInstanceId, WerewolfConstants.VotingStage.StageId, context.State.Round.RoundNumber)]),
+            AdvanceStageIntentCommand advance => GameModuleTransitionResult.Accepted(
+                context.State with { Stage = advance.NextStage },
+                [WerewolfStageStartedEvent.Create(context.State.GameInstanceId, advance.NextStage.StageId, context.State.Round.RoundNumber)]),
             _ => GameModuleTransitionResult.Accepted(context.State, [])
         };
     }
