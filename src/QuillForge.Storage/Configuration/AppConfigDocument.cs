@@ -52,7 +52,6 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
             },
             Council = value.Agents.Council with
             {
-                Temperature = Math.Clamp(value.Agents.Council.Temperature, 0, 2),
             },
             GameAgentMemory = value.Agents.GameAgentMemory with
             {

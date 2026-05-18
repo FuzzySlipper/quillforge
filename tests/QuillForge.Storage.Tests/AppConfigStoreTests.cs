@@ -103,7 +103,6 @@ public class AppConfigStoreTests : IDisposable
         Assert.Equal(100, config.Persona.MaxTokens); // clamped to min 100
         Assert.Equal(1, config.Agents.Orchestrator.MaxToolRounds); // clamped to min 1
         Assert.Equal(256, config.Agents.Librarian.MaxTokens); // clamped to min 256
-        Assert.Equal(2.0, config.Agents.Council.Temperature); // clamped to max 2
         Assert.Equal(1, config.Agents.GameAgentMemory.MaxPromptEnvelopesPerAgent); // clamped to min 1
         Assert.Equal(2.0, config.Agents.GameAgentMemory.Temperature); // clamped to max 2
         Assert.Equal(4.0, config.Agents.GameAgentMemory.FallbackCharactersPerToken); // invalid falls back to default estimate

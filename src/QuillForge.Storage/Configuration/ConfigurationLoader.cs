@@ -118,8 +118,6 @@ public sealed class ConfigurationLoader
             _logger.LogWarning("agents.librarian.max_tokens ({Value}) seems too low", agents.Librarian.MaxTokens);
         if (agents.ProseWriter.MaxTokens < 256)
             _logger.LogWarning("agents.prose_writer.max_tokens ({Value}) seems too low", agents.ProseWriter.MaxTokens);
-        if (agents.Council.Temperature is < 0 or > 2)
-            _logger.LogWarning("agents.council.temperature ({Value}) should be between 0 and 2", agents.Council.Temperature);
 
         // Timeout validation
         var timeouts = config.Timeouts;

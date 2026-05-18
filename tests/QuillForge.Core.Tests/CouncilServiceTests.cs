@@ -26,7 +26,6 @@ public sealed class CouncilServiceTests
                     Council = new CouncilBudget
                     {
                         MaxTokens = 321,
-                        Temperature = 1.7,
                     },
                 },
             },
