@@ -171,6 +171,12 @@ function optionTriStateValue(options: Record<string, unknown> | null, key: strin
   return "unset";
 }
 
+function optionTextValue(options: Record<string, unknown> | null, key: string): string {
+  const value = options?.[key];
+  if (typeof value === "string") return value;
+  return "";
+}
+
 function isUnsetAssignment(value: string): boolean {
   return value.trim() === "" || value.toLowerCase() === "default";
 }
@@ -362,6 +368,16 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
       options[key] = "auto";
     } else {
       options[key] = value === "on";
+    }
+    setOptionsText(formatOptionsObject(options));
+  }
+
+  function setStringOption(key: string, value: string) {
+    const options = parseOptionsObject(optionsText) ?? {};
+    if (!value) {
+      delete options[key];
+    } else {
+      options[key] = value;
     }
     setOptionsText(formatOptionsObject(options));
   }
@@ -643,6 +659,23 @@ export default function ProviderManager({ open, onClose, onChanged }: ProviderMa
                         </select>
                       </label>
                     ))}
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] text-text-muted">Reasoning Effort</span>
+                      <select
+                        value={optionTextValue(parsedOptions, "reasoning_effort")}
+                        disabled={optionsInvalid}
+                        onChange={(e) => setStringOption("reasoning_effort", e.target.value)}
+                        className="w-full rounded-lg border border-border bg-input-bg px-2.5 py-1.5 text-sm text-text focus:border-accent focus:outline-none disabled:opacity-50"
+                      >
+                        <option value="">unset</option>
+                        <option value="none">none</option>
+                        <option value="minimal">minimal</option>
+                        <option value="low">low</option>
+                        <option value="medium">medium</option>
+                        <option value="high">high</option>
+                        <option value="xhigh">xhigh</option>
+                      </select>
+                    </label>
                   </div>
                   {optionsInvalid && (
                     <p className="mt-2 text-[11px] text-warning-text">

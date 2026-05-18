@@ -38,6 +38,7 @@ public sealed record ProviderOptions
     public float? RepetitionPenalty { get; init; }
     public float? MinP { get; init; }
     public int? Seed { get; init; }
+    public string? ReasoningEffort { get; init; }
     public IReadOnlyDictionary<string, JsonElement>? Additional { get; init; }
 }
 
