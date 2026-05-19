@@ -1,21 +1,17 @@
 {
   "name": "quillforge-desktop",
-  "private": true,
   "version": "0.1.0",
-  "type": "module",
+  "private": true,
+  "main": "main.js",
   "scripts": {
-    "ui:dev": "vite --host 127.0.0.1 --port 1420",
-    "ui:build": "vite build",
-    "prepare:sidecar": "node ./scripts/prepare-sidecar.mjs",
-    "tauri:dev": "npm run prepare:sidecar && tauri dev",
-    "tauri:build": "npm run prepare:sidecar && node ./scripts/tauri-build.mjs"
+    "start": "electron .",
+    "build": "electron-builder"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.8.0"
+    "electron-store": "^8.1.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.10.0",
-    "typescript": "~5.9.3",
-    "vite": "^8.0.0"
+    "electron": "^35.0.0",
+    "electron-builder": "^25.0.0"
   }
 }

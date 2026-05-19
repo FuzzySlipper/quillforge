@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <title>QuillForge</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="overlay">
+    <div id="content">
+      <!-- Starting state -->
+      <div id="state-starting" class="state active">
+        <div class="spinner"></div>
+        <p id="startup-message">Starting QuillForge...</p>
+      </div>
+
+      <!-- Ready state (briefly shown then auto-hidden) -->
+      <div id="state-ready" class="state">
+        <div class="checkmark">&#10003;</div>
+        <p>QuillForge is ready</p>
+      </div>
+
+      <!-- Failed state -->
+      <div id="state-failed" class="state">
+        <div class="error-icon">&#10007;</div>
+        <p id="error-message">Something went wrong.</p>
+        <div class="actions">
+          <button id="btn-retry">Retry</button>
+          <button id="btn-open-workspace">Open Workspace</button>
+        </div>
+      </div>
+
+      <!-- Exited state -->
+      <div id="state-exited" class="state">
+        <div class="error-icon">&#9888;</div>
+        <p id="exited-message">The backend has stopped.</p>
+        <div class="actions">
+          <button id="btn-restart">Restart Backend</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
