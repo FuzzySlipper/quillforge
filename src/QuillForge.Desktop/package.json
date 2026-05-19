@@ -2,7 +2,8 @@
   "name": "quillforge-desktop",
   "version": "6.0.0",
   "description": "QuillForge desktop application",
-  "author": "QuillForge Contributors",
+  "author": "QuillForge Contributors <FuzzySlipper@users.noreply.github.com>",
+  "homepage": "https://github.com/FuzzySlipper/quillforge",
   "private": true,
   "main": "main.js",
   "scripts": {
