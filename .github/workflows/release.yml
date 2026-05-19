@@ -118,9 +118,9 @@ jobs:
           path: release-assets
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: release-assets/**/*
-          fail_on_unmatched_files: false
-          generate_release_notes: true
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            $(find release-assets -type f) \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
