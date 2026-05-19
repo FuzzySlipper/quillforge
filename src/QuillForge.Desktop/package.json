@@ -1,19 +1,52 @@
 {
   "name": "quillforge-desktop",
-  "version": "0.1.0",
+  "version": "5.9.0",
   "description": "QuillForge desktop application",
   "author": "QuillForge Contributors",
   "private": true,
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
-    "electron-store": "^8.1.0"
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.8.3"
   },
   "devDependencies": {
     "electron": "^35.0.0",
     "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.quillforge.desktop",
+    "productName": "QuillForge",
+    "publish": {
+      "provider": "github",
+      "owner": "FuzzySlipper",
+      "repo": "quillforge",
+      "private": false
+    },
+    "linux": {
+      "category": "Office",
+      "target": [
+        "AppImage",
+        "rpm"
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
