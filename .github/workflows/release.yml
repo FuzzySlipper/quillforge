@@ -35,8 +35,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            artifact_name: desktop-linux-x64
-            electron_cli: --linux
+            artifact_name: desktop-linux-x64-appimage
+            electron_cli: --linux appimage
+          - os: ubuntu-22.04
+            artifact_name: desktop-linux-x64-rpm
+            electron_cli: --linux rpm
           - os: macos-latest
             artifact_name: desktop-macos-x64
             electron_cli: --mac --x64
