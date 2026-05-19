@@ -121,8 +121,11 @@ jobs:
 
       - name: Create GitHub Release
         run: |
-          gh release create "${{ github.ref_name }}" \
-            $(find release-assets -type f) \
-            --generate-notes
+          # Create the release first (no assets yet)
+          gh release create "${{ github.ref_name }}" --generate-notes
+          # Upload assets one by one via find (safe with spaces/non-standard names)
+          find release-assets -type f -print0 | while IFS= read -r -d '' f; do
+            gh release upload "${{ github.ref_name }}" "$f"
+          done
         env:
           GH_TOKEN: ${{ github.token }}
