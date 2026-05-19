@@ -91,14 +91,16 @@ jobs:
         run: |
           mkdir -p "${{ github.workspace }}/release-assets"
           if [ -d dist ]; then
-            cp -r dist/* "${{ github.workspace }}/release-assets/" 2>/dev/null || true
+            # Only copy distributable files (no unpacked app bundles)
+            find dist -maxdepth 1 -type f \( \
+              -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o \
+              -name '*.deb' -o -name '*.rpm' -o -name '*.exe' -o \
+              -name '*.blockmap' -o -name '*.yml' -o \
+              -name 'latest*' \
+            \) -exec cp {} "${{ github.workspace }}/release-assets/" \;
           fi
-          # Electron Builder default output locations:
-          for dir in release dist/*; do
-            if [ -d "$dir" ]; then
-              cp -r "$dir"/* "${{ github.workspace }}/release-assets/" 2>/dev/null || true
-            fi
-          done 2>/dev/null || true
+          echo "=== Staged assets ==="
+          ls -la "${{ github.workspace }}/release-assets/"
         working-directory: src/QuillForge.Desktop
 
       - name: Upload staged assets
