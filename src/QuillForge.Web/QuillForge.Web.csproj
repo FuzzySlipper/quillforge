@@ -2,7 +2,9 @@
 
   <PropertyGroup>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
-    <Version>5.9</Version>
+    <!-- Version sourced from Desktop's package.json (single source of truth) -->
+    <DesktopPackageJsonPath>$([MSBuild]::NormalizePath($(MSBuildThisFileDirectory), '../QuillForge.Desktop/package.json'))</DesktopPackageJsonPath>
+    <Version>0.0.0</Version>
     <!-- Append git short hash to informational version -->
     <SourceRevisionId>unknown</SourceRevisionId>
   </PropertyGroup>
@@ -10,6 +12,18 @@
   <ItemGroup>
     <InternalsVisibleTo Include="QuillForge.Architecture.Tests" />
   </ItemGroup>
+
+  <!-- Read version from Desktop's package.json (single source of truth) -->
+  <Target Name="ReadDesktopVersion" BeforeTargets="GetAssemblyVersion"
+          Condition="Exists('$(DesktopPackageJsonPath)')">
+    <Exec Command="node -e &quot;process.stdout.write(require('$(DesktopPackageJsonPath)').version)&quot;"
+          ConsoleToMSBuild="true" IgnoreExitCode="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="ReadDesktopVersionValue" />
+    </Exec>
+    <PropertyGroup>
+      <Version Condition="'$(ReadDesktopVersionValue)' != ''">$(ReadDesktopVersionValue)</Version>
+    </PropertyGroup>
+  </Target>
 
   <!-- Grab git hash at build time if available -->
   <Target Name="SetGitHash" BeforeTargets="GetAssemblyVersion" Condition="'$(SourceRevisionId)' == 'unknown'">
