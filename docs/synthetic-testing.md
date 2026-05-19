@@ -51,7 +51,7 @@ Unless the user explicitly narrows scope, cover:
 
 ## Desktop Addendum
 
-When the work touches the Tauri wrapper, release artifacts, or desktop-specific startup behavior, also cover:
+When the work touches the Electron shell, release artifacts, or desktop-specific startup behavior, also cover:
 - desktop shell launch without a separate browser window
 - workspace creation under `Documents/QuillForge`
 - `Open Workspace` and `Restart Backend` from the shell UI

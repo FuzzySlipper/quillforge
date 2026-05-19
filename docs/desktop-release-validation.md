@@ -6,8 +6,7 @@ Use this checklist before publishing or announcing a desktop release. It is inte
 
 For the tagged release you expect to publish, confirm GitHub Actions produced the current first-wave desktop assets:
 
-- `QuillForge-fedora-x86_64.rpm`
-- `QuillForge-debian-amd64.deb`
+- `QuillForge-x86_64.AppImage`
 - `QuillForge-macos-<arch>.app.zip`
 - `QuillForge-macos-<arch>.dmg`
 - `QuillForge-windows-x64-setup.exe`
@@ -21,20 +20,14 @@ Quick sanity checks:
 
 Run at least one real install path for the platforms you care about most.
 
-### Fedora
+### Linux
 
-1. Install the RPM with `sudo dnf install ./QuillForge-fedora-x86_64.rpm`.
-2. Launch QuillForge from the app launcher.
-3. Confirm the desktop shell appears instead of a terminal-plus-browser workflow.
-4. Confirm the first run creates `~/Documents/QuillForge`.
-5. Close and relaunch to confirm the installed app still opens the same workspace.
-
-### Debian Or Ubuntu
-
-1. Install the DEB with `sudo apt install ./QuillForge-debian-amd64.deb`.
-2. Launch QuillForge from the desktop environment menu.
-3. Confirm the shell opens and uses `~/Documents/QuillForge`.
-4. Restart once to make sure the installed app still finds the same workspace.
+1. Download `QuillForge-x86_64.AppImage`.
+2. Make it executable with `chmod +x ./QuillForge-x86_64.AppImage`.
+3. Run it with `./QuillForge-x86_64.AppImage`.
+4. Confirm the desktop shell appears instead of a terminal-plus-browser workflow.
+5. Confirm the first run creates `~/Documents/QuillForge`.
+6. Close and relaunch to confirm the app still opens the same workspace.
 
 ### macOS
 
@@ -76,8 +69,7 @@ If you have an older portable build available:
 
 Validate the platform-appropriate update story without touching the workspace:
 
-- Fedora: run `sudo dnf install https://github.com/FuzzySlipper/quillforge/releases/latest/download/QuillForge-fedora-x86_64.rpm`
-- Debian/Ubuntu: install a newer DEB over the old app
+- Linux: download the latest AppImage, make it executable, and run it
 - macOS: replace the old `QuillForge.app` in `Applications` with the newer one
 - Windows: run the newer installer over the existing install
 
@@ -119,14 +111,11 @@ Before tagging a release, make sure the core desktop build commands still succee
 ```bash
 cd src/QuillForge.Desktop
 npm install
-npm run ui:build
-cargo check --manifest-path src-tauri/Cargo.toml
-npm run tauri:build -- --debug --bundles deb
+npx electron-builder --linux --publish never
 ```
 
 If you are validating release automation rather than only local shell behavior, also inspect `.github/workflows/release.yml` and confirm the matrix still covers:
-- Fedora-style RPM output
-- Debian-style DEB output
+- Linux AppImage output
 - macOS `.app` plus `.dmg`
 - Windows installer output
 

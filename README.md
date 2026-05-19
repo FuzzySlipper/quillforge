@@ -47,14 +47,12 @@ Download the latest desktop release for your platform from:
 
 Current release artifacts prioritize the desktop shell:
 
-- Fedora-friendly RPM: `QuillForge-fedora-x86_64.rpm`
-- Debian-friendly DEB: `QuillForge-debian-amd64.deb`
+- Linux AppImage: `QuillForge-x86_64.AppImage`
 - macOS manual-download bundles: `QuillForge-macos-<arch>.app.zip` and `QuillForge-macos-<arch>.dmg`
 - Windows installer: `QuillForge-windows-x64-setup.exe`
 
 Install by platform:
-- Fedora: `sudo dnf install ./QuillForge-fedora-x86_64.rpm`
-- Debian/Ubuntu: `sudo apt install ./QuillForge-debian-amd64.deb`
+- Linux: `chmod +x ./QuillForge-x86_64.AppImage && ./QuillForge-x86_64.AppImage`
 - macOS: unzip `QuillForge-macos-<arch>.app.zip` or open the `.dmg`, then move `QuillForge.app` into `Applications`
 - Windows: run `QuillForge-windows-x64-setup.exe`
 
@@ -71,8 +69,7 @@ Workspace behavior:
 - if a desktop-mode launch finds an older sibling `user/` directory next to the published app and `Documents/QuillForge` is still empty, QuillForge copies that old workspace into `Documents/QuillForge` and leaves the original in place
 
 Manual updates keep your writing workspace in place:
-- Fedora: reinstall the latest RPM over the old one, for example `sudo dnf install https://github.com/FuzzySlipper/quillforge/releases/latest/download/QuillForge-fedora-x86_64.rpm`
-- Debian/Ubuntu: install the new DEB over the old one with `sudo apt install ./QuillForge-debian-amd64.deb`
+- Linux: download the latest AppImage, make it executable with `chmod +x QuillForge-x86_64.AppImage`, and run it
 - macOS: replace the old `QuillForge.app` in `Applications` with the newer one you downloaded
 - Windows: run the newer installer and let it replace the installed app
 - in all of those cases, leave `Documents/QuillForge` alone unless you are intentionally moving or backing up your writing workspace
@@ -232,15 +229,15 @@ dotnet test QuillForge.slnx --filter "Category!=Integration&Category!=LiveProvid
 
 ### Desktop Shell
 
-The first Tauri desktop shell lives in `src/QuillForge.Desktop/`.
+The Electron desktop shell lives in `src/QuillForge.Desktop/`.
 
 ```bash
 cd src/QuillForge.Desktop
 npm install
-npm run tauri:dev
+npm start
 ```
 
-That flow builds the shell UI, publishes `QuillForge.Web` as a self-contained sidecar for the current host, and launches the desktop app. The tagged release workflow now stages stable desktop assets for Fedora RPM, Debian DEB, macOS zipped `.app` bundles plus DMGs, and a Windows installer. The desktop shell keeps backend binding local-only by default and can explicitly restart in LAN/mobile mode when you need to reach it from a phone or tablet on the same trusted network. Local Linux `tauri:build` runs can still stay focused on `.deb` unless you override bundles explicitly. AppImage packaging remains a follow-up path while linuxdeploy support is being sorted out. Use `docs/desktop-release-validation.md` when you need the concrete pre-tag manual validation checklist.
+That flow launches the Electron shell, which publishes `QuillForge.Web` as a child process and opens it in an Electron BrowserWindow. The tagged release workflow now stages stable desktop assets for Fedora RPM, Debian DEB, macOS zipped `.app` bundles plus DMGs, and a Windows installer. The desktop shell keeps backend binding local-only by default and can explicitly restart in LAN/mobile mode when you need to reach it from a phone or tablet on the same trusted network. Use `docs/desktop-release-validation.md` when you need the concrete pre-tag manual validation checklist.
 
 ### Source Layout
 
@@ -253,7 +250,7 @@ src/
   QuillForge.Providers/  LLM adapters and provider-specific integrations
   QuillForge.Storage/    File-backed stores, config/session persistence, content I/O
   QuillForge.Web/        ASP.NET Core host, endpoints, startup, React client
-  QuillForge.Desktop/    Tauri desktop shell, local shell UI, backend sidecar packaging
+  QuillForge.Desktop/    Electron desktop shell, shell status overlay
 
 tests/
   Den.RulesEngine.Tests/

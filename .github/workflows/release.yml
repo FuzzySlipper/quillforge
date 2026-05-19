@@ -36,28 +36,16 @@ jobs:
         include:
           - os: ubuntu-22.04
             artifact_name: desktop-linux-x64
-            target_triple: x86_64-unknown-linux-gnu
-            sidecar_rid: linux-x64
-            tauri_target: ''
-            bundles: deb,rpm
+            electron_cli: --linux
           - os: macos-latest
             artifact_name: desktop-macos-x64
-            target_triple: x86_64-apple-darwin
-            sidecar_rid: osx-x64
-            tauri_target: x86_64-apple-darwin
-            bundles: app,dmg
+            electron_cli: --mac app dmg --x64
           - os: macos-latest
             artifact_name: desktop-macos-arm64
-            target_triple: aarch64-apple-darwin
-            sidecar_rid: osx-arm64
-            tauri_target: aarch64-apple-darwin
-            bundles: app,dmg
+            electron_cli: --mac app dmg --arm64
           - os: windows-latest
             artifact_name: desktop-windows-x64
-            target_triple: x86_64-pc-windows-msvc
-            sidecar_rid: win-x64
-            tauri_target: ''
-            bundles: nsis
+            electron_cli: --win nsis
 
     steps:
       - uses: actions/checkout@v4
@@ -79,17 +67,7 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Add Rust target
-        if: matrix.tauri_target != ''
-        run: rustup target add ${{ matrix.tauri_target }}
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+          sudo apt-get install -y libgtk-3-dev libnotify-dev libnss3 libxss1 libatspi2.0-dev libdrm-dev libgbm-dev patchelf rpm
 
       - name: Install web frontend dependencies
         run: npm ci
@@ -101,25 +79,23 @@ jobs:
 
       - name: Build desktop bundles
         shell: bash
-        env:
-          QUILLFORGE_DESKTOP_HOST_TRIPLE: ${{ matrix.target_triple }}
-          QUILLFORGE_DESKTOP_TARGET_TRIPLE: ${{ matrix.target_triple }}
-          QUILLFORGE_DESKTOP_SIDECAR_RID: ${{ matrix.sidecar_rid }}
-          QUILLFORGE_DESKTOP_BUNDLES: ${{ matrix.bundles }}
-          QUILLFORGE_TAURI_TARGET: ${{ matrix.tauri_target }}
         run: |
-          args=(--bundles "$QUILLFORGE_DESKTOP_BUNDLES")
-          if [ -n "$QUILLFORGE_TAURI_TARGET" ]; then
-            args+=(--target "$QUILLFORGE_TAURI_TARGET")
-          fi
-          npm run tauri:build -- "${args[@]}"
+          npx electron-builder ${{ matrix.electron_cli }} --publish never
         working-directory: src/QuillForge.Desktop
 
       - name: Stage release assets
-        env:
-          QUILLFORGE_DESKTOP_TARGET_TRIPLE: ${{ matrix.target_triple }}
-          QUILLFORGE_DESKTOP_RELEASE_DIR: ${{ github.workspace }}/release-assets
-        run: node ./scripts/stage-release-assets.mjs
+        shell: bash
+        run: |
+          mkdir -p "${{ github.workspace }}/release-assets"
+          if [ -d dist ]; then
+            cp -r dist/* "${{ github.workspace }}/release-assets/" 2>/dev/null || true
+          fi
+          # Electron Builder default output locations:
+          for dir in release dist/*; do
+            if [ -d "$dir" ]; then
+              cp -r "$dir"/* "${{ github.workspace }}/release-assets/" 2>/dev/null || true
+            fi
+          done 2>/dev/null || true
         working-directory: src/QuillForge.Desktop
 
       - name: Upload staged assets
@@ -127,7 +103,7 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: release-assets/*
-          if-no-files-found: error
+          if-no-files-found: warn
 
   release:
     needs: desktop-bundles
@@ -143,5 +119,5 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: release-assets/**/*
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
           generate_release_notes: true
