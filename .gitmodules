@@ -1,0 +1,3 @@
+[submodule "lib/den-bridge"]
+	path = lib/den-bridge
+	url = https://github.com/FuzzySlipper/den-bridge.git

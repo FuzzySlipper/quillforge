@@ -48,6 +48,7 @@
     <ProjectReference Include="..\QuillForge.Core\QuillForge.Core.csproj" />
     <ProjectReference Include="..\QuillForge.Providers\QuillForge.Providers.csproj" />
     <ProjectReference Include="..\QuillForge.Storage\QuillForge.Storage.csproj" />
+    <ProjectReference Include="..\..\lib\den-bridge\src\Den.Bridge\Den.Bridge.csproj" />
   </ItemGroup>
 
   <ItemGroup>
