@@ -39,10 +39,10 @@ jobs:
             electron_cli: --linux
           - os: macos-latest
             artifact_name: desktop-macos-x64
-            electron_cli: --mac app dmg --x64
+            electron_cli: --mac --x64
           - os: macos-latest
             artifact_name: desktop-macos-arm64
-            electron_cli: --mac app dmg --arm64
+            electron_cli: --mac --arm64
           - os: windows-latest
             artifact_name: desktop-windows-x64
             electron_cli: --win nsis

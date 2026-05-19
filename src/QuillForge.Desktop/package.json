@@ -1,6 +1,8 @@
 {
   "name": "quillforge-desktop",
   "version": "0.1.0",
+  "description": "QuillForge desktop application",
+  "author": "QuillForge Contributors",
   "private": true,
   "main": "main.js",
   "scripts": {
