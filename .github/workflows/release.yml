@@ -123,11 +123,13 @@ jobs:
 
       - name: Create GitHub Release
         run: |
-          # Create the release first (no assets yet)
+          # Wipe any stale release from a previous failed run
+          gh release delete "${{ github.ref_name }}" --yes 2>/dev/null || true
+          # Create the release with auto-generated notes
           gh release create "${{ github.ref_name }}" --generate-notes
           # Upload assets one by one via find (safe with spaces/non-standard names)
           find release-assets -type f -print0 | while IFS= read -r -d '' f; do
-            gh release upload "${{ github.ref_name }}" "$f"
+            gh release upload "${{ github.ref_name }}" "$f" --clobber
           done
         env:
           GH_TOKEN: ${{ github.token }}
