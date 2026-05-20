@@ -114,7 +114,7 @@ jobs:
               -name '*.deb' -o -name '*.rpm' -o -name '*.exe' -o \
               -name '*.blockmap' -o -name '*.yml' -o \
               -name 'latest*' \
-            \) -exec cp {} "${{ github.workspace }}/release-assets/" \;
+            \) ! -name 'builder-debug.yml' -exec cp {} "${{ github.workspace }}/release-assets/" \;
           fi
           echo "=== Staged assets ==="
           ls -la "${{ github.workspace }}/release-assets/"

@@ -1,6 +1,6 @@
 {
   "name": "quillforge-desktop",
-  "version": "6.0.1",
+  "version": "6.0.2",
   "description": "QuillForge desktop application",
   "author": "QuillForge Contributors <FuzzySlipper@users.noreply.github.com>",
   "homepage": "https://github.com/FuzzySlipper/quillforge",
@@ -37,6 +37,7 @@
       }
     ],
     "linux": {
+      "artifactName": "QuillForge-Linux-${arch}-${version}.${ext}",
       "category": "Office",
       "target": [
         "AppImage",
@@ -44,6 +45,7 @@
       ]
     },
     "mac": {
+      "artifactName": "QuillForge-macOS-${arch}-${version}.${ext}",
       "category": "public.app-category.productivity",
       "target": [
         "dmg",
@@ -51,6 +53,7 @@
       ]
     },
     "win": {
+      "artifactName": "QuillForge-Windows-${arch}-${version}.${ext}",
       "target": "nsis"
     },
     "nsis": {
