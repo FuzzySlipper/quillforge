@@ -22,6 +22,7 @@
   "build": {
     "appId": "com.quillforge.desktop",
     "productName": "QuillForge",
+    "icon": "build/icon.png",
     "publish": {
       "provider": "github",
       "owner": "FuzzySlipper",
