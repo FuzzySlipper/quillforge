@@ -1,6 +1,6 @@
 {
   "name": "quillforge-desktop",
-  "version": "6.0.0",
+  "version": "6.0.1",
   "description": "QuillForge desktop application",
   "author": "QuillForge Contributors <FuzzySlipper@users.noreply.github.com>",
   "homepage": "https://github.com/FuzzySlipper/quillforge",
@@ -28,6 +28,13 @@
       "repo": "quillforge",
       "private": false
     },
+    "extraResources": [
+      {
+        "from": "backend-payload",
+        "to": "backend-payload",
+        "filter": ["**/*"]
+      }
+    ],
     "linux": {
       "category": "Office",
       "target": [

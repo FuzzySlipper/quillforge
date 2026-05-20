@@ -37,18 +37,23 @@ jobs:
           - os: ubuntu-22.04
             artifact_name: desktop-linux-x64-appimage
             electron_cli: --linux appimage
+            dotnet_rid: linux-x64
           - os: ubuntu-22.04
             artifact_name: desktop-linux-x64-rpm
             electron_cli: --linux rpm
+            dotnet_rid: linux-x64
           - os: macos-latest
             artifact_name: desktop-macos-x64
             electron_cli: --mac --x64
+            dotnet_rid: osx-x64
           - os: macos-latest
             artifact_name: desktop-macos-arm64
             electron_cli: --mac --arm64
+            dotnet_rid: osx-arm64
           - os: windows-latest
             artifact_name: desktop-windows-x64
             electron_cli: --win nsis
+            dotnet_rid: win-x64
 
     steps:
       - uses: actions/checkout@v4
@@ -79,6 +84,18 @@ jobs:
       - name: Install desktop dependencies
         run: npm ci
         working-directory: src/QuillForge.Desktop
+
+      - name: Restore NuGet packages
+        run: dotnet restore QuillForge.slnx
+
+      - name: Publish .NET backend
+        shell: bash
+        run: |
+          dotnet publish src/QuillForge.Web/QuillForge.Web.csproj \
+            -c Release -r ${{ matrix.dotnet_rid }} --self-contained \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o src/QuillForge.Desktop/backend-payload
 
       - name: Build desktop bundles
         shell: bash
