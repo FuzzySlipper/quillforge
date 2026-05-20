@@ -13,10 +13,15 @@
     <InternalsVisibleTo Include="QuillForge.Architecture.Tests" />
   </ItemGroup>
 
-  <!-- Read version from Desktop's package.json (single source of truth) -->
+  <!-- Read version from Desktop's package.json (single source of truth).
+       Must normalize path separators to forward slashes so Node's require()
+       doesn't interpret backslashes as JS escape sequences on Windows. -->
   <Target Name="ReadDesktopVersion" BeforeTargets="GetAssemblyVersion"
           Condition="Exists('$(DesktopPackageJsonPath)')">
-    <Exec Command="node -e &quot;process.stdout.write(require('$(DesktopPackageJsonPath)').version)&quot;"
+    <PropertyGroup>
+      <_DesktopPkgJsonNormalized>$(DesktopPackageJsonPath.Replace('\','/'))</_DesktopPkgJsonNormalized>
+    </PropertyGroup>
+    <Exec Command="node -e &quot;process.stdout.write(require('$(_DesktopPkgJsonNormalized)').version)&quot;"
           ConsoleToMSBuild="true" IgnoreExitCode="true">
       <Output TaskParameter="ConsoleOutput" PropertyName="ReadDesktopVersionValue" />
     </Exec>
