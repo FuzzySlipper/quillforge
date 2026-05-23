@@ -17,6 +17,22 @@ public class ProviderRegistryTests
     }
 
     [Fact]
+    public void IsReasoningModel_DetectsDeepSeekReasonerAndThinkingVariants()
+    {
+        Assert.True(ProviderFactory.IsReasoningModel("deepseek-reasoner"));
+        Assert.True(ProviderFactory.IsReasoningModel("deepseek-r1"));
+        Assert.True(ProviderFactory.IsReasoningModel("deepseek-r1-distill"));
+        Assert.True(ProviderFactory.IsReasoningModel("kimi-k2-preview"));
+        Assert.True(ProviderFactory.IsReasoningModel("qwq-32b"));
+        Assert.True(ProviderFactory.IsReasoningModel("o1-preview"));
+        Assert.True(ProviderFactory.IsReasoningModel("o3-mini"));
+        Assert.True(ProviderFactory.IsReasoningModel("claude-thinking"));
+        Assert.False(ProviderFactory.IsReasoningModel("gpt-4o"));
+        Assert.False(ProviderFactory.IsReasoningModel("llama3"));
+        Assert.False(ProviderFactory.IsReasoningModel("claude-sonnet"));
+    }
+
+    [Fact]
     public void Register_AddsProvider()
     {
         var registry = CreateRegistry();

@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
+using QuillForge.Providers.Registry;
 
 namespace QuillForge.Providers.Adapters;
 
@@ -439,7 +440,7 @@ public sealed class ReasoningCompletionService : ICompletionService
         // provider-shaped JSON locally inside the adapter.
         if (msg.ProviderReplay is ReasoningReplayEnvelope reasoningReplay)
         {
-            return BuildReasoningReplayJson(msg, reasoningReplay);
+            return BuildReasoningReplayJson(msg, reasoningReplay, addReasoningContent);
         }
 
         var role = msg.Role.ToLowerInvariant();
@@ -459,7 +460,7 @@ public sealed class ReasoningCompletionService : ICompletionService
         {
             // Assistant message with tool calls
             var text = msg.Content.GetText();
-            msgObj["content"] = string.IsNullOrEmpty(text) ? null : (JsonNode)text;
+            msgObj["content"] = string.IsNullOrEmpty(text) ? "" : (JsonNode)text;
 
             var toolCalls = new JsonArray();
             foreach (var tc in toolUseBlocks)
@@ -476,17 +477,18 @@ public sealed class ReasoningCompletionService : ICompletionService
                 });
             }
             msgObj["tool_calls"] = toolCalls;
-
-            // Inject empty reasoning_content for reasoning providers
-            if (addReasoningContent)
-            {
-                msgObj["reasoning_content"] = "";
-            }
         }
         else
         {
             // Regular text message
             msgObj["content"] = msg.Content.GetText();
+        }
+
+        // Inject empty reasoning_content for reasoning providers on all assistant messages.
+        // This hardens old sessions where messages were created before ProviderReplay existed.
+        if (addReasoningContent && string.Equals(msgObj["role"]?.GetValue<string>(), "assistant", StringComparison.OrdinalIgnoreCase))
+        {
+            msgObj["reasoning_content"] = "";
         }
 
         return msgObj;
@@ -544,7 +546,7 @@ public sealed class ReasoningCompletionService : ICompletionService
     {
         if (additionalOptions is null || !TryGetOption(additionalOptions, "reasoning_content", out var option))
         {
-            return true;
+            return ProviderFactory.IsReasoningModel(model);
         }
 
         if (option.ValueKind == JsonValueKind.True) return true;
@@ -552,7 +554,7 @@ public sealed class ReasoningCompletionService : ICompletionService
         if (option.ValueKind == JsonValueKind.String
             && string.Equals(option.GetString(), "auto", StringComparison.OrdinalIgnoreCase))
         {
-            return model.Contains("-reasoner", StringComparison.OrdinalIgnoreCase);
+            return ProviderFactory.IsReasoningModel(model);
         }
 
         return true;
@@ -729,18 +731,21 @@ public sealed class ReasoningCompletionService : ICompletionService
 
     private static JsonObject BuildReasoningReplayJson(
         CompletionMessage message,
-        ReasoningReplayEnvelope replay)
+        ReasoningReplayEnvelope replay,
+        bool addReasoningContent)
     {
         var msgObj = new JsonObject
         {
             ["role"] = message.Role.ToLowerInvariant(),
-            ["content"] = replay.Content is not null ? (JsonNode)replay.Content : null,
         };
 
-        if (replay.ReasoningContent is not null)
-        {
-            msgObj["reasoning_content"] = replay.ReasoningContent;
-        }
+        // Always include content so the provider sees a consistent field shape.
+        msgObj["content"] = replay.Content ?? "";
+
+        // Always preserve reasoning_content on replay so the provider sees a consistent
+        // conversation shape. Use the original value when available; otherwise emit an empty
+        // string so the field is present (required by DeepSeek-style reasoning providers).
+        msgObj["reasoning_content"] = replay.ReasoningContent ?? "";
 
         if (replay.ToolCalls.Count > 0)
         {

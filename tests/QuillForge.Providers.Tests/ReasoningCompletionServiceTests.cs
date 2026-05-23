@@ -287,6 +287,282 @@ public sealed class ReasoningCompletionServiceTests
         Assert.Equal(StopReason.ToolUse, done.StopReason);
     }
 
+    [Fact]
+    public async Task StreamAsync_ToolCallWithReasoningContent_ReplaysReasoningInNextRequest()
+    {
+        // Round 1: model streams reasoning + tool call
+        var handler = new RecordingHandler(
+            """
+            data: {"choices":[{"delta":{"content":"","reasoning_content":"Let me check the lore.","tool_calls":[{"index":0,"id":"call_lore","function":{"name":"query_lore","arguments":"{\"query\":\"sun vault\"}"}}]}}]}
+
+            data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":10,"completion_tokens":15}}
+
+            data: [DONE]
+            """,
+            // Round 2: model continues after tool result
+            """
+            {
+              "choices": [
+                {
+                  "message": {
+                    "role": "assistant",
+                    "content": "The sun vault holds ancient treasures.",
+                    "reasoning_content": "Now I can answer."
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 20,
+                "completion_tokens": 8
+              }
+            }
+            """);
+
+        var service = CreateService(handler);
+
+        // --- Round 1: stream with reasoning + tool call ---
+        var events = new List<StreamEvent>();
+        await foreach (var evt in service.StreamAsync(new CompletionRequest
+        {
+            Model = "deepseek-reasoner",
+            MaxTokens = 100,
+            Messages = [new CompletionMessage("user", new MessageContent("Tell me about the sun vault."))],
+        }))
+        {
+            events.Add(evt);
+        }
+
+        var done = Assert.IsType<DoneEvent>(events[^1]);
+        var replay = Assert.IsType<ReasoningReplayEnvelope>(done.ProviderReplay);
+        Assert.Equal("Let me check the lore.", replay.ReasoningContent);
+        Assert.Single(replay.ToolCalls);
+
+        // --- Round 2: send replay back in next request (non-streaming) ---
+        await service.CompleteAsync(new CompletionRequest
+        {
+            Model = "deepseek-reasoner",
+            MaxTokens = 100,
+            Messages =
+            [
+                new CompletionMessage("user", new MessageContent("Tell me about the sun vault.")),
+                new CompletionMessage(
+                    "assistant",
+                    new MessageContent("ignored"))
+                {
+                    ProviderReplay = replay,
+                },
+                new CompletionMessage("user", new MessageContent("The sun vault is in the east.")),
+            ],
+        });
+
+        Assert.Equal(2, handler.RequestBodies.Count);
+
+        using var doc = JsonDocument.Parse(handler.RequestBodies[1]);
+        var messages = doc.RootElement.GetProperty("messages");
+        Assert.Equal(3, messages.GetArrayLength());
+
+        var replayedMessage = messages[1];
+        Assert.Equal("assistant", replayedMessage.GetProperty("role").GetString());
+        Assert.Equal("Let me check the lore.", replayedMessage.GetProperty("reasoning_content").GetString());
+        Assert.Equal("", replayedMessage.GetProperty("content").GetString());
+
+        var toolCall = replayedMessage.GetProperty("tool_calls")[0];
+        Assert.Equal("call_lore", toolCall.GetProperty("id").GetString());
+        Assert.Equal("query_lore", toolCall.GetProperty("function").GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task CompleteAsync_AssistantToolCallWithoutProviderReplay_DoesNotEmitContentNull()
+    {
+        // Regression for Object-vs-Null failure: assistant messages with tool calls
+        // and no visible text must not serialize "content": null.
+        var handler = new RecordingHandler(
+            """
+            {
+              "choices": [
+                {
+                  "message": {
+                    "role": "assistant",
+                    "content": "done"
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 2,
+                "completion_tokens": 1
+              }
+            }
+            """);
+
+        var service = CreateService(handler);
+
+        await service.CompleteAsync(new CompletionRequest
+        {
+            Model = "deepseek-reasoner",
+            MaxTokens = 100,
+            Messages =
+            [
+                new CompletionMessage("user", new MessageContent("Use the tool.")),
+                new CompletionMessage(
+                    "assistant",
+                    new MessageContent([
+                        new ToolUseBlock(
+                            "call_1",
+                            "query_lore",
+                            new ToolInput(Json("""{"query":"silver sea"}""")))
+                    ])),
+            ],
+        });
+
+        using var doc = JsonDocument.Parse(handler.RequestBodies[0]);
+        var assistantMessage = doc.RootElement.GetProperty("messages")[1];
+        Assert.Equal("assistant", assistantMessage.GetProperty("role").GetString());
+        Assert.True(assistantMessage.TryGetProperty("content", out var contentEl));
+        Assert.NotEqual(JsonValueKind.Null, contentEl.ValueKind);
+        Assert.Equal("", contentEl.GetString());
+        Assert.Equal("", assistantMessage.GetProperty("reasoning_content").GetString());
+    }
+
+    [Fact]
+    public async Task CompleteAsync_OldSessionTextMessage_InjectedEmptyReasoningContent()
+    {
+        // Old assistant text messages (created before ProviderReplay existed) should
+        // still get reasoning_content injected so the provider sees a consistent shape.
+        var handler = new RecordingHandler(
+            """
+            {
+              "choices": [
+                {
+                  "message": {
+                    "role": "assistant",
+                    "content": "done"
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 2,
+                "completion_tokens": 1
+              }
+            }
+            """);
+
+        var service = CreateService(handler);
+
+        await service.CompleteAsync(new CompletionRequest
+        {
+            Model = "deepseek-reasoner",
+            MaxTokens = 100,
+            Messages =
+            [
+                new CompletionMessage("user", new MessageContent("Hello.")),
+                new CompletionMessage("assistant", new MessageContent("Hello there.")),
+            ],
+        });
+
+        using var doc = JsonDocument.Parse(handler.RequestBodies[0]);
+        var assistantMessage = doc.RootElement.GetProperty("messages")[1];
+        Assert.Equal("assistant", assistantMessage.GetProperty("role").GetString());
+        Assert.Equal("Hello there.", assistantMessage.GetProperty("content").GetString());
+        Assert.Equal("", assistantMessage.GetProperty("reasoning_content").GetString());
+    }
+
+    [Fact]
+    public async Task CompleteAsync_NonReasoningModel_DoesNotInjectReasoningContentByDefault()
+    {
+        // When no explicit reasoning_content option is set, non-reasoning models should
+        // NOT have reasoning_content injected.
+        var handler = new RecordingHandler(
+            """
+            {
+              "choices": [
+                {
+                  "message": {
+                    "role": "assistant",
+                    "content": "done"
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 2,
+                "completion_tokens": 1
+              }
+            }
+            """);
+
+        var service = CreateService(handler);
+
+        await service.CompleteAsync(new CompletionRequest
+        {
+            Model = "gpt-4o",
+            MaxTokens = 100,
+            Messages =
+            [
+                new CompletionMessage("user", new MessageContent("Hello.")),
+                new CompletionMessage("assistant", new MessageContent("Hello there.")),
+            ],
+        });
+
+        using var doc = JsonDocument.Parse(handler.RequestBodies[0]);
+        var assistantMessage = doc.RootElement.GetProperty("messages")[1];
+        Assert.Equal("assistant", assistantMessage.GetProperty("role").GetString());
+        Assert.False(assistantMessage.TryGetProperty("reasoning_content", out _));
+    }
+
+    [Fact]
+    public async Task CompleteAsync_ReplaysTypedEnvelopeWithNullReasoning_EmitsEmptyString()
+    {
+        // When a replay envelope has null ReasoningContent, the adapter must still
+        // emit reasoning_content (empty string) so the provider sees a consistent field.
+        var handler = new RecordingHandler(
+            """
+            {
+              "choices": [
+                {
+                  "message": {
+                    "role": "assistant",
+                    "content": "done"
+                  },
+                  "finish_reason": "stop"
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 2,
+                "completion_tokens": 1
+              }
+            }
+            """);
+
+        var service = CreateService(handler);
+
+        await service.CompleteAsync(new CompletionRequest
+        {
+            Model = "deepseek-reasoner",
+            MaxTokens = 100,
+            Messages =
+            [
+                new CompletionMessage(
+                    "assistant",
+                    new MessageContent("ignored"))
+                {
+                    ProviderReplay = new ReasoningReplayEnvelope(
+                        "Replayed content",
+                        null, // null reasoning — should be emitted as ""
+                        []),
+                }
+            ],
+        });
+
+        using var doc = JsonDocument.Parse(handler.RequestBodies[0]);
+        var replayedMessage = doc.RootElement.GetProperty("messages")[0];
+        Assert.Equal("assistant", replayedMessage.GetProperty("role").GetString());
+        Assert.Equal("Replayed content", replayedMessage.GetProperty("content").GetString());
+        Assert.Equal("", replayedMessage.GetProperty("reasoning_content").GetString());
+    }
+
     private static JsonElement Json(string raw)
     {
         using var doc = JsonDocument.Parse(raw);

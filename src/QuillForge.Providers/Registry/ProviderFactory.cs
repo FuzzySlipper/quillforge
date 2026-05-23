@@ -76,11 +76,14 @@ public sealed class ProviderFactory
 
     /// <summary>
     /// Detects reasoning-enabled models that require reasoning_content preservation.
+    /// Covers DeepSeek reasoner variants (deepseek-r*, deepseek-reasoner), Kimi K2,
+    /// QwQ, OpenAI o-series, and generic "thinking" model names.
     /// </summary>
     public static bool IsReasoningModel(string model)
     {
         var m = model.ToLowerInvariant();
-        return m.Contains("kimi-k2") || m.Contains("deepseek-r") || m.Contains("qwq")
+        return m.Contains("kimi-k2") || m.Contains("deepseek-r") || m.Contains("deepseek-reasoner")
+            || m.Contains("qwq") || m.Contains("thinking")
             || m.Contains("o1") || m.Contains("o3") || m.Contains("o4");
     }
 
