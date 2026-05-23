@@ -115,6 +115,123 @@ public sealed class InteractiveSessionContextServiceTests
     }
 
     [Fact]
+    public async Task BuildAsync_SubstitutesRoleplayShortcodesInCharacterSection()
+    {
+        var runtimeService = new FakeRuntimeViewService();
+        var cardStore = new FakeCharacterCardStoreWithShortcodes();
+        var storyState = new StoryStateServiceWithData(new Dictionary<string, object>());
+        var sessionStore = new InMemoryInteractiveSessionStore();
+        var files = new FakeContentFileService();
+        var plots = new FakePlotStore();
+
+        var service = new InteractiveSessionContextService(
+            runtimeService,
+            sessionStore,
+            cardStore,
+            storyState,
+            files,
+            plots,
+            NullLogger<InteractiveSessionContextService>.Instance);
+
+        var context = await service.BuildAsync(new SessionState
+        {
+            SessionId = Guid.CreateVersion7(),
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Roleplay,
+                ProjectName = "novel",
+                Character = "aurora",
+            },
+            Roleplay = new RoleplayRuntimeState
+            {
+                ActiveAiCharacter = "aurora",
+                ActiveUserCharacter = "Zayne",
+            },
+        });
+
+        Assert.Contains("Name: Aurora", context.CharacterSection);
+        Assert.Contains("Aurora is a brilliant mage", context.CharacterSection);
+        Assert.Contains("Zayne gave her sapphires", context.CharacterSection);
+        Assert.DoesNotContain("{{char}}", context.CharacterSection);
+        Assert.DoesNotContain("{{user}}", context.CharacterSection);
+    }
+
+    [Fact]
+    public async Task BuildAsync_LeavesUnresolvedUserShortcode_WhenNoUserCharacter()
+    {
+        var runtimeService = new FakeRuntimeViewService();
+        var cardStore = new FakeCharacterCardStoreWithShortcodes();
+        var storyState = new StoryStateServiceWithData(new Dictionary<string, object>());
+        var sessionStore = new InMemoryInteractiveSessionStore();
+        var files = new FakeContentFileService();
+        var plots = new FakePlotStore();
+
+        var service = new InteractiveSessionContextService(
+            runtimeService,
+            sessionStore,
+            cardStore,
+            storyState,
+            files,
+            plots,
+            NullLogger<InteractiveSessionContextService>.Instance);
+
+        var context = await service.BuildAsync(new SessionState
+        {
+            SessionId = Guid.CreateVersion7(),
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Roleplay,
+                ProjectName = "novel",
+                Character = "aurora",
+            },
+            Roleplay = new RoleplayRuntimeState
+            {
+                ActiveAiCharacter = "aurora",
+                ActiveUserCharacter = null,
+            },
+        });
+
+        Assert.Contains("Aurora is a brilliant mage", context.CharacterSection);
+        Assert.Contains("{{user}} gave her sapphires", context.CharacterSection);
+        Assert.DoesNotContain("{{char}}", context.CharacterSection);
+    }
+
+    [Fact]
+    public async Task BuildAsync_LeavesAllShortcodesUnresolved_WhenNoCharacterCard()
+    {
+        var runtimeService = new FakeRuntimeViewService();
+        var cardStore = new FakeCharacterCardStoreForContext();
+        var storyState = new StoryStateServiceWithData(new Dictionary<string, object>());
+        var sessionStore = new InMemoryInteractiveSessionStore();
+        var files = new FakeContentFileService();
+        var plots = new FakePlotStore();
+
+        var service = new InteractiveSessionContextService(
+            runtimeService,
+            sessionStore,
+            cardStore,
+            storyState,
+            files,
+            plots,
+            NullLogger<InteractiveSessionContextService>.Instance);
+
+        var context = await service.BuildAsync(new SessionState
+        {
+            SessionId = Guid.CreateVersion7(),
+            Mode = new ModeSelectionState
+            {
+                ActiveMode = Mode.Roleplay,
+                ProjectName = "novel",
+                Character = "hero",
+            },
+        });
+
+        // FakeCharacterCardStoreForContext returns a card with no shortcodes,
+        // so the existing behavior is preserved.
+        Assert.Equal("Character: Sir Rowan", context.CharacterSection);
+    }
+
+    [Fact]
     public async Task BuildAsync_UsesExpandedRecentConversationWindow_AndWordBoundaryTrim()
     {
         var runtimeService = new FakeRuntimeViewService();
@@ -242,6 +359,50 @@ internal sealed class FakeCharacterCardStoreForContext : ICharacterCardStore
         => Task.FromResult<IReadOnlyList<CharacterCard>>([]);
 
     public string CardToPrompt(CharacterCard card) => $"Character: {card.Name}";
+
+    public CharacterCard NewTemplate(string name = "New Character")
+        => new() { Name = name };
+
+    public Task<CharacterCard> ImportTavernCardAsync(string pngPath, CancellationToken ct = default)
+        => Task.FromResult(new CharacterCard { Name = "Imported" });
+}
+
+internal sealed class FakeCharacterCardStoreWithShortcodes : ICharacterCardStore
+{
+    public Task<CharacterCard?> LoadAsync(string fileName, CancellationToken ct = default)
+    {
+        if (fileName == "aurora")
+        {
+            return Task.FromResult<CharacterCard?>(new CharacterCard
+            {
+                Name = "Aurora",
+                Description = "{{char}} is a brilliant mage.",
+                Personality = "{{user}} gave her sapphires.",
+            });
+        }
+
+        return Task.FromResult<CharacterCard?>(null);
+    }
+
+    public Task SaveAsync(string fileName, CharacterCard card, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task<bool> DeleteAsync(string fileName, CancellationToken ct = default)
+        => Task.FromResult(false);
+
+    public Task<IReadOnlyList<CharacterCard>> ListAsync(CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<CharacterCard>>([]);
+
+    public string CardToPrompt(CharacterCard card)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Name: {card.Name}");
+        if (!string.IsNullOrWhiteSpace(card.Description))
+            sb.AppendLine($"Description: {card.Description}");
+        if (!string.IsNullOrWhiteSpace(card.Personality))
+            sb.AppendLine($"Personality: {card.Personality}");
+        return sb.ToString().TrimEnd();
+    }
 
     public CharacterCard NewTemplate(string name = "New Character")
         => new() { Name = name };

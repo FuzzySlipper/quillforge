@@ -56,7 +56,20 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
                 var card = await _characterCardStore.LoadAsync(state.Mode.Character, ct);
                 if (card is not null)
                 {
-                    characterSection = _characterCardStore.CardToPrompt(card);
+                    var rawSection = _characterCardStore.CardToPrompt(card);
+                    characterSection = RoleplayShortcodeResolver.Substitute(
+                        rawSection,
+                        charName: card.Name,
+                        userName: state.Roleplay.ActiveUserCharacter);
+
+                    var unresolved = RoleplayShortcodeResolver.FindUnresolved(characterSection);
+                    if (unresolved.Count > 0)
+                    {
+                        _logger.LogWarning(
+                            "Unresolved roleplay shortcodes in character card {Character}: {Shortcodes}",
+                            state.Mode.Character,
+                            string.Join(", ", unresolved));
+                    }
                 }
             }
             catch (Exception ex)

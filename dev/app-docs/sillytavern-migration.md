@@ -114,6 +114,25 @@ Do not treat an imported character card as the whole canon database for the
 setting. If the card includes important world facts that multiple scenes depend
 on, move those facts into lore as well.
 
+### Roleplay Shortcodes
+
+QuillForge supports the common `{{char}}` and `{{user}}` shortcodes used by
+SillyTavern, Character.AI, and Janitor-style character cards.
+
+- `{{char}}` is resolved to the character card's name when the card is loaded
+  into the roleplay context.
+- `{{user}}` is resolved to the active user persona/seat selected in the
+  session's roleplay settings.
+
+If `{{user}}` is used in a card but no user character is selected, the
+shortcode is left as-is and a warning is logged so you can set the user
+character explicitly. Other unrecognized shortcodes (e.g. `{{template}}`) are
+preserved unchanged.
+
+This substitution applies only to character card prompt material during
+roleplay prompt construction. It does not affect app UI text, code blocks, or
+other non-prompt content.
+
 ## Good Default Migration Order
 
 1. Import or recreate your important character cards.
