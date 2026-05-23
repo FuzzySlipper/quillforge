@@ -47,15 +47,23 @@
   </Target>
 
   <!-- Rebuild React frontend before the SDK snapshots static web assets.
-       During publish, the Static Web Assets pipeline resolves and compresses
-       wwwroot files before the normal Build target finishes. Running Vite at
-       BeforeTargets="Build" can therefore make the SDK manifest point at stale
-       hashed asset filenames that Vite deletes moments later. -->
-  <Target Name="BuildClient" BeforeTargets="ResolveStaticWebAssetsInputs"
+       The target intentionally hooks AssignTargetPaths so Vite runs before the
+       SDK turns Content items into ContentWithTargetPath/static-web-asset
+       manifest entries. After Vite runs, refresh the Content item list below so
+       later static-web-assets compression sees the files Vite just wrote, not
+       stale hashed filenames from project-load-time globbing. -->
+  <Target Name="BuildClient" BeforeTargets="AssignTargetPaths"
           Inputs="Client/src/**;Client/public/**;Client/index.html;Client/package.json;Client/package-lock.json;Client/tsconfig.json;Client/vite.config.ts"
           Outputs="wwwroot/assets/.build-marker">
     <Exec Command="npm run build" WorkingDirectory="Client" />
     <Touch Files="wwwroot/assets/.build-marker" AlwaysCreate="true" />
+    <ItemGroup>
+      <!-- MSBuild evaluates SDK Content globs before Vite creates hashed files.
+           Refresh wwwroot Content so static-web-assets compression sees the
+           files Vite just wrote, not stale filenames from checkout. -->
+      <Content Remove="wwwroot/**/*;wwwroot\**\*" />
+      <Content Include="wwwroot/**/*" Exclude="wwwroot/assets/.build-marker" />
+    </ItemGroup>
   </Target>
 
   <!-- Include app-docs in publish output so docs endpoints and query_docs work in release builds -->

@@ -74,6 +74,7 @@ local/
 build/
 !src/QuillForge.Desktop/build/icon.png
 backend-payload/
+src/QuillForge.Web/wwwroot/assets/.build-marker
 *.suo
 *.ntvs*
 *.njsproj
