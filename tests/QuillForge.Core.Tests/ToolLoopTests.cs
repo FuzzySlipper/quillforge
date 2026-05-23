@@ -33,6 +33,15 @@ public class ToolLoopTests
             loggerFactory.CreateLogger<ToolLoop>(), new AppConfig());
     }
 
+    private static ToolLoop CreateLoop(FakeCompletionService fakeService, AppConfig appConfig)
+    {
+        var loggerFactory = NullLoggerFactory.Instance;
+        var continuation = new ContinuationStrategy(
+            loggerFactory.CreateLogger<ContinuationStrategy>());
+        return new ToolLoop(fakeService, continuation,
+            loggerFactory.CreateLogger<ToolLoop>(), appConfig);
+    }
+
     private static ToolLoop CreateLoop(
         ICompletionService completionService,
         ILogger<ToolLoop> logger,
@@ -563,6 +572,85 @@ public class ToolLoopTests
         Assert.Same(exception, entry.Exception);
         Assert.Equal("query_lore", entry.Properties["ToolName"]);
         Assert.Equal(3, Assert.IsType<int>(entry.Properties["Attempts"]));
+    }
+
+    [Fact]
+    public async Task DirectSceneTimeout_UsesDedicatedTimeoutAndReturnsUserFriendlyError()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueToolCall("direct_scene", "call_1", """{"user_message":"Continue the scene."}""");
+
+        var appConfig = new AppConfig
+        {
+            Timeouts = new TimeoutsConfig
+            {
+                ToolExecutionSeconds = 1,
+                DirectSceneTimeoutSeconds = 2,
+            },
+        };
+
+        var handler = new FakeToolHandler("direct_scene", async (_, _, ct) =>
+        {
+            // Simulate a handler that does not complete before the timeout token fires
+            await Task.Delay(Timeout.Infinite, ct);
+            return ToolResult.Ok("never reached");
+        });
+
+        var loop = CreateLoop(fake, appConfig);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("Continue the scene.")),
+        };
+
+        var result = await loop.RunAsync(DefaultConfig, [handler], messages, DefaultContext);
+
+        Assert.Equal(StopReason.Error, result.StopReason);
+        Assert.Contains("non-retryable", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("scene director", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("took longer than", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("What you can try", result.Content.GetText(), StringComparison.Ordinal);
+
+        var toolResultMsg = messages.FirstOrDefault(m =>
+            m.Content.Blocks.OfType<ToolResultBlock>().Any());
+        Assert.NotNull(toolResultMsg);
+        var toolResult = toolResultMsg.Content.Blocks.OfType<ToolResultBlock>().First();
+        Assert.True(toolResult.IsError);
+        Assert.Contains("scene director", toolResult.Content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GenericToolTimeout_UsesToolExecutionSecondsAndReturnsGenericError()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueToolCall("get_weather", "call_1", """{"city":"London"}""");
+
+        var appConfig = new AppConfig
+        {
+            Timeouts = new TimeoutsConfig
+            {
+                ToolExecutionSeconds = 1,
+                DirectSceneTimeoutSeconds = 5,
+            },
+        };
+
+        var handler = new FakeToolHandler("get_weather", async (_, _, ct) =>
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+            return ToolResult.Ok("never reached");
+        });
+
+        var loop = CreateLoop(fake, appConfig);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("What's the weather?")),
+        };
+
+        var result = await loop.RunAsync(DefaultConfig, [handler], messages, DefaultContext);
+
+        Assert.Equal(StopReason.Error, result.StopReason);
+        Assert.Contains("non-retryable", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("timed out after 1 seconds", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("scene director", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class StringSchemaIntHandler : TypedToolHandler<StringSchemaIntArgs>

@@ -18,7 +18,7 @@ public sealed class ToolLoop
     private readonly ILogger<ToolLoop> _logger;
     private readonly ILlmDebugLogger? _debugLogger;
     private readonly bool _diagnosticsEnabled;
-    private readonly int _toolTimeoutSeconds;
+    private readonly TimeoutsConfig _timeouts;
 
     public ToolLoop(
         ICompletionService completionService,
@@ -32,7 +32,7 @@ public sealed class ToolLoop
         _logger = logger;
         _debugLogger = debugLogger;
         _diagnosticsEnabled = appConfig.Diagnostics.LivePanel;
-        _toolTimeoutSeconds = appConfig.Timeouts.ToolExecutionSeconds;
+        _timeouts = appConfig.Timeouts;
     }
 
     /// <summary>
@@ -658,12 +658,16 @@ public sealed class ToolLoop
             return validationFailure;
         }
 
+        var timeoutSeconds = ResolveToolTimeoutSeconds(toolCall.Name);
+
         try
         {
-            _logger.LogDebug("Dispatching tool {ToolName} (id={ToolId})", toolCall.Name, toolCall.Id);
+            _logger.LogDebug(
+                "Dispatching tool {ToolName} (id={ToolId}, timeout={Timeout}s)",
+                toolCall.Name, toolCall.Id, timeoutSeconds);
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeoutCts.CancelAfter(TimeSpan.FromSeconds(_toolTimeoutSeconds));
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
 
             var result = await handler.HandleAsync(toolCall.Input, context, timeoutCts.Token);
             _logger.LogDebug(
@@ -673,8 +677,15 @@ public sealed class ToolLoop
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            _logger.LogWarning("Tool {ToolName} timed out after {Timeout}s", toolCall.Name, _toolTimeoutSeconds);
-            return ToolResult.Fail($"Tool '{toolCall.Name}' timed out after {_toolTimeoutSeconds} seconds.");
+            _logger.LogWarning(
+                "Tool {ToolName} timed out after {Timeout}s (session={SessionId}, mode={Mode})",
+                toolCall.Name, timeoutSeconds, context.SessionId, context.ActiveMode);
+            diagnosticSink?.Invoke(new DiagnosticEvent(
+                DiagnosticCategory.Tool,
+                $"Tool '{toolCall.Name}' timed out after {timeoutSeconds}s",
+                DiagnosticLevel.Error));
+            var errorMessage = BuildTimeoutErrorMessage(toolCall.Name, timeoutSeconds);
+            return ToolResult.Fail(errorMessage, retryable: false);
         }
         catch (ToolArgsParseException ex)
         {
@@ -813,5 +824,32 @@ public sealed class ToolLoop
             Reasoning = reasoning,
             ProviderReplay = providerReplay,
         };
+    }
+
+    private int ResolveToolTimeoutSeconds(string toolName)
+    {
+        if (string.Equals(toolName, "direct_scene", StringComparison.OrdinalIgnoreCase))
+        {
+            return _timeouts.DirectSceneTimeoutSeconds;
+        }
+
+        return _timeouts.ToolExecutionSeconds;
+    }
+
+    private static string BuildTimeoutErrorMessage(string toolName, int timeoutSeconds)
+    {
+        if (string.Equals(toolName, "direct_scene", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"""
+                The scene director took longer than {timeoutSeconds} seconds to respond.
+                This usually happens when the story context is large or the model is heavily loaded.
+                What you can try:
+                - Wait a moment and send your message again.
+                - If this keeps happening, the current session context may be very large; starting a new session or compacting the chat history can help.
+                - You can also increase timeouts.direct_scene_timeout_seconds in config.yaml if your provider is consistently slow.
+                """;
+        }
+
+        return $"Tool '{toolName}' timed out after {timeoutSeconds} seconds.";
     }
 }

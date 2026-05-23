@@ -231,6 +231,7 @@ public sealed record GameAgentMemoryBudget
 public sealed record TimeoutsConfig
 {
     public int ToolExecutionSeconds { get; set; } = 120;
+    public int DirectSceneTimeoutSeconds { get; set; } = 180;
     public int ProviderHttpSeconds { get; set; } = 10;
     public int CompletionTimeoutSeconds { get; set; } = 300;
     public int UpdateCheckHours { get; set; } = 6;

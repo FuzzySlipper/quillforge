@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QuillForge.Core.Agents;
 using QuillForge.Core.Agents.Modes;
@@ -480,6 +481,46 @@ public sealed class NarrativeDirectorAgentTests
         Assert.False(result.Success);
         Assert.Contains("selected roleplay character", result.Error);
         Assert.Empty(fake.ReceivedRequests);
+    }
+
+    [Fact]
+    public async Task DirectSceneHandler_LogsDiagnostics_OnTimeout()
+    {
+        var fakeDirector = new FakeNarrativeDirectorAgent(throwOnDirectScene: new OperationCanceledException());
+        var logger = new CollectingLogger<DirectSceneHandler>();
+        var handler = new DirectSceneHandler(fakeDirector, logger);
+
+        var context = new AgentContext
+        {
+            SessionId = Guid.CreateVersion7(),
+            ActiveMode = Mode.Roleplay,
+            SessionContext = new InteractiveSessionContext
+            {
+                ActiveMode = Mode.Roleplay,
+                ProjectName = "test-project",
+                StoryStatePath = "test/.state.yaml",
+                CharacterSection = "A test character with a long backstory.",
+                StoryStateSummary = "The story is at a critical point.",
+                DirectorNotes = "Keep tension rising.",
+            },
+        };
+
+        var ex = await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            handler.HandleAsync(
+                new ToolInput(System.Text.Json.JsonDocument.Parse("""{"user_message":"Continue the scene."}""").RootElement),
+                context));
+
+        var warning = Assert.Single(logger.Entries, e => e.Level == LogLevel.Warning);
+        Assert.Contains("timed out or was cancelled", warning.Message);
+        Assert.Equal(context.SessionId, warning.Properties["SessionId"]);
+        Assert.Equal("Continue the scene.".Length, warning.Properties["MessageLength"]);
+
+        var infoStart = Assert.Single(logger.Entries, e => e.Level == LogLevel.Information && e.Message.Contains("DirectSceneHandler started"));
+        Assert.Equal(Mode.Roleplay, infoStart.Properties["Mode"]);
+        var contextHint = Assert.IsType<string>(infoStart.Properties["ContextHint"]);
+        Assert.Contains("characterSection=39", contextHint);
+        Assert.Contains("storyState=33", contextHint);
+        Assert.Contains("directorNotes=", contextHint);
     }
 }
 

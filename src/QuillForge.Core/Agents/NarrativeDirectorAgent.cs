@@ -10,7 +10,7 @@ namespace QuillForge.Core.Agents;
 /// happens next, updates story state, and delegates final prose to the
 /// ProseWriter.
 /// </summary>
-public sealed class NarrativeDirectorAgent
+public class NarrativeDirectorAgent
 {
     private readonly ToolLoop _toolLoop;
     private readonly QueryLoreHandler _queryLoreHandler;
@@ -47,7 +47,7 @@ public sealed class NarrativeDirectorAgent
         _appConfig = appConfig;
     }
 
-    public async Task<NarrativeDirectionResult> DirectSceneAsync(
+    public virtual async Task<NarrativeDirectionResult> DirectSceneAsync(
         NarrativeDirectionRequest request,
         AgentContext context,
         CancellationToken ct = default)
@@ -113,7 +113,7 @@ public sealed class NarrativeDirectorAgent
         };
     }
 
-    public async Task<PlotGenerationResult> GeneratePlotAsync(
+    public virtual async Task<PlotGenerationResult> GeneratePlotAsync(
         PlotGenerationRequest request,
         AgentContext context,
         CancellationToken ct = default)

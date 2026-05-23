@@ -52,6 +52,19 @@ public sealed class DirectSceneHandler : TypedToolHandler<DirectSceneArgs>
             "DirectSceneHandler: directing scene for session {SessionId}",
             context.SessionId);
 
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var messageLength = userMessage.Length;
+        var contextHint = context.SessionContext is not null
+            ? $"characterSection={context.SessionContext.CharacterSection?.Length ?? 0}, storyState={context.SessionContext.StoryStateSummary?.Length ?? 0}, directorNotes={context.SessionContext.DirectorNotes?.Length ?? 0}"
+            : "no session context";
+
+        _logger.LogInformation(
+            "DirectSceneHandler started: session={SessionId}, mode={Mode}, messageLength={MessageLength}, {ContextHint}",
+            context.SessionId,
+            context.ActiveMode,
+            messageLength,
+            contextHint);
+
         try
         {
             var result = await _narrativeDirector.DirectSceneAsync(
@@ -62,15 +75,44 @@ public sealed class DirectSceneHandler : TypedToolHandler<DirectSceneArgs>
                 context,
                 ct);
 
-            return ToolResult.Ok(result.ResponseText);
+            stopwatch.Stop();
+            _logger.LogInformation(
+                "DirectSceneHandler completed: session={SessionId}, elapsedMs={ElapsedMs}, responseLength={ResponseLength}",
+                context.SessionId,
+                stopwatch.ElapsedMilliseconds,
+                result.ResponseText?.Length ?? 0);
+
+            return ToolResult.Ok(result.ResponseText ?? "");
         }
         catch (CanonPrerequisiteException ex)
         {
+            stopwatch.Stop();
             _logger.LogWarning(
                 ex,
                 "DirectSceneHandler rejected grounded scene generation for session {SessionId}",
                 context.SessionId);
             return ToolResult.Fail(ex.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            stopwatch.Stop();
+            _logger.LogWarning(
+                "DirectSceneHandler timed out or was cancelled: session={SessionId}, elapsedMs={ElapsedMs}, messageLength={MessageLength}",
+                context.SessionId,
+                stopwatch.ElapsedMilliseconds,
+                messageLength);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            _logger.LogError(
+                ex,
+                "DirectSceneHandler failed: session={SessionId}, elapsedMs={ElapsedMs}, messageLength={MessageLength}",
+                context.SessionId,
+                stopwatch.ElapsedMilliseconds,
+                messageLength);
+            throw;
         }
     }
 }

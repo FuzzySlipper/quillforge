@@ -123,6 +123,8 @@ public sealed class ConfigurationLoader
         var timeouts = config.Timeouts;
         if (timeouts.ToolExecutionSeconds < 5)
             _logger.LogWarning("timeouts.tool_execution_seconds ({Value}) seems too low, tools may time out prematurely", timeouts.ToolExecutionSeconds);
+        if (timeouts.DirectSceneTimeoutSeconds < 30)
+            _logger.LogWarning("timeouts.direct_scene_timeout_seconds ({Value}) seems too low for nested narrative-director calls", timeouts.DirectSceneTimeoutSeconds);
         if (timeouts.ProviderHttpSeconds < 1)
             _logger.LogWarning("timeouts.provider_http_seconds ({Value}) must be at least 1", timeouts.ProviderHttpSeconds);
         if (timeouts.CompletionTimeoutSeconds < 30)

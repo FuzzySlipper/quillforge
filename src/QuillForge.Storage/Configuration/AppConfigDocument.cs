@@ -66,6 +66,7 @@ public sealed class AppConfigDocument : PersistedDocumentBase<AppConfig>
         Timeouts = value.Timeouts with
         {
             ToolExecutionSeconds = Math.Max(value.Timeouts.ToolExecutionSeconds, 5),
+            DirectSceneTimeoutSeconds = Math.Clamp(value.Timeouts.DirectSceneTimeoutSeconds, 30, 600),
             ProviderHttpSeconds = Math.Max(value.Timeouts.ProviderHttpSeconds, 1),
             CompletionTimeoutSeconds = Math.Clamp(value.Timeouts.CompletionTimeoutSeconds, 30, 600),
             UpdateCheckHours = Math.Max(value.Timeouts.UpdateCheckHours, 1),
