@@ -27,12 +27,16 @@ if (start === -1 || end === -1) {
   process.exit(1);
 }
 const stageBlock = workflow.slice(start, end);
-const forbidden = ["*.blockmap", "*.yml", "latest*"];
-for (const pattern of forbidden) {
-  if (stageBlock.includes(pattern)) {
-    console.error(`release config check failed: Stage release assets block still includes ${pattern}`);
+const requiredUpdaterAssets = ["*.blockmap", "*.yml", "latest*"];
+for (const pattern of requiredUpdaterAssets) {
+  if (!stageBlock.includes(pattern)) {
+    console.error(`release config check failed: electron-updater release path must stage ${pattern}`);
     process.exit(1);
   }
+}
+if (!stageBlock.includes("! -name 'builder-debug.yml'")) {
+  console.error('release config check failed: Stage release assets block must exclude builder-debug.yml');
+  process.exit(1);
 }
 
 const releaseScript = fs.readFileSync('scripts/release-version.sh', 'utf8');
@@ -46,13 +50,18 @@ if (releaseScript.includes('PROJECT_FILE_REL="src/QuillForge.Web/QuillForge.Web.
 }
 
 const desktopPackage = JSON.parse(fs.readFileSync('src/QuillForge.Desktop/package.json', 'utf8'));
-if (desktopPackage.dependencies && Object.prototype.hasOwnProperty.call(desktopPackage.dependencies, 'electron-updater')) {
-  console.error('release config check failed: electron-updater requires latest*.yml metadata assets that should not be published');
+if (!desktopPackage.dependencies || !Object.prototype.hasOwnProperty.call(desktopPackage.dependencies, 'electron-updater')) {
+  console.error('release config check failed: electron-updater dependency is required while updater metadata assets are published');
   process.exit(1);
 }
 const desktopMain = fs.readFileSync('src/QuillForge.Desktop/main.js', 'utf8');
-if (desktopMain.includes('electron-updater') || desktopMain.includes('autoUpdater')) {
-  console.error('release config check failed: Desktop shell still references electron-updater metadata flow');
+if (!desktopMain.includes("require('electron-updater')") || !desktopMain.includes('autoUpdater.checkForUpdates')) {
+  console.error('release config check failed: Desktop shell must keep electron-updater runtime wiring while updater metadata assets are published');
+  process.exit(1);
+}
+const desktopPreload = fs.readFileSync('src/QuillForge.Desktop/preload.js', 'utf8');
+if (!desktopPreload.includes('installUpdate') || !desktopPreload.includes('onUpdateStatus') || !desktopPreload.includes('onUpdateProgress')) {
+  console.error('release config check failed: Desktop preload must expose updater IPC bridge methods while electron-updater is enabled');
   process.exit(1);
 }
 NODE

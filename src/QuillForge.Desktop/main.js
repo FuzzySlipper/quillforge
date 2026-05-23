@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, shell, nativeImage, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
@@ -404,6 +405,65 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// ─── Auto-updater ────────────────────────────────────────────────────────────
+
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on('checking-for-update', () => {
+  pushDiagnostic(runtimeState.diagnostics, 'info', 'updater', 'Checking for updates...');
+});
+
+autoUpdater.on('update-available', (info) => {
+  const size = info.files?.[0]?.size;
+  const sizeStr = size != null ? ` (${(size / 1024 / 1024).toFixed(1)} MB)` : '';
+  const msg = `Update v${info.version} is available${sizeStr}. Downloading in the background...`;
+  pushDiagnostic(runtimeState.diagnostics, 'info', 'updater', msg);
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    win?.webContents.send('shell:update-status', { status: 'downloading', version: info.version });
+  }
+});
+
+autoUpdater.on('update-not-available', () => {
+  pushDiagnostic(runtimeState.diagnostics, 'info', 'updater', 'You have the latest version.');
+});
+
+autoUpdater.on('error', (err) => {
+  pushDiagnostic(runtimeState.diagnostics, 'error', 'updater', `Update check failed: ${err.message}`);
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win?.webContents.send('shell:update-progress', {
+      percent: Math.round(progress.percent),
+      bytesPerSecond: progress.bytesPerSecond,
+    });
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  const msg = `Update v${info.version} downloaded. It will install when you quit QuillForge.`;
+  pushDiagnostic(runtimeState.diagnostics, 'info', 'updater', msg);
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    win?.webContents.send('shell:update-status', { status: 'downloaded', version: info.version });
+  }
+});
+
+function checkForUpdates() {
+  // Skip update checks in dev mode
+  if (process.env.QUILLFORGE_DEV_MODE || app.isPackaged === false) {
+    return;
+  }
+  // Wait a few seconds after startup so the app is fully settled
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      pushDiagnostic(runtimeState.diagnostics, 'warn', 'updater', `Update check error: ${err.message}`);
+    });
+  }, 5000);
+}
+
 // ─── Window ──────────────────────────────────────────────────────────────────
 
 let mainWindow = null;
@@ -517,6 +577,11 @@ ipcMain.handle('shell:open-url', async (_event, url) => {
   }
 });
 
+ipcMain.handle('shell:install-update', async () => {
+  autoUpdater.quitAndInstall();
+  return { success: true };
+});
+
 // ─── App lifecycle ───────────────────────────────────────────────────────────
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -550,6 +615,9 @@ app.whenReady().then(() => {
 
   // Launch backend
   startBackend();
+
+  // Check for updates after startup settles
+  checkForUpdates();
 });
 
 app.on('window-all-closed', () => {

@@ -110,11 +110,13 @@ jobs:
         run: |
           mkdir -p "${{ github.workspace }}/release-assets"
           if [ -d dist ]; then
-            # Only copy distributable files (no unpacked app bundles)
+            # Copy distributables plus electron-updater metadata; exclude only builder debug logs.
             find dist -maxdepth 1 -type f \( \
               -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o \
-              -name '*.deb' -o -name '*.rpm' -o -name '*.exe' \
-            \) -exec cp {} "${{ github.workspace }}/release-assets/" \;
+              -name '*.deb' -o -name '*.rpm' -o -name '*.exe' -o \
+              -name '*.blockmap' -o -name '*.yml' -o \
+              -name 'latest*' \
+            \) ! -name 'builder-debug.yml' -exec cp {} "${{ github.workspace }}/release-assets/" \;
           fi
           echo "=== Staged assets ==="
           ls -la "${{ github.workspace }}/release-assets/"
