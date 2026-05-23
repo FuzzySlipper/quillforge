@@ -11,12 +11,4 @@ contextBridge.exposeInMainWorld('quillforgeDesktop', {
     ipcRenderer.on('shell:status-update', (_event, data) => callback(data));
   },
 
-  // Updates
-  installUpdate: () => ipcRenderer.invoke('shell:install-update'),
-  onUpdateStatus: (callback) => {
-    ipcRenderer.on('shell:update-status', (_event, data) => callback(data));
-  },
-  onUpdateProgress: (callback) => {
-    ipcRenderer.on('shell:update-progress', (_event, data) => callback(data));
-  },
 });

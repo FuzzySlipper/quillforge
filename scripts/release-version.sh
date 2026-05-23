@@ -12,18 +12,20 @@ Examples:
   scripts/release-version.sh --dry-run
 
 If no version is provided, the script bumps the minor version by 1.
-The script commits the QuillForge.Web version bump before tagging so the
-release build actually contains the new version.
+The script commits the QuillForge Desktop package version bump before tagging so
+release builds actually contain the new version.
 EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-PROJECT_FILE_REL="src/QuillForge.Web/QuillForge.Web.csproj"
-PROJECT_FILE="$REPO_ROOT/$PROJECT_FILE_REL"
+DESKTOP_PACKAGE_REL="src/QuillForge.Desktop/package.json"
+DESKTOP_LOCK_REL="src/QuillForge.Desktop/package-lock.json"
+DESKTOP_PACKAGE="$REPO_ROOT/$DESKTOP_PACKAGE_REL"
+DESKTOP_LOCK="$REPO_ROOT/$DESKTOP_LOCK_REL"
 
-if [[ ! -f "$PROJECT_FILE" ]]; then
-  echo "Project file not found: $PROJECT_FILE" >&2
+if [[ ! -f "$DESKTOP_PACKAGE" ]]; then
+  echo "Desktop package file not found: $DESKTOP_PACKAGE" >&2
   exit 1
 fi
 
@@ -56,13 +58,7 @@ for arg in "$@"; do
 done
 
 read_current_version() {
-  local version
-  version="$(sed -n 's:.*<Version>\([^<][^<]*\)</Version>.*:\1:p' "$PROJECT_FILE" | head -n 1)"
-  if [[ -z "$version" ]]; then
-    echo "Could not find <Version> in $PROJECT_FILE_REL" >&2
-    exit 1
-  fi
-  printf '%s\n' "$version"
+  node -e "process.stdout.write(require(process.argv[1]).version)" "$DESKTOP_PACKAGE"
 }
 
 normalize_version() {
@@ -87,7 +83,28 @@ bump_minor_version() {
 
 replace_version() {
   local target="$1"
-  perl -0pi -e "s{<Version>[^<]+</Version>}{<Version>$target</Version>}" "$PROJECT_FILE"
+  node - "$target" "$DESKTOP_PACKAGE" "$DESKTOP_LOCK" <<'NODE'
+const fs = require('fs');
+
+const [target, packagePath, lockPath] = process.argv.slice(2);
+
+function writeJson(path, value) {
+  fs.writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+packageJson.version = target;
+writeJson(packagePath, packageJson);
+
+if (fs.existsSync(lockPath)) {
+  const lockJson = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+  lockJson.version = target;
+  if (lockJson.packages && lockJson.packages['']) {
+    lockJson.packages[''].version = target;
+  }
+  writeJson(lockPath, lockJson);
+}
+NODE
 }
 
 current_version="$(read_current_version)"
@@ -107,12 +124,17 @@ if git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/tags/$tag_name" >/dev/nu
   exit 1
 fi
 
+changed_files=("$DESKTOP_PACKAGE_REL")
+if [[ -f "$DESKTOP_LOCK" ]]; then
+  changed_files+=("$DESKTOP_LOCK_REL")
+fi
+
 if (( dry_run )); then
   echo "Current version: $current_version"
   echo "Target version:  $target_version"
   if [[ "$target_version" != "$current_version" ]]; then
-    echo "Would update $PROJECT_FILE_REL"
-    echo "Would commit: Bump QuillForge.Web version to $target_version"
+    echo "Would update ${changed_files[*]}"
+    echo "Would commit: Bump QuillForge Desktop version to $target_version"
   else
     echo "Version is already $target_version; would tag current HEAD."
   fi
@@ -124,14 +146,15 @@ fi
 cd "$REPO_ROOT"
 
 if [[ "$target_version" != "$current_version" ]]; then
-  if [[ -n "$(git status --porcelain -- "$PROJECT_FILE_REL")" ]]; then
-    echo "$PROJECT_FILE_REL has uncommitted changes. Commit or stash them first." >&2
+  if [[ -n "$(git status --porcelain -- "${changed_files[@]}")" ]]; then
+    echo "Release version files have uncommitted changes. Commit or stash them first." >&2
+    git status --short -- "${changed_files[@]}" >&2
     exit 1
   fi
 
   replace_version "$target_version"
-  git add "$PROJECT_FILE_REL"
-  git commit -m "Bump QuillForge.Web version to $target_version"
+  git add "${changed_files[@]}"
+  git commit -m "Bump QuillForge Desktop version to $target_version"
 else
   echo "Version is already $target_version; tagging current HEAD."
 fi

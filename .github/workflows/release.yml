@@ -22,6 +22,8 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: src/QuillForge.Web/Client/package-lock.json
+      - name: Validate release configuration
+        run: scripts/check-release-config.sh
       - run: dotnet restore QuillForge.slnx
       - run: dotnet build QuillForge.slnx --no-restore -c Release
       - run: dotnet test QuillForge.slnx --no-build -c Release
@@ -111,10 +113,8 @@ jobs:
             # Only copy distributable files (no unpacked app bundles)
             find dist -maxdepth 1 -type f \( \
               -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o \
-              -name '*.deb' -o -name '*.rpm' -o -name '*.exe' -o \
-              -name '*.blockmap' -o -name '*.yml' -o \
-              -name 'latest*' \
-            \) ! -name 'builder-debug.yml' -exec cp {} "${{ github.workspace }}/release-assets/" \;
+              -name '*.deb' -o -name '*.rpm' -o -name '*.exe' \
+            \) -exec cp {} "${{ github.workspace }}/release-assets/" \;
           fi
           echo "=== Staged assets ==="
           ls -la "${{ github.workspace }}/release-assets/"
