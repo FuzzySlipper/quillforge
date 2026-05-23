@@ -46,8 +46,12 @@
     <Exec Command="npm ci" WorkingDirectory="Client" />
   </Target>
 
-  <!-- Rebuild React frontend when client source files change -->
-  <Target Name="BuildClient" BeforeTargets="Build"
+  <!-- Rebuild React frontend before the SDK snapshots static web assets.
+       During publish, the Static Web Assets pipeline resolves and compresses
+       wwwroot files before the normal Build target finishes. Running Vite at
+       BeforeTargets="Build" can therefore make the SDK manifest point at stale
+       hashed asset filenames that Vite deletes moments later. -->
+  <Target Name="BuildClient" BeforeTargets="ResolveStaticWebAssetsInputs"
           Inputs="Client/src/**;Client/public/**;Client/index.html;Client/package.json;Client/package-lock.json;Client/tsconfig.json;Client/vite.config.ts"
           Outputs="wwwroot/assets/.build-marker">
     <Exec Command="npm run build" WorkingDirectory="Client" />
