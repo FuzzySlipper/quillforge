@@ -1380,6 +1380,7 @@ function App() {
             variant="inline"
             onClose={handleInlineClose}
             onChanged={refreshStatus}
+            sessionId={currentSessionId}
           />
         );
       case "characters":

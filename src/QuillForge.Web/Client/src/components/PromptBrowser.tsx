@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import MDEditor from "@uiw/react-md-editor";
 import { listAssistantPrompts, readAssistantPrompt, writeAssistantPrompt, type AssistantPromptInfo } from "../api";
 import { listNarrativeRules, readNarrativeRules, writeNarrativeRules, type NarrativeRulesInfo } from "../api";
-import { listWritingStyles, readWritingStyle, writeWritingStyle, type WritingStyleInfo } from "../api";
+import { listWritingStyles, readWritingStyle, writeWritingStyle, switchProfile, type WritingStyleInfo } from "../api";
 import SurfaceFrame, { type SurfaceVariant } from "./SurfaceFrame";
 
 interface PromptBrowserProps {
@@ -10,6 +10,7 @@ interface PromptBrowserProps {
   onClose: () => void;
   onChanged: () => void;
   variant?: SurfaceVariant;
+  sessionId?: string | null;
 }
 
 type Tab = "assistant" | "narrative" | "writing";
@@ -19,23 +20,29 @@ export default function PromptBrowser({
   onClose,
   onChanged,
   variant = "overlay",
+  sessionId,
 }: PromptBrowserProps) {
   const [tab, setTab] = useState<Tab>("assistant");
   const [assistantFiles, setAssistantFiles] = useState<AssistantPromptInfo[]>([]);
   const [narrativeRulesFiles, setNarrativeRulesFiles] = useState<NarrativeRulesInfo[]>([]);
   const [styleFiles, setStyleFiles] = useState<WritingStyleInfo[]>([]);
+  const [activeStyle, setActiveStyle] = useState<string>("");
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<Tab>("assistant");
   const [content, setContent] = useState("");
   const [originalContent, setOriginalContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [activatingStyle, setActivatingStyle] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     listAssistantPrompts().then((data) => setAssistantFiles(data.files));
     listNarrativeRules().then((data) => setNarrativeRulesFiles(data.files));
-    listWritingStyles().then((data) => setStyleFiles(data.files));
+    listWritingStyles().then((data) => {
+      setStyleFiles(data.files);
+      setActiveStyle(data.active);
+    });
   }, [open]);
 
   async function handleSelectStyle(name: string) {
@@ -48,6 +55,18 @@ export default function PromptBrowser({
       setOriginalContent(data.content);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleActivateStyle() {
+    if (!selected || selectedType !== "writing") return;
+    setActivatingStyle(true);
+    try {
+      await switchProfile({ sessionId, writingStyle: selected });
+      setActiveStyle(selected);
+      onChanged();
+    } finally {
+      setActivatingStyle(false);
     }
   }
 
@@ -118,6 +137,7 @@ export default function PromptBrowser({
     }`;
 
   if (selected) {
+    const isActiveWritingStyle = selectedType === "writing" && activeStyle === selected;
     return (
       <SurfaceFrame open={open} onClose={onClose} title={selected} variant={variant}>
         <div className="flex flex-col gap-3">
@@ -145,6 +165,25 @@ export default function PromptBrowser({
                   visibleDragbar
                 />
               </div>
+              {selectedType === "writing" && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleActivateStyle}
+                    disabled={activatingStyle || isActiveWritingStyle}
+                    className="text-sm bg-accent text-accent-contrast rounded-lg px-4 py-1.5 disabled:opacity-50 transition-colors"
+                    title={isActiveWritingStyle ? "This style is already active for this session" : "Apply this writing style to the current session only"}
+                  >
+                    {activatingStyle
+                      ? "Applying..."
+                      : isActiveWritingStyle
+                        ? "Active for this session"
+                        : "Use this style for this session"}
+                  </button>
+                  {isActiveWritingStyle && (
+                    <span className="text-xs text-text-muted">Currently active</span>
+                  )}
+                </div>
+              )}
               {isDirty && (
                 <div className="flex gap-2 justify-end">
                   <button
@@ -237,20 +276,33 @@ export default function PromptBrowser({
             <div className="text-xs text-text-muted">
               {styleFiles.length} files · ~{Math.round(totalStyleTokens / 1000)}k tokens total
             </div>
+            <div className="text-xs text-text-muted/80 bg-input-bg rounded-lg px-3 py-2">
+              Click a style to view or edit it. To apply a style to the current session, open it and choose <em>Use this style for this session</em>.
+            </div>
             {styleFiles.length === 0 ? (
               <p className="text-sm text-text-muted">No writing style files yet.</p>
             ) : (
               <div className="flex flex-col">
-                {styleFiles.map((f) => (
-                  <button
-                    key={f.name}
-                    onClick={() => handleSelectStyle(f.name)}
-                    className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-input-bg text-left transition-colors"
-                  >
-                    <span className="text-sm text-text">{f.name}</span>
-                    <span className="text-xs text-text-muted">~{f.tokens} tok</span>
-                  </button>
-                ))}
+                {styleFiles.map((f) => {
+                  const isActive = activeStyle === f.name;
+                  return (
+                    <button
+                      key={f.name}
+                      onClick={() => handleSelectStyle(f.name)}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg hover:bg-input-bg text-left transition-colors ${
+                        isActive ? "border border-accent/40 bg-accent/5" : ""
+                      }`}
+                    >
+                      <span className="text-sm text-text flex items-center gap-2">
+                        {f.name}
+                        {isActive && (
+                          <span className="text-[10px] bg-accent/20 text-accent px-1.5 py-0.5 rounded">active</span>
+                        )}
+                      </span>
+                      <span className="text-xs text-text-muted">~{f.tokens} tok</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </>

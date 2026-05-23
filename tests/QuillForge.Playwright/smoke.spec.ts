@@ -162,6 +162,39 @@ test.describe('API Smoke Tests', () => {
     expect(d.files).toBeTruthy();
   });
 
+  test('writing-styles list includes active field', async ({ request }) => {
+    const d = await (await request.get(`${BASE}/api/writing-styles`)).json();
+    expect(d.files).toBeTruthy();
+    expect(Array.isArray(d.files)).toBe(true);
+    expect(d.active).toBeTruthy();
+    expect(typeof d.active).toBe('string');
+  });
+
+  test('profiles/switch can change writing style and status reflects it', async ({ request }) => {
+    const created = await (await request.post(`${BASE}/api/session/new`)).json();
+    const sessionId = created.sessionId as string;
+
+    // First get available styles
+    const stylesResp = await request.get(`${BASE}/api/writing-styles?sessionId=${sessionId}`);
+    const stylesData = await stylesResp.json();
+    expect(stylesData.files.length).toBeGreaterThan(0);
+
+    const targetStyle = stylesData.files[0].name as string;
+
+    // Switch to that style
+    const switchResp = await request.post(`${BASE}/api/profiles/switch`, {
+      data: { sessionId, writingStyle: targetStyle },
+    });
+    expect(switchResp.ok()).toBe(true);
+    const switchData = await switchResp.json();
+    expect(switchData.activeWritingStyle).toBe(targetStyle);
+
+    // Verify status reflects the change
+    const statusResp = await request.get(`${BASE}/api/status?sessionId=${sessionId}`);
+    const statusData = await statusResp.json();
+    expect(statusData.writingStyle).toBe(targetStyle);
+  });
+
   test('narrative-rules returns data', async ({ request }) => {
     const d = await (await request.get(`${BASE}/api/narrative-rules`)).json();
     expect(d.files).toBeTruthy();
