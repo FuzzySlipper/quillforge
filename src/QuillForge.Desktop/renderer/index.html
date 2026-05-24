@@ -30,6 +30,16 @@
           <button id="btn-retry">Retry</button>
           <button id="btn-open-workspace">Open Workspace</button>
         </div>
+        <div id="failed-diagnostics" class="diagnostics-container hidden">
+          <button id="btn-toggle-failed-diagnostics" class="diagnostics-toggle">Show diagnostics</button>
+          <div class="diagnostics-body">
+            <div class="diagnostics-header">
+              <span class="diagnostics-count">0 entries</span>
+              <button id="btn-copy-failed-diagnostics" class="diagnostics-copy">Copy</button>
+            </div>
+            <div id="failed-diagnostics-log" class="diagnostics-log"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Exited state -->
@@ -38,6 +48,16 @@
         <p id="exited-message">The backend has stopped.</p>
         <div class="actions">
           <button id="btn-restart">Restart Backend</button>
+        </div>
+        <div id="exited-diagnostics" class="diagnostics-container hidden">
+          <button id="btn-toggle-exited-diagnostics" class="diagnostics-toggle">Show diagnostics</button>
+          <div class="diagnostics-body">
+            <div class="diagnostics-header">
+              <span class="diagnostics-count">0 entries</span>
+              <button id="btn-copy-exited-diagnostics" class="diagnostics-copy">Copy</button>
+            </div>
+            <div id="exited-diagnostics-log" class="diagnostics-log"></div>
+          </div>
         </div>
       </div>
     </div>

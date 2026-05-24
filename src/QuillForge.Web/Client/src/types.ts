@@ -66,6 +66,25 @@ export interface DiagnosticEntry {
   level: "info" | "warning" | "error";
 }
 
+export interface DesktopShellDiagnosticEntry {
+  source: string;
+  message: string;
+  level: "info" | "warning" | "error";
+}
+
+export interface DesktopShellStatus {
+  phase: "starting" | "ready" | "failed" | "exited" | "stopped";
+  message: string | null;
+  backendUrl: string | null;
+  workspacePath: string;
+  port: number | null;
+  bindMode: string;
+  loopbackUrl: string | null;
+  lanUrl: string | null;
+  restartAvailable: boolean;
+  diagnostics: DesktopShellDiagnosticEntry[];
+}
+
 export interface Profiles {
   profileIds: string[];
   defaultProfileId: string;
