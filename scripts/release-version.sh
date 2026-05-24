@@ -7,11 +7,14 @@ Usage: scripts/release-version.sh [<version>] [--dry-run]
 
 Examples:
   scripts/release-version.sh
-  scripts/release-version.sh 4.4
+  scripts/release-version.sh 4.4.0
   scripts/release-version.sh 4.4.1
+  scripts/release-version.sh 4.4  # normalized to 4.4.0
   scripts/release-version.sh --dry-run
 
-If no version is provided, the script bumps the minor version by 1.
+If no version is provided, the script bumps the minor version by 1 and resets
+the patch component to 0. Desktop package versions are always written as
+major.minor.patch because electron-builder requires full semver.
 The script commits the QuillForge Desktop package version bump before tagging so
 release builds actually contain the new version.
 EOF
@@ -64,13 +67,16 @@ read_current_version() {
 normalize_version() {
   local value="$1"
   value="${value#v}"
+  if [[ "$value" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
+    value="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.0"
+  fi
   printf '%s\n' "$value"
 }
 
 validate_version() {
   local value="$1"
-  if [[ ! "$value" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
-    echo "Invalid version '$value'. Use major.minor or major.minor.patch." >&2
+  if [[ ! "$value" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Invalid version '$value'. Use major.minor.patch." >&2
     exit 1
   fi
 }
@@ -78,7 +84,7 @@ validate_version() {
 bump_minor_version() {
   local current="$1"
   IFS='.' read -r major minor _ <<< "$current"
-  printf '%s.%s\n' "$major" "$((minor + 1))"
+  printf '%s.%s.0\n' "$major" "$((minor + 1))"
 }
 
 replace_version() {
