@@ -46,6 +46,7 @@ import SessionBrowser from "./components/SessionBrowser";
 import CharacterCards from "./components/CharacterCards";
 import TextThemePicker from "./components/TextThemePicker";
 import CouncilConfigPanel from "./components/CouncilConfigPanel";
+import DocsBrowser from "./components/DocsBrowser";
 import ResearchPanel from "./components/ResearchPanel";
 import ResearchWorkspace from "./components/ResearchWorkspace";
 import RoleplayWorkspace from "./components/RoleplayWorkspace";
@@ -304,6 +305,12 @@ function App() {
       setInspectorSection("overview");
     }
   }, [inspectorSection, mode]);
+
+  const openDocsSection = useCallback(() => {
+    setInspectorSection("docs");
+    setInspectorOpen(true);
+    writeInspectorOpen(mode, true);
+  }, [mode]);
 
   function addResponseMessage(
     content: string,
@@ -1088,6 +1095,7 @@ function App() {
               void handleSend(prompt);
             }}
             onOpenProviders={() => setProviderOpen(true)}
+            onOpenDocs={openDocsSection}
           />
         );
       case "writer":
@@ -1412,6 +1420,14 @@ function App() {
             onClose={handleInlineClose}
           />
         ) : null;
+      case "docs":
+        return (
+          <DocsBrowser
+            open
+            variant="inline"
+            onClose={handleInlineClose}
+          />
+        );
       case "overview":
       default:
         return null;
@@ -1437,6 +1453,7 @@ function App() {
             onOpenProviders={() => setProviderOpen(true)}
             onOpenAppSettings={() => setAppSettingsOpen(true)}
             onOpenTextTheme={() => setTextThemeOpen(true)}
+            onOpenDocs={openDocsSection}
           />
         )}
         inspector={(

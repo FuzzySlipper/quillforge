@@ -12,7 +12,8 @@ export type InspectorSection =
   | "prompts"
   | "characters"
   | "context"
-  | "research";
+  | "research"
+  | "docs";
 
 interface AppInspectorProps {
   status: Status | null;
@@ -110,6 +111,7 @@ export default function AppInspector({
     { id: "prompts", label: "Prompts" },
     { id: "characters", label: "Characters" },
     { id: "context", label: "Context" },
+    { id: "docs", label: "Docs" },
   ];
 
   if (mode === "research") {

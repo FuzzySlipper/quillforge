@@ -328,4 +328,50 @@ test.describe('UI Smoke Tests', () => {
     await expect(page.getByRole('heading', { name: 'Plots' })).toBeVisible();
     assertNoErrors('plot panel open');
   });
+
+  test('docs endpoint returns topics', async ({ request }) => {
+    const d = await (await request.get(`${BASE}/api/docs`)).json();
+    expect(Array.isArray(d.topics)).toBe(true);
+    expect(d.topics.length).toBeGreaterThan(0);
+    expect(d.topics.some((t: { slug: string }) => t.slug === "mode-guide")).toBe(true);
+  });
+
+  test('docs search endpoint returns results', async ({ request }) => {
+    const d = await (await request.get(`${BASE}/api/docs/search?q=guide`)).json();
+    expect(Array.isArray(d.results)).toBe(true);
+  });
+
+  test('docs topic endpoint returns content', async ({ request }) => {
+    const d = await (await request.get(`${BASE}/api/docs/mode-guide`)).json();
+    expect(d.slug).toBe("mode-guide");
+    expect(d.name).toBeTruthy();
+    expect(d.content).toBeTruthy();
+  });
+
+  test('docs panel opens from the rail', async ({ page }) => {
+    setupErrorTracking(page);
+    await page.goto(`${BASE}/`);
+    await page.waitForLoadState('networkidle');
+    await page.getByTitle('Documentation').click();
+    await expect(page.getByRole('heading', { name: 'Documentation' })).toBeVisible();
+    assertNoErrors('docs panel open');
+  });
+
+  test('docs panel opens from Guide workspace', async ({ page }) => {
+    setupErrorTracking(page);
+    await page.goto(`${BASE}/`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Read the documentation' }).click();
+    await expect(page.getByRole('heading', { name: 'Documentation' })).toBeVisible();
+    assertNoErrors('docs panel from guide');
+  });
+
+  test('docs inspector section lists topics', async ({ page }) => {
+    setupErrorTracking(page);
+    await page.goto(`${BASE}/`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Docs' }).click();
+    await expect(page.getByRole('heading', { name: 'Documentation' })).toBeVisible();
+    assertNoErrors('docs inspector section');
+  });
 });

@@ -14,6 +14,7 @@ interface GuideWorkspaceProps {
   onOpenSection: (section: InspectorSection) => void;
   onQuickPrompt: (prompt: string) => void;
   onOpenProviders: () => void;
+  onOpenDocs: () => void;
 }
 
 function GuideActionCard({
@@ -76,6 +77,7 @@ export default function GuideWorkspace({
   onOpenSection,
   onQuickPrompt,
   onOpenProviders,
+  onOpenDocs,
 }: GuideWorkspaceProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -130,6 +132,12 @@ export default function GuideWorkspace({
             title="Browse source material"
             body="Open lore files directly in the inspector if you want Guide to reason about concrete world details."
             onClick={() => onOpenSection("lore")}
+          />
+          <GuideActionCard
+            eyebrow="Docs"
+            title="Read the documentation"
+            body="Browse guides, mode explanations, and slash commands without leaving the app."
+            onClick={onOpenDocs}
           />
         </div>
 

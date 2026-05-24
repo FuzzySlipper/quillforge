@@ -314,6 +314,39 @@ export async function switchProfile(profile: {
   });
 }
 
+// ── Docs ──
+
+export interface DocsTopic {
+  slug: string;
+  name: string;
+  summary: string;
+}
+
+export interface DocsTopicEntry {
+  slug: string;
+  name: string;
+  summary: string;
+  content: string;
+}
+
+export interface DocsSearchResult {
+  slug: string;
+  name: string;
+  snippets: string[];
+}
+
+export async function listDocsTopics(): Promise<{ topics: DocsTopic[] }> {
+  return request("/api/docs");
+}
+
+export async function getDocTopic(slug: string): Promise<DocsTopicEntry> {
+  return request(`/api/docs/${encodeURIComponent(slug)}`);
+}
+
+export async function searchDocs(query: string): Promise<{ results: DocsSearchResult[] }> {
+  return request(`/api/docs/search?q=${encodeURIComponent(query)}`);
+}
+
 export async function getMode(sessionId?: string | null): Promise<ModeInfo> {
   const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
   return request(`/api/mode${query}`);
