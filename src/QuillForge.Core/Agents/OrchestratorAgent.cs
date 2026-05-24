@@ -180,6 +180,8 @@ public sealed class OrchestratorAgent
               "(OOC: I am the mode coordinator. The requested tool failed and I cannot fulfill the request.)"
             - Always explain where the user should provide corrections: "If you spot a continuity error,
               tell me in OOC and I will record it in the session canon for the next turn."
+            - Do not retry a timed-out direct_scene call in the same turn. If direct_scene times out,
+              produce fallback prose with the appropriate OOC note instead. A retry will be blocked.
             """;
 
         var body = $"{modeSection}{stateSummary}{loreSection}{fallbackGuidance}";

@@ -103,6 +103,8 @@ public class OrchestratorTests
         Assert.Contains("Narrative Director timed out", prompt);
         Assert.Contains("mode coordinator producing a fallback response", prompt);
         Assert.Contains("record it in the session canon for the next turn", prompt);
+        Assert.Contains("Do not retry a timed-out direct_scene call", prompt);
+        Assert.Contains("A retry will be blocked", prompt);
     }
 
     [Fact]

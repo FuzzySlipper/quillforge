@@ -59,6 +59,7 @@ public sealed class ToolLoop
         var totalUsage = new TokenUsage(0, 0);
         var round = 0;
         var debugAgentName = ResolveDebugAgentName(config, streaming: false);
+        var timedOutTools = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         _logger.LogInformation(
             "ToolLoop starting for session {SessionId}, model {Model}, {ToolCount} tools, max {MaxRounds} rounds",
@@ -208,8 +209,20 @@ public sealed class ToolLoop
             var nonRetryableFailures = new List<string>();
             foreach (var toolCall in toolCalls)
             {
+                if (timedOutTools.Contains(toolCall.Name))
+                {
+                    var blockedError = $"Tool '{toolCall.Name}' already timed out in this turn and should not be retried.";
+                    progress?.Invoke($"Tool {toolCall.Name} BLOCKED: {blockedError}");
+                    resultBlocks.Add(new ToolResultBlock(
+                        toolCall.Id,
+                        blockedError,
+                        isError: true));
+                    TrackNonRetryableFailure(toolCall.Name, ToolResult.FailNonRetryable(blockedError), nonRetryableFailures);
+                    continue;
+                }
+
                 progress?.Invoke($"Dispatching tool: {toolCall.Name}");
-                var result = await DispatchToolAsync(toolMap, toolCall, context, ct);
+                var result = await DispatchToolAsync(toolMap, toolCall, context, ct, timedOutTools: timedOutTools);
                 progress?.Invoke(
                     result.Success
                         ? $"Tool {toolCall.Name} completed ({result.Content.Length} chars)"
@@ -262,6 +275,7 @@ public sealed class ToolLoop
         var toolDefs = tools.Select(t => t.Definition).ToList();
         var round = 0;
         var debugAgentName = ResolveDebugAgentName(config, streaming: true);
+        var timedOutTools = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         _logger.LogInformation(
             "ToolLoop (streaming) starting for session {SessionId}, model {Model}",
@@ -488,6 +502,19 @@ public sealed class ToolLoop
             var nonRetryableFailures = new List<string>();
             foreach (var tc in collectedToolCalls)
             {
+                if (timedOutTools.Contains(tc.ToolName))
+                {
+                    var blockedError = $"Tool '{tc.ToolName}' already timed out in this turn and should not be retried.";
+                    if (_diagnosticsEnabled)
+                        yield return new DiagnosticEvent(DiagnosticCategory.Tool, $"{tc.ToolName} blocked: {blockedError}", DiagnosticLevel.Error);
+                    resultBlocks.Add(new ToolResultBlock(
+                        tc.ToolId,
+                        blockedError,
+                        isError: true));
+                    TrackNonRetryableFailure(tc.ToolName, ToolResult.FailNonRetryable(blockedError), nonRetryableFailures);
+                    continue;
+                }
+
                 if (!string.IsNullOrWhiteSpace(tc.ParseError))
                 {
                     resultBlocks.Add(new ToolResultBlock(
@@ -535,7 +562,7 @@ public sealed class ToolLoop
                 if (_diagnosticsEnabled)
                     yield return new DiagnosticEvent(DiagnosticCategory.Tool, $"Dispatching {tc.ToolName}");
 
-                var result = await DispatchToolAsync(toolMap, toolUse, context, ct, diagnostics.Add, skipValidation: true);
+                var result = await DispatchToolAsync(toolMap, toolUse, context, ct, diagnostics.Add, skipValidation: true, timedOutTools);
 
                 foreach (var diagnostic in diagnostics)
                 {
@@ -645,7 +672,8 @@ public sealed class ToolLoop
         AgentContext context,
         CancellationToken ct,
         Action<DiagnosticEvent>? diagnosticSink = null,
-        bool skipValidation = false)
+        bool skipValidation = false,
+        HashSet<string>? timedOutTools = null)
     {
         if (!toolMap.TryGetValue(toolCall.Name, out var handler))
         {
@@ -685,7 +713,12 @@ public sealed class ToolLoop
                 $"Tool '{toolCall.Name}' timed out after {timeoutSeconds}s",
                 DiagnosticLevel.Error));
             var errorMessage = BuildTimeoutErrorMessage(toolCall.Name, timeoutSeconds);
-            return ToolResult.Fail(errorMessage, retryable: false);
+            var isDirectScene = string.Equals(toolCall.Name, "direct_scene", StringComparison.OrdinalIgnoreCase);
+            if (isDirectScene && timedOutTools is not null)
+            {
+                timedOutTools.Add(toolCall.Name);
+            }
+            return ToolResult.Fail(errorMessage, retryable: isDirectScene);
         }
         catch (ToolArgsParseException ex)
         {

@@ -575,10 +575,13 @@ public class ToolLoopTests
     }
 
     [Fact]
-    public async Task DirectSceneTimeout_UsesDedicatedTimeoutAndReturnsUserFriendlyError()
+    public async Task DirectSceneTimeout_UsesDedicatedTimeoutAndAllowsFallbackProse()
     {
         var fake = new FakeCompletionService();
+        // Round 1: model calls direct_scene
         fake.EnqueueToolCall("direct_scene", "call_1", """{"user_message":"Continue the scene."}""");
+        // Round 2: model produces fallback prose after seeing timeout
+        fake.EnqueueText("(OOC: Narrative Director timed out; I am the mode coordinator producing a fallback response.) The torch flickers...");
 
         var appConfig = new AppConfig
         {
@@ -604,18 +607,57 @@ public class ToolLoopTests
 
         var result = await loop.RunAsync(DefaultConfig, [handler], messages, DefaultContext);
 
-        Assert.Equal(StopReason.Error, result.StopReason);
-        Assert.Contains("non-retryable", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("scene director", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("took longer than", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("What you can try", result.Content.GetText(), StringComparison.Ordinal);
+        // The timeout should be retryable so the model gets a chance to fallback
+        Assert.Equal(StopReason.EndTurn, result.StopReason);
+        Assert.Equal(1, result.ToolRoundsUsed);
+        Assert.Contains("Narrative Director timed out", result.Content.GetText());
+        Assert.Contains("fallback response", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
 
+        // Verify the timeout tool result was appended to messages
         var toolResultMsg = messages.FirstOrDefault(m =>
             m.Content.Blocks.OfType<ToolResultBlock>().Any());
         Assert.NotNull(toolResultMsg);
         var toolResult = toolResultMsg.Content.Blocks.OfType<ToolResultBlock>().First();
         Assert.True(toolResult.IsError);
         Assert.Contains("scene director", toolResult.Content, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DirectSceneTimeout_RetryIsBlocked_AndStopsLoop()
+    {
+        var fake = new FakeCompletionService();
+        // Round 1: model calls direct_scene, it times out
+        fake.EnqueueToolCall("direct_scene", "call_1", """{"user_message":"Continue the scene."}""");
+        // Round 2: model tries to retry direct_scene (simulating a disobedient model)
+        fake.EnqueueToolCall("direct_scene", "call_2", """{"user_message":"Continue the scene."}""");
+
+        var appConfig = new AppConfig
+        {
+            Timeouts = new TimeoutsConfig
+            {
+                ToolExecutionSeconds = 1,
+                DirectSceneTimeoutSeconds = 2,
+            },
+        };
+
+        var handler = new FakeToolHandler("direct_scene", async (_, _, ct) =>
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+            return ToolResult.Ok("never reached");
+        });
+
+        var loop = CreateLoop(fake, appConfig);
+        var messages = new List<CompletionMessage>
+        {
+            new("user", new MessageContent("Continue the scene.")),
+        };
+
+        var result = await loop.RunAsync(DefaultConfig, [handler], messages, DefaultContext);
+
+        // The second attempt should be blocked as non-retryable
+        Assert.Equal(StopReason.Error, result.StopReason);
+        Assert.Equal(2, result.ToolRoundsUsed);
+        Assert.Contains("already timed out", result.Content.GetText(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
