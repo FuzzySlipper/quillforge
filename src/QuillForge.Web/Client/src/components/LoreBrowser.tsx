@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import MDEditor from "@uiw/react-md-editor";
 import {
   listLore,
@@ -46,12 +46,7 @@ export default function LoreBrowser({
   const [newFileDir, setNewFileDir] = useState<string | null>(null);
   const [newFileName, setNewFileName] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    refresh();
-  }, [open, sessionId]);
-
-  async function refresh() {
+  const refresh = useCallback(async () => {
     const [loreData, projData] = await Promise.all([
       listLore(sessionId),
       listLoreProjects(sessionId),
@@ -60,7 +55,12 @@ export default function LoreBrowser({
     setCategories(loreData.categories);
     setActiveProject(loreData.activeProject);
     setProjects(projData.projects);
-  }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!open) return;
+    refresh();
+  }, [open, sessionId, refresh]);
 
   async function handleSelectProject(name: string) {
     const loreSet = name === "(default)" ? "(default)" : name;

@@ -16,12 +16,8 @@ function isDesktopBridgeAvailable(): boolean {
 export default function SidecarDiagnosticsPanel() {
   const [entries, setEntries] = useState<DesktopShellDiagnosticEntry[]>([]);
   const [expanded, setExpanded] = useState(false);
-  const [available, setAvailable] = useState(false);
+  const [available] = useState(() => isDesktopBridgeAvailable());
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setAvailable(isDesktopBridgeAvailable());
-  }, []);
 
   useEffect(() => {
     if (!available || !window.quillforgeDesktop) return;

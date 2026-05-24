@@ -46,16 +46,27 @@ export default function ContextOverlay({
 
   useEffect(() => {
     if (!open || tab !== "debug") return;
-    setLoadingHistory(true);
+    let cancelled = false;
     const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
-    fetch(`/api/conversation/history${query}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setHistory(data.messages ?? []);
-        setHistoryCount(data.count ?? 0);
-      })
-      .catch(() => setHistory([]))
-      .finally(() => setLoadingHistory(false));
+
+    const loadHistory = async () => {
+      setLoadingHistory(true);
+      try {
+        const r = await fetch(`/api/conversation/history${query}`);
+        const data = await r.json();
+        if (!cancelled) {
+          setHistory(data.messages ?? []);
+          setHistoryCount(data.count ?? 0);
+        }
+      } catch {
+        if (!cancelled) setHistory([]);
+      } finally {
+        if (!cancelled) setLoadingHistory(false);
+      }
+    };
+
+    loadHistory();
+    return () => { cancelled = true; };
   }, [open, tab, sessionId]);
 
   const tabClass = (t: Tab) =>

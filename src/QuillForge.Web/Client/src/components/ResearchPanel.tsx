@@ -23,20 +23,20 @@ export default function ResearchPanel({ open, onClose, variant = "overlay" }: Re
 
   useEffect(() => {
     if (!open) return;
-    refreshProjects();
-    setActiveProject(null);
-    setFiles([]);
-    setViewingFile(null);
+    let cancelled = false;
+    (async () => {
+      setActiveProject(null);
+      setFiles([]);
+      setViewingFile(null);
+      try {
+        const data = await listResearchProjects();
+        if (!cancelled) setProjects(data.projects);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load projects");
+      }
+    })();
+    return () => { cancelled = true; };
   }, [open]);
-
-  async function refreshProjects() {
-    try {
-      const data = await listResearchProjects();
-      setProjects(data.projects);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load projects");
-    }
-  }
 
   async function openProject(project: string) {
     setActiveProject(project);

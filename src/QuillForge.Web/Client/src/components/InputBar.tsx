@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState } from "react";
 import { getCommandNames, getCommandUsage } from "../commands";
 
 interface InputBarProps {
@@ -27,28 +27,42 @@ export default function InputBar({ onSend, disabled, placeholder }: InputBarProp
   const [history] = useState<string[]>(loadHistory);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedText, setSavedText] = useState(""); // text before entering history
-  const [hints, setHints] = useState<{ name: string; usage?: string }[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isCommand = text.startsWith("/");
 
-  // Update hints when text changes
-  useEffect(() => {
+  // Compute command hints as derived state
+  const hints = useMemo(() => {
     if (!isCommand || text.includes(" ")) {
-      setHints([]);
-      return;
+      return [];
     }
     const partial = text.slice(1).toLowerCase();
     if (!partial) {
       // Show all commands
-      setHints(getCommandNames().map((n) => ({ name: n, usage: getCommandUsage(n) })));
-    } else {
-      const matches = getCommandNames()
-        .filter((c) => c.startsWith(partial))
-        .map((n) => ({ name: n, usage: getCommandUsage(n) }));
-      setHints(matches);
+      return getCommandNames().map((n) => ({ name: n, usage: getCommandUsage(n) }));
     }
+    const matches = getCommandNames()
+      .filter((c) => c.startsWith(partial))
+      .map((n) => ({ name: n, usage: getCommandUsage(n) }));
+    return matches;
   }, [text, isCommand]);
+
+  // Track whether hints popup has been dismissed by user action
+  const [hintsFrozen, setHintsFrozen] = useState(false);
+  const [frozenText, setFrozenText] = useState("");
+
+  // Unfreeze hints when text changes (render-phase state update — safe because
+  // it only triggers when text !== frozenText, avoiding infinite loops)
+  if (hintsFrozen && text !== frozenText) {
+    setHintsFrozen(false);
+  }
+
+  const showHints = hints.length > 0 && !hintsFrozen;
+
+  function freezeHints() {
+    setHintsFrozen(true);
+    setFrozenText(text);
+  }
 
   function handleSend() {
     const trimmed = text.trim();
@@ -63,7 +77,7 @@ export default function InputBar({ onSend, disabled, placeholder }: InputBarProp
 
     onSend(trimmed);
     setText("");
-    setHints([]);
+    freezeHints();
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -75,14 +89,14 @@ export default function InputBar({ onSend, disabled, placeholder }: InputBarProp
       e.preventDefault();
       if (hints.length === 1) {
         setText(`/${hints[0].name} `);
-        setHints([]);
+        freezeHints();
       } else if (hints.length > 1) {
         // Complete common prefix
         const partial = text.slice(1).split(/\s/)[0].toLowerCase();
         const match = hints.find((h) => h.name.startsWith(partial));
         if (match) {
           setText(`/${match.name} `);
-          setHints([]);
+          freezeHints();
         }
       }
       return;
@@ -125,7 +139,7 @@ export default function InputBar({ onSend, disabled, placeholder }: InputBarProp
     // Escape — clear hints, cancel history navigation
     if (e.key === "Escape") {
       if (hints.length > 0) {
-        setHints([]);
+        freezeHints();
       } else if (historyIndex >= 0) {
         setHistoryIndex(-1);
         setText(savedText);
@@ -153,14 +167,14 @@ export default function InputBar({ onSend, disabled, placeholder }: InputBarProp
 
   function handleHintClick(name: string) {
     setText(`/${name} `);
-    setHints([]);
+    freezeHints();
     textareaRef.current?.focus();
   }
 
   return (
     <div className="relative flex gap-2 p-3 bg-surface border-t border-border shrink-0">
       {/* Command hints dropdown */}
-      {hints.length > 0 && (
+      {showHints && (
         <div className="absolute bottom-full left-3 right-3 mb-1 bg-surface border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-10">
           {hints.map((h) => (
             <button

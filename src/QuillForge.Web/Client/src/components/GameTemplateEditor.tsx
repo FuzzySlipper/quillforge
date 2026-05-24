@@ -405,7 +405,7 @@ export default function GameTemplateEditor({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedTemplateId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -490,7 +490,7 @@ export default function GameTemplateEditor({
     return () => {
       cancelled = true;
     };
-  }, [selectedModule?.moduleId]);
+  }, [selectedModule]);
 
   function updateTemplate(mutator: (current: GameTemplate) => GameTemplate) {
     setTemplate((current) => {

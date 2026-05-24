@@ -118,11 +118,7 @@ Before tagging a release, run the local preflight script from the repository roo
 scripts/preflight-desktop-release.sh
 ```
 
-That script verifies release config, builds/tests the .NET solution, builds the web frontend, and installs desktop dependencies. The current frontend lint baseline has unrelated warnings/errors, so lint is opt-in until that baseline is cleaned up:
-
-```bash
-RUN_FRONTEND_LINT=1 scripts/preflight-desktop-release.sh
-```
+That script verifies release config, builds/tests the .NET solution, installs frontend dependencies, runs the default frontend lint baseline, builds the web frontend, and installs desktop dependencies. Frontend lint is no longer an opt-in preflight step; `npm run lint --prefix src/QuillForge.Web/Client` must pass before tagging.
 
 If you need to isolate the desktop bundling step locally afterward, run:
 

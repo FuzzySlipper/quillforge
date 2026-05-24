@@ -597,10 +597,13 @@ export default function GamesWorkspace({
     onRefresh(sessionId);
   }
 
-  async function refreshDiagnosticLog(
+  const diagnosticLogRef = useRef(diagnosticLog);
+  diagnosticLogRef.current = diagnosticLog;
+
+  const refreshDiagnosticLog = useCallback(async (
     scopeGameInstanceId: string | null = diagnosticScopeGameInstanceId,
     beforeSequence: number | null = null,
-  ) {
+  ) => {
     if (!sessionId) return;
     setDiagnosticLoading(true);
     setDiagnosticError(null);
@@ -611,11 +614,12 @@ export default function GamesWorkspace({
         beforeSequence,
         categories: diagnosticCategoryFilter || null,
       });
-      if (beforeSequence !== null && diagnosticLog) {
-        const existingSequences = new Set(diagnosticLog.events.map((event) => event.sequence));
+      const currentLog = diagnosticLogRef.current;
+      if (beforeSequence !== null && currentLog) {
+        const existingSequences = new Set(currentLog.events.map((event) => event.sequence));
         const mergedEvents = [
           ...response.log.events.filter((event) => !existingSequences.has(event.sequence)),
-          ...diagnosticLog.events,
+          ...currentLog.events,
         ];
         setDiagnosticLog({
           ...response.log,
@@ -630,7 +634,7 @@ export default function GamesWorkspace({
     } finally {
       setDiagnosticLoading(false);
     }
-  }
+  }, [sessionId, diagnosticLimitFilter, diagnosticCategoryFilter, diagnosticScopeGameInstanceId]);
 
   const openTemplateEditor = useCallback(() => {
     setTemplateEditorMounted(true);
@@ -652,7 +656,7 @@ export default function GamesWorkspace({
     if (diagnosticOpen) {
       void refreshDiagnosticLog();
     }
-  }, [sessionId, diagnosticScopeGameInstanceId, diagnosticCategoryFilter, diagnosticLimitFilter]);
+  }, [sessionId, diagnosticScopeGameInstanceId, diagnosticCategoryFilter, diagnosticLimitFilter, diagnosticOpen, refreshDiagnosticLog]);
 
   async function withMutation(action: () => Promise<string | null | undefined>) {
     setMutating(true);

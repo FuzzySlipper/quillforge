@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import MDEditor from "@uiw/react-md-editor";
 import {
   generatePlot,
@@ -36,18 +36,18 @@ export default function PlotBrowser({
   const [generatePrompt, setGeneratePrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    refresh();
-  }, [open, sessionId]);
-
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setError(null);
     const data = await listPlots(sessionId);
     setFiles(data.files);
     setActivePlotFile(data.activePlotFile);
     setPlotProgress(data.plotProgress);
-  }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!open) return;
+    refresh();
+  }, [open, sessionId, refresh]);
 
   async function handleSelect(name: string) {
     setLoading(true);

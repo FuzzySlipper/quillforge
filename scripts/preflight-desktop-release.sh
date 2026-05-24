@@ -21,12 +21,8 @@ dotnet test QuillForge.slnx --no-build -c Release -p:AllowMissingPrunePackageDat
 echo "-- install web frontend dependencies"
 npm ci --prefix src/QuillForge.Web/Client
 
-if [[ "${RUN_FRONTEND_LINT:-0}" == "1" ]]; then
-  echo "-- lint web frontend"
-  npm run lint --prefix src/QuillForge.Web/Client
-else
-  echo "-- lint web frontend (skipped; set RUN_FRONTEND_LINT=1 to include current lint baseline)"
-fi
+echo "-- lint web frontend"
+npm run lint --prefix src/QuillForge.Web/Client
 
 echo "-- build web frontend"
 npm run build --prefix src/QuillForge.Web/Client

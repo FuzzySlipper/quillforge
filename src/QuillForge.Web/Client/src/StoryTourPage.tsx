@@ -493,15 +493,14 @@ export default function StoryTourPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (activeMode === "writer" || activeMode === "roleplay") {
-      setScenePipelineMode(activeMode);
-    }
-  }, [activeMode]);
+  const effectiveScenePipelineMode: ScenePipelineMode =
+    activeMode === "writer" || activeMode === "roleplay"
+      ? activeMode
+      : scenePipelineMode;
 
   const active = TOUR_MODES[activeMode];
   const rootStyle = { "--mode-accent": active.accent } as CSSProperties;
-  const scenePipeline = SCENE_PIPELINE_SPECS[scenePipelineMode];
+  const scenePipeline = SCENE_PIPELINE_SPECS[effectiveScenePipelineMode];
   const sceneStyle = { "--scene-accent": scenePipeline.accent } as CSSProperties;
 
   function handleModeSelect(mode: Mode) {
@@ -869,10 +868,10 @@ export default function StoryTourPage() {
               return (
                 <button
                   key={mode}
-                  className={`tour-scene-pill ${scenePipelineMode === mode ? "is-active" : ""}`}
+                  className={`tour-scene-pill ${effectiveScenePipelineMode === mode ? "is-active" : ""}`}
                   style={buttonStyle}
                   onClick={() => setScenePipelineMode(mode)}
-                  aria-pressed={scenePipelineMode === mode}
+                  aria-pressed={effectiveScenePipelineMode === mode}
                 >
                   <span className="tour-scene-pill-row">
                     <TourModeIcon mode={mode} frameClassName="tour-mode-icon-frame tour-mode-icon-frame-scene" />

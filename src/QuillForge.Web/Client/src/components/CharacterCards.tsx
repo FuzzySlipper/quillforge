@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   listCharacterCards,
   readCharacterCard,
@@ -52,17 +52,17 @@ export default function CharacterCards({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    refresh();
-  }, [open, sessionId]);
-
-  async function refresh(sessionIdOverride?: string | null) {
+  const refresh = useCallback(async (sessionIdOverride?: string | null) => {
     const data = await listCharacterCards(sessionIdOverride ?? sessionId);
     setCards(data.cards);
     setActiveAi(data.activeAi);
     setActiveUser(data.activeUser);
-  }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!open) return;
+    refresh();
+  }, [open, sessionId, refresh]);
 
   async function handleEdit(filename: string) {
     const card = await readCharacterCard(filename);

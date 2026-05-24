@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReasoningArtifact } from "../types";
 
 interface ReasoningDetailsProps {
@@ -73,17 +73,21 @@ export default function ReasoningDetails({
 }: ReasoningDetailsProps) {
   const [selectedArtifactKey, setSelectedArtifactKey] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Default artifact selection derived from artifacts list
+  const defaultArtifactKey = useMemo(() => {
     const defaultArtifact = selectDefaultArtifact(artifacts);
-    setSelectedArtifactKey(defaultArtifact ? artifactKey(defaultArtifact) : null);
+    return defaultArtifact ? artifactKey(defaultArtifact) : null;
   }, [artifacts]);
+
+  // When artifacts change and there's no user-driven selection, use the default
+  const resolvedKey = selectedArtifactKey ?? defaultArtifactKey;
 
   if (!reasoning && (!artifacts || artifacts.length === 0)) {
     return null;
   }
 
   const defaultArtifact = selectDefaultArtifact(artifacts);
-  const selectedArtifact = artifacts?.find((artifact) => artifactKey(artifact) === selectedArtifactKey) ?? defaultArtifact ?? null;
+  const selectedArtifact = artifacts?.find((artifact) => artifactKey(artifact) === resolvedKey) ?? defaultArtifact ?? null;
   const displayedReasoning = selectedArtifact?.content ?? reasoning ?? "";
   const hasMultipleArtifacts = (artifacts?.length ?? 0) > 1;
   const summarySuffix = hasMultipleArtifacts ? ` · ${artifacts?.length} agents` : "";

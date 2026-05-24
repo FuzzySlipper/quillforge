@@ -60,8 +60,6 @@ export default function AppShell({
       setTheme(event.matches ? "light" : "dark");
     };
 
-    setTheme(media.matches ? "light" : "dark");
-
     if (typeof media.addEventListener === "function") {
       media.addEventListener("change", handleChange);
       return () => media.removeEventListener("change", handleChange);
