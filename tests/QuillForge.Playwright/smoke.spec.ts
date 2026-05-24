@@ -280,6 +280,46 @@ test.describe('UI Smoke Tests', () => {
     }
   });
 
+  test('sidecar diagnostics panel renders when desktop bridge is present', async ({ page }) => {
+    setupErrorTracking(page);
+
+    // Inject a mock desktop bridge before React mounts
+    await page.addInitScript(() => {
+      (window as any).quillforgeDesktop = {
+        getStatus: async () => ({
+          phase: 'ready',
+          message: 'Ready',
+          backendUrl: 'http://127.0.0.1:9999',
+          workspacePath: '/tmp/quillforge',
+          port: 9999,
+          bindMode: 'loopback',
+          loopbackUrl: 'http://127.0.0.1:9999',
+          lanUrl: null,
+          restartAvailable: true,
+          diagnostics: [
+            { source: 'shell', level: 'info', message: 'Launching backend...' },
+            { source: 'backend', level: 'info', message: 'Application started.' },
+            { source: 'updater', level: 'warning', message: 'Update check skipped in dev mode.' },
+          ],
+        }),
+        onStatusUpdate: () => {},
+      };
+    });
+
+    await page.goto(`${BASE}/`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1500);
+
+    const sidecarButton = page.locator('text=Sidecar');
+    await expect(sidecarButton).toBeVisible();
+
+    await sidecarButton.click();
+    const log = page.locator('text=Launching backend...');
+    await expect(log).toBeVisible();
+
+    assertNoErrors('sidecar diagnostics panel');
+  });
+
   test('plot panel opens from the header', async ({ page }) => {
     setupErrorTracking(page);
     await page.goto(`${BASE}/`);

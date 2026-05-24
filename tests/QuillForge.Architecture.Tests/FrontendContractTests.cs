@@ -563,6 +563,29 @@ public sealed class FrontendContractTests
     }
 
     [Fact]
+    public void SidecarDiagnosticsPanel_ExistsAndUsesDesktopBridgeContract()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("components", "SidecarDiagnosticsPanel.tsx"));
+
+        Assert.Contains("window.quillforgeDesktop", source, StringComparison.Ordinal);
+        Assert.Contains("getStatus", source, StringComparison.Ordinal);
+        Assert.Contains("onStatusUpdate", source, StringComparison.Ordinal);
+        Assert.Contains("DesktopShellDiagnosticEntry", source, StringComparison.Ordinal);
+        Assert.Contains("diagnostics.slice(-MAX_ENTRIES)", source, StringComparison.Ordinal);
+        Assert.Contains("Copy", source, StringComparison.Ordinal);
+        Assert.Contains("Sidecar", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppStatusFooter_IntegratesSidecarDiagnosticsPanel()
+    {
+        var source = File.ReadAllText(GetFrontendFilePath("components", "AppStatusFooter.tsx"));
+
+        Assert.Contains("SidecarDiagnosticsPanel", source, StringComparison.Ordinal);
+        Assert.Contains("import SidecarDiagnosticsPanel", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ProviderManager_DoesNotExposeDefaultModelAssignmentOptions()
     {
         var source = File.ReadAllText(GetFrontendFilePath("components", "ProviderManager.tsx"));

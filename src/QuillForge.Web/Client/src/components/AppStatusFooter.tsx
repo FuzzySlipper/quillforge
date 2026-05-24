@@ -1,6 +1,7 @@
 import { MODE_ICON_PATHS, MODE_LABELS } from "../modePresentation";
 import type { Message, Mode, SessionUsage, Status } from "../types";
 import ShellIcon from "./ShellIcon";
+import SidecarDiagnosticsPanel from "./SidecarDiagnosticsPanel";
 
 interface AppStatusFooterProps {
   status: Status | null;
@@ -65,59 +66,63 @@ export default function AppStatusFooter({
   ).length;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 py-3 text-[13px] text-text-muted">
-      <div className="flex min-w-0 flex-wrap items-center gap-3">
-        <span className="qf-shell-folio">Session</span>
-        <span className="truncate text-text">
-          {status?.project ?? "unspecified"}
-          {status?.file ? ` / ${status.file}` : ""}
-        </span>
-        <span className="font-mono text-[11px]">
-          {status?.conversationTurns ?? 0} turns
-        </span>
+    <div className="flex flex-col gap-2 py-3 text-[13px] text-text-muted">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <span className="qf-shell-folio">Session</span>
+          <span className="truncate text-text">
+            {status?.project ?? "unspecified"}
+            {status?.file ? ` / ${status.file}` : ""}
+          </span>
+          <span className="font-mono text-[11px]">
+            {status?.conversationTurns ?? 0} turns
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <FooterAction
+            icon={<img src={MODE_ICON_PATHS[mode]} alt="" aria-hidden="true" className="h-4 w-4" />}
+            label="Mode"
+            value={MODE_LABELS[mode]}
+            onClick={onOpenMode}
+          />
+          <FooterAction
+            icon={<ShellIcon name="context" className="h-4 w-4" />}
+            label="Context"
+            value={status?.contextLimit ? `${contextPercent}%` : "—"}
+            onClick={onOpenContext}
+          />
+          <FooterAction
+            icon={<ShellIcon name="spark" className="h-4 w-4" />}
+            label="Reasoning"
+            value={String(reasoningCount)}
+            onClick={onOpenReasoning}
+          />
+          <FooterAction
+            icon={<ShellIcon name="panel" className="h-4 w-4" />}
+            label="Inspector"
+            value={inspectorOpen ? "open" : "closed"}
+            onClick={onToggleInspector}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 font-mono text-[11px]">
+          <span>
+            in <span className="text-text">{formatTokens(usage?.totalInput ?? 0)}</span>
+          </span>
+          <span>
+            out <span className="text-text">{formatTokens(usage?.totalOutput ?? 0)}</span>
+          </span>
+          <span>
+            total <span className="text-text">{formatTokens(totalTokens)}</span>
+          </span>
+          <span>
+            req <span className="text-text">{usage?.totalRequests ?? 0}</span>
+          </span>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <FooterAction
-          icon={<img src={MODE_ICON_PATHS[mode]} alt="" aria-hidden="true" className="h-4 w-4" />}
-          label="Mode"
-          value={MODE_LABELS[mode]}
-          onClick={onOpenMode}
-        />
-        <FooterAction
-          icon={<ShellIcon name="context" className="h-4 w-4" />}
-          label="Context"
-          value={status?.contextLimit ? `${contextPercent}%` : "—"}
-          onClick={onOpenContext}
-        />
-        <FooterAction
-          icon={<ShellIcon name="spark" className="h-4 w-4" />}
-          label="Reasoning"
-          value={String(reasoningCount)}
-          onClick={onOpenReasoning}
-        />
-        <FooterAction
-          icon={<ShellIcon name="panel" className="h-4 w-4" />}
-          label="Inspector"
-          value={inspectorOpen ? "open" : "closed"}
-          onClick={onToggleInspector}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3 font-mono text-[11px]">
-        <span>
-          in <span className="text-text">{formatTokens(usage?.totalInput ?? 0)}</span>
-        </span>
-        <span>
-          out <span className="text-text">{formatTokens(usage?.totalOutput ?? 0)}</span>
-        </span>
-        <span>
-          total <span className="text-text">{formatTokens(totalTokens)}</span>
-        </span>
-        <span>
-          req <span className="text-text">{usage?.totalRequests ?? 0}</span>
-        </span>
-      </div>
+      <SidecarDiagnosticsPanel />
     </div>
   );
 }
