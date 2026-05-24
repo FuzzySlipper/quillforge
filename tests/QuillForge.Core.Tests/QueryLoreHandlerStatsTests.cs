@@ -51,7 +51,7 @@ public class QueryLoreHandlerStatsTests
             SessionId = Guid.CreateVersion7(),
             ActiveMode = Mode.Forge,
             ActiveLoreSet = "default",
-            OnNestedCompletion = tracker.RecordCompletion,
+            OnNestedCompletion = (name, usage, _) => tracker.RecordCompletionWithLatency(name, usage, 0),
         };
 
         var input = new ToolInput(JsonDocument.Parse("""{"query": "Where does the dragon sleep?"}""").RootElement);
@@ -142,7 +142,7 @@ public class QueryLoreHandlerStatsTests
             SessionId = Guid.CreateVersion7(),
             ActiveMode = Mode.Forge,
             ActiveLoreSet = "default",
-            OnNestedCompletion = (_, _) => { }, // no-op callback
+            OnNestedCompletion = (_, _, _) => { }, // no-op callback
         };
 
         var input = new ToolInput(JsonDocument.Parse("""{"query": "test"}""").RootElement);

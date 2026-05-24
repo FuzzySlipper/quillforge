@@ -11,7 +11,7 @@ public sealed class GameInspectorServiceTests
     {
         var sessionId = Guid.Parse("88888888-8888-8888-8888-888888888888");
         var tracker = new InMemoryTokenUsageTracker(Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryTokenUsageTracker>.Instance);
-        tracker.Record(sessionId, "game-agent:agent-1", new TokenUsage(25, 7));
+        tracker.Record(sessionId, "game-agent:agent-1", new TokenUsage(25, 7), 0);
         var service = new GameInspectorService(new FakeGameRuntimeService(CreateRuntime()), tracker);
 
         var projection = await service.GetProjectionAsync(sessionId, promptEnvelopeLimit: 1);

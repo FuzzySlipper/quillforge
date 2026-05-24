@@ -1142,6 +1142,8 @@ export interface ForgeStatsInfo {
   totalOutputTokens: number;
   agentCalls: number;
   chaptersRevised: number;
+  totalLatencyMs: number;
+  averageLatencyMs: number;
   stageTiming: Record<string, ForgeStageTiming>;
 }
 

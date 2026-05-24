@@ -49,6 +49,8 @@ public sealed record SessionUsageDto
     public int TotalInput { get; init; }
     public int TotalOutput { get; init; }
     public int TotalRequests { get; init; }
+    public long TotalLatencyMs { get; init; }
+    public double AverageLatencyMs { get; init; }
     public IReadOnlyList<AgentUsageDto> ByAgent { get; init; } = [];
 }
 
@@ -58,6 +60,8 @@ public sealed record AgentUsageDto
     public int Input { get; init; }
     public int Output { get; init; }
     public int Requests { get; init; }
+    public long TotalLatencyMs { get; init; }
+    public double AverageLatencyMs { get; init; }
 }
 
 public sealed record ChatReasoningDeltaDto

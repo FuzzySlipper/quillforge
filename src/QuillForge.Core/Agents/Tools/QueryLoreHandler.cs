@@ -90,7 +90,7 @@ public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
         // Usage stays on LibrarianResult — only the Bundle is serialized to the tool result.
         if (result.Usage.TotalTokens > 0)
         {
-            context.OnNestedCompletion?.Invoke("librarian", result.Usage);
+            context.OnNestedCompletion?.Invoke("librarian", result.Usage, 0);
         }
 
         return ToolResult.Ok(JsonSerializer.Serialize(result.Bundle));

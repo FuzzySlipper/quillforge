@@ -123,8 +123,10 @@ public sealed class ContractSnapshotTests
                 TotalInput = 3000,
                 TotalOutput = 700,
                 TotalRequests = 2,
-                ByAgent = [new AgentUsageDto { Agent = "orchestrator", Input = 1500, Output = 350, Requests = 1 },
-                           new AgentUsageDto { Agent = "librarian", Input = 1500, Output = 350, Requests = 1 }],
+                TotalLatencyMs = 0,
+                AverageLatencyMs = 0,
+                ByAgent = [new AgentUsageDto { Agent = "orchestrator", Input = 1500, Output = 350, Requests = 1, TotalLatencyMs = 0, AverageLatencyMs = 0 },
+                           new AgentUsageDto { Agent = "librarian", Input = 1500, Output = 350, Requests = 1, TotalLatencyMs = 0, AverageLatencyMs = 0 }],
             },
             Portrait = "/portraits/ai-guide.png",
             UserPortrait = "/portraits/user-avatar.png",
@@ -972,6 +974,7 @@ public sealed class ContractSnapshotTests
                     TotalInputTokens = 120,
                     TotalOutputTokens = 18,
                     TotalRequests = 1,
+                    TotalLatencyMs = 0,
                     ByAgent =
                     [
                         new AgentUsageEntry
@@ -980,6 +983,7 @@ public sealed class ContractSnapshotTests
                             InputTokens = 120,
                             OutputTokens = 18,
                             RequestCount = 1,
+                            TotalLatencyMs = 0,
                         },
                     ],
                 },

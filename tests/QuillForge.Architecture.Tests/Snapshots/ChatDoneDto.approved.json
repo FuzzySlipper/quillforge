@@ -13,18 +13,24 @@
     "totalInput": 3000,
     "totalOutput": 700,
     "totalRequests": 2,
+    "totalLatencyMs": 0,
+    "averageLatencyMs": 0,
     "byAgent": [
       {
         "agent": "orchestrator",
         "input": 1500,
         "output": 350,
-        "requests": 1
+        "requests": 1,
+        "totalLatencyMs": 0,
+        "averageLatencyMs": 0
       },
       {
         "agent": "librarian",
         "input": 1500,
         "output": 350,
-        "requests": 1
+        "requests": 1,
+        "totalLatencyMs": 0,
+        "averageLatencyMs": 0
       }
     ]
   },

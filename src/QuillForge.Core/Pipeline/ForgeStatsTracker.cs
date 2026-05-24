@@ -20,6 +20,7 @@ public sealed class ForgeStatsTracker
     private long _totalOutputTokens;
     private int _agentCalls;
     private int _chaptersRevised;
+    private long _totalLatencyMs;
     private readonly Dictionary<string, StageTiming> _stageTiming = new();
 
     /// <summary>
@@ -34,6 +35,7 @@ public sealed class ForgeStatsTracker
         _totalOutputTokens = existingStats.TotalOutputTokens;
         _agentCalls = existingStats.AgentCalls;
         _chaptersRevised = existingStats.ChaptersRevised;
+        _totalLatencyMs = existingStats.TotalLatencyMs;
 
         foreach (var (stage, timing) in existingStats.StageTiming)
         {
@@ -52,6 +54,21 @@ public sealed class ForgeStatsTracker
             _totalInputTokens += usage.InputTokens;
             _totalOutputTokens += usage.OutputTokens;
             _agentCalls++;
+        }
+    }
+
+    /// <summary>
+    /// Records token usage, increments the agent call count, and accumulates provider latency
+    /// from a single LLM completion.
+    /// </summary>
+    public void RecordCompletionWithLatency(string agentName, TokenUsage usage, long latencyMs)
+    {
+        lock (_lock)
+        {
+            _totalInputTokens += usage.InputTokens;
+            _totalOutputTokens += usage.OutputTokens;
+            _agentCalls++;
+            _totalLatencyMs += latencyMs;
         }
     }
 
@@ -118,6 +135,7 @@ public sealed class ForgeStatsTracker
                 TotalOutputTokens = _totalOutputTokens,
                 AgentCalls = _agentCalls,
                 ChaptersRevised = _chaptersRevised,
+                TotalLatencyMs = _totalLatencyMs,
                 StageTiming = new Dictionary<string, StageTiming>(_stageTiming),
             };
         }

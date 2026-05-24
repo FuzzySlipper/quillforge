@@ -131,12 +131,16 @@
       "totalInputTokens": 120,
       "totalOutputTokens": 18,
       "totalRequests": 1,
+      "totalLatencyMs": 0,
+      "averageLatencyMs": 0,
       "byAgent": [
         {
           "agentName": "game-agent:agent-1",
           "inputTokens": 120,
           "outputTokens": 18,
-          "requestCount": 1
+          "requestCount": 1,
+          "totalLatencyMs": 0,
+          "averageLatencyMs": 0
         }
       ]
     }

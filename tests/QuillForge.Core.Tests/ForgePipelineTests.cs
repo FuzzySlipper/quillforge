@@ -799,7 +799,7 @@ public class ForgePipelineTests
 
             CallbackWasPresent = context.AgentContext.OnNestedCompletion is not null;
             // Simulate a nested librarian call reporting usage
-            context.AgentContext.OnNestedCompletion?.Invoke("librarian", new TokenUsage(75, 150));
+            context.AgentContext.OnNestedCompletion?.Invoke("librarian", new TokenUsage(75, 150), 0);
 
             yield return new StageCompletedEvent(StageName);
         }
@@ -824,7 +824,7 @@ public class ForgePipelineTests
             // Simulate writer top-level completion
             context.StatsTracker.RecordCompletion("forge-writer", new TokenUsage(10, 20));
             // Simulate nested librarian call via OnNestedCompletion callback
-            context.AgentContext.OnNestedCompletion?.Invoke("librarian", new TokenUsage(30, 40));
+            context.AgentContext.OnNestedCompletion?.Invoke("librarian", new TokenUsage(30, 40), 0);
 
             yield return new StageCompletedEvent(StageName);
         }

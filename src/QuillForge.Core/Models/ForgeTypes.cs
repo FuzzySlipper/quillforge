@@ -61,6 +61,12 @@ public sealed record ForgeStats
     public int ChaptersRevised { get; init; }
     public IReadOnlyDictionary<string, StageTiming> StageTiming { get; init; } =
         new Dictionary<string, StageTiming>();
+
+    /// <summary>Total provider latency across all agent calls, in milliseconds.</summary>
+    public long TotalLatencyMs { get; init; }
+
+    /// <summary>Average provider latency per agent call, in milliseconds.</summary>
+    public double AverageLatencyMs => AgentCalls > 0 ? (double)TotalLatencyMs / AgentCalls : 0;
 }
 
 public sealed record StageTiming(DateTimeOffset Start, DateTimeOffset? End);

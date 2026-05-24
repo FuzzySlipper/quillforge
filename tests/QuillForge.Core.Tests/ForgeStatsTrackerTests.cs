@@ -15,6 +15,8 @@ public class ForgeStatsTrackerTests
         Assert.Equal(0, stats.TotalOutputTokens);
         Assert.Equal(0, stats.AgentCalls);
         Assert.Equal(0, stats.ChaptersRevised);
+        Assert.Equal(0, stats.TotalLatencyMs);
+        Assert.Equal(0, stats.AverageLatencyMs);
         Assert.Empty(stats.StageTiming);
     }
 
@@ -27,6 +29,7 @@ public class ForgeStatsTrackerTests
             TotalOutputTokens = 1000,
             AgentCalls = 10,
             ChaptersRevised = 3,
+            TotalLatencyMs = 4500,
             StageTiming = new Dictionary<string, StageTiming>
             {
                 ["Planning"] = new(DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow),
@@ -40,6 +43,8 @@ public class ForgeStatsTrackerTests
         Assert.Equal(1000, stats.TotalOutputTokens);
         Assert.Equal(10, stats.AgentCalls);
         Assert.Equal(3, stats.ChaptersRevised);
+        Assert.Equal(4500, stats.TotalLatencyMs);
+        Assert.Equal(450, stats.AverageLatencyMs); // 4500 / 10
         Assert.True(stats.StageTiming.ContainsKey("Planning"));
     }
 
@@ -55,6 +60,23 @@ public class ForgeStatsTrackerTests
         Assert.Equal(250, stats.TotalInputTokens);
         Assert.Equal(500, stats.TotalOutputTokens);
         Assert.Equal(2, stats.AgentCalls);
+        Assert.Equal(0, stats.TotalLatencyMs); // RecordCompletion does not track latency
+    }
+
+    [Fact]
+    public void RecordCompletionWithLatency_AccumulatesTokensCallsAndLatency()
+    {
+        var tracker = new ForgeStatsTracker();
+
+        tracker.RecordCompletionWithLatency("planner", new TokenUsage(100, 200), 1200);
+        tracker.RecordCompletionWithLatency("writer", new TokenUsage(150, 300), 800);
+
+        var stats = tracker.Snapshot();
+        Assert.Equal(250, stats.TotalInputTokens);
+        Assert.Equal(500, stats.TotalOutputTokens);
+        Assert.Equal(2, stats.AgentCalls);
+        Assert.Equal(2000, stats.TotalLatencyMs);
+        Assert.Equal(1000, stats.AverageLatencyMs); // 2000 / 2
     }
 
     [Fact]
@@ -105,7 +127,7 @@ public class ForgeStatsTrackerTests
     public void ApplyTo_ReturnsManifestWithUpdatedStats()
     {
         var tracker = new ForgeStatsTracker();
-        tracker.RecordCompletion("planner", new TokenUsage(100, 200));
+        tracker.RecordCompletionWithLatency("planner", new TokenUsage(100, 200), 500);
 
         var manifest = new ForgeManifest
         {
@@ -117,6 +139,7 @@ public class ForgeStatsTrackerTests
 
         Assert.Equal(100, updated.Stats.TotalInputTokens);
         Assert.Equal(200, updated.Stats.TotalOutputTokens);
+        Assert.Equal(500, updated.Stats.TotalLatencyMs);
         Assert.Equal("test", updated.ProjectName); // other fields preserved
     }
 
@@ -140,5 +163,13 @@ public class ForgeStatsTrackerTests
         // Second snapshot includes both
         Assert.Equal(40, snapshot2.TotalInputTokens);
         Assert.Equal(2, snapshot2.AgentCalls);
+    }
+
+    [Fact]
+    public void AverageLatencyMs_ReturnsZero_WhenNoCalls()
+    {
+        var tracker = new ForgeStatsTracker();
+        var stats = tracker.Snapshot();
+        Assert.Equal(0, stats.AverageLatencyMs);
     }
 }

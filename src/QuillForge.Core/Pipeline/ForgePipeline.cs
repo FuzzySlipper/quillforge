@@ -70,7 +70,7 @@ public sealed class ForgePipeline : IDiagnosticSource
         // LLM calls (e.g. QueryLoreHandler → LibrarianAgent) report usage into forge stats.
         context.AgentContext = context.AgentContext with
         {
-            OnNestedCompletion = tracker.RecordCompletion,
+            OnNestedCompletion = (agentName, usage, _) => tracker.RecordCompletionWithLatency(agentName, usage, 0),
         };
 
         // Auto-repair: normalize the manifest before running

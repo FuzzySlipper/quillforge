@@ -100,13 +100,14 @@ public sealed record AgentContext
     public Func<ReasoningArtifact, CancellationToken, Task>? OnReasoningArtifact { get; init; }
 
     /// <summary>
-    /// Optional callback for recording token usage from nested LLM calls that occur
-    /// inside tool handlers (e.g. LibrarianAgent called via QueryLoreHandler).
+    /// Optional callback for recording token usage and provider latency from nested LLM calls
+    /// that occur inside tool handlers (e.g. LibrarianAgent called via QueryLoreHandler).
     /// The ToolLoop only aggregates its own completion rounds; nested calls must
     /// report separately through this callback.
     ///
+    /// Parameters: agentName, TokenUsage, latencyMs
     /// Set by the forge pipeline to route nested usage into ForgeStatsTracker.
     /// Null outside of forge runs — non-forge flows are unaffected.
     /// </summary>
-    public Action<string, TokenUsage>? OnNestedCompletion { get; init; }
+    public Action<string, TokenUsage, long>? OnNestedCompletion { get; init; }
 }

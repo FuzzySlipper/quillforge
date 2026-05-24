@@ -277,12 +277,16 @@ public static class SessionEndpoints
                 TotalInput = summary.TotalInputTokens,
                 TotalOutput = summary.TotalOutputTokens,
                 TotalRequests = summary.TotalRequests,
+                TotalLatencyMs = summary.TotalLatencyMs,
+                AverageLatencyMs = summary.AverageLatencyMs,
                 ByAgent = summary.ByAgent.Select(a => new AgentUsageDto
                 {
                     Agent = a.AgentName,
                     Input = a.InputTokens,
                     Output = a.OutputTokens,
                     Requests = a.RequestCount,
+                    TotalLatencyMs = a.TotalLatencyMs,
+                    AverageLatencyMs = a.AverageLatencyMs,
                 }).ToList(),
             });
         });

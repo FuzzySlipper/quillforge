@@ -68,6 +68,13 @@ function StatCard({
   );
 }
 
+function formatLatency(ms: number): string {
+  if (ms <= 0) return "—";
+  if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`;
+  if (ms >= 1_000) return `${(ms / 1_000).toFixed(1)}s`;
+  return `${Math.round(ms)}ms`;
+}
+
 export default function ForgeWorkspace({
   status,
   sending,
@@ -165,6 +172,8 @@ export default function ForgeWorkspace({
   const totalTokens = forgeStatus
     ? forgeStatus.stats.totalInputTokens + forgeStatus.stats.totalOutputTokens
     : 0;
+  const totalLatencyMs = forgeStatus?.stats.totalLatencyMs ?? 0;
+  const averageLatencyMs = forgeStatus?.stats.averageLatencyMs ?? 0;
   const activeProjectSummary = activeProject ?? "No forge project selected";
 
   async function refreshWorkspaceData(projectName = activeProject) {
@@ -427,11 +436,15 @@ export default function ForgeWorkspace({
               </div>
             ) : (
               <div className="flex flex-col gap-6">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                   <StatCard label="Completed" value={`${completedChapters}`} />
                   <StatCard label="Flagged" value={`${flaggedChapters}`} />
                   <StatCard label="Agent Calls" value={`${forgeStatus?.stats.agentCalls ?? 0}`} />
                   <StatCard label="Tokens" value={totalTokens.toLocaleString()} />
+                  <StatCard
+                    label="Latency"
+                    value={`${formatLatency(totalLatencyMs)} / ${formatLatency(averageLatencyMs)}`}
+                  />
                 </div>
 
                 <section>

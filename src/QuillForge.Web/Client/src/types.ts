@@ -127,12 +127,16 @@ export interface AgentUsage {
   input: number;
   output: number;
   requests: number;
+  totalLatencyMs?: number;
+  averageLatencyMs?: number;
 }
 
 export interface SessionUsage {
   totalInput: number;
   totalOutput: number;
   totalRequests: number;
+  totalLatencyMs?: number;
+  averageLatencyMs?: number;
   byAgent: AgentUsage[];
 }
 

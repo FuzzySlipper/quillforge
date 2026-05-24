@@ -21,6 +21,13 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
+function formatLatency(ms: number | undefined): string {
+  if (ms == null || ms === 0) return "—";
+  if (ms >= 60_000) return `${(ms / 60_000).toFixed(1)}m`;
+  if (ms >= 1_000) return `${(ms / 1_000).toFixed(1)}s`;
+  return `${Math.round(ms)}ms`;
+}
+
 function FooterAction({
   icon,
   label,
@@ -118,6 +125,14 @@ export default function AppStatusFooter({
           </span>
           <span>
             req <span className="text-text">{usage?.totalRequests ?? 0}</span>
+          </span>
+          <span title="Total provider latency / avg per request">
+            latency <span className="text-text">{formatLatency(usage?.totalLatencyMs)}</span>
+            {usage?.averageLatencyMs != null && usage.averageLatencyMs > 0 && (
+              <span className="text-text-muted ml-0.5">
+                / {formatLatency(usage.averageLatencyMs)}
+              </span>
+            )}
           </span>
         </div>
       </div>

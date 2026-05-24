@@ -20,7 +20,9 @@
     "totalOutputTokens": 1200,
     "agentCalls": 4,
     "chaptersRevised": 1,
-    "stageTiming": {}
+    "stageTiming": {},
+    "totalLatencyMs": 0,
+    "averageLatencyMs": 0
   },
   "documents": [
     {

@@ -90,7 +90,7 @@ public sealed class GameDiagnosticLogServiceTests
             ],
         };
         var tracker = new InMemoryTokenUsageTracker(NullLogger<InMemoryTokenUsageTracker>.Instance);
-        tracker.Record(sessionId, "game-agent:agent-1", new TokenUsage(123, 45));
+        tracker.Record(sessionId, "game-agent:agent-1", new TokenUsage(123, 45), 0);
         var service = new GameDiagnosticLogService(new FakeGameRuntimeService(runtime), tracker);
 
         var log = await service.GetLogAsync(sessionId);

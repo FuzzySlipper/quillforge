@@ -398,12 +398,16 @@ public static class ChatEndpoints
                 TotalInput = sessionUsage.TotalInputTokens,
                 TotalOutput = sessionUsage.TotalOutputTokens,
                 TotalRequests = sessionUsage.TotalRequests,
+                TotalLatencyMs = sessionUsage.TotalLatencyMs,
+                AverageLatencyMs = sessionUsage.AverageLatencyMs,
                 ByAgent = sessionUsage.ByAgent.Select(a => new AgentUsageDto
                 {
                     Agent = a.AgentName,
                     Input = a.InputTokens,
                     Output = a.OutputTokens,
                     Requests = a.RequestCount,
+                    TotalLatencyMs = a.TotalLatencyMs,
+                    AverageLatencyMs = a.AverageLatencyMs,
                 }).ToList(),
             },
             Portrait = prepared.AssistantPortraitUrl,
