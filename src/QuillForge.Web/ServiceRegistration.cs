@@ -152,6 +152,8 @@ public static class ServiceRegistration
         services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<UpdateStoryStateHandler>());
         services.AddSingleton<UpdateNarrativeStateHandler>();
         services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<UpdateNarrativeStateHandler>());
+        services.AddSingleton<RecordSessionCorrectionHandler>();
+        services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<RecordSessionCorrectionHandler>());
         services.AddSingleton<IToolHandler, DirectSceneHandler>();
         services.AddSingleton<IToolHandler>(sp =>
         {

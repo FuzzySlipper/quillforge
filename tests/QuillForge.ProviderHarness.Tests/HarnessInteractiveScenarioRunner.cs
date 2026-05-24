@@ -307,6 +307,7 @@ public sealed class HarnessInteractiveScenarioRunner : IAsyncDisposable
         builder.Services.AddSingleton<GetStoryStateHandler>();
         builder.Services.AddSingleton<UpdateStoryStateHandler>();
         builder.Services.AddSingleton<UpdateNarrativeStateHandler>();
+        builder.Services.AddSingleton<RecordSessionCorrectionHandler>();
         builder.Services.AddSingleton<WriteProseHandler>();
         builder.Services.AddSingleton<DirectSceneHandler>();
 
@@ -316,6 +317,7 @@ public sealed class HarnessInteractiveScenarioRunner : IAsyncDisposable
         builder.Services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<GetStoryStateHandler>());
         builder.Services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<UpdateStoryStateHandler>());
         builder.Services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<UpdateNarrativeStateHandler>());
+        builder.Services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<RecordSessionCorrectionHandler>());
         builder.Services.AddSingleton<IToolHandler>(sp => sp.GetRequiredService<WriteProseHandler>());
         builder.Services.AddSingleton<IToolHandler>(sp =>
             new QueryDocsHandler(

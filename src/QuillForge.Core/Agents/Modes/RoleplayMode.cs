@@ -31,13 +31,33 @@ public sealed class RoleplayMode : IMode
             ? ""
             : $"\n\n## User Character Context\n\n{context.UserCharacterSection}";
 
+        var stickyCanonSection = string.IsNullOrWhiteSpace(context.StickySessionCanon)
+            ? ""
+            : $"\n\n## Sticky Session Canon\n\n{context.StickySessionCanon}";
+
+        var recentConversationSection = string.IsNullOrWhiteSpace(context.RecentConversationSummary)
+            ? ""
+            : $"\n\n## Recent Session Conversation\n\n{context.RecentConversationSummary}";
+
+        var directorNotesSection = string.IsNullOrWhiteSpace(context.DirectorNotes)
+            ? ""
+            : $"\n\n## Director Notes From Prior Turns\n\n{context.DirectorNotes}";
+
+        var activePlotSection = string.IsNullOrWhiteSpace(context.ActivePlotContent)
+            ? ""
+            : $"\n\n## Active Plot Content\n\n{context.ActivePlotContent}";
+
+        var plotProgressSection = string.IsNullOrWhiteSpace(context.PlotProgressSummary)
+            ? ""
+            : $"\n\n## Plot Progress In This Session\n\n{context.PlotProgressSummary}";
+
         return $"""
             ## Current Mode: Roleplay
 
             You are coordinating an interactive roleplay session.
             Current chat: {context.ProjectName ?? "untitled"}
             Current file: {context.CurrentFile ?? "none"}
-            {characterSection}{userCharacterSection}
+            {characterSection}{userCharacterSection}{stickyCanonSection}{recentConversationSection}{directorNotesSection}{activePlotSection}{plotProgressSection}
 
             Workflow:
             - Use direct_scene for in-scene narrative responses
@@ -58,6 +78,8 @@ public sealed class RoleplayMode : IMode
             If the user corrects canon or characterization, re-ground with `query_context` and any relevant lore documents before continuing.
             Do not patch only the quoted mistake and keep improvising from the old assumption.
             Do not save lore files from Roleplay mode; switch to Lore Builder for durable lore editing.
+            If you receive a user OOC correction while acting as a fallback (direct_scene unavailable), use `record_session_correction`
+            to promote the corrected fact into sticky session canon so the next turn preserves it.
 
             {context.FileContext ?? ""}
 

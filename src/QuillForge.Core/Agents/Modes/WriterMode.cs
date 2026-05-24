@@ -24,11 +24,32 @@ public sealed class WriterMode : IMode
             ? "\n\nThere is pending content awaiting user review. If the user asks for changes, generate a revised draft. The app handles accept/reject actions and saving."
             : "";
 
+        var stickyCanonSection = string.IsNullOrWhiteSpace(context.StickySessionCanon)
+            ? ""
+            : $"\n\n## Sticky Session Canon\n\n{context.StickySessionCanon}";
+
+        var recentConversationSection = string.IsNullOrWhiteSpace(context.RecentConversationSummary)
+            ? ""
+            : $"\n\n## Recent Session Conversation\n\n{context.RecentConversationSummary}";
+
+        var directorNotesSection = string.IsNullOrWhiteSpace(context.DirectorNotes)
+            ? ""
+            : $"\n\n## Director Notes From Prior Turns\n\n{context.DirectorNotes}";
+
+        var activePlotSection = string.IsNullOrWhiteSpace(context.ActivePlotContent)
+            ? ""
+            : $"\n\n## Active Plot Content\n\n{context.ActivePlotContent}";
+
+        var plotProgressSection = string.IsNullOrWhiteSpace(context.PlotProgressSummary)
+            ? ""
+            : $"\n\n## Plot Progress In This Session\n\n{context.PlotProgressSummary}";
+
         return $"""
             ## Current Mode: Writer
 
             You are in long-form writing mode for project "{context.ProjectName ?? "untitled"}".
             Current file: {context.CurrentFile ?? "none"}
+            {stickyCanonSection}{recentConversationSection}{directorNotesSection}{activePlotSection}{plotProgressSection}
 
             Workflow:
             1. Use direct_scene for canon-sensitive drafting requests
@@ -45,6 +66,8 @@ public sealed class WriterMode : IMode
             - Do not bypass the grounding layer for scene writing, chapter drafting, or canon-sensitive revision.
             - The visible prose should come back through direct_scene, then enter the normal review workflow.
             - If the user corrects canon, characterization, chronology, or relationship details, re-ground with `query_context` and any relevant lore documents before generating a revision. Do not patch only the single sentence they flagged.
+            - If you receive a user correction while acting as a fallback (direct_scene unavailable), use `record_session_correction`
+              to promote the corrected fact into sticky session canon so the next turn preserves it.
 
             {context.FileContext ?? ""}{pendingNote}
 

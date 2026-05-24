@@ -91,6 +91,147 @@ public class OrchestratorTests
     }
 
     [Fact]
+    public void BuildSystemPrompt_FallbackIdentifiesSpeakingLayer()
+    {
+        var fake = new FakeCompletionService();
+        var orchestrator = CreateOrchestrator(fake);
+
+        var modeContext = new ModeContext();
+        var roleplayMode = orchestrator.ResolveMode(Mode.Roleplay);
+        var prompt = orchestrator.BuildSystemPrompt("Prelude.", roleplayMode, modeContext);
+
+        Assert.Contains("Narrative Director timed out", prompt);
+        Assert.Contains("mode coordinator producing a fallback response", prompt);
+        Assert.Contains("record it in the session canon for the next turn", prompt);
+    }
+
+    [Fact]
+    public void BuildSystemPrompt_RoleplayFallback_IncludesNarrativeContinuityContext()
+    {
+        var fake = new FakeCompletionService();
+        var orchestrator = CreateOrchestrator(fake);
+
+        var modeContext = new ModeContext
+        {
+            ProjectName = "caleb-test",
+            CharacterSection = "Caleb is April's older brother.",
+            StickySessionCanon = "- Zayne tutored April at Gran's house and therefore knew the address.\n- Anonymous racing forum users know April/Mildred/Gran's neighborhood.",
+            RecentConversationSummary = "User: Zayne sent flowers.\nAssistant: The card reads only 'Mildred'.",
+            DirectorNotes = "Keep the racing forum mystery separate from Zayne's known actions.",
+            ActivePlotContent = "# Racing Forum Arc\n\n- Beat: anonymous users watching the house",
+            PlotProgressSummary = "Current beat: forum-surveillance",
+        };
+
+        var roleplayMode = orchestrator.ResolveMode(Mode.Roleplay);
+        var prompt = orchestrator.BuildSystemPrompt("Prelude.", roleplayMode, modeContext);
+
+        // Regression: known-address fact and anonymity/forum fact must remain separate in prompt sections
+        Assert.Contains("Sticky Session Canon", prompt);
+        Assert.Contains("Zayne tutored April at Gran's house", prompt);
+        Assert.Contains("Anonymous racing forum users know April/Mildred/Gran's neighborhood", prompt);
+        Assert.Contains("Recent Session Conversation", prompt);
+        Assert.Contains("Director Notes From Prior Turns", prompt);
+        Assert.Contains("Active Plot Content", prompt);
+        Assert.Contains("Plot Progress In This Session", prompt);
+        Assert.Contains("Keep the racing forum mystery separate", prompt);
+    }
+
+    [Fact]
+    public void BuildSystemPrompt_WriterFallback_IncludesNarrativeContinuityContext()
+    {
+        var fake = new FakeCompletionService();
+        var orchestrator = CreateOrchestrator(fake);
+
+        var modeContext = new ModeContext
+        {
+            ProjectName = "moonfall",
+            StickySessionCanon = "- Princess Ilya has the crescent moon blade.",
+            RecentConversationSummary = "User: Describe the throne room.",
+            DirectorNotes = "Build tension before the betrayal reveal.",
+        };
+
+        var writerMode = orchestrator.ResolveMode(Mode.Writer);
+        var prompt = orchestrator.BuildSystemPrompt("Prelude.", writerMode, modeContext);
+
+        Assert.Contains("Sticky Session Canon", prompt);
+        Assert.Contains("Princess Ilya has the crescent moon blade", prompt);
+        Assert.Contains("Recent Session Conversation", prompt);
+        Assert.Contains("Director Notes From Prior Turns", prompt);
+    }
+
+    [Fact]
+    public async Task HandleAsync_RoleplayMode_AllowsRecordSessionCorrectionAtTopLevel()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueText("Scene reply");
+        var orchestrator = CreateOrchestrator(fake);
+        var state = new SessionState
+        {
+            Mode = new ModeSelectionState { ActiveMode = Mode.Roleplay },
+        };
+        var context = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = Mode.Roleplay };
+        var tools = new IToolHandler[]
+        {
+            new StubToolHandler("direct_scene"),
+            new StubToolHandler("record_session_correction"),
+            new StubToolHandler("write_prose"),
+            new StubToolHandler("update_story_state"),
+            new StubToolHandler("update_narrative_state"),
+        };
+
+        await orchestrator.HandleAsync(
+            state,
+            "test-model",
+            1024,
+            tools,
+            [new CompletionMessage("user", new MessageContent("continue the scene"))],
+            context);
+
+        var toolNames = fake.ReceivedRequests[0].Tools!.Select(t => t.Name).ToList();
+        Assert.Contains("direct_scene", toolNames);
+        Assert.Contains("record_session_correction", toolNames);
+        Assert.DoesNotContain("write_prose", toolNames);
+        Assert.DoesNotContain("update_story_state", toolNames);
+        Assert.DoesNotContain("update_narrative_state", toolNames);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WriterMode_AllowsRecordSessionCorrectionAtTopLevel()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueText("Draft reply");
+        var orchestrator = CreateOrchestrator(fake);
+        var state = new SessionState
+        {
+            Mode = new ModeSelectionState { ActiveMode = Mode.Writer },
+        };
+        var context = new AgentContext { SessionId = Guid.CreateVersion7(), ActiveMode = Mode.Writer };
+        var tools = new IToolHandler[]
+        {
+            new StubToolHandler("direct_scene"),
+            new StubToolHandler("record_session_correction"),
+            new StubToolHandler("write_prose"),
+            new StubToolHandler("update_story_state"),
+            new StubToolHandler("update_narrative_state"),
+        };
+
+        await orchestrator.HandleAsync(
+            state,
+            "test-model",
+            1024,
+            tools,
+            [new CompletionMessage("user", new MessageContent("draft this scene"))],
+            context);
+
+        var toolNames = fake.ReceivedRequests[0].Tools!.Select(t => t.Name).ToList();
+        Assert.Contains("direct_scene", toolNames);
+        Assert.Contains("record_session_correction", toolNames);
+        Assert.DoesNotContain("write_prose", toolNames);
+        Assert.DoesNotContain("update_story_state", toolNames);
+        Assert.DoesNotContain("update_narrative_state", toolNames);
+    }
+
+    [Fact]
     public async Task HandleAsync_GuideMode_UsesAppOwnedPromptPrelude()
     {
         var fake = new FakeCompletionService();

@@ -40,4 +40,9 @@ public sealed record ModeContext
     public string? UserCharacterSection { get; init; }
     public string? WriterPendingContent { get; init; }
     public string? ActiveLoreSet { get; init; }
+    public string? StickySessionCanon { get; init; }
+    public string? RecentConversationSummary { get; init; }
+    public string? DirectorNotes { get; init; }
+    public string? ActivePlotContent { get; init; }
+    public string? PlotProgressSummary { get; init; }
 }

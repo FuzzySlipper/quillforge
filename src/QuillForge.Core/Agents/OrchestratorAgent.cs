@@ -171,6 +171,15 @@ public sealed class OrchestratorAgent
             doing instead. Never silently absorb a tool failure and produce output as if nothing
             happened — the user needs to know when they are getting a fallback response so they
             can decide whether to retry or report the issue.
+
+            When a fallback response is necessary because direct_scene or another mandatory grounding
+            tool is unavailable, identify which layer is speaking:
+            - If you are producing prose directly because the Narrative Director timed out, say
+              "(OOC: Narrative Director timed out; I am the mode coordinator producing a fallback response.)"
+            - If you are only coordinating and explaining the failure, say
+              "(OOC: I am the mode coordinator. The requested tool failed and I cannot fulfill the request.)"
+            - Always explain where the user should provide corrections: "If you spot a continuity error,
+              tell me in OOC and I will record it in the session canon for the next turn."
             """;
 
         var body = $"{modeSection}{stateSummary}{loreSection}{fallbackGuidance}";
@@ -301,6 +310,11 @@ public sealed class OrchestratorAgent
             FileContext = sessionContext.FileContext,
             WriterPendingContent = sessionContext.WriterPendingContent,
             ActiveLoreSet = activeLoreSet,
+            StickySessionCanon = sessionContext.StickySessionCanon,
+            RecentConversationSummary = sessionContext.RecentConversationSummary,
+            DirectorNotes = sessionContext.DirectorNotes,
+            ActivePlotContent = sessionContext.ActivePlotContent,
+            PlotProgressSummary = sessionContext.PlotProgressSummary,
         };
     }
 }
