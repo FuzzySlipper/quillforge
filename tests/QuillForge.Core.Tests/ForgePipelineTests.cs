@@ -746,6 +746,8 @@ public class ForgePipelineTests
         Assert.Equal(75, stats.TotalInputTokens);  // 75 from nested librarian call
         Assert.Equal(150, stats.TotalOutputTokens); // 150 from nested librarian call
         Assert.Equal(1, stats.AgentCalls);
+        Assert.Equal(830, stats.TotalLatencyMs); // 830ms from nested librarian call
+        Assert.Equal(830, stats.AverageLatencyMs); // 830 / 1
     }
 
     [Fact]
@@ -778,6 +780,9 @@ public class ForgePipelineTests
         Assert.Equal(40, stats.TotalInputTokens);
         Assert.Equal(60, stats.TotalOutputTokens);
         Assert.Equal(2, stats.AgentCalls); // 1 writer + 1 librarian
+        // Librarian: 830ms latency, writer: 0ms (RecordCompletion, not WithLatency) => total 830
+        Assert.Equal(830, stats.TotalLatencyMs);
+        Assert.Equal(415, stats.AverageLatencyMs); // 830 / 2
     }
 
     /// <summary>
@@ -798,8 +803,8 @@ public class ForgePipelineTests
             await Task.Yield();
 
             CallbackWasPresent = context.AgentContext.OnNestedCompletion is not null;
-            // Simulate a nested librarian call reporting usage
-            context.AgentContext.OnNestedCompletion?.Invoke("librarian", new TokenUsage(75, 150), 0);
+            // Simulate a nested librarian call reporting usage and 830ms latency
+            context.AgentContext.OnNestedCompletion?.Invoke("librarian", new TokenUsage(75, 150), 830);
 
             yield return new StageCompletedEvent(StageName);
         }
@@ -823,8 +828,8 @@ public class ForgePipelineTests
 
             // Simulate writer top-level completion
             context.StatsTracker.RecordCompletion("forge-writer", new TokenUsage(10, 20));
-            // Simulate nested librarian call via OnNestedCompletion callback
-            context.AgentContext.OnNestedCompletion?.Invoke("librarian", new TokenUsage(30, 40), 0);
+            // Simulate nested librarian call via OnNestedCompletion callback with 830ms latency
+            context.AgentContext.OnNestedCompletion?.Invoke("librarian", new TokenUsage(30, 40), 830);
 
             yield return new StageCompletedEvent(StageName);
         }

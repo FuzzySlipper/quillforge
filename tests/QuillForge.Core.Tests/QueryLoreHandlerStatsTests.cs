@@ -46,12 +46,17 @@ public class QueryLoreHandlerStatsTests
         var handler = new QueryLoreHandler(librarian, loreStore, fileService, guard, LogFactory.CreateLogger<QueryLoreHandler>());
 
         var tracker = new ForgeStatsTracker();
+        var capturedLatency = 0L;
         var context = new AgentContext
         {
             SessionId = Guid.CreateVersion7(),
             ActiveMode = Mode.Forge,
             ActiveLoreSet = "default",
-            OnNestedCompletion = (name, usage, _) => tracker.RecordCompletionWithLatency(name, usage, 0),
+            OnNestedCompletion = (name, usage, latencyMs) =>
+            {
+                tracker.RecordCompletionWithLatency(name, usage, latencyMs);
+                capturedLatency = latencyMs;
+            },
         };
 
         var input = new ToolInput(JsonDocument.Parse("""{"query": "Where does the dragon sleep?"}""").RootElement);
@@ -67,6 +72,11 @@ public class QueryLoreHandlerStatsTests
         Assert.True(stats.TotalInputTokens > 0, "Librarian input tokens should be recorded via callback");
         Assert.True(stats.TotalOutputTokens > 0, "Librarian output tokens should be recorded via callback");
         Assert.Equal(1, stats.AgentCalls);
+
+        // Assert: latency is measured and forwarded (even in tests the
+        // FakeCompletionService returns fast enough that elapsed ms >= 0)
+        Assert.True(capturedLatency >= 0,
+            $"Librarian latency should be captured by Stopwatch, got {capturedLatency}ms");
     }
 
     [Fact]
