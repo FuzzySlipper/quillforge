@@ -522,6 +522,66 @@ public sealed class NarrativeDirectorAgentTests
         Assert.Contains("storyState=33", contextHint);
         Assert.Contains("directorNotes=", contextHint);
     }
+
+    [Fact]
+    public async Task DirectSceneAsync_IncludesUserCharacterContext_WhenPresent()
+    {
+        var fake = new FakeCompletionService();
+        fake.EnqueueText("Zayne draws his blade and steps forward.");
+
+        var continuation = new ContinuationStrategy(NullLogger<ContinuationStrategy>.Instance);
+        var toolLoop = new ToolLoop(fake, continuation, NullLogger<ToolLoop>.Instance, new AppConfig());
+        var loreStore = new ConfigurableLoreStore(new Dictionary<string, string>
+        {
+            ["scene.md"] = "The alley is narrow and dark.",
+        });
+        var fileService = new FakeContentFileService();
+        var guard = new CanonPrerequisiteGuard(
+            loreStore,
+            fileService,
+            new FakeNarrativeRulesStore(),
+            new FakeWritingStyleStore(),
+            NullLogger<CanonPrerequisiteGuard>.Instance);
+        var agent = new NarrativeDirectorAgent(
+            toolLoop,
+            new QueryLoreHandler(null!, loreStore, fileService, guard, NullLogger<QueryLoreHandler>.Instance),
+            new UpdateStoryStateHandler(new TrackingStoryStateService(), new FakeInteractiveSessionContextService(), NullLogger<UpdateStoryStateHandler>.Instance),
+            new UpdateNarrativeStateHandler(new FakeSessionRuntimeService(), NullLogger<UpdateNarrativeStateHandler>.Instance),
+            new WriteProseHandler(null!, new FakeInteractiveSessionContextService(), new TrackingStoryStateService(), NullLogger<WriteProseHandler>.Instance),
+            guard,
+            new FakeNarrativeRulesStore(),
+            new AppConfig(),
+            NullLogger<NarrativeDirectorAgent>.Instance);
+
+        var result = await agent.DirectSceneAsync(
+            new NarrativeDirectionRequest
+            {
+                UserMessage = "What does Zayne do next?",
+            },
+            new AgentContext
+            {
+                SessionId = Guid.CreateVersion7(),
+                ActiveMode = Mode.Roleplay,
+                ActiveLoreSet = "default",
+                ActiveNarrativeRules = "default",
+                SessionContext = new InteractiveSessionContext
+                {
+                    ActiveMode = Mode.Roleplay,
+                    ProjectName = "thieves",
+                    StoryStatePath = "thieves/.state.yaml",
+                    CharacterSection = "Aurora is a brilliant mage.",
+                    UserCharacterSection = "Zayne is a sharp-witted rogue.",
+                },
+            });
+
+        Assert.Equal("Zayne draws his blade and steps forward.", result.ResponseText);
+
+        var request = fake.ReceivedRequests.Single();
+        Assert.Contains("## Character Context", request.SystemPrompt!);
+        Assert.Contains("Aurora is a brilliant mage.", request.SystemPrompt!);
+        Assert.Contains("## User Character Context", request.SystemPrompt!);
+        Assert.Contains("Zayne is a sharp-witted rogue.", request.SystemPrompt!);
+    }
 }
 
 internal sealed class FakeNarrativeRulesStore : INarrativeRulesStore

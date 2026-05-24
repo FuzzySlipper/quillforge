@@ -27,13 +27,17 @@ public sealed class RoleplayMode : IMode
             ? ""
             : $"\n\n## Character Context\n\n{context.CharacterSection}";
 
+        var userCharacterSection = string.IsNullOrWhiteSpace(context.UserCharacterSection)
+            ? ""
+            : $"\n\n## User Character Context\n\n{context.UserCharacterSection}";
+
         return $"""
             ## Current Mode: Roleplay
 
             You are coordinating an interactive roleplay session.
             Current chat: {context.ProjectName ?? "untitled"}
             Current file: {context.CurrentFile ?? "none"}
-            {characterSection}
+            {characterSection}{userCharacterSection}
 
             Workflow:
             - Use direct_scene for in-scene narrative responses

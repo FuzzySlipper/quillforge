@@ -175,6 +175,10 @@ public class NarrativeDirectorAgent
             ? ""
             : $"\n\n## Character Context\n\n{sessionContext.CharacterSection}";
 
+        var userCharacterSection = string.IsNullOrWhiteSpace(sessionContext?.UserCharacterSection)
+            ? ""
+            : $"\n\n## User Character Context\n\n{sessionContext.UserCharacterSection}";
+
         var storyStateSection = string.IsNullOrWhiteSpace(sessionContext?.StoryStateSummary)
             ? ""
             : $"\n\n## Current Story State\n\n{sessionContext.StoryStateSummary}";
@@ -241,7 +245,7 @@ public class NarrativeDirectorAgent
 
             ## Narrative Rules
 
-            {rulesSection}{characterSection}{storyStateSection}{narrativeNotesSection}{stickyCanonSection}{recentConversationSection}{activePlotSection}{activePlotContentSection}{plotProgressSection}{fileContextSection}{loreSection}
+            {rulesSection}{characterSection}{userCharacterSection}{storyStateSection}{narrativeNotesSection}{stickyCanonSection}{recentConversationSection}{activePlotSection}{activePlotContentSection}{plotProgressSection}{fileContextSection}{loreSection}
             """;
     }
 
@@ -257,6 +261,10 @@ public class NarrativeDirectorAgent
         var characterSection = string.IsNullOrWhiteSpace(sessionContext?.CharacterSection)
             ? ""
             : $"\n\n## Character Context\n\n{sessionContext.CharacterSection}";
+
+        var userCharacterSection = string.IsNullOrWhiteSpace(sessionContext?.UserCharacterSection)
+            ? ""
+            : $"\n\n## User Character Context\n\n{sessionContext.UserCharacterSection}";
 
         var loreSection = string.IsNullOrWhiteSpace(context.ActiveLoreSet)
             ? ""
@@ -288,7 +296,7 @@ public class NarrativeDirectorAgent
 
             ## Narrative Rules
 
-            {rulesSection}{characterSection}{loreSection}
+            {rulesSection}{characterSection}{userCharacterSection}{loreSection}
             """;
     }
 

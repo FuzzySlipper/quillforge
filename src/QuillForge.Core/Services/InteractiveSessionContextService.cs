@@ -40,6 +40,7 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
         CancellationToken ct = default)
     {
         string? characterSection = null;
+        string? userCharacterSection = null;
         string? storyStateSummary = null;
         string? fileContext = null;
         string? activePlotContent = null;
@@ -75,6 +76,35 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to load character card {Character}", state.Mode.Character);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(state.Roleplay.ActiveUserCharacter))
+        {
+            try
+            {
+                var userCard = await _characterCardStore.LoadAsync(state.Roleplay.ActiveUserCharacter, ct);
+                if (userCard is not null)
+                {
+                    var rawSection = _characterCardStore.CardToPrompt(userCard);
+                    userCharacterSection = RoleplayShortcodeResolver.Substitute(
+                        rawSection,
+                        charName: userCard.Name,
+                        userName: state.Mode.Character);
+
+                    var unresolved = RoleplayShortcodeResolver.FindUnresolved(userCharacterSection);
+                    if (unresolved.Count > 0)
+                    {
+                        _logger.LogWarning(
+                            "Unresolved roleplay shortcodes in user character card {Character}: {Shortcodes}",
+                            state.Roleplay.ActiveUserCharacter,
+                            string.Join(", ", unresolved));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load user character card {Character}", state.Roleplay.ActiveUserCharacter);
             }
         }
 
@@ -142,6 +172,8 @@ public sealed class InteractiveSessionContextService : IInteractiveSessionContex
             CurrentFile = state.Mode.CurrentFile,
             Character = state.Mode.Character,
             CharacterSection = characterSection,
+            UserCharacter = state.Roleplay.ActiveUserCharacter,
+            UserCharacterSection = userCharacterSection,
             StoryStateSummary = storyStateSummary,
             FileContext = fileContext,
             WriterPendingContent = state.Writer.PendingContent,

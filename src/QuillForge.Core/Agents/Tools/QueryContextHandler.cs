@@ -110,6 +110,7 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
         InteractiveSessionContext context)
     {
         AddMatch(results, "character_card", context.Character ?? "selected-character", "Selected Character Card", context.CharacterSection, query, tokens, includeWhenAskedForSource: ["character", "card", "persona"]);
+        AddMatch(results, "user_character_card", context.UserCharacter ?? "selected-user-character", "Selected User Character Card", context.UserCharacterSection, query, tokens, includeWhenAskedForSource: ["user", "character", "card", "persona"]);
         AddMatch(results, "story_state", context.StoryStatePath, "Current Story State", context.StoryStateSummary, query, tokens, includeWhenAskedForSource: ["story", "state"]);
         AddMatch(results, "session_canon", "sticky-session-canon", "Sticky Session Canon", context.StickySessionCanon, query, tokens, includeWhenAskedForSource: ["canon", "session", "sticky"]);
         AddMatch(results, "director_notes", "director-notes", "Director Notes", context.DirectorNotes, query, tokens, includeWhenAskedForSource: ["director", "notes"]);

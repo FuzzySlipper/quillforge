@@ -13,6 +13,8 @@ public sealed record InteractiveSessionContext
     public string? CurrentFile { get; init; }
     public string? Character { get; init; }
     public string? CharacterSection { get; init; }
+    public string? UserCharacter { get; init; }
+    public string? UserCharacterSection { get; init; }
     public string? StoryStateSummary { get; init; }
     public string? FileContext { get; init; }
     public string? WriterPendingContent { get; init; }

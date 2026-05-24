@@ -48,6 +48,7 @@ public static class ProbeEndpoints
                 ProjectName = sessionContext.ProjectName,
                 CurrentFile = sessionContext.CurrentFile,
                 CharacterSection = sessionContext.CharacterSection,
+                UserCharacterSection = sessionContext.UserCharacterSection,
                 StoryStateSummary = sessionContext.StoryStateSummary,
                 FileContext = sessionContext.FileContext,
                 WriterPendingContent = sessionContext.WriterPendingContent,

@@ -37,6 +37,7 @@ public sealed record ModeContext
     public string? FileContext { get; init; }
     public string? StoryStateSummary { get; init; }
     public string? CharacterSection { get; init; }
+    public string? UserCharacterSection { get; init; }
     public string? WriterPendingContent { get; init; }
     public string? ActiveLoreSet { get; init; }
 }

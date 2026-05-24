@@ -94,6 +94,7 @@ public sealed class WriteProseHandler : TypedToolHandler<WriteProseArgs>
         var sections = new List<string>();
 
         AddSection(sections, "Character Context", sessionContext.CharacterSection);
+        AddSection(sections, "User Character Context", sessionContext.UserCharacterSection);
         AddSection(sections, "Current Story State", sessionContext.StoryStateSummary);
 
         if (string.IsNullOrWhiteSpace(sessionContext.StoryStateSummary) && storyStateData.Count > 0)
