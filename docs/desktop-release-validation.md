@@ -6,10 +6,14 @@ Use this checklist before publishing or announcing a desktop release. It is inte
 
 For the tagged release you expect to publish, confirm GitHub Actions produced the current first-wave desktop assets:
 
-- `QuillForge-x86_64.AppImage`
-- `QuillForge-macos-<arch>.app.zip`
-- `QuillForge-macos-<arch>.dmg`
-- `QuillForge-windows-x64-setup.exe`
+- `QuillForge-Linux-x86_64-<version>.AppImage`
+- `QuillForge-Linux-x86_64-<version>.rpm`
+- `QuillForge-macOS-x64-<version>.dmg`
+- `QuillForge-macOS-x64-<version>.zip`
+- `QuillForge-macOS-arm64-<version>.dmg`
+- `QuillForge-macOS-arm64-<version>.zip`
+- `QuillForge-Windows-x64-<version>.exe`
+- updater metadata: `latest.yml`, platform-specific `*.yml`, and `*.blockmap`
 
 Quick sanity checks:
 - artifact filenames match the stable names documented in `README.md`
@@ -22,9 +26,9 @@ Run at least one real install path for the platforms you care about most.
 
 ### Linux
 
-1. Download `QuillForge-x86_64.AppImage`.
-2. Make it executable with `chmod +x ./QuillForge-x86_64.AppImage`.
-3. Run it with `./QuillForge-x86_64.AppImage`.
+1. Download `QuillForge-Linux-x86_64-<version>.AppImage`.
+2. Make it executable with `chmod +x ./QuillForge-Linux-x86_64-<version>.AppImage`.
+3. Run it with `./QuillForge-Linux-x86_64-<version>.AppImage`.
 4. Confirm the desktop shell appears instead of a terminal-plus-browser workflow.
 5. Confirm the first run creates `~/Documents/QuillForge`.
 6. Close and relaunch to confirm the app still opens the same workspace.
@@ -40,7 +44,7 @@ Run at least one real install path for the platforms you care about most.
 
 ### Windows
 
-1. Run `QuillForge-windows-x64-setup.exe`.
+1. Run `QuillForge-Windows-x64-<version>.exe`.
 2. Launch QuillForge from Start.
 3. Confirm the desktop shell opens and uses the Windows Documents-based QuillForge workspace.
 4. Close and relaunch once to make sure the installed shortcut still works.
@@ -106,13 +110,29 @@ At minimum, confirm:
 
 ## Maintainer Build Checks
 
-Before tagging a release, make sure the core desktop build commands still succeed locally in the environment you are using:
+GitHub Actions should be responsible for cross-platform packaging and release asset publication. Run the exhaustive quality checks locally before bumping/tagging so the tag workflow can stay small and mostly package/publish.
+
+Before tagging a release, run the local preflight script from the repository root:
+
+```bash
+scripts/preflight-desktop-release.sh
+```
+
+That script verifies release config, builds/tests the .NET solution, builds the web frontend, and installs desktop dependencies. The current frontend lint baseline has unrelated warnings/errors, so lint is opt-in until that baseline is cleaned up:
+
+```bash
+RUN_FRONTEND_LINT=1 scripts/preflight-desktop-release.sh
+```
+
+If you need to isolate the desktop bundling step locally afterward, run:
 
 ```bash
 cd src/QuillForge.Desktop
-npm install
+npm ci
 npx electron-builder --linux --publish never
 ```
+
+Tag-triggered GitHub Actions intentionally skips the full test suite. It only validates tag/version/release config before building installers on hosted Linux/macOS/Windows runners and uploading release assets. If the release upload step is rerun, it must reuse the existing release and clobber/retry individual assets rather than deleting and recreating the release.
 
 If you are validating release automation rather than only local shell behavior, also inspect `.github/workflows/release.yml` and confirm the matrix still covers:
 - Linux AppImage output

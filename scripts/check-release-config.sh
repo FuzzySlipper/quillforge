@@ -16,10 +16,24 @@ lock_root_version="$(node -e "process.stdout.write(require('./src/QuillForge.Des
 [[ "$pkg_version" == "$lock_version" ]] || fail "Desktop package.json version ($pkg_version) does not match package-lock.json version ($lock_version)"
 [[ "$pkg_version" == "$lock_root_version" ]] || fail "Desktop package.json version ($pkg_version) does not match package-lock root package version ($lock_root_version)"
 
+if [[ -n "${EXPECT_RELEASE_TAG:-}" ]]; then
+  expected_version="${EXPECT_RELEASE_TAG#v}"
+  [[ "$EXPECT_RELEASE_TAG" == v* ]] || fail "release tag must start with v (got $EXPECT_RELEASE_TAG)"
+  [[ "$pkg_version" == "$expected_version" ]] || fail "Desktop package.json version ($pkg_version) does not match release tag ($EXPECT_RELEASE_TAG)"
+fi
+
 node <<'NODE'
 const fs = require('fs');
 
 const workflow = fs.readFileSync('.github/workflows/release.yml', 'utf8');
+if (workflow.includes('gh release delete')) {
+  console.error('release config check failed: release workflow must not delete releases before uploading assets');
+  process.exit(1);
+}
+if (!workflow.includes('upload_with_retry')) {
+  console.error('release config check failed: release workflow must retry release asset uploads');
+  process.exit(1);
+}
 const start = workflow.indexOf('      - name: Stage release assets');
 const end = workflow.indexOf('      - name: Upload staged assets', start);
 if (start === -1 || end === -1) {

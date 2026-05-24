@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   test:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,11 +26,24 @@ jobs:
       - name: Validate release configuration
         run: scripts/check-release-config.sh
       - run: dotnet restore QuillForge.slnx
-      - run: dotnet build QuillForge.slnx --no-restore -c Release
-      - run: dotnet test QuillForge.slnx --no-build -c Release
+      - run: dotnet build QuillForge.slnx --no-restore -c Release -p:AllowMissingPrunePackageData=true
+      - run: dotnet test QuillForge.slnx --no-build -c Release -p:AllowMissingPrunePackageData=true
+
+  release-preflight:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate tag and release configuration
+        run: scripts/check-release-config.sh
+        env:
+          EXPECT_RELEASE_TAG: ${{ github.ref_name }}
 
   desktop-bundles:
-    needs: test
+    needs: release-preflight
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.os }}
     strategy:
@@ -140,15 +154,36 @@ jobs:
         with:
           path: release-assets
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
+        shell: bash
         run: |
-          # Wipe any stale release from a previous failed run
-          gh release delete "${{ github.ref_name }}" --yes 2>/dev/null || true
-          # Create the release with auto-generated notes
-          gh release create "${{ github.ref_name }}" --generate-notes
-          # Upload assets one by one via find (safe with spaces/non-standard names)
-          find release-assets -type f -print0 | while IFS= read -r -d '' f; do
-            gh release upload "${{ github.ref_name }}" "$f" --clobber
-          done
+          set -euo pipefail
+
+          tag="${{ github.ref_name }}"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; reusing it."
+          else
+            gh release create "$tag" --generate-notes
+          fi
+
+          upload_with_retry() {
+            local file="$1"
+            local attempt
+            for attempt in 1 2 3 4 5; do
+              if gh release upload "$tag" "$file" --clobber; then
+                return 0
+              fi
+              echo "Upload failed for $file (attempt $attempt/5)." >&2
+              if [[ "$attempt" == 5 ]]; then
+                return 1
+              fi
+              sleep $((attempt * 10))
+            done
+          }
+
+          while IFS= read -r -d '' file; do
+            upload_with_retry "$file"
+          done < <(find release-assets -type f -print0 | sort -z)
         env:
           GH_TOKEN: ${{ github.token }}

@@ -47,14 +47,14 @@ Download the latest desktop release for your platform from:
 
 Current release artifacts prioritize the desktop shell:
 
-- Linux AppImage: `QuillForge-x86_64.AppImage`
-- macOS manual-download bundles: `QuillForge-macos-<arch>.app.zip` and `QuillForge-macos-<arch>.dmg`
-- Windows installer: `QuillForge-windows-x64-setup.exe`
+- Linux AppImage/RPM: `QuillForge-Linux-x86_64-<version>.AppImage` and `QuillForge-Linux-x86_64-<version>.rpm`
+- macOS manual-download bundles: `QuillForge-macOS-<arch>-<version>.zip` and `QuillForge-macOS-<arch>-<version>.dmg`
+- Windows installer: `QuillForge-Windows-x64-<version>.exe`
 
 Install by platform:
-- Linux: `chmod +x ./QuillForge-x86_64.AppImage && ./QuillForge-x86_64.AppImage`
-- macOS: unzip `QuillForge-macos-<arch>.app.zip` or open the `.dmg`, then move `QuillForge.app` into `Applications`
-- Windows: run `QuillForge-windows-x64-setup.exe`
+- Linux: `chmod +x ./QuillForge-Linux-x86_64-<version>.AppImage && ./QuillForge-Linux-x86_64-<version>.AppImage`
+- macOS: unzip `QuillForge-macOS-<arch>-<version>.zip` or open the `.dmg`, then move `QuillForge.app` into `Applications`
+- Windows: run `QuillForge-Windows-x64-<version>.exe`
 
 macOS note for the current unsigned early builds:
 - if macOS blocks launch, open `System Settings -> Privacy & Security`, find the blocked QuillForge message, and choose `Open Anyway`
@@ -69,7 +69,7 @@ Workspace behavior:
 - if a desktop-mode launch finds an older sibling `user/` directory next to the published app and `Documents/QuillForge` is still empty, QuillForge copies that old workspace into `Documents/QuillForge` and leaves the original in place
 
 Manual updates keep your writing workspace in place:
-- Linux: download the latest AppImage, make it executable with `chmod +x QuillForge-x86_64.AppImage`, and run it
+- Linux: download the latest AppImage, make it executable with `chmod +x QuillForge-Linux-x86_64-<version>.AppImage`, and run it
 - macOS: replace the old `QuillForge.app` in `Applications` with the newer one you downloaded
 - Windows: run the newer installer and let it replace the installed app
 - in all of those cases, leave `Documents/QuillForge` alone unless you are intentionally moving or backing up your writing workspace
