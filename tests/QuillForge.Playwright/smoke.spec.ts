@@ -374,4 +374,44 @@ test.describe('UI Smoke Tests', () => {
     await expect(page.getByRole('heading', { name: 'Documentation' })).toBeVisible();
     assertNoErrors('docs inspector section');
   });
+
+  // --- Tour smoke tests ---
+
+  test('tour page loads without errors', async ({ page }) => {
+    setupErrorTracking(page);
+    await page.goto(`${BASE}/tour`);
+    await page.waitForLoadState('networkidle');
+    const heading = page.locator('.tour-display');
+    await expect(heading).toBeVisible();
+    await expect(heading).toContainText('QuillForge is a story studio');
+    assertNoErrors('tour page load');
+  });
+
+  test('tour page title is set correctly', async ({ page }) => {
+    await page.goto(`${BASE}/tour`);
+    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveTitle('QuillForge Tour');
+  });
+
+  test('tour entry point in AppRail navigates to tour', async ({ page }) => {
+    setupErrorTracking(page);
+    await page.goto(`${BASE}/`);
+    await page.waitForLoadState('networkidle');
+    await page.getByTitle('Interactive Tour').click();
+    await page.waitForLoadState('networkidle');
+    const heading = page.locator('.tour-display');
+    await expect(heading).toBeVisible();
+    assertNoErrors('tour from app rail');
+  });
+
+  test('tour entry point in Guide workspace navigates to tour', async ({ page }) => {
+    setupErrorTracking(page);
+    await page.goto(`${BASE}/`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Take the interactive tour' }).click();
+    await page.waitForLoadState('networkidle');
+    const heading = page.locator('.tour-display');
+    await expect(heading).toBeVisible();
+    assertNoErrors('tour from guide workspace');
+  });
 });

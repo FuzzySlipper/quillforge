@@ -15,6 +15,7 @@ interface AppRailProps {
   onOpenAppSettings: () => void;
   onOpenTextTheme: () => void;
   onOpenDocs: () => void;
+  onOpenTour: () => void;
 }
 
 interface RailButtonProps {
@@ -50,6 +51,7 @@ export default function AppRail({
   onOpenAppSettings,
   onOpenTextTheme,
   onOpenDocs,
+  onOpenTour,
 }: AppRailProps) {
   const modeLabel = MODE_LABELS[mode];
 
@@ -104,6 +106,10 @@ export default function AppRail({
 
         <RailButton title="Documentation" onClick={onOpenDocs}>
           <ShellIcon name="book" />
+        </RailButton>
+
+        <RailButton title="Interactive Tour" onClick={onOpenTour}>
+          <ShellIcon name="compass" />
         </RailButton>
       </div>
     </aside>

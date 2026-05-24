@@ -1096,6 +1096,7 @@ function App() {
             }}
             onOpenProviders={() => setProviderOpen(true)}
             onOpenDocs={openDocsSection}
+            onOpenTour={() => { window.location.href = '/tour'; }}
           />
         );
       case "writer":
@@ -1454,6 +1455,7 @@ function App() {
             onOpenAppSettings={() => setAppSettingsOpen(true)}
             onOpenTextTheme={() => setTextThemeOpen(true)}
             onOpenDocs={openDocsSection}
+            onOpenTour={() => { window.location.href = '/tour'; }}
           />
         )}
         inspector={(

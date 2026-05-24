@@ -10,6 +10,7 @@ interface ShellIconProps {
     | "context"
     | "spark"
     | "book"
+    | "compass"
     | "chevron-left"
     | "chevron-right";
   className?: string;
@@ -106,6 +107,12 @@ export default function ShellIcon({ name, className }: ShellIconProps) {
       {name === "book" && (
         <>
           <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20" />
+        </>
+      )}
+      {name === "compass" && (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="currentColor" stroke="none" />
         </>
       )}
     </svg>

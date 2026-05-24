@@ -15,6 +15,7 @@ interface GuideWorkspaceProps {
   onQuickPrompt: (prompt: string) => void;
   onOpenProviders: () => void;
   onOpenDocs: () => void;
+  onOpenTour: () => void;
 }
 
 function GuideActionCard({
@@ -78,6 +79,7 @@ export default function GuideWorkspace({
   onQuickPrompt,
   onOpenProviders,
   onOpenDocs,
+  onOpenTour,
 }: GuideWorkspaceProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -138,6 +140,12 @@ export default function GuideWorkspace({
             title="Read the documentation"
             body="Browse guides, mode explanations, and slash commands without leaving the app."
             onClick={onOpenDocs}
+          />
+          <GuideActionCard
+            eyebrow="Tour"
+            title="Take the interactive tour"
+            body="See how QuillForge modes, agents, and handoffs work through a graphical workflow overview."
+            onClick={onOpenTour}
           />
         </div>
 
