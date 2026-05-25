@@ -1,11 +1,12 @@
 using System.Text.Json.Serialization;
+using QuillForge.Core.Models;
 
 namespace QuillForge.RoleplayDriftHarness.Models;
 
 /// <summary>
 /// Structured payload that records how a piece of knowledge relates to the
-/// active subject/character. Designed to be forward-compatible with #1661
-/// RoleplayKnowledgePacket and StructuredSceneBrief formats.
+/// active subject/character. Aligned with #1661 RoleplayKnowledgePacket types.
+/// Uses the Core protocol enums for typed applicability and allowed-use.
 /// </summary>
 public sealed record StructuredPayload
 {
@@ -18,20 +19,12 @@ public sealed record StructuredPayload
 
     /// <summary>
     /// Applicability classification: how the lore applies to the active subject.
-    /// "active_character" — directly about the active character (inline lore).
-    /// "shared_world" — shared/background world knowledge.
-    /// "off_character" — about a different character entirely.
-    /// "unknown" — could not be determined.
     /// </summary>
     [JsonPropertyName("applicability")]
     public string Applicability { get; init; } = "unknown";
 
     /// <summary>
     /// Allowed use: how this knowledge may be used in generation.
-    /// "inline" — may be incorporated directly into the active subject's narrative.
-    /// "context" — available for narrative context but not inline character specifics.
-    /// "excluded" — must not be used for this character.
-    /// "unknown" — not yet classified.
     /// </summary>
     [JsonPropertyName("allowed_use")]
     public string AllowedUse { get; init; } = "unknown";
@@ -47,4 +40,11 @@ public sealed record StructuredPayload
     /// </summary>
     [JsonPropertyName("source_component")]
     public string? SourceComponent { get; init; }
+
+    /// <summary>
+    /// Optional reference to a Core RoleplayKnowledgePacket for consumers
+    /// that can handle the full typed protocol format.
+    /// </summary>
+    [JsonPropertyName("knowledge_packet")]
+    public RoleplayKnowledgePacket? KnowledgePacket { get; init; }
 }

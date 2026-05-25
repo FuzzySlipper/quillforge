@@ -2,12 +2,21 @@ namespace QuillForge.Core.Models;
 
 /// <summary>
 /// Results from a lore query, including relevant passages and provenance.
+/// Now optionally carries structured RoleplayKnowledgePacket evidence for
+/// roleplay/lore-drift-aware consumers.
 /// </summary>
 public sealed record LoreBundle
 {
     public required IReadOnlyList<string> RelevantPassages { get; init; }
     public required IReadOnlyList<string> SourceFiles { get; init; }
     public LoreConfidence Confidence { get; init; } = LoreConfidence.High;
+
+    /// <summary>
+    /// Optional structured knowledge packet for roleplay protocol consumers.
+    /// Populated when the Librarian or query_lore handler is configured
+    /// to emit structured evidence alongside the legacy bundle format.
+    /// </summary>
+    public RoleplayKnowledgePacket? StructuredPacket { get; init; }
 }
 
 /// <summary>

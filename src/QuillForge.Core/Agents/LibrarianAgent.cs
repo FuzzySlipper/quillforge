@@ -6,6 +6,14 @@ using QuillForge.Core.Services;
 namespace QuillForge.Core.Agents;
 
 /// <summary>
+/// Helper record for building structured roleplay knowledge packets.
+/// </summary>
+internal sealed record RoleplayBuildContext(
+    string? ActiveSubject,
+    IReadOnlyList<string>? ExcludedSubjects,
+    string? SourceComponent);
+
+/// <summary>
 /// The Librarian agent loads the lore corpus into its system prompt and answers
 /// structured queries with provenance. Returns a LoreBundle with relevant passages,
 /// source files, and confidence.
@@ -137,6 +145,57 @@ public sealed class LibrarianAgent
             {joinedLore}
             {supplementalSection}
             """;
+    }
+
+    /// <summary>
+    /// Build a structured RoleplayKnowledgePacket from a LoreBundle, classifying
+    /// each passage by applicability and allowed-use against the active subject.
+    /// </summary>
+    internal static RoleplayKnowledgePacket BuildStructuredPacket(
+        LoreBundle bundle,
+        string query,
+        RoleplayBuildContext rpCtx)
+    {
+        var offCharacterNames = rpCtx.ExcludedSubjects is { Count: > 0 }
+            ? new HashSet<string>(rpCtx.ExcludedSubjects, StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        var evidence = new List<RoleplayEvidenceItem>();
+        for (int i = 0; i < bundle.RelevantPassages.Count; i++)
+        {
+            var passage = bundle.RelevantPassages[i];
+            var sourcePath = i < bundle.SourceFiles.Count ? bundle.SourceFiles[i] : null;
+
+            var item = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+                passage,
+                rpCtx.ActiveSubject,
+                sourcePath,
+                offCharacterNames);
+
+            evidence.Add(item);
+        }
+
+        // Determine overall scope from evidence
+        var hasCharacterItems = evidence.Any(e =>
+            e.Applicability == ActiveSubjectApplicability.ActiveCharacter);
+        var hasWorldItems = evidence.Any(e =>
+            e.Applicability == ActiveSubjectApplicability.SharedWorld);
+        var scope = hasCharacterItems
+            ? RoleplayKnowledgeScope.Character
+            : hasWorldItems
+                ? RoleplayKnowledgeScope.World
+                : RoleplayKnowledgeScope.World;
+
+        return new RoleplayKnowledgePacket
+        {
+            Query = query,
+            ActiveSubject = rpCtx.ActiveSubject,
+            Scope = scope,
+            Evidence = evidence,
+            SourceFiles = bundle.SourceFiles,
+            Confidence = bundle.Confidence.ToString().ToLowerInvariant(),
+            SourceComponent = rpCtx.SourceComponent,
+        };
     }
 
     /// <summary>

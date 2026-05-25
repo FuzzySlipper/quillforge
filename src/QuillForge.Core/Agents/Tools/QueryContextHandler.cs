@@ -72,9 +72,12 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
 
         AddSessionContextMatches(results, query, tokens, sessionContext);
 
+        // Detect active subject for roleplay protocol enrichment
+        var activeSubject = ResolveActiveSubject(context);
+
         if (includeLoreDocuments && !string.IsNullOrWhiteSpace(context.ActiveLoreSet))
         {
-            await AddLoreDocumentMatchesAsync(results, query, tokens, context.ActiveLoreSet, ct);
+            await AddLoreDocumentMatchesAsync(results, query, tokens, context.ActiveLoreSet, activeSubject, ct);
         }
 
         var ordered = results
@@ -90,11 +93,55 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
             context.SessionId,
             ordered.Count);
 
+        // Build structured knowledge packet if active subject is known
+        RoleplayKnowledgePacket? structuredPacket = null;
+        if (activeSubject is not null)
+        {
+            var evidenceItems = new List<RoleplayEvidenceItem>();
+            foreach (var result in ordered)
+            {
+                if (result.Applicability.HasValue && result.AllowedUse.HasValue)
+                {
+                    evidenceItems.Add(new RoleplayEvidenceItem
+                    {
+                        Passage = result.Snippet,
+                        Applicability = result.Applicability.Value,
+                        AllowedUse = result.AllowedUse.Value,
+                        SourceRefs =
+                        [
+                            new RoleplaySourceRef
+                            {
+                                SourcePath = result.SourceId,
+                                SourceKind = MapMatchSourceKind(result.SourceType),
+                                Title = result.Title,
+                            },
+                        ],
+                    });
+                }
+            }
+
+            if (evidenceItems.Count > 0)
+            {
+                structuredPacket = new RoleplayKnowledgePacket
+                {
+                    Query = query,
+                    ActiveSubject = activeSubject,
+                    Scope = evidenceItems.Any(e => e.Applicability == ActiveSubjectApplicability.ActiveCharacter)
+                        ? RoleplayKnowledgeScope.Character
+                        : RoleplayKnowledgeScope.World,
+                    Evidence = evidenceItems,
+                    SourceComponent = "query_context",
+                };
+            }
+        }
+
         var payload = new QueryContextResult
         {
             Query = query,
             ActiveLoreSet = context.ActiveLoreSet,
             Results = ordered,
+            ActiveSubject = activeSubject,
+            StructuredPacket = structuredPacket,
             Note = ordered.Count == 0
                 ? "No matching context sources were found. query_lore may still be useful for semantic lore-document lookup."
                 : null,
@@ -125,12 +172,22 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
         string query,
         IReadOnlyList<string> tokens,
         string loreSet,
+        string? activeSubject,
         CancellationToken ct)
     {
         var loreFiles = await _loreStore.LoadLoreSetAsync(loreSet, ct);
         foreach (var (filePath, content) in loreFiles)
         {
-            AddMatch(results, "lore_document", filePath, $"Lore Document: {filePath}", content, query, tokens);
+            var applicability = activeSubject is not null
+                ? RoleplayApplicabilityClassifier.Classify(content, activeSubject, filePath)
+                : (ActiveSubjectApplicability?)null;
+
+            var allowedUse = applicability.HasValue
+                ? RoleplayApplicabilityClassifier.ClassifyAllowedUse(applicability.Value)
+                : (AllowedUse?)null;
+
+            AddMatch(results, "lore_document", filePath, $"Lore Document: {filePath}", content, query, tokens,
+                applicability: applicability, allowedUse: allowedUse);
         }
     }
 
@@ -142,7 +199,9 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
         string? content,
         string query,
         IReadOnlyList<string> tokens,
-        IReadOnlyList<string>? includeWhenAskedForSource = null)
+        IReadOnlyList<string>? includeWhenAskedForSource = null,
+        ActiveSubjectApplicability? applicability = null,
+        AllowedUse? allowedUse = null)
     {
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -167,6 +226,8 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
             Title = title,
             Snippet = BuildSnippet(content, query, tokens),
             Score = score,
+            Applicability = applicability,
+            AllowedUse = allowedUse,
         });
     }
 
@@ -235,6 +296,36 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    /// <summary>
+    /// Infer the active subject/character from agent context, if available.
+    /// </summary>
+    private static string? ResolveActiveSubject(AgentContext context)
+    {
+        if (context.SessionContext?.Character is { Length: > 0 } character)
+            return character;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Map a source type string to a SubjectSourceKind for protocol enrichment.
+    /// </summary>
+    private static SubjectSourceKind MapMatchSourceKind(string sourceType)
+    {
+        return sourceType.ToLowerInvariant() switch
+        {
+            "lore_document" => SubjectSourceKind.Unknown,
+            "character_card" => SubjectSourceKind.CharacterFile,
+            "user_character_card" => SubjectSourceKind.CharacterFile,
+            "story_state" => SubjectSourceKind.EventFile,
+            "session_canon" => SubjectSourceKind.SessionCanon,
+            "director_notes" => SubjectSourceKind.Correction,
+            "plot_state" => SubjectSourceKind.EventFile,
+            "file_context" => SubjectSourceKind.LocationFile,
+            _ => SubjectSourceKind.Unknown,
+        };
+    }
 }
 
 public sealed record QueryContextArgs
@@ -250,6 +341,12 @@ public sealed record QueryContextResult
     public required string ActiveLoreSet { get; init; }
     public required IReadOnlyList<ContextSourceMatch> Results { get; init; }
     public string? Note { get; init; }
+
+    /// <summary>Active subject inferred from context, if available.</summary>
+    public string? ActiveSubject { get; init; }
+
+    /// <summary>Structured knowledge packet with applicability classification, if active subject is known.</summary>
+    public RoleplayKnowledgePacket? StructuredPacket { get; init; }
 }
 
 public sealed record ContextSourceMatch
@@ -259,4 +356,10 @@ public sealed record ContextSourceMatch
     public required string Title { get; init; }
     public required string Snippet { get; init; }
     public required int Score { get; init; }
+
+    /// <summary>Applicability classification for roleplay protocol, if active subject is known.</summary>
+    public ActiveSubjectApplicability? Applicability { get; init; }
+
+    /// <summary>Allowed-use classification for roleplay protocol, if active subject is known.</summary>
+    public AllowedUse? AllowedUse { get; init; }
 }

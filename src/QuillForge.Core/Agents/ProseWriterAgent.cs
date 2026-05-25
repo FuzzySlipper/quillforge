@@ -125,6 +125,27 @@ public sealed class ProseWriterAgent
                stop and disclose that gap rather than inventing it.
             """;
 
+        // Add roleplay protocol section if story context contains directives about
+        // active subject, excluded subjects, or allowed-use classifications.
+        var protocolRules = "";
+        if (storyContext.Contains("## Roleplay Knowledge Directives"))
+        {
+            protocolRules = """
+
+            ## Roleplay Knowledge Protocol
+
+            When the story context includes "Roleplay Knowledge Directives", you MUST obey them:
+            - Facts marked as inline may be used as direct character facts.
+            - Facts marked as background/context are available for general scene description
+              but MUST NOT be presented as unique personal details of the active character.
+            - Facts marked as excluded MUST NOT appear in narration about that subject.
+            - If shared/background body-tech or world knowledge is the only available context,
+              make it clear it is common/shared — not unique to the active character.
+            - Do not graft off-subject or background-only facts into active-character narration
+              as if they are the character's own unique details.
+            """;
+        }
+
         return $"""
             You are a skilled prose writer. Your job is to write compelling, immersive fiction that
             stays faithful to the established world and characters.
@@ -137,7 +158,7 @@ public sealed class ProseWriterAgent
 
             ## Story So Far
 
-            {storyContext}{toneSection}
+            {storyContext}{toneSection}{protocolRules}
             """;
     }
 

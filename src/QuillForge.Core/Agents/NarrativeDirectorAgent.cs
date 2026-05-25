@@ -215,6 +215,24 @@ public class NarrativeDirectorAgent
             ? ""
             : $"\n\n## Active Lore Set\n\nThe active lore set is \"{context.ActiveLoreSet}\".";
 
+        // Roleplay protocol section — guides the director on knowledge boundaries
+        var protocolSection = sessionContext?.Character is { Length: > 0 }
+            ? $"""
+
+            ## Roleplay Knowledge Protocol
+
+            The active character for this session is: **{sessionContext.Character}**.
+            - Lore facts about this character may be used as inline character details.
+            - Lore facts about other characters (off-subject) must NOT be grafted onto this character's narration.
+            - Shared/background world knowledge may be used for general scene context but
+              must be presented as common/shared, not as unique personal details of the active character.
+            - When writing prose via write_prose, ensure the scene brief includes clear
+              active-subject, applicability, and allowed-use markers so the prose writer can obey boundaries.
+            - Do not rely on durable negative exclusion blocks (e.g. "NOT [name]") in prompts as the
+              primary solution. Use the structured knowledge protocol instead.
+            """
+            : "";
+
         return $"""
             You are the Narrative Director for an interactive fiction session.
             Your job is to decide what happens next in the scene, keep the world
@@ -245,7 +263,7 @@ public class NarrativeDirectorAgent
 
             ## Narrative Rules
 
-            {rulesSection}{characterSection}{userCharacterSection}{storyStateSection}{narrativeNotesSection}{stickyCanonSection}{recentConversationSection}{activePlotSection}{activePlotContentSection}{plotProgressSection}{fileContextSection}{loreSection}
+            {rulesSection}{characterSection}{userCharacterSection}{storyStateSection}{narrativeNotesSection}{stickyCanonSection}{recentConversationSection}{activePlotSection}{activePlotContentSection}{plotProgressSection}{fileContextSection}{loreSection}{protocolSection}
             """;
     }
 

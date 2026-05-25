@@ -87,6 +87,25 @@ public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
         var result = await _librarian.QueryAsync(query, context.ActiveLoreSet, context, runLore, ct);
         sw.Stop();
 
+        // Enrich bundle with structured roleplay protocol packet if an active
+        // subject can be inferred from context (e.g. character card name).
+        var bundle = result.Bundle;
+        var activeSubject = ResolveActiveSubject(context);
+        if (activeSubject is not null && bundle.RelevantPassages.Count > 0)
+        {
+            var offCharacterNames = context.SessionContext?.UserCharacter is not null
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : null;
+
+            bundle = bundle with
+            {
+                StructuredPacket = LibrarianAgent.BuildStructuredPacket(
+                    bundle,
+                    query,
+                    new RoleplayBuildContext(activeSubject, null, "query_lore")),
+            };
+        }
+
         // Report librarian token usage and real wall-clock latency to the forge stats
         // tracker (if this is a forge run). The ToolLoop only aggregates its own completion
         // rounds; the librarian's nested LLM call is invisible to it, so we report it
@@ -97,7 +116,32 @@ public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
             context.OnNestedCompletion?.Invoke("librarian", result.Usage, sw.ElapsedMilliseconds);
         }
 
-        return ToolResult.Ok(JsonSerializer.Serialize(result.Bundle));
+        return ToolResult.Ok(JsonSerializer.Serialize(bundle));
+    }
+
+    /// <summary>
+    /// Infer the active subject/character from agent context, if available.
+    /// Currently checks the SessionContext Character field (the selected character
+    /// card name). May be extended to use an explicit ActiveSubject field in future.
+    /// </summary>
+    private static string? ResolveActiveSubject(AgentContext context)
+    {
+        // If the session has a character card, that's the active subject
+        if (context.SessionContext?.Character is { Length: > 0 } character)
+            return character;
+
+        // Fallback: check if this is roleplay mode with character context
+        if (context.ActiveMode == Mode.Roleplay && context.SessionContext?.CharacterSection is { Length: > 0 })
+        {
+            // Try to extract the character name from the first line of character section
+            var firstLine = context.SessionContext.CharacterSection
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .FirstOrDefault();
+            if (firstLine is { Length: > 0 })
+                return firstLine.Trim('#', ' ', ':', '-');
+        }
+
+        return null;
     }
 }
 
