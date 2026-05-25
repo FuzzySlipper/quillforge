@@ -93,12 +93,16 @@ public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
         var activeSubject = ResolveActiveSubject(context);
         if (activeSubject is not null && bundle.RelevantPassages.Count > 0)
         {
-            var offCharacterNames = context.SessionContext?.UserCharacter is not null
-                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                : null;
+            // Build off-character names using bidirectional logic matching
+            // QueryContextHandler.BuildOffCharacterNames: when the NPC character
+            // card (Character) and the user-played character (UserCharacter)
+            // differ, each is an off-character for the other.
+            var offCharacterNames = BuildOffCharacterNames(context, activeSubject);
 
             // Add diagnostic provenance: collect which source files back each passage
             // so the structured packet includes full traceability for suspicious facts.
+            // Pass offCharacterNames as excludedSubjects too so ClassifyAllowedUse
+            // can distinguish RejectForActiveSubject from OffSubjectEvidence.
             var diagnostics = bundle.RelevantPassages
                 .Select((passage, i) =>
                 {
@@ -107,6 +111,7 @@ public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
                         passage,
                         activeSubject,
                         sourcePath,
+                        offCharacterNames,
                         offCharacterNames);
                 })
                 .ToList();
@@ -116,7 +121,10 @@ public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
                 StructuredPacket = LibrarianAgent.BuildStructuredPacket(
                     bundle,
                     query,
-                    new RoleplayBuildContext(activeSubject, null, "query_lore")),
+                    new RoleplayBuildContext(
+                        activeSubject,
+                        offCharacterNames?.ToList(),
+                        "query_lore")),
                 Diagnostics = diagnostics,
             };
         }
@@ -157,6 +165,42 @@ public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Build the set of off-character names — subjects that are distinctly NOT the
+    /// active character. Uses the same bidirectional logic as
+    /// <see cref="QueryContextHandler"/>: when the NPC character card (Character)
+    /// and the user-played character (UserCharacter) differ, each is an
+    /// off-character for the other. Returns null when there is no known
+    /// off-character or no active subject.
+    /// </summary>
+    private static HashSet<string>? BuildOffCharacterNames(AgentContext context, string? activeSubject)
+    {
+        if (activeSubject is null)
+            return null;
+
+        HashSet<string>? names = null;
+
+        // If the active character is the NPC card character, the user character
+        // is a separate subject whose details should not leak
+        if (context.SessionContext?.UserCharacter is { Length: > 0 } userChar &&
+            !string.Equals(userChar, activeSubject, StringComparison.OrdinalIgnoreCase))
+        {
+            names ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            names.Add(userChar);
+        }
+
+        // If the active character is the user character, the selected NPC card
+        // character is a separate subject
+        if (context.SessionContext?.Character is { Length: > 0 } npcChar &&
+            !string.Equals(npcChar, activeSubject, StringComparison.OrdinalIgnoreCase))
+        {
+            names ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            names.Add(npcChar);
+        }
+
+        return names;
     }
 }
 

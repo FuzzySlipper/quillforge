@@ -414,4 +414,106 @@ public sealed class RoleplayApplicabilityClassifierTests
         Assert.NotNull(calebItem.SubjectRef);
         Assert.Equal("Caleb", calebItem.SubjectRef.Name);
     }
+
+    // ── Content-based off-character detection in shared/world files (#1641/#807) ──
+
+    [Fact]
+    public void Classify_SharedWorldFileWithOffCharacterMention_ReturnsDoesNotApply()
+    {
+        // A shared/world file whose content describes an off-character should
+        // be classified as DoesNotApply via content-based detection (not via
+        // file-path heuristics, which would return Unknown for world paths).
+        var passage = "Caleb's custom Toring Chip interface is one of the most advanced " +
+                      "neural augmentations in the Division. His prosthetic arm integrates " +
+                      "with the tactical network seamlessly.";
+
+        var offChars = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" };
+
+        var result = RoleplayApplicabilityClassifier.Classify(
+            passage, "Xavier", "world/body-tech.md", offChars);
+
+        // Must be DoesNotApply (content mentions off-character Caleb >= 1 time),
+        // NOT Unknown (world-file path heuristic).
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, result);
+    }
+
+    [Fact]
+    public void ClassifyWithDiagnostics_SharedWorldFileOffCharacterMention_RecordsOffNameRule()
+    {
+        var passage = "Caleb's prosthetic arm interfaces with the Division tactical network. " +
+                      "It provides combat functionality beyond standard issue equipment.";
+        var offChars = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" };
+
+        var diag = RoleplayApplicabilityClassifier.ClassifyWithDiagnostics(
+            passage, "Xavier", "world/body-tech.md", offChars, offChars);
+
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, diag.Applicability);
+        // With excludedSubjects = offChars, this passage about Caleb (not Xavier)
+        // should be RejectForActiveSubject, not just OffSubjectEvidence
+        Assert.Equal(AllowedUse.RejectForActiveSubject, diag.AllowedUse);
+        Assert.NotEmpty(diag.RulesFired);
+        Assert.Contains(diag.RulesFired, r => r.Contains("off-name-mentions"));
+    }
+
+    [Fact]
+    public void ClassifyEvidenceItem_SharedWorldFileOffCharacterMention_RejectsForActiveSubject()
+    {
+        var passage = "Caleb's custom prosthetic arm and Toring Chip interface are " +
+                      "unique augmentations not found in standard Division equipment.";
+        var offChars = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" };
+
+        var item = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            passage, "Xavier", "world/body-tech.md", offChars, offChars);
+
+        // Content-based off-character detection overrides the world-file heuristic
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, item.Applicability);
+        // Off-character content in a world file that is about Caleb (not Xavier)
+        // should be RejectForActiveSubject
+        Assert.Equal(AllowedUse.RejectForActiveSubject, item.AllowedUse);
+        Assert.NotNull(item.SubjectRef);
+        Assert.Equal("Caleb", item.SubjectRef.Name);
+    }
+
+    [Fact]
+    public void ClassifyEvidenceItem_SharedWorldFileOffCharacterNotExcluded_OffSubjectEvidence()
+    {
+        // When offCharacterNames is populated but excludedSubjects is NOT passed,
+        // DoesNotApply should map to OffSubjectEvidence (not RejectForActiveSubject)
+        var passage = "Caleb's custom prosthetic arm interfaces with the Division network.";
+        var offChars = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" };
+
+        var item = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            passage, "Xavier", "world/body-tech.md", offChars, excludedSubjects: null);
+
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, item.Applicability);
+        Assert.Equal(AllowedUse.OffSubjectEvidence, item.AllowedUse);
+    }
+
+    [Fact]
+    public void BuildStructuredPacket_WithExcludedSubjects_RejectsOffCharacterWorldContent()
+    {
+        // Simulate what BuildStructuredPacket does: pass offCharacterNames as
+        // both the set for applicability classification and as excludedSubjects
+        // for allowed-use classification.
+        var xavierPassage = "Xavier is a Deepspace Hunter with silver-streaked black hair.";
+        var calebWorldPassage = "Caleb's prosthetic arm is a custom combat augmentation.";
+
+        var offChars = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" };
+
+        var xavierItem = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            xavierPassage, "Xavier", "characters/xavier.md", offChars, offChars);
+
+        var calebItem = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            calebWorldPassage, "Xavier", "world/body-tech.md", offChars, offChars);
+
+        // Xavier's own character file: Applies + AssertAsFact
+        Assert.Equal(ActiveSubjectApplicability.Applies, xavierItem.Applicability);
+        Assert.Equal(AllowedUse.AssertAsFact, xavierItem.AllowedUse);
+
+        // Caleb mention in a world file: DoesNotApply + RejectForActiveSubject
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, calebItem.Applicability);
+        Assert.Equal(AllowedUse.RejectForActiveSubject, calebItem.AllowedUse);
+        Assert.NotNull(calebItem.SubjectRef);
+        Assert.Equal("Caleb", calebItem.SubjectRef.Name);
+    }
 }

@@ -79,12 +79,29 @@ public static partial class RoleplayApplicabilityClassifier
             }
 
             // World/shared files -> Unknown (generic, not directly applicable or inapplicable)
+            // EXCEPT: if the passage content mentions an off-character name, content-based
+            // detection overrides the path heuristic. This ensures shared/world files
+            // containing off-character lore (e.g. Caleb's prosthetic in world/body-tech.md)
+            // are correctly classified as DoesNotApply rather than Unknown.
             if (pathLower.Contains("world") ||
                 pathLower.Contains("body-tech") ||
                 pathLower.Contains("shared") ||
                 pathLower.Contains("faction") ||
                 pathLower.Contains("setting"))
             {
+                // Check content for off-character mentions before returning Unknown
+                if (offCharacterNames is not null && !string.IsNullOrWhiteSpace(passage))
+                {
+                    var contentLower = passage.ToLowerInvariant();
+                    foreach (var offName in offCharacterNames)
+                    {
+                        var offMentions = CountNameMentions(contentLower, offName.ToLowerInvariant());
+                        if (offMentions >= OffCharacterMentionThreshold)
+                        {
+                            return ActiveSubjectApplicability.DoesNotApply;
+                        }
+                    }
+                }
                 return ActiveSubjectApplicability.Unknown;
             }
         }
@@ -450,6 +467,24 @@ public static partial class RoleplayApplicabilityClassifier
                 pathLower.Contains("faction") ||
                 pathLower.Contains("setting"))
             {
+                // Check content for off-character mentions before returning Unknown.
+                // Shared/world files containing off-character lore (e.g. Caleb's
+                // prosthetic in world/body-tech.md) are classified as DoesNotApply
+                // rather than Unknown when off-character names are known.
+                if (offCharacterNames is not null && !string.IsNullOrWhiteSpace(passage))
+                {
+                    var contentLower = passage.ToLowerInvariant();
+                    foreach (var offName in offCharacterNames)
+                    {
+                        var offLower = offName.ToLowerInvariant();
+                        var offMentions = CountNameMentions(contentLower, offLower);
+                        if (offMentions >= OffCharacterMentionThreshold)
+                        {
+                            rulesFired.Add($"rule:world-source-with-off-name-mentions (off={offName}, mentions={offMentions})");
+                            return ActiveSubjectApplicability.DoesNotApply;
+                        }
+                    }
+                }
                 rulesFired.Add($"rule:shared-world-source (file={sourcePath})");
                 return ActiveSubjectApplicability.Unknown;
             }

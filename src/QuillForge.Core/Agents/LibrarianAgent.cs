@@ -170,7 +170,8 @@ public sealed class LibrarianAgent
                 passage,
                 rpCtx.ActiveSubject,
                 sourcePath,
-                offCharacterNames);
+                offCharacterNames,
+                offCharacterNames); // excludedSubjects = offCharacterNames
 
             evidence.Add(item);
         }
