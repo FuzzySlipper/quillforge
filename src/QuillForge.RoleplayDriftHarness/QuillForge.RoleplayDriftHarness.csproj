@@ -6,10 +6,14 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+    <PackageReference Include="OpenAI" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\QuillForge.Core\QuillForge.Core.csproj" />
+    <ProjectReference Include="..\QuillForge.Providers\QuillForge.Providers.csproj" />
   </ItemGroup>
 
 </Project>
