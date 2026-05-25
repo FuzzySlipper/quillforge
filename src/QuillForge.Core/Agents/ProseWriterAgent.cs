@@ -135,14 +135,18 @@ public sealed class ProseWriterAgent
             ## Roleplay Knowledge Protocol
 
             When the story context includes "Roleplay Knowledge Directives", you MUST obey them:
-            - Facts marked as inline may be used as direct character facts.
-            - Facts marked as background/context are available for general scene description
+            - Facts marked as inline (AssertAsFact) may be used as direct character facts.
+            - Facts marked as background/context (BackgroundOnly) are available for general scene description
               but MUST NOT be presented as unique personal details of the active character.
-            - Facts marked as excluded MUST NOT appear in narration about that subject.
+            - Facts marked as excluded (RejectForActiveSubject) MUST NOT appear in narration about that subject.
+            - Off-subject evidence (DoesNotApply / OffSubjectEvidence) is NOT about the active character.
+              Do not graft it into active-character narration.
             - If shared/background body-tech or world knowledge is the only available context,
               make it clear it is common/shared — not unique to the active character.
             - Do not graft off-subject or background-only facts into active-character narration
               as if they are the character's own unique details.
+            - When in doubt about whether a fact applies to the active character, omit it from
+              character-specific description and use generic scene narration instead.
             """;
         }
 

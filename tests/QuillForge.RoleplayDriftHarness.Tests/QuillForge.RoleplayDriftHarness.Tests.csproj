@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\QuillForge.RoleplayDriftHarness\QuillForge.RoleplayDriftHarness.csproj" />
+    <ProjectReference Include="..\..\src\QuillForge.Core\QuillForge.Core.csproj" />
   </ItemGroup>
 
 </Project>

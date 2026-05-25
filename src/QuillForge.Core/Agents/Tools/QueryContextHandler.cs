@@ -75,10 +75,22 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
         // Detect active subject for roleplay protocol enrichment
         var activeSubject = ResolveActiveSubject(context);
 
+        // Build off-character names: user-played character is a distinct subject
+        // from the selected NPC character card. This prevents user-character details
+        // from leaking into active NPC character facts and vice versa.
+        var offCharacterNames = BuildOffCharacterNames(context, activeSubject);
+
         if (includeLoreDocuments && !string.IsNullOrWhiteSpace(context.ActiveLoreSet))
         {
-            await AddLoreDocumentMatchesAsync(results, query, tokens, context.ActiveLoreSet, activeSubject, ct);
+            await AddLoreDocumentMatchesAsync(results, query, tokens, context.ActiveLoreSet, activeSubject, offCharacterNames, ct);
         }
+
+        // Check if the query explicitly mentions an off-character — if so, allow
+        // cross-character evidence through. This supports queries like
+        // "How does Xavier compare to Caleb?" or "Tell me about Caleb's arm."
+        var queryMentionsOffCharacter = offCharacterNames is not null &&
+            offCharacterNames.Any(n =>
+                query.Contains(n, StringComparison.OrdinalIgnoreCase));
 
         var ordered = results
             .OrderByDescending(result => result.Score)
@@ -102,6 +114,18 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
             {
                 if (result.Applicability.HasValue && result.AllowedUse.HasValue)
                 {
+                    // Active-character-aware filtering:
+                    // Off-character evidence (DoesNotApply) is excluded from the
+                    // structured packet UNLESS the query explicitly mentions that
+                    // off-character. This prevents non-active character details from
+                    // becoming active-character facts by default while still supporting
+                    // explicit cross-character queries.
+                    if (result.Applicability == ActiveSubjectApplicability.DoesNotApply &&
+                        !queryMentionsOffCharacter)
+                    {
+                        continue;
+                    }
+
                     evidenceItems.Add(new RoleplayEvidenceItem
                     {
                         Passage = result.Snippet,
@@ -173,13 +197,14 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
         IReadOnlyList<string> tokens,
         string loreSet,
         string? activeSubject,
+        IReadOnlySet<string>? offCharacterNames,
         CancellationToken ct)
     {
         var loreFiles = await _loreStore.LoadLoreSetAsync(loreSet, ct);
         foreach (var (filePath, content) in loreFiles)
         {
             var applicability = activeSubject is not null
-                ? RoleplayApplicabilityClassifier.Classify(content, activeSubject, filePath)
+                ? RoleplayApplicabilityClassifier.Classify(content, activeSubject, filePath, offCharacterNames)
                 : (ActiveSubjectApplicability?)null;
 
             var allowedUse = applicability.HasValue
@@ -306,6 +331,42 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
             return character;
 
         return null;
+    }
+
+    /// <summary>
+    /// Build the set of off-character names — subjects that are distinctly NOT the
+    /// active character. Used by the classifier to detect off-subject lore that
+    /// should not become active-character facts.
+    /// The primary off-character is the user-played character (UserCharacter),
+    /// which is distinct from the selected NPC character card (Character).
+    /// Returns null when there is no known off-character or no active subject.
+    /// </summary>
+    private static HashSet<string>? BuildOffCharacterNames(AgentContext context, string? activeSubject)
+    {
+        if (activeSubject is null)
+            return null;
+
+        HashSet<string>? names = null;
+
+        // If the active character is the NPC card character, the user character
+        // is a separate subject whose details should not leak
+        if (context.SessionContext?.UserCharacter is { Length: > 0 } userChar &&
+            !string.Equals(userChar, activeSubject, StringComparison.OrdinalIgnoreCase))
+        {
+            names ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            names.Add(userChar);
+        }
+
+        // If the active character is the user character, the selected NPC card
+        // character is a separate subject
+        if (context.SessionContext?.Character is { Length: > 0 } npcChar &&
+            !string.Equals(npcChar, activeSubject, StringComparison.OrdinalIgnoreCase))
+        {
+            names ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            names.Add(npcChar);
+        }
+
+        return names;
     }
 
     /// <summary>

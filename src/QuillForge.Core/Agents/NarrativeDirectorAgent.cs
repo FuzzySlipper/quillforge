@@ -223,13 +223,16 @@ public class NarrativeDirectorAgent
 
             The active character for this session is: **{sessionContext.Character}**.
             - Lore facts about this character may be used as inline character details.
-            - Lore facts about other characters (off-subject) must NOT be grafted onto this character's narration.
-            - Shared/background world knowledge may be used for general scene context but
+            - Lore facts about other characters (off-subject) MUST NOT be grafted onto this character's narration.
+            - Off-subject evidence classified as DoesNotApply or RejectForActiveSubject is REJECTED for the active character. Do not treat it as allowed character background.
+            - Shared/background world knowledge (classified as Unknown/BackgroundOnly) may be used for general scene context but
               must be presented as common/shared, not as unique personal details of the active character.
             - When writing prose via write_prose, ensure the scene brief includes clear
               active-subject, applicability, and allowed-use markers so the prose writer can obey boundaries.
             - Do not rely on durable negative exclusion blocks (e.g. "NOT [name]") in prompts as the
               primary solution. Use the structured knowledge protocol instead.
+            - If the only available evidence about a topic is off-subject or background-only, do not
+              fabricate active-character facts from it. Disclose the gap or keep the narration generic.
             """
             : "";
 

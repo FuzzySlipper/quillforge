@@ -294,4 +294,124 @@ public sealed class RoleplayApplicabilityClassifierTests
 
         Assert.Equal(RoleplayKnowledgeScope.GenericEquipment, result);
     }
+
+    // ── Active-character-awareness regression tests (#1641) ──
+
+    [Fact]
+    public void ClassifyWithDiagnostics_ActiveSubjectApplies_RecordsSourceFileRule()
+    {
+        var passage = "Xavier is a Deepspace Hunter with silver-streaked black hair.";
+        var diag = RoleplayApplicabilityClassifier.ClassifyWithDiagnostics(
+            passage, "Xavier", "characters/xavier.md");
+
+        Assert.Equal(ActiveSubjectApplicability.Applies, diag.Applicability);
+        Assert.Equal(AllowedUse.AssertAsFact, diag.AllowedUse);
+        Assert.NotEmpty(diag.RulesFired);
+        Assert.Contains(diag.RulesFired, r => r.Contains("source-file-matches-active-subject"));
+        Assert.Equal("characters/xavier.md", diag.SourcePath);
+        Assert.Equal(SubjectSourceKind.CharacterFile, diag.SourceKind);
+    }
+
+    [Fact]
+    public void ClassifyWithDiagnostics_OffCharacter_RecordsOffNameRule()
+    {
+        var passage = "Caleb is known for his advanced prosthetic arm and Toring Chip.";
+        var offChars = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" };
+        var diag = RoleplayApplicabilityClassifier.ClassifyWithDiagnostics(
+            passage, "Xavier", offCharacterNames: offChars);
+
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, diag.Applicability);
+        Assert.Equal(AllowedUse.OffSubjectEvidence, diag.AllowedUse);
+        Assert.NotEmpty(diag.RulesFired);
+    }
+
+    [Fact]
+    public void ClassifyWithDiagnostics_SharedWorld_RecordsWorldSourceRule()
+    {
+        var passage = "Standard Division neural interfaces are common among all hunter personnel.";
+        var diag = RoleplayApplicabilityClassifier.ClassifyWithDiagnostics(
+            passage, "Xavier", "world/body-tech.md");
+
+        Assert.Equal(ActiveSubjectApplicability.Unknown, diag.Applicability);
+        Assert.Equal(AllowedUse.BackgroundOnly, diag.AllowedUse);
+        Assert.NotEmpty(diag.RulesFired);
+        Assert.Contains(diag.RulesFired, r => r.Contains("shared-world-source"));
+    }
+
+    [Fact]
+    public void ClassifyWithDiagnostics_TruncatesLongPassages()
+    {
+        var longPassage = new string('X', 1000);
+        var diag = RoleplayApplicabilityClassifier.ClassifyWithDiagnostics(
+            longPassage, "Xavier");
+
+        Assert.NotNull(diag);
+        Assert.True(diag.Passage.Length <= 503); // 500 + "..."
+    }
+
+    [Fact]
+    public void XavierBodyTechQuery_DoesNotImportCalebProsthetic_Clean()
+    {
+        // Xavier body/tech scene — Caleb's prosthetic arm is NOT permitted
+        var xavierGear = "Xavier uses a standard-issue hunter carbine and carries a combat knife. " +
+                         "Like all Division operatives, he's equipped with a standard neural interface.";
+        var calebProsthetic = "Caleb has a custom prosthetic arm with advanced combat functionality.";
+
+        var offChars = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" };
+
+        var xavierItem = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            xavierGear, "Xavier", "characters/xavier.md", offChars);
+
+        var calebItem = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            calebProsthetic, "Xavier", "characters/caleb.md", offChars);
+
+        // Xavier's own gear is AssertAsFact
+        Assert.Equal(ActiveSubjectApplicability.Applies, xavierItem.Applicability);
+        Assert.Equal(AllowedUse.AssertAsFact, xavierItem.AllowedUse);
+
+        // Caleb's prosthetic is DoesNotApply + OffSubjectEvidence (not excluded explicitly)
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, calebItem.Applicability);
+        Assert.Equal(AllowedUse.OffSubjectEvidence, calebItem.AllowedUse);
+    }
+
+    [Fact]
+    public void CalebExplicitlyQueried_AllowsCalebProsthetic()
+    {
+        // When Caleb IS the active character, his prosthetic arm is AssertAsFact
+        var calebLore = "Caleb has a custom prosthetic arm with advanced combat functionality. " +
+                        "His Toring Chip interfaces with the Division tactical network.";
+
+        var item = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            calebLore, "Caleb", "characters/caleb.md");
+
+        Assert.Equal(ActiveSubjectApplicability.Applies, item.Applicability);
+        Assert.Equal(AllowedUse.AssertAsFact, item.AllowedUse);
+    }
+
+    [Fact]
+    public void CrossCharacterQuery_AllowsBothCharacterDetails()
+    {
+        // When the query compares Xavier to Caleb, both character details may appear
+        // but the classifier should still correctly attribute them
+        var xavierGear = "Xavier uses a standard-issue hunter carbine and combat knife.";
+        var calebGear = "Caleb has a custom prosthetic arm and Toring Chip.";
+
+        var offChars = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" };
+
+        var xavierItem = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            xavierGear, "Xavier", "characters/xavier.md", offChars);
+
+        var calebItem = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            calebGear, "Xavier", "characters/caleb.md", offChars);
+
+        // Xavier's gear applies to Xavier
+        Assert.Equal(ActiveSubjectApplicability.Applies, xavierItem.Applicability);
+        Assert.Equal(AllowedUse.AssertAsFact, xavierItem.AllowedUse);
+
+        // Caleb's gear does not apply to Xavier (it's about Caleb)
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, calebItem.Applicability);
+        Assert.Equal(AllowedUse.OffSubjectEvidence, calebItem.AllowedUse);
+        Assert.NotNull(calebItem.SubjectRef);
+        Assert.Equal("Caleb", calebItem.SubjectRef.Name);
+    }
 }

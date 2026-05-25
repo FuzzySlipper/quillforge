@@ -17,6 +17,15 @@ public sealed record LoreBundle
     /// to emit structured evidence alongside the legacy bundle format.
     /// </summary>
     public RoleplayKnowledgePacket? StructuredPacket { get; init; }
+
+    /// <summary>
+    /// Optional diagnostic provenance records for each passage.
+    /// Each entry records which classification rules fired and the source file,
+    /// enabling downstream tools and harness traces to surface suspicious
+    /// facts back to their origin files.
+    /// Indexed parallel to RelevantPassages.
+    /// </summary>
+    public IReadOnlyList<ClassificationDiagnostic>? Diagnostics { get; init; }
 }
 
 /// <summary>

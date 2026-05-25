@@ -198,8 +198,10 @@ public sealed class WriteProseHandler : TypedToolHandler<WriteProseArgs>
         // in a context where that knowledge is relevant.
         directiveLines.Add("");
         directiveLines.Add("**Roleplay Knowledge Protocol**:");
-        directiveLines.Add("- Knowledge classified as 'Background/Context' is available for general narration but MUST NOT be presented as inline facts or unique personal details of the active character.");
-        directiveLines.Add("- Knowledge classified as 'Excluded' for a subject MUST NOT appear in narration about that subject.");
+        directiveLines.Add("- Knowledge classified as 'Applies/AssertAsFact' is about the active character and may be used as inline character details.");
+        directiveLines.Add("- Knowledge classified as 'DoesNotApply/OffSubjectEvidence' is about another character and MUST NOT be presented as active-character facts.");
+        directiveLines.Add("- Knowledge classified as 'Unknown/BackgroundOnly' (shared world, body-tech) is available for general narration but MUST NOT be presented as unique personal details of the active character.");
+        directiveLines.Add("- Knowledge classified as 'RejectForActiveSubject' MUST NOT appear in narration about that subject.");
         directiveLines.Add("- If shared/background body-tech or world knowledge is the only available context, make it clear it is common/shared, not unique to the active character.");
 
         if (directiveLines.Count > 0)

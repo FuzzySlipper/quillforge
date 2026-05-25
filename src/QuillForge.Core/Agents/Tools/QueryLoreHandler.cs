@@ -97,12 +97,27 @@ public sealed class QueryLoreHandler : TypedToolHandler<QueryLoreArgs>
                 ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 : null;
 
+            // Add diagnostic provenance: collect which source files back each passage
+            // so the structured packet includes full traceability for suspicious facts.
+            var diagnostics = bundle.RelevantPassages
+                .Select((passage, i) =>
+                {
+                    var sourcePath = i < bundle.SourceFiles.Count ? bundle.SourceFiles[i] : null;
+                    return RoleplayApplicabilityClassifier.ClassifyWithDiagnostics(
+                        passage,
+                        activeSubject,
+                        sourcePath,
+                        offCharacterNames);
+                })
+                .ToList();
+
             bundle = bundle with
             {
                 StructuredPacket = LibrarianAgent.BuildStructuredPacket(
                     bundle,
                     query,
                     new RoleplayBuildContext(activeSubject, null, "query_lore")),
+                Diagnostics = diagnostics,
             };
         }
 

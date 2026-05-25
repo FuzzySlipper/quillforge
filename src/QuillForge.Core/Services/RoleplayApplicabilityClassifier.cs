@@ -356,6 +356,155 @@ public static partial class RoleplayApplicabilityClassifier
         };
     }
 
+    /// <summary>
+    /// Produce a full diagnostic record for a classification, tracing which heuristic
+    /// rules fired and the source file. This enables downstream tools and harness
+    /// traces to surface suspicious facts back to their origin file.
+    /// </summary>
+    public static ClassificationDiagnostic ClassifyWithDiagnostics(
+        string passage,
+        string? activeSubject,
+        string? sourcePath = null,
+        IReadOnlySet<string>? offCharacterNames = null,
+        IReadOnlySet<string>? excludedSubjects = null)
+    {
+        var rulesFired = new List<string>();
+        var applicability = ClassifyWithTrace(passage, activeSubject, sourcePath, offCharacterNames, rulesFired);
+        var allowedUse = ClassifyAllowedUse(applicability, activeSubject, passage, excludedSubjects);
+        var scope = ClassifyScope(applicability, sourcePath);
+
+        // Build diagnostic detail about source
+        SubjectSourceKind sourceKind = SubjectSourceKind.Unknown;
+        CanonAuthority authority = CanonAuthority.Unknown;
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            sourceKind = MapSourceKindFromPath(sourcePath);
+            authority = MapAuthorityFromSourcePath(sourcePath, applicability);
+        }
+
+        return new ClassificationDiagnostic
+        {
+            Passage = passage.Length > 500 ? passage[..500] + "..." : passage,
+            ActiveSubject = activeSubject,
+            SourcePath = sourcePath,
+            Applicability = applicability,
+            AllowedUse = allowedUse,
+            Scope = scope,
+            SourceKind = sourceKind,
+            Authority = authority,
+            RulesFired = rulesFired,
+        };
+    }
+
+    /// <summary>
+    /// Like Classify() but records which heuristic rules fired into the provided list.
+    /// </summary>
+    private static ActiveSubjectApplicability ClassifyWithTrace(
+        string passage,
+        string? activeSubject,
+        string? sourcePath,
+        IReadOnlySet<string>? offCharacterNames,
+        List<string> rulesFired)
+    {
+        if (string.IsNullOrWhiteSpace(passage))
+        {
+            rulesFired.Add("rule:empty-passage");
+            return ActiveSubjectApplicability.Unknown;
+        }
+
+        // 1. Source file path heuristic
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            var pathLower = sourcePath.ToLowerInvariant();
+
+            if (activeSubject is not null &&
+                Path.GetFileNameWithoutExtension(sourcePath)
+                    .Contains(activeSubject, StringComparison.OrdinalIgnoreCase))
+            {
+                rulesFired.Add($"rule:source-file-matches-active-subject (file={sourcePath})");
+                return ActiveSubjectApplicability.Applies;
+            }
+
+            if (offCharacterNames is not null)
+            {
+                foreach (var offName in offCharacterNames)
+                {
+                    if (Path.GetFileNameWithoutExtension(sourcePath)
+                            .Contains(offName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        rulesFired.Add($"rule:source-file-matches-off-character (file={sourcePath}, off={offName})");
+                        return ActiveSubjectApplicability.DoesNotApply;
+                    }
+                }
+            }
+
+            if (activeSubject is not null && IsCharacterSourcePath(sourcePath))
+            {
+                rulesFired.Add($"rule:character-source-non-active (file={sourcePath})");
+                return ActiveSubjectApplicability.DoesNotApply;
+            }
+
+            if (pathLower.Contains("world") ||
+                pathLower.Contains("body-tech") ||
+                pathLower.Contains("shared") ||
+                pathLower.Contains("faction") ||
+                pathLower.Contains("setting"))
+            {
+                rulesFired.Add($"rule:shared-world-source (file={sourcePath})");
+                return ActiveSubjectApplicability.Unknown;
+            }
+        }
+
+        // 2. Name mention count
+        var passageLower = passage.ToLowerInvariant();
+
+        if (activeSubject is not null)
+        {
+            var activeLower = activeSubject.ToLowerInvariant();
+            var activeNameMentions = CountNameMentions(passageLower, activeLower);
+
+            if (activeNameMentions >= ActiveCharacterMentionThreshold)
+            {
+                rulesFired.Add($"rule:active-name-mentions={activeNameMentions} (threshold={ActiveCharacterMentionThreshold})");
+                return ActiveSubjectApplicability.Applies;
+            }
+        }
+
+        // 3. Off-character mentions
+        if (offCharacterNames is not null)
+        {
+            foreach (var offName in offCharacterNames)
+            {
+                var offLower = offName.ToLowerInvariant();
+                var offMentions = CountNameMentions(passageLower, offLower);
+
+                if (offMentions >= OffCharacterMentionThreshold)
+                {
+                    rulesFired.Add($"rule:off-name-mentions={offMentions} (off={offName})");
+                    return ActiveSubjectApplicability.DoesNotApply;
+                }
+            }
+        }
+
+        // 4. Single active subject mention
+        if (activeSubject is not null &&
+            passageLower.Contains(activeSubject.ToLowerInvariant(), StringComparison.Ordinal))
+        {
+            rulesFired.Add("rule:single-active-subject-mention");
+            return ActiveSubjectApplicability.Applies;
+        }
+
+        // 5. Shared-world markers
+        if (HasSharedWorldMarker(passageLower))
+        {
+            rulesFired.Add("rule:shared-world-marker-match");
+            return ActiveSubjectApplicability.Unknown;
+        }
+
+        rulesFired.Add("rule:no-match-fallback-ambiguous");
+        return ActiveSubjectApplicability.Ambiguous;
+    }
+
     private static bool IsCharacterSourcePath(string sourcePath)
     {
         var pathLower = sourcePath.ToLowerInvariant();
