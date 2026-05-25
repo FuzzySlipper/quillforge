@@ -126,9 +126,9 @@ public sealed class QueryContextHandler : TypedToolHandler<QueryContextArgs>
                 {
                     Query = query,
                     ActiveSubject = activeSubject,
-                    Scope = evidenceItems.Any(e => e.Applicability == ActiveSubjectApplicability.ActiveCharacter)
-                        ? RoleplayKnowledgeScope.Character
-                        : RoleplayKnowledgeScope.World,
+                    Scope = evidenceItems.Any(e => e.Applicability == ActiveSubjectApplicability.Applies)
+                        ? RoleplayKnowledgeScope.CharacterSpecific
+                        : RoleplayKnowledgeScope.SharedWorld,
                     Evidence = evidenceItems,
                     SourceComponent = "query_context",
                 };

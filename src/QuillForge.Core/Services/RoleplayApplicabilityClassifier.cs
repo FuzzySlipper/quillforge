@@ -8,9 +8,15 @@ namespace QuillForge.Core.Services;
 /// to an active subject. Uses structural clues: subject name mentions, pronouns,
 /// subject-marker patterns, and source file path heuristics.
 ///
-/// This is a first-pass structural classifier. It may return Unknown or
-/// SharedWorld for ambiguous cases that require semantic analysis — those
-/// should be handled by the Librarian's higher-level synthesis.
+/// Mapped to Den protocol enum values:
+///   active-character evidence -> Applies + AssertAsFact + CharacterSpecific
+///   shared world/generic equipment -> Unknown + BackgroundOnly + SharedWorld/GenericEquipment
+///   off-character evidence -> DoesNotApply + OffSubjectEvidence/RejectForActiveSubject
+///   ambiguous -> Ambiguous + RequiresClarification
+///
+/// This is a first-pass structural classifier. May return Unknown or Ambiguous
+/// for cases that require semantic analysis — those should be handled by the
+/// Librarian's higher-level synthesis.
 /// </summary>
 public static partial class RoleplayApplicabilityClassifier
 {
@@ -20,12 +26,13 @@ public static partial class RoleplayApplicabilityClassifier
 
     /// <summary>
     /// Classify how a lore passage applies to the given active subject.
+    /// Returns Den-spec protocol values: Applies, DoesNotApply, Unknown, or Ambiguous.
     /// </summary>
     /// <param name="passage">The lore passage text to classify.</param>
     /// <param name="activeSubject">The active character/subject name.</param>
     /// <param name="sourcePath">Optional source file path (for file-name heuristics).</param>
     /// <param name="offCharacterNames">Optional set of off-character names to check against.</param>
-    /// <returns>Applicability classification.</returns>
+    /// <returns>Applicability classification using Den protocol values.</returns>
     public static ActiveSubjectApplicability Classify(
         string passage,
         string? activeSubject,
@@ -45,7 +52,7 @@ public static partial class RoleplayApplicabilityClassifier
                 Path.GetFileNameWithoutExtension(sourcePath)
                     .Contains(activeSubject, StringComparison.OrdinalIgnoreCase))
             {
-                return ActiveSubjectApplicability.ActiveCharacter;
+                return ActiveSubjectApplicability.Applies;
             }
 
             // Check for off-character files
@@ -56,19 +63,19 @@ public static partial class RoleplayApplicabilityClassifier
                     if (Path.GetFileNameWithoutExtension(sourcePath)
                             .Contains(offName, StringComparison.OrdinalIgnoreCase))
                     {
-                        return ActiveSubjectApplicability.OffCharacter;
+                        return ActiveSubjectApplicability.DoesNotApply;
                     }
                 }
             }
 
-            // World/shared files
+            // World/shared files -> Unknown (generic, not directly applicable or inapplicable)
             if (pathLower.Contains("world") ||
                 pathLower.Contains("body-tech") ||
                 pathLower.Contains("shared") ||
                 pathLower.Contains("faction") ||
                 pathLower.Contains("setting"))
             {
-                return ActiveSubjectApplicability.SharedWorld;
+                return ActiveSubjectApplicability.Unknown;
             }
         }
 
@@ -82,7 +89,7 @@ public static partial class RoleplayApplicabilityClassifier
 
             if (activeNameMentions >= ActiveCharacterMentionThreshold)
             {
-                return ActiveSubjectApplicability.ActiveCharacter;
+                return ActiveSubjectApplicability.Applies;
             }
         }
 
@@ -96,31 +103,33 @@ public static partial class RoleplayApplicabilityClassifier
 
                 if (offMentions >= OffCharacterMentionThreshold)
                 {
-                    return ActiveSubjectApplicability.OffCharacter;
+                    return ActiveSubjectApplicability.DoesNotApply;
                 }
             }
         }
 
-        // 4. If the passage mentions the active subject at all, default to active_character
+        // 4. If the passage mentions the active subject at all, default to Applies
         //    (checked before shared-world markers because character lore often contains
         //     words like "standard" or "common" that would otherwise match as shared_world)
         if (activeSubject is not null &&
             passageLower.Contains(activeSubject.ToLowerInvariant(), StringComparison.Ordinal))
         {
-            return ActiveSubjectApplicability.ActiveCharacter;
+            return ActiveSubjectApplicability.Applies;
         }
 
-        // 5. Check for shared-world markers
+        // 5. Check for shared-world markers -> Unknown (generic world knowledge)
         if (HasSharedWorldMarker(passageLower))
         {
-            return ActiveSubjectApplicability.SharedWorld;
+            return ActiveSubjectApplicability.Unknown;
         }
 
-        return ActiveSubjectApplicability.Unknown;
+        return ActiveSubjectApplicability.Ambiguous;
     }
 
     /// <summary>
     /// Classify the allowed use for a passage given its applicability.
+    /// Returns Den-spec protocol values: AssertAsFact, BackgroundOnly,
+    /// OffSubjectEvidence, RequiresClarification, or RejectForActiveSubject.
     /// </summary>
     public static AllowedUse ClassifyAllowedUse(
         ActiveSubjectApplicability applicability,
@@ -130,34 +139,64 @@ public static partial class RoleplayApplicabilityClassifier
     {
         return applicability switch
         {
-            ActiveSubjectApplicability.ActiveCharacter => AllowedUse.Inline,
-            ActiveSubjectApplicability.SharedWorld => AllowedUse.Context,
-            ActiveSubjectApplicability.OffCharacter => IsExcluded(passage, activeSubject, excludedSubjects)
-                ? AllowedUse.Excluded
-                : AllowedUse.Context,
-            ActiveSubjectApplicability.Unknown => AllowedUse.Unknown,
-            _ => AllowedUse.Unknown,
+            ActiveSubjectApplicability.Applies => AllowedUse.AssertAsFact,
+            ActiveSubjectApplicability.Unknown => AllowedUse.BackgroundOnly,
+            ActiveSubjectApplicability.DoesNotApply => IsExcluded(passage, activeSubject, excludedSubjects)
+                ? AllowedUse.RejectForActiveSubject
+                : AllowedUse.OffSubjectEvidence,
+            ActiveSubjectApplicability.Ambiguous => AllowedUse.RequiresClarification,
+            ActiveSubjectApplicability.Conflicts => AllowedUse.RejectForActiveSubject,
+            _ => AllowedUse.RequiresClarification,
         };
     }
 
     /// <summary>
     /// Classify the knowledge scope for a passage.
+    /// Uses sourcePath when available for more precise scope determination.
     /// </summary>
     public static RoleplayKnowledgeScope ClassifyScope(
-        ActiveSubjectApplicability applicability)
+        ActiveSubjectApplicability applicability,
+        string? sourcePath = null)
     {
+        // Try to use source path for precise scope when available
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            var pathLower = sourcePath.ToLowerInvariant();
+
+            if (pathLower.Contains("body-tech") ||
+                (pathLower.Contains("world") && pathLower.Contains("tech")))
+                return RoleplayKnowledgeScope.GenericEquipment;
+
+            if (pathLower.Contains("faction"))
+                return RoleplayKnowledgeScope.Organization;
+
+            if (pathLower.Contains("location") || pathLower.Contains("setting"))
+                return RoleplayKnowledgeScope.Location;
+
+            if (pathLower.Contains("rule") || pathLower.Contains("scene-rule"))
+                return RoleplayKnowledgeScope.SceneRule;
+
+            if (pathLower.Contains("session-canon") || pathLower.Contains("sticky"))
+                return RoleplayKnowledgeScope.SessionCanon;
+
+            if (pathLower.Contains("world"))
+                return RoleplayKnowledgeScope.SharedWorld;
+        }
+
         return applicability switch
         {
-            ActiveSubjectApplicability.ActiveCharacter => RoleplayKnowledgeScope.Character,
-            ActiveSubjectApplicability.OffCharacter => RoleplayKnowledgeScope.Character,
-            ActiveSubjectApplicability.SharedWorld => RoleplayKnowledgeScope.World,
-            ActiveSubjectApplicability.Unknown => RoleplayKnowledgeScope.World,
-            _ => RoleplayKnowledgeScope.World,
+            ActiveSubjectApplicability.Applies => RoleplayKnowledgeScope.CharacterSpecific,
+            ActiveSubjectApplicability.DoesNotApply => RoleplayKnowledgeScope.CharacterSpecific,
+            ActiveSubjectApplicability.Unknown => RoleplayKnowledgeScope.SharedWorld,
+            ActiveSubjectApplicability.Ambiguous => RoleplayKnowledgeScope.Unknown,
+            ActiveSubjectApplicability.Conflicts => RoleplayKnowledgeScope.Unknown,
+            _ => RoleplayKnowledgeScope.Unknown,
         };
     }
 
     /// <summary>
     /// Build a RoleplayEvidenceItem from raw passage content with automatic classification.
+    /// Uses Den-spec protocol values for all classification fields.
     /// </summary>
     public static RoleplayEvidenceItem ClassifyEvidenceItem(
         string passage,
@@ -168,7 +207,7 @@ public static partial class RoleplayApplicabilityClassifier
     {
         var applicability = Classify(passage, activeSubject, sourcePath, offCharacterNames);
         var allowedUse = ClassifyAllowedUse(applicability, activeSubject, passage, excludedSubjects);
-        var scope = ClassifyScope(applicability);
+        var scope = ClassifyScope(applicability, sourcePath);
 
         var sourceRefs = string.IsNullOrWhiteSpace(sourcePath)
             ? null
@@ -183,7 +222,7 @@ public static partial class RoleplayApplicabilityClassifier
             };
 
         RoleplaySubjectRef? subjectRef = null;
-        if (applicability == ActiveSubjectApplicability.OffCharacter && offCharacterNames is not null)
+        if (applicability == ActiveSubjectApplicability.DoesNotApply && offCharacterNames is not null)
         {
             var detectedOffName = offCharacterNames
                 .FirstOrDefault(n =>
@@ -198,6 +237,17 @@ public static partial class RoleplayApplicabilityClassifier
             }
         }
 
+        // Build ambiguity note for Ambiguous/Unknown cases
+        RoleplayAmbiguity? ambiguity = null;
+        if (applicability == ActiveSubjectApplicability.Ambiguous)
+        {
+            ambiguity = new RoleplayAmbiguity
+            {
+                Description = "Could not determine whether this passage applies to the active subject.",
+                AskedForClarification = false,
+            };
+        }
+
         return new RoleplayEvidenceItem
         {
             Passage = passage,
@@ -205,6 +255,7 @@ public static partial class RoleplayApplicabilityClassifier
             AllowedUse = allowedUse,
             SourceRefs = sourceRefs,
             SubjectRef = subjectRef,
+            Ambiguity = ambiguity,
         };
     }
 
@@ -242,7 +293,7 @@ public static partial class RoleplayApplicabilityClassifier
             return false;
 
         // If passage is about an excluded subject and NOT about the active subject,
-        // it should be excluded
+        // it should be rejected for active subject use
         var passageLower = passage.ToLowerInvariant();
         var hasActiveSubject = activeSubject is not null &&
             passageLower.Contains(activeSubject.ToLowerInvariant(), StringComparison.Ordinal);
@@ -265,14 +316,14 @@ public static partial class RoleplayApplicabilityClassifier
         var pathLower = sourcePath.ToLowerInvariant();
 
         if (pathLower.Contains("correction") || pathLower.Contains("override"))
-            return CanonAuthority.Provisional;
+            return CanonAuthority.UserCorrection;
 
         return applicability switch
         {
-            ActiveSubjectApplicability.ActiveCharacter => CanonAuthority.Primary,
-            ActiveSubjectApplicability.OffCharacter => CanonAuthority.Primary,
-            ActiveSubjectApplicability.SharedWorld => CanonAuthority.Background,
-            _ => CanonAuthority.Secondary,
+            ActiveSubjectApplicability.Applies => CanonAuthority.Canon,
+            ActiveSubjectApplicability.DoesNotApply => CanonAuthority.Canon,
+            ActiveSubjectApplicability.Unknown => CanonAuthority.Deprecated,
+            _ => CanonAuthority.Unknown,
         };
     }
 

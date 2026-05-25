@@ -18,6 +18,10 @@ namespace QuillForge.RoleplayDriftHarness.Fixtures;
 /// Two versions are provided:
 ///   CleanScenario: all boundaries correctly exclude forbidden details (passes).
 ///   ContaminatedScenario: various boundaries leak forbidden details (fails with trace).
+///
+/// Uses Den-spec protocol string values for applicability and allowed-use.
+/// Mapping: active-character -> applies/assert_as_fact, shared-world -> unknown/background_only,
+///          off-character -> does_not_apply/off_subject_evidence or reject_for_active_subject.
 /// </summary>
 public static class XavierCalebScenario
 {
@@ -56,8 +60,8 @@ public static class XavierCalebScenario
                             Payload = new StructuredPayload
                             {
                                 ActiveSubject = "Xavier",
-                                Applicability = "active_character",
-                                AllowedUse = "inline",
+                                Applicability = "Applies",
+                                AllowedUse = "AssertAsFact",
                                 LoreRefs = ["characters/xavier.md"],
                                 SourceComponent = "query_lore",
                             },
@@ -72,8 +76,8 @@ public static class XavierCalebScenario
                             Payload = new StructuredPayload
                             {
                                 ActiveSubject = "Xavier",
-                                Applicability = "active_character",
-                                AllowedUse = "inline",
+                                Applicability = "Applies",
+                                AllowedUse = "AssertAsFact",
                                 SourceComponent = "scene_brief",
                             },
                         },
@@ -88,8 +92,8 @@ public static class XavierCalebScenario
                             Payload = new StructuredPayload
                             {
                                 ActiveSubject = "Xavier",
-                                Applicability = "active_character",
-                                AllowedUse = "inline",
+                                Applicability = "Applies",
+                                AllowedUse = "AssertAsFact",
                                 SourceComponent = "direct_scene",
                             },
                         },
@@ -121,8 +125,8 @@ public static class XavierCalebScenario
                             Payload = new StructuredPayload
                             {
                                 ActiveSubject = null,
-                                Applicability = "shared_world",
-                                AllowedUse = "context",
+                                Applicability = "Unknown",
+                                AllowedUse = "BackgroundOnly",
                                 LoreRefs = ["characters/xavier.md", "world/body-tech.md"],
                                 SourceComponent = "query_lore",
                             },
@@ -137,8 +141,8 @@ public static class XavierCalebScenario
                             Payload = new StructuredPayload
                             {
                                 ActiveSubject = "Xavier",
-                                Applicability = "active_character",
-                                AllowedUse = "inline",
+                                Applicability = "Applies",
+                                AllowedUse = "AssertAsFact",
                                 SourceComponent = "scene_brief",
                             },
                         },
@@ -154,8 +158,8 @@ public static class XavierCalebScenario
                             Payload = new StructuredPayload
                             {
                                 ActiveSubject = "Xavier",
-                                Applicability = "active_character",
-                                AllowedUse = "inline",
+                                Applicability = "Applies",
+                                AllowedUse = "AssertAsFact",
                                 SourceComponent = "direct_scene",
                             },
                         },

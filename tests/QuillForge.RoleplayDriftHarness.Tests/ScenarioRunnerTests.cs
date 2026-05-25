@@ -157,15 +157,15 @@ public sealed class ScenarioRunnerTests
         var run = _runner.Run(scenario);
 
         // The shared body-tech (neural interface) should appear with
-        // applicability = "shared_world" and allowed_use = "context"
+        // applicability = "Unknown" and allowed_use = "BackgroundOnly"
         var sharedPayloads = run.TraceEvents
-            .Where(e => e.StructuredPayload?.Applicability == "shared_world")
+            .Where(e => e.StructuredPayload?.Applicability == "Unknown")
             .ToList();
 
         Assert.NotEmpty(sharedPayloads);
         foreach (var sp in sharedPayloads)
         {
-            Assert.Equal("context", sp.StructuredPayload!.AllowedUse);
+            Assert.Equal("BackgroundOnly", sp.StructuredPayload!.AllowedUse);
         }
     }
 

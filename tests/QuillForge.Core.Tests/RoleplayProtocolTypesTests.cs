@@ -19,36 +19,36 @@ public sealed class RoleplayProtocolTypesTests
         {
             Query = "What augmentations does Xavier have?",
             ActiveSubject = "Xavier",
-            Scope = RoleplayKnowledgeScope.Character,
+            Scope = RoleplayKnowledgeScope.CharacterSpecific,
             Evidence =
             [
                 new RoleplayEvidenceItem
                 {
                     Passage = "Xavier has a standard neural interface.",
-                    Applicability = ActiveSubjectApplicability.ActiveCharacter,
-                    AllowedUse = AllowedUse.Inline,
+                    Applicability = ActiveSubjectApplicability.Applies,
+                    AllowedUse = AllowedUse.AssertAsFact,
                     SourceRefs =
                     [
                         new RoleplaySourceRef
                         {
                             SourcePath = "characters/xavier.md",
                             SourceKind = SubjectSourceKind.CharacterFile,
-                            Authority = CanonAuthority.Primary,
+                            Authority = CanonAuthority.Canon,
                         },
                     ],
                 },
                 new RoleplayEvidenceItem
                 {
                     Passage = "Standard Division neural interfaces are common.",
-                    Applicability = ActiveSubjectApplicability.SharedWorld,
-                    AllowedUse = AllowedUse.Context,
+                    Applicability = ActiveSubjectApplicability.Unknown,
+                    AllowedUse = AllowedUse.BackgroundOnly,
                     SourceRefs =
                     [
                         new RoleplaySourceRef
                         {
                             SourcePath = "world/body-tech.md",
                             SourceKind = SubjectSourceKind.WorldFile,
-                            Authority = CanonAuthority.Background,
+                            Authority = CanonAuthority.Deprecated,
                         },
                     ],
                 },
@@ -67,16 +67,16 @@ public sealed class RoleplayProtocolTypesTests
         Assert.Equal(packet.Scope, deserialized.Scope);
         Assert.Equal(2, deserialized.Evidence.Count);
 
-        Assert.Equal(ActiveSubjectApplicability.ActiveCharacter, deserialized.Evidence[0].Applicability);
-        Assert.Equal(AllowedUse.Inline, deserialized.Evidence[0].AllowedUse);
+        Assert.Equal(ActiveSubjectApplicability.Applies, deserialized.Evidence[0].Applicability);
+        Assert.Equal(AllowedUse.AssertAsFact, deserialized.Evidence[0].AllowedUse);
         Assert.Single(deserialized.Evidence[0].SourceRefs!);
         var refs = deserialized.Evidence[0].SourceRefs!;
         Assert.Equal("characters/xavier.md", refs[0].SourcePath);
         Assert.Equal(SubjectSourceKind.CharacterFile, refs[0].SourceKind);
-        Assert.Equal(CanonAuthority.Primary, refs[0].Authority);
+        Assert.Equal(CanonAuthority.Canon, refs[0].Authority);
 
-        Assert.Equal(ActiveSubjectApplicability.SharedWorld, deserialized.Evidence[1].Applicability);
-        Assert.Equal(AllowedUse.Context, deserialized.Evidence[1].AllowedUse);
+        Assert.Equal(ActiveSubjectApplicability.Unknown, deserialized.Evidence[1].Applicability);
+        Assert.Equal(AllowedUse.BackgroundOnly, deserialized.Evidence[1].AllowedUse);
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public sealed class RoleplayProtocolTypesTests
         var item = new RoleplayEvidenceItem
         {
             Passage = "Caleb has a prosthetic arm.",
-            Applicability = ActiveSubjectApplicability.OffCharacter,
-            AllowedUse = AllowedUse.Excluded,
+            Applicability = ActiveSubjectApplicability.DoesNotApply,
+            AllowedUse = AllowedUse.RejectForActiveSubject,
             SubjectRef = new RoleplaySubjectRef
             {
                 Name = "Caleb",
@@ -145,8 +145,8 @@ public sealed class RoleplayProtocolTypesTests
         var deserialized = JsonSerializer.Deserialize<RoleplayEvidenceItem>(json, s_jsonOptions);
 
         Assert.NotNull(deserialized);
-        Assert.Equal(ActiveSubjectApplicability.OffCharacter, deserialized.Applicability);
-        Assert.Equal(AllowedUse.Excluded, deserialized.AllowedUse);
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, deserialized.Applicability);
+        Assert.Equal(AllowedUse.RejectForActiveSubject, deserialized.AllowedUse);
         Assert.NotNull(deserialized.SubjectRef);
         Assert.Equal("Caleb", deserialized.SubjectRef.Name);
         Assert.NotNull(deserialized.Ambiguity);
@@ -159,8 +159,8 @@ public sealed class RoleplayProtocolTypesTests
         var directive = new RoleplayDirective
         {
             ForSubject = "Xavier",
-            KnowledgeScope = RoleplayKnowledgeScope.Character,
-            AllowedUse = AllowedUse.Inline,
+            KnowledgeScope = RoleplayKnowledgeScope.CharacterSpecific,
+            AllowedUse = AllowedUse.AssertAsFact,
             Reason = "Direct character lore",
         };
 
@@ -169,8 +169,8 @@ public sealed class RoleplayProtocolTypesTests
 
         Assert.NotNull(deserialized);
         Assert.Equal("Xavier", deserialized.ForSubject);
-        Assert.Equal(RoleplayKnowledgeScope.Character, deserialized.KnowledgeScope);
-        Assert.Equal(AllowedUse.Inline, deserialized.AllowedUse);
+        Assert.Equal(RoleplayKnowledgeScope.CharacterSpecific, deserialized.KnowledgeScope);
+        Assert.Equal(AllowedUse.AssertAsFact, deserialized.AllowedUse);
     }
 
     [Fact]
@@ -179,14 +179,14 @@ public sealed class RoleplayProtocolTypesTests
         var packet = new RoleplayKnowledgePacket
         {
             Query = "test",
-            Scope = RoleplayKnowledgeScope.Character,
+            Scope = RoleplayKnowledgeScope.CharacterSpecific,
             Evidence =
             [
                 new RoleplayEvidenceItem
                 {
                     Passage = "test",
-                    Applicability = ActiveSubjectApplicability.ActiveCharacter,
-                    AllowedUse = AllowedUse.Inline,
+                    Applicability = ActiveSubjectApplicability.Applies,
+                    AllowedUse = AllowedUse.AssertAsFact,
                 },
             ],
         };
@@ -196,11 +196,74 @@ public sealed class RoleplayProtocolTypesTests
         // Verify round-trip preserves enum values correctly
         var deserialized = JsonSerializer.Deserialize<RoleplayKnowledgePacket>(json, s_jsonOptions);
         Assert.NotNull(deserialized);
-        Assert.Equal(RoleplayKnowledgeScope.Character, deserialized.Scope);
-        Assert.Equal(ActiveSubjectApplicability.ActiveCharacter, deserialized.Evidence[0].Applicability);
-        Assert.Equal(AllowedUse.Inline, deserialized.Evidence[0].AllowedUse);
+        Assert.Equal(RoleplayKnowledgeScope.CharacterSpecific, deserialized.Scope);
+        Assert.Equal(ActiveSubjectApplicability.Applies, deserialized.Evidence[0].Applicability);
+        Assert.Equal(AllowedUse.AssertAsFact, deserialized.Evidence[0].AllowedUse);
 
         // Verify no integer-based serialization (should use string names)
         Assert.DoesNotContain("\"$values\"", json);
+    }
+
+    /// <summary>
+    /// Verifies that the new Den-spec protocol enum values round-trip correctly
+    /// through JSON serialization, proving the protocol hardening is complete.
+    /// </summary>
+    [Fact]
+    public void DenSpecEnumValues_RoundTrip_Json()
+    {
+        // RoleplayKnowledgeScope
+        foreach (var scope in (RoleplayKnowledgeScope[])Enum.GetValues(typeof(RoleplayKnowledgeScope)))
+        {
+            var json = JsonSerializer.Serialize(scope, s_jsonOptions);
+            var deserialized = JsonSerializer.Deserialize<RoleplayKnowledgeScope>(json, s_jsonOptions);
+            Assert.Equal(scope, deserialized);
+        }
+
+        // ActiveSubjectApplicability
+        foreach (var appl in (ActiveSubjectApplicability[])Enum.GetValues(typeof(ActiveSubjectApplicability)))
+        {
+            var json = JsonSerializer.Serialize(appl, s_jsonOptions);
+            var deserialized = JsonSerializer.Deserialize<ActiveSubjectApplicability>(json, s_jsonOptions);
+            Assert.Equal(appl, deserialized);
+        }
+
+        // AllowedUse
+        foreach (var use in (AllowedUse[])Enum.GetValues(typeof(AllowedUse)))
+        {
+            var json = JsonSerializer.Serialize(use, s_jsonOptions);
+            var deserialized = JsonSerializer.Deserialize<AllowedUse>(json, s_jsonOptions);
+            Assert.Equal(use, deserialized);
+        }
+
+        // CanonAuthority
+        foreach (var auth in (CanonAuthority[])Enum.GetValues(typeof(CanonAuthority)))
+        {
+            var json = JsonSerializer.Serialize(auth, s_jsonOptions);
+            var deserialized = JsonSerializer.Deserialize<CanonAuthority>(json, s_jsonOptions);
+            Assert.Equal(auth, deserialized);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that the Den-spec enum names produce the expected JSON string values.
+    /// This is a contract test: if the enum name changes, this test fails.
+    /// </summary>
+    [Fact]
+    public void DenSpecEnumNames_SerializeToExpectedStrings()
+    {
+        var appliesJson = JsonSerializer.Serialize(ActiveSubjectApplicability.Applies, s_jsonOptions);
+        Assert.Contains("Applies", appliesJson);
+
+        var doesNotApplyJson = JsonSerializer.Serialize(ActiveSubjectApplicability.DoesNotApply, s_jsonOptions);
+        Assert.Contains("DoesNotApply", doesNotApplyJson);
+
+        var assertAsFactJson = JsonSerializer.Serialize(AllowedUse.AssertAsFact, s_jsonOptions);
+        Assert.Contains("AssertAsFact", assertAsFactJson);
+
+        var backgroundOnlyJson = JsonSerializer.Serialize(AllowedUse.BackgroundOnly, s_jsonOptions);
+        Assert.Contains("BackgroundOnly", backgroundOnlyJson);
+
+        var characterSpecificJson = JsonSerializer.Serialize(RoleplayKnowledgeScope.CharacterSpecific, s_jsonOptions);
+        Assert.Contains("CharacterSpecific", characterSpecificJson);
     }
 }

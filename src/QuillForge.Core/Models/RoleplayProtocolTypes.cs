@@ -4,21 +4,38 @@ namespace QuillForge.Core.Models;
 
 // ──────────────────────────────────────────────
 // Enums for structured roleplay knowledge protocol
+// Aligned with Den protocol spec values.
 // ──────────────────────────────────────────────
 
 /// <summary>
 /// Scope classifying the knowledge domain of a roleplay lore fact.
-/// Mirrors the Den protocol: character-level, world-level, or meta.
+/// Aligned with Den protocol: character-level, world-level, relationship, or meta.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum RoleplayKnowledgeScope
 {
-    /// <summary>Character-specific knowledge (inline lore, backstory).</summary>
-    Character,
-    /// <summary>Shared world/body-tech/faction knowledge (context).</summary>
-    World,
-    /// <summary>Meta/system knowledge about the roleplay itself.</summary>
-    Meta,
+    /// <summary>Lore specific to a single character (inline, backstory).</summary>
+    CharacterSpecific,
+    /// <summary>Lore specific to the user-played character.</summary>
+    UserCharacterSpecific,
+    /// <summary>Lore about the relationship between two or more characters.</summary>
+    RelationshipSpecific,
+    /// <summary>Shared world-level knowledge (faction, setting, environment).</summary>
+    SharedWorld,
+    /// <summary>Generic equipment / body-tech knowledge not specific to any character.</summary>
+    GenericEquipment,
+    /// <summary>Organization or faction lore.</summary>
+    Organization,
+    /// <summary>Location or setting lore.</summary>
+    Location,
+    /// <summary>Scene-specific rule or constraint.</summary>
+    SceneRule,
+    /// <summary>Session-captured canon (sticky canon).</summary>
+    SessionCanon,
+    /// <summary>Recent conversation context.</summary>
+    RecentConversation,
+    /// <summary>Cannot determine scope.</summary>
+    Unknown,
 }
 
 /// <summary>
@@ -27,14 +44,16 @@ public enum RoleplayKnowledgeScope
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ActiveSubjectApplicability
 {
-    /// <summary>Directly about / owned by the active subject.</summary>
-    ActiveCharacter,
-    /// <summary>About a character or entity different from the active subject.</summary>
-    OffCharacter,
-    /// <summary>Shared world-level background knowledge.</summary>
-    SharedWorld,
+    /// <summary>Directly applies to / is about the active subject.</summary>
+    Applies,
+    /// <summary>Does not apply to the active subject (about someone else).</summary>
+    DoesNotApply,
     /// <summary>Cannot be determined from available information.</summary>
     Unknown,
+    /// <summary>Multiple possible interpretations exist; needs clarification.</summary>
+    Ambiguous,
+    /// <summary>Evidence conflicts with other known facts about the active subject.</summary>
+    Conflicts,
 }
 
 /// <summary>
@@ -43,14 +62,16 @@ public enum ActiveSubjectApplicability
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum AllowedUse
 {
-    /// <summary>May be incorporated as inline facts about the active subject.</summary>
-    Inline,
-    /// <summary>Available as narrative context/background, not inline specifics.</summary>
-    Context,
-    /// <summary>Excluded — must not be used for the current query/subject.</summary>
-    Excluded,
-    /// <summary>Not yet classified.</summary>
-    Unknown,
+    /// <summary>May be asserted as fact about the active subject.</summary>
+    AssertAsFact,
+    /// <summary>Available as background/context, not inline specifics about active subject.</summary>
+    BackgroundOnly,
+    /// <summary>Evidence about a different subject (off-subject reference).</summary>
+    OffSubjectEvidence,
+    /// <summary>Ambiguous; producer recommends clarifying before use.</summary>
+    RequiresClarification,
+    /// <summary>Must be rejected for the active subject (excluded/conflict).</summary>
+    RejectForActiveSubject,
 }
 
 /// <summary>
@@ -60,15 +81,17 @@ public enum AllowedUse
 public enum CanonAuthority
 {
     /// <summary>Primary/definitive canon source (e.g. character lore file).</summary>
-    Primary,
-    /// <summary>Secondary source (e.g. shared world doc referencing the character).</summary>
-    Secondary,
-    /// <summary>Background/shared context not specific to any character.</summary>
-    Background,
-    /// <summary>User override or session-local canon.</summary>
-    Override,
-    /// <summary>Temporary/correction note.</summary>
-    Provisional,
+    Canon,
+    /// <summary>Session-level canon (sticky session canon).</summary>
+    SessionCanon,
+    /// <summary>User-authored correction or override.</summary>
+    UserCorrection,
+    /// <summary>Rumor/unconfirmed information.</summary>
+    Rumor,
+    /// <summary>Previously canon but deprecated/overridden.</summary>
+    Deprecated,
+    /// <summary>Unknown authority level.</summary>
+    Unknown,
 }
 
 /// <summary>
@@ -147,7 +170,7 @@ public sealed record RoleplaySourceRef
 
     /// <summary>Canon authority level of this source for the referenced fact.</summary>
     [JsonPropertyName("authority")]
-    public CanonAuthority Authority { get; init; } = CanonAuthority.Background;
+    public CanonAuthority Authority { get; init; } = CanonAuthority.Unknown;
 
     /// <summary>Title or label for display.</summary>
     [JsonPropertyName("title")]
@@ -169,7 +192,7 @@ public sealed record RoleplayEvidenceItem
 
     /// <summary>How this passage may be used.</summary>
     [JsonPropertyName("allowed_use")]
-    public AllowedUse AllowedUse { get; init; } = AllowedUse.Unknown;
+    public AllowedUse AllowedUse { get; init; } = AllowedUse.RequiresClarification;
 
     /// <summary>Source file provenance.</summary>
     [JsonPropertyName("source_refs")]
@@ -235,7 +258,7 @@ public sealed record RoleplayDirective
 
     /// <summary>How this knowledge may be used.</summary>
     [JsonPropertyName("allowed_use")]
-    public AllowedUse AllowedUse { get; init; } = AllowedUse.Unknown;
+    public AllowedUse AllowedUse { get; init; } = AllowedUse.RequiresClarification;
 
     /// <summary>Optional reason for the directive.</summary>
     [JsonPropertyName("reason")]
@@ -280,7 +303,7 @@ public sealed record RoleplayKnowledgePacket
     [JsonPropertyName("request_id")]
     public string? RequestId { get; init; }
 
-    /// <summary>The component that produced this packet, e.g. \"query_lore\", \"query_context\".</summary>
+    /// <summary>The component that produced this packet, e.g. "query_lore", "query_context".</summary>
     [JsonPropertyName("source_component")]
     public string? SourceComponent { get; init; }
 }

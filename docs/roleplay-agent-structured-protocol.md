@@ -16,17 +16,35 @@ The structured protocol encodes the classification decision at each boundary so 
 
 ## Core Data Model
 
-All types are defined in `QuillForge.Core.Models.RoleplayProtocolTypes.cs` and serialized as JSON with snake_case naming.
+All types are defined in `QuillForge.Core.Models.RoleplayProtocolTypes.cs` and serialized as JSON using `JsonStringEnumConverter` (PascalCase member names).
 
 ### Enums
 
 | Enum | Values | Description |
 |------|--------|-------------|
-| `RoleplayKnowledgeScope` | `character`, `world`, `meta` | Domain of the knowledge |
-| `ActiveSubjectApplicability` | `active_character`, `off_character`, `shared_world`, `unknown` | How lore applies to the active subject |
-| `AllowedUse` | `inline`, `context`, `excluded`, `unknown` | How knowledge may be used in generation |
-| `CanonAuthority` | `primary`, `secondary`, `background`, `override`, `provisional` | Canon authority level |
-| `SubjectSourceKind` | `character_file`, `world_file`, `faction_file`, `event_file`, `item_file`, `location_file`, `correction`, `session_canon`, `unknown` | Type of knowledge source |
+| `RoleplayKnowledgeScope` | `CharacterSpecific`, `UserCharacterSpecific`, `RelationshipSpecific`, `SharedWorld`, `GenericEquipment`, `Organization`, `Location`, `SceneRule`, `SessionCanon`, `RecentConversation`, `Unknown` | Domain of the knowledge |
+| `ActiveSubjectApplicability` | `Applies`, `DoesNotApply`, `Unknown`, `Ambiguous`, `Conflicts` | How lore applies to the active subject |
+| `AllowedUse` | `AssertAsFact`, `BackgroundOnly`, `OffSubjectEvidence`, `RequiresClarification`, `RejectForActiveSubject` | How knowledge may be used in generation |
+| `CanonAuthority` | `Canon`, `SessionCanon`, `UserCorrection`, `Rumor`, `Deprecated`, `Unknown` | Canon authority level |
+| `SubjectSourceKind` | `CharacterFile`, `WorldFile`, `FactionFile`, `EventFile`, `ItemFile`, `LocationFile`, `Correction`, `SessionCanon`, `Unknown` | Type of knowledge source |
+
+### Migration from Initial Implementation
+
+The initial implementation (#1661 first pass) used simpler enum names: `Character`, `World`, `Meta` for `RoleplayKnowledgeScope`; `ActiveCharacter`, `OffCharacter`, `SharedWorld`, `Unknown` for `ActiveSubjectApplicability`; `Inline`, `Context`, `Excluded`, `Unknown` for `AllowedUse`; `Primary`, `Secondary`, `Background`, `Override`, `Provisional` for `CanonAuthority`.
+
+The hardening pass (#1661 fix) aligned all enum names and classifier output with the accepted Den protocol concepts. **New structured payloads should use the new names.** Any stored/serialized traces using the old names will fail to deserialize into the new enum members; consumers should regenerate traces after this change.
+
+### Classifier Mapping (Den Protocol)
+
+The deterministic classifier maps to Den-spec protocol values as follows:
+
+| Evidence Pattern | Applicability | AllowedUse | Scope |
+|---|---|---|---|
+| Active character name/file | `Applies` | `AssertAsFact` | `CharacterSpecific` |
+| Shared world / generic equipment | `Unknown` | `BackgroundOnly` | `SharedWorld` / `GenericEquipment` |
+| Off-character (not excluded) | `DoesNotApply` | `OffSubjectEvidence` | `CharacterSpecific` |
+| Off-character (excluded) | `DoesNotApply` | `RejectForActiveSubject` | `CharacterSpecific` |
+| Truly ambiguous | `Ambiguous` | `RequiresClarification` | `Unknown` |
 
 ### Main Payloads
 
@@ -47,13 +65,13 @@ All types are defined in `QuillForge.Core.Models.RoleplayProtocolTypes.cs` and s
 ```json
 {
   "passage": "Xavier has a standard neural interface.",
-  "applicability": "active_character",
-  "allowed_use": "inline",
+  "applicability": "Applies",
+  "allowed_use": "AssertAsFact",
   "source_refs": [
     {
       "source_path": "characters/xavier.md",
-      "source_kind": "character_file",
-      "authority": "primary"
+      "source_kind": "CharacterFile",
+      "authority": "Canon"
     }
   ],
   "subject_ref": null,
@@ -67,7 +85,7 @@ All types are defined in `QuillForge.Core.Models.RoleplayProtocolTypes.cs` and s
 {
   "query": "What augmentations does Xavier have?",
   "active_subject": "Xavier",
-  "scope": "character",
+  "scope": "CharacterSpecific",
   "evidence": [ ... ],
   "source_files": ["characters/xavier.md", "world/body-tech.md"],
   "confidence": "high",
@@ -93,29 +111,29 @@ All types are defined in `QuillForge.Core.Models.RoleplayProtocolTypes.cs` and s
 ```json
 {
   "for_subject": "Xavier",
-  "knowledge_scope": "character",
-  "allowed_use": "inline",
+  "knowledge_scope": "CharacterSpecific",
+  "allowed_use": "AssertAsFact",
   "reason": "Direct character lore"
 }
 ```
 
 ## Applicability Classification
 
-The deterministic classifier (`QuillForge.Core.Services.RoleplayApplicabilityClassifier`) uses structural heuristics:
+The deterministic classifier (`QuillForge.Core.Services.RoleplayApplicabilityClassifier`) uses structural heuristics mapped to Den-spec protocol values:
 
-1. **Source file path** — if the file name contains the active character name, classify as `active_character`. If it contains an off-character name, classify as `off_character`. World/shared/faction files classify as `shared_world`.
-2. **Name mention count** — 2+ mentions of the active subject's name → `active_character`. 1+ mention of an off-character's name → `off_character`.
-3. **Single active subject mention** — at least one mention → `active_character` (checked before shared-world markers to avoid false positive from words like "standard" or "common").
-4. **Shared-world markers** — keywords like `shared`, `common`, `standard`, `generic`, `typical` → `shared_world`.
-5. **Fallback** — `unknown`.
+1. **Source file path** — if the file name contains the active character name, classify as `Applies`. If it contains an off-character name, classify as `DoesNotApply`. World/shared/faction files classify as `Unknown`.
+2. **Name mention count** — 2+ mentions of the active subject's name → `Applies`. 1+ mention of an off-character's name → `DoesNotApply`.
+3. **Single active subject mention** — at least one mention → `Applies` (checked before shared-world markers to avoid false positive from words like "standard" or "common").
+4. **Shared-world markers** — keywords like `shared`, `common`, `standard`, `generic`, `typical` → `Unknown`.
+5. **Fallback** — `Ambiguous`.
 
-The classifier is intentionally conservative: it may return `unknown` for ambiguous cases that require semantic analysis. Those should be handled by the Librarian's higher-level synthesis.
+The classifier is intentionally conservative: it may return `Unknown` for shared world content and `Ambiguous` for cases that require semantic analysis. Those should be handled by the Librarian's higher-level synthesis.
 
 Allowed-use follows from applicability:
-- `active_character` → `inline`
-- `shared_world` → `context`
-- `off_character` → `excluded` if subject is in the excluded set, else `context`
-- `unknown` → `unknown`
+- `Applies` → `AssertAsFact`
+- `Unknown` (shared world) → `BackgroundOnly`
+- `DoesNotApply` → `OffSubjectEvidence`; `RejectForActiveSubject` if subject is in the excluded set
+- `Ambiguous` → `RequiresClarification`
 
 ## Boundary Integration
 
@@ -137,12 +155,12 @@ Allowed-use follows from applicability:
 
 - `WriteProseArgs` now accepts an optional `StructuredSceneBrief` alongside the legacy `scene_description` and `tone_notes`.
 - `WriteProseHandler.BuildStoryContext` adds a `## Roleplay Knowledge Directives` section when the brief provides knowledge packets or directives.
-- The directives section tells the prose writer which subjects are inline, context-only, or excluded, and includes the core protocol rule about not grafting background facts onto active characters.
+- The directives section tells the prose writer which subjects have `AssertAsFact`, `BackgroundOnly`, or `RejectForActiveSubject` knowledge, and includes the core protocol rule about not grafting background facts onto active characters.
 
 ### 4. ProseWriterAgent prompt
 
 - `BuildSystemPrompt` includes the protocol rules whenever `## Roleplay Knowledge Directives` is present in the story context.
-- Rules: inline facts → may use as direct character facts; background/context → general scene description only; excluded → must not appear.
+- Rules: `AssertAsFact` facts → may use as direct character facts; `BackgroundOnly` → general scene description only; `RejectForActiveSubject` → must not appear.
 - Shared/background knowledge must be presented as common/shared, not unique to the active character.
 
 ### 5. NarrativeDirectorAgent prompt
@@ -157,6 +175,7 @@ Allowed-use follows from applicability:
 - `QueryContextResult` retains all original fields. `ActiveSubject` and `StructuredPacket` are additive.
 - `WriteProseArgs` retains `SceneDescription` and `ToneNotes`. `SceneBrief` is optional.
 - When no active subject is detected, no structured enrichment occurs — all agents behave as before.
+- **Enum names changed in the hardening pass** (see Migration section above). Any code or serialized data referencing the old enum names must be updated. The test `DenSpecEnumValues_RoundTrip_Json` validates that all new enum values round-trip correctly.
 
 ## Drift Origin Classification
 
@@ -185,15 +204,6 @@ Lore frontmatter/metadata visibility is gated behind an advanced/debug/editing t
 ### (Accepted) No durable negative exclusion blocks
 
 The protocol explicitly warns against using durable negative exclusion blocks (e.g., "NOT Caleb") as the primary solution. User-authored corrections may remain temporary overrides, but the structured protocol is the durable mechanism for preventing drift.
-
-## How #1641 Should Use This Protocol
-
-Task #1641 (the "NOT Caleb" prompt/hack) should be addressed by:
-1. Removing any hard-coded negative exclusion text from prompts.
-2. Ensuring the active subject is always set in `AgentContext.SessionContext.Character` during roleplay sessions.
-3. Letting the query_lore/query_context structured classification handle off-character exclusions at the retrieval boundary.
-4. Using the Narrative Director protocol section and ProseWriter protocol rules (in prompts) as the behavioral guard, not narrow "NOT Caleb" rules.
-5. Running the drift harness regression tests to verify Caleb-only prosthetic/Toring details do not enter Xavier prose under any scenario.
 
 ## Future Work
 

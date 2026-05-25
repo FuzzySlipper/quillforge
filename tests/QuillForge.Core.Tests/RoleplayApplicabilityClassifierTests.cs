@@ -7,49 +7,49 @@ namespace QuillForge.Core.Tests;
 public sealed class RoleplayApplicabilityClassifierTests
 {
     [Fact]
-    public void Classify_ActiveCharacterPassage_ReturnsActiveCharacter()
+    public void Classify_ActiveCharacterPassage_ReturnsApplies()
     {
         var passage = "Xavier is a Deepspace Hunter with silver-streaked black hair and sharp grey eyes. " +
                       "He wears standard Division-issue tactical gear.";
 
         var result = RoleplayApplicabilityClassifier.Classify(passage, "Xavier");
 
-        Assert.Equal(ActiveSubjectApplicability.ActiveCharacter, result);
+        Assert.Equal(ActiveSubjectApplicability.Applies, result);
     }
 
     [Fact]
-    public void Classify_ActiveCharacterSourceFile_ReturnsActiveCharacter()
+    public void Classify_ActiveCharacterSourceFile_ReturnsApplies()
     {
         var passage = "Generic character description without name mention.";
         var result = RoleplayApplicabilityClassifier.Classify(passage, "Xavier", "characters/xavier.md");
 
-        Assert.Equal(ActiveSubjectApplicability.ActiveCharacter, result);
+        Assert.Equal(ActiveSubjectApplicability.Applies, result);
     }
 
     [Fact]
-    public void Classify_OffCharacterSourceFile_ReturnsOffCharacter()
+    public void Classify_OffCharacterSourceFile_ReturnsDoesNotApply()
     {
         var passage = "This character has a custom cybernetic arm.";
         var result = RoleplayApplicabilityClassifier.Classify(
             passage, "Xavier", "characters/caleb.md",
             new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" });
 
-        Assert.Equal(ActiveSubjectApplicability.OffCharacter, result);
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, result);
     }
 
     [Fact]
-    public void Classify_SharedWorldSourceFile_ReturnsSharedWorld()
+    public void Classify_SharedWorldSourceFile_ReturnsUnknown()
     {
         var passage = "Standard Division neural interfaces are common among all hunter personnel. " +
                       "They provide basic tactical data and communication links.";
 
         var result = RoleplayApplicabilityClassifier.Classify(passage, "Xavier", "world/body-tech.md");
 
-        Assert.Equal(ActiveSubjectApplicability.SharedWorld, result);
+        Assert.Equal(ActiveSubjectApplicability.Unknown, result);
     }
 
     [Fact]
-    public void Classify_OffCharacterMentionInPassage_ReturnsOffCharacter()
+    public void Classify_OffCharacterMentionInPassage_ReturnsDoesNotApply()
     {
         var passage = "Caleb is known for his advanced prosthetic arm and custom Toring Chip interface. " +
                       "These augmentations set him apart from standard Division operatives.";
@@ -58,7 +58,7 @@ public sealed class RoleplayApplicabilityClassifierTests
             passage, "Xavier",
             offCharacterNames: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" });
 
-        Assert.Equal(ActiveSubjectApplicability.OffCharacter, result);
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, result);
     }
 
     [Fact]
@@ -73,60 +73,81 @@ public sealed class RoleplayApplicabilityClassifierTests
     {
         var passage = "The city of Linkon is a sprawling metropolis.";
         var result = RoleplayApplicabilityClassifier.Classify(passage, null, "world/setting.md");
-        Assert.Equal(ActiveSubjectApplicability.SharedWorld, result);
+        Assert.Equal(ActiveSubjectApplicability.Unknown, result);
     }
 
     [Fact]
-    public void ClassifyAllowedUse_ActiveCharacter_ReturnsInline()
+    public void ClassifyAllowedUse_Applies_ReturnsAssertAsFact()
     {
         var result = RoleplayApplicabilityClassifier.ClassifyAllowedUse(
-            ActiveSubjectApplicability.ActiveCharacter);
-        Assert.Equal(AllowedUse.Inline, result);
+            ActiveSubjectApplicability.Applies);
+        Assert.Equal(AllowedUse.AssertAsFact, result);
     }
 
     [Fact]
-    public void ClassifyAllowedUse_SharedWorld_ReturnsContext()
-    {
-        var result = RoleplayApplicabilityClassifier.ClassifyAllowedUse(
-            ActiveSubjectApplicability.SharedWorld);
-        Assert.Equal(AllowedUse.Context, result);
-    }
-
-    [Fact]
-    public void ClassifyAllowedUse_Unknown_ReturnsUnknown()
+    public void ClassifyAllowedUse_Unknown_ReturnsBackgroundOnly()
     {
         var result = RoleplayApplicabilityClassifier.ClassifyAllowedUse(
             ActiveSubjectApplicability.Unknown);
-        Assert.Equal(AllowedUse.Unknown, result);
+        Assert.Equal(AllowedUse.BackgroundOnly, result);
     }
 
     [Fact]
-    public void ClassifyAllowedUse_ExcludedSubject_ReturnsExcluded()
+    public void ClassifyAllowedUse_Ambiguous_ReturnsRequiresClarification()
+    {
+        var result = RoleplayApplicabilityClassifier.ClassifyAllowedUse(
+            ActiveSubjectApplicability.Ambiguous);
+        Assert.Equal(AllowedUse.RequiresClarification, result);
+    }
+
+    [Fact]
+    public void ClassifyAllowedUse_ExcludedSubject_ReturnsRejectForActiveSubject()
     {
         var passage = "Caleb's Toring Chip interfaces with the Division network.";
         var result = RoleplayApplicabilityClassifier.ClassifyAllowedUse(
-            ActiveSubjectApplicability.OffCharacter,
+            ActiveSubjectApplicability.DoesNotApply,
             "Xavier",
             passage,
             new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" });
 
-        Assert.Equal(AllowedUse.Excluded, result);
+        Assert.Equal(AllowedUse.RejectForActiveSubject, result);
     }
 
     [Fact]
-    public void ClassifyScope_ActiveCharacter_ReturnsCharacter()
+    public void ClassifyAllowedUse_OffCharacterNotExcluded_ReturnsOffSubjectEvidence()
     {
-        var result = RoleplayApplicabilityClassifier.ClassifyScope(
-            ActiveSubjectApplicability.ActiveCharacter);
-        Assert.Equal(RoleplayKnowledgeScope.Character, result);
+        var passage = "Caleb has a standard Division carbine.";
+        var result = RoleplayApplicabilityClassifier.ClassifyAllowedUse(
+            ActiveSubjectApplicability.DoesNotApply,
+            "Xavier",
+            passage,
+            null); // no excluded subjects
+
+        Assert.Equal(AllowedUse.OffSubjectEvidence, result);
     }
 
     [Fact]
-    public void ClassifyScope_SharedWorld_ReturnsWorld()
+    public void ClassifyScope_Applies_ReturnsCharacterSpecific()
     {
         var result = RoleplayApplicabilityClassifier.ClassifyScope(
-            ActiveSubjectApplicability.SharedWorld);
-        Assert.Equal(RoleplayKnowledgeScope.World, result);
+            ActiveSubjectApplicability.Applies);
+        Assert.Equal(RoleplayKnowledgeScope.CharacterSpecific, result);
+    }
+
+    [Fact]
+    public void ClassifyScope_Unknown_ReturnsSharedWorld()
+    {
+        var result = RoleplayApplicabilityClassifier.ClassifyScope(
+            ActiveSubjectApplicability.Unknown);
+        Assert.Equal(RoleplayKnowledgeScope.SharedWorld, result);
+    }
+
+    [Fact]
+    public void ClassifyScope_Ambiguous_ReturnsUnknown()
+    {
+        var result = RoleplayApplicabilityClassifier.ClassifyScope(
+            ActiveSubjectApplicability.Ambiguous);
+        Assert.Equal(RoleplayKnowledgeScope.Unknown, result);
     }
 
     [Fact]
@@ -137,12 +158,12 @@ public sealed class RoleplayApplicabilityClassifierTests
         var item = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
             passage, "Xavier", "characters/xavier.md");
 
-        Assert.Equal(ActiveSubjectApplicability.ActiveCharacter, item.Applicability);
-        Assert.Equal(AllowedUse.Inline, item.AllowedUse);
+        Assert.Equal(ActiveSubjectApplicability.Applies, item.Applicability);
+        Assert.Equal(AllowedUse.AssertAsFact, item.AllowedUse);
         Assert.NotNull(item.SourceRefs);
         var ref1 = Assert.Single(item.SourceRefs);
         Assert.Equal("characters/xavier.md", ref1.SourcePath);
-        Assert.Equal(CanonAuthority.Primary, ref1.Authority);
+        Assert.Equal(CanonAuthority.Canon, ref1.Authority);
         Assert.Equal(SubjectSourceKind.CharacterFile, ref1.SourceKind);
     }
 
@@ -154,8 +175,8 @@ public sealed class RoleplayApplicabilityClassifierTests
         var item = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
             passage, "Xavier", "world/body-tech.md");
 
-        Assert.Equal(ActiveSubjectApplicability.SharedWorld, item.Applicability);
-        Assert.Equal(AllowedUse.Context, item.AllowedUse);
+        Assert.Equal(ActiveSubjectApplicability.Unknown, item.Applicability);
+        Assert.Equal(AllowedUse.BackgroundOnly, item.AllowedUse);
         Assert.Null(item.SubjectRef);
     }
 
@@ -168,7 +189,7 @@ public sealed class RoleplayApplicabilityClassifierTests
             passage, "Xavier", "characters/caleb.md",
             new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" });
 
-        Assert.Equal(ActiveSubjectApplicability.OffCharacter, item.Applicability);
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, item.Applicability);
         Assert.NotNull(item.SubjectRef);
         Assert.Equal("Caleb", item.SubjectRef.Name);
     }
@@ -185,17 +206,17 @@ public sealed class RoleplayApplicabilityClassifierTests
 
         var offCharacterNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" };
 
-        // Xavier lore should be active_character
+        // Xavier lore should be Applies / AssertAsFact / CharacterSpecific
         var xavierResult = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
             xavierLore, "Xavier", "characters/xavier.md", offCharacterNames);
-        Assert.Equal(ActiveSubjectApplicability.ActiveCharacter, xavierResult.Applicability);
-        Assert.Equal(AllowedUse.Inline, xavierResult.AllowedUse);
+        Assert.Equal(ActiveSubjectApplicability.Applies, xavierResult.Applicability);
+        Assert.Equal(AllowedUse.AssertAsFact, xavierResult.AllowedUse);
 
-        // Shared tech should be shared_world / context
+        // Shared tech should be Unknown / BackgroundOnly / SharedWorld
         var sharedResult = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
             sharedTech, "Xavier", "world/body-tech.md", offCharacterNames);
-        Assert.Equal(ActiveSubjectApplicability.SharedWorld, sharedResult.Applicability);
-        Assert.Equal(AllowedUse.Context, sharedResult.AllowedUse);
+        Assert.Equal(ActiveSubjectApplicability.Unknown, sharedResult.Applicability);
+        Assert.Equal(AllowedUse.BackgroundOnly, sharedResult.AllowedUse);
     }
 
     [Fact]
@@ -205,15 +226,34 @@ public sealed class RoleplayApplicabilityClassifierTests
 
         var result = RoleplayApplicabilityClassifier.Classify(passage, "Xavier");
 
-        Assert.Equal(ActiveSubjectApplicability.SharedWorld, result);
+        Assert.Equal(ActiveSubjectApplicability.Unknown, result);
     }
 
     [Fact]
-    public void Classify_FactionFile_ReturnsSharedWorld()
+    public void Classify_FactionFile_ReturnsUnknown()
     {
         var passage = "The Deepspace Hunter Division is an elite branch of the military.";
         var result = RoleplayApplicabilityClassifier.Classify(passage, "Xavier", "factions/hunters.md");
 
-        Assert.Equal(ActiveSubjectApplicability.SharedWorld, result);
+        Assert.Equal(ActiveSubjectApplicability.Unknown, result);
+    }
+
+    [Fact]
+    public void Classify_AmbiguousPassage_ReturnsAmbiguous()
+    {
+        // No active subject mentioned, no off-character mentioned, no shared-world markers
+        var passage = "The room was dimly lit and smelled of ozone.";
+        var result = RoleplayApplicabilityClassifier.Classify(passage, "Xavier");
+
+        Assert.Equal(ActiveSubjectApplicability.Ambiguous, result);
+    }
+
+    [Fact]
+    public void Classify_GenericEquipmentScope_UsesSourcePath()
+    {
+        var result = RoleplayApplicabilityClassifier.ClassifyScope(
+            ActiveSubjectApplicability.Unknown, "world/body-tech.md");
+
+        Assert.Equal(RoleplayKnowledgeScope.GenericEquipment, result);
     }
 }

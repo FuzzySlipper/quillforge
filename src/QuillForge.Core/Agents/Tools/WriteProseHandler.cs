@@ -158,15 +158,15 @@ public sealed class WriteProseHandler : TypedToolHandler<WriteProseArgs>
                 {
                     switch (evidence.AllowedUse)
                     {
-                        case AllowedUse.Inline:
+                        case AllowedUse.AssertAsFact:
                             if (evidence.SubjectRef is not null)
                                 inlineSubjects.Add(evidence.SubjectRef.Name);
                             break;
-                        case AllowedUse.Context:
+                        case AllowedUse.BackgroundOnly:
                             if (evidence.SubjectRef is not null)
                                 contextSubjects.Add(evidence.SubjectRef.Name);
                             break;
-                        case AllowedUse.Excluded:
+                        case AllowedUse.RejectForActiveSubject:
                             if (evidence.SubjectRef is not null)
                                 excludedSubjects.Add(evidence.SubjectRef.Name);
                             break;

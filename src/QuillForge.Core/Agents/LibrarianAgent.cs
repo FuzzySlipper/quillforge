@@ -175,16 +175,16 @@ public sealed class LibrarianAgent
             evidence.Add(item);
         }
 
-        // Determine overall scope from evidence
+        // Determine overall scope from evidence using Den-spec protocol values
         var hasCharacterItems = evidence.Any(e =>
-            e.Applicability == ActiveSubjectApplicability.ActiveCharacter);
+            e.Applicability == ActiveSubjectApplicability.Applies);
         var hasWorldItems = evidence.Any(e =>
-            e.Applicability == ActiveSubjectApplicability.SharedWorld);
+            e.Applicability == ActiveSubjectApplicability.Unknown);
         var scope = hasCharacterItems
-            ? RoleplayKnowledgeScope.Character
+            ? RoleplayKnowledgeScope.CharacterSpecific
             : hasWorldItems
-                ? RoleplayKnowledgeScope.World
-                : RoleplayKnowledgeScope.World;
+                ? RoleplayKnowledgeScope.SharedWorld
+                : RoleplayKnowledgeScope.SharedWorld;
 
         return new RoleplayKnowledgePacket
         {
