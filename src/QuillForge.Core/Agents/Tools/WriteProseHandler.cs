@@ -74,7 +74,7 @@ public sealed class WriteProseHandler : TypedToolHandler<WriteProseArgs>
         {
             SceneDescription = sceneDescription,
             StoryContext = storyContext,
-            ToneNotes = input.ToneNotes,
+            ToneNotes = toneNotes,
         };
 
         try

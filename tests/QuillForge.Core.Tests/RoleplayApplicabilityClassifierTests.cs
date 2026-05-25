@@ -38,6 +38,17 @@ public sealed class RoleplayApplicabilityClassifierTests
     }
 
     [Fact]
+    public void Classify_OffCharacterSourceFileWithoutRoster_ReturnsDoesNotApply()
+    {
+        var passage = "This character has a custom cybernetic arm.";
+
+        var result = RoleplayApplicabilityClassifier.Classify(
+            passage, "Xavier", "characters/caleb.md");
+
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, result);
+    }
+
+    [Fact]
     public void Classify_SharedWorldSourceFile_ReturnsUnknown()
     {
         var passage = "Standard Division neural interfaces are common among all hunter personnel. " +
@@ -192,6 +203,33 @@ public sealed class RoleplayApplicabilityClassifierTests
         Assert.Equal(ActiveSubjectApplicability.DoesNotApply, item.Applicability);
         Assert.NotNull(item.SubjectRef);
         Assert.Equal("Caleb", item.SubjectRef.Name);
+    }
+
+    [Fact]
+    public void ClassifyEvidenceItem_OffCharacterSourceWithoutRoster_InferredSubjectRef()
+    {
+        var passage = "This character has a custom prosthetic arm with combat functionality.";
+
+        var item = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            passage, "Xavier", "characters/caleb.md");
+
+        Assert.Equal(ActiveSubjectApplicability.DoesNotApply, item.Applicability);
+        Assert.Equal(AllowedUse.OffSubjectEvidence, item.AllowedUse);
+        Assert.NotNull(item.SubjectRef);
+        Assert.Equal("caleb", item.SubjectRef.Name);
+    }
+
+    [Fact]
+    public void ClassifyEvidenceItem_SharedWorldSource_IsCanonBackgroundNotDeprecated()
+    {
+        var passage = "Standard neural interfaces are common among Division personnel.";
+
+        var item = RoleplayApplicabilityClassifier.ClassifyEvidenceItem(
+            passage, "Xavier", "world/body-tech.md");
+
+        var sourceRef = Assert.Single(item.SourceRefs!);
+        Assert.Equal(CanonAuthority.Canon, sourceRef.Authority);
+        Assert.Equal(AllowedUse.BackgroundOnly, item.AllowedUse);
     }
 
     [Fact]

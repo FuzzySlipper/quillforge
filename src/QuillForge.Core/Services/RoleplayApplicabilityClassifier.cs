@@ -68,6 +68,16 @@ public static partial class RoleplayApplicabilityClassifier
                 }
             }
 
+            // If an active subject is known and a character-file path points at a
+            // different subject, classify it as off-subject even when the caller
+            // does not have a complete roster of other character names. This is
+            // the common query_lore path: the Librarian knows source files but not
+            // every possible character in the corpus.
+            if (activeSubject is not null && IsCharacterSourcePath(sourcePath))
+            {
+                return ActiveSubjectApplicability.DoesNotApply;
+            }
+
             // World/shared files -> Unknown (generic, not directly applicable or inapplicable)
             if (pathLower.Contains("world") ||
                 pathLower.Contains("body-tech") ||
@@ -237,6 +247,25 @@ public static partial class RoleplayApplicabilityClassifier
             }
         }
 
+        if (applicability == ActiveSubjectApplicability.DoesNotApply &&
+            subjectRef is null &&
+            !string.IsNullOrWhiteSpace(sourcePath) &&
+            IsCharacterSourcePath(sourcePath))
+        {
+            var inferred = Path.GetFileNameWithoutExtension(sourcePath)
+                .Replace('-', ' ')
+                .Replace('_', ' ')
+                .Trim();
+            if (!string.IsNullOrWhiteSpace(inferred))
+            {
+                subjectRef = new RoleplaySubjectRef
+                {
+                    Name = inferred,
+                    Confidence = "low",
+                };
+            }
+        }
+
         // Build ambiguity note for Ambiguous/Unknown cases
         RoleplayAmbiguity? ambiguity = null;
         if (applicability == ActiveSubjectApplicability.Ambiguous)
@@ -322,9 +351,20 @@ public static partial class RoleplayApplicabilityClassifier
         {
             ActiveSubjectApplicability.Applies => CanonAuthority.Canon,
             ActiveSubjectApplicability.DoesNotApply => CanonAuthority.Canon,
-            ActiveSubjectApplicability.Unknown => CanonAuthority.Deprecated,
+            ActiveSubjectApplicability.Unknown => CanonAuthority.Canon,
             _ => CanonAuthority.Unknown,
         };
+    }
+
+    private static bool IsCharacterSourcePath(string sourcePath)
+    {
+        var pathLower = sourcePath.ToLowerInvariant();
+        var fileName = Path.GetFileNameWithoutExtension(sourcePath);
+        return fileName.Contains("character", StringComparison.OrdinalIgnoreCase) ||
+            pathLower.Contains("/characters/", StringComparison.Ordinal) ||
+            pathLower.Contains("\\characters\\", StringComparison.Ordinal) ||
+            pathLower.StartsWith("characters/", StringComparison.Ordinal) ||
+            pathLower.StartsWith("characters\\", StringComparison.Ordinal);
     }
 
     private static SubjectSourceKind MapSourceKindFromPath(string sourcePath)
@@ -332,11 +372,7 @@ public static partial class RoleplayApplicabilityClassifier
         var pathLower = sourcePath.ToLowerInvariant();
         var fileName = Path.GetFileNameWithoutExtension(sourcePath);
 
-        if (fileName.Contains("character", StringComparison.OrdinalIgnoreCase) ||
-            pathLower.Contains("/characters/", StringComparison.Ordinal) ||
-            pathLower.Contains("\\characters\\", StringComparison.Ordinal) ||
-            pathLower.StartsWith("characters/", StringComparison.Ordinal) ||
-            pathLower.StartsWith("characters\\", StringComparison.Ordinal))
+        if (IsCharacterSourcePath(sourcePath))
             return SubjectSourceKind.CharacterFile;
 
         if (pathLower.Contains("world", StringComparison.Ordinal) ||
