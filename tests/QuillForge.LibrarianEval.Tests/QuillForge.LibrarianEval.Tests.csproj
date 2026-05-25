@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\QuillForge.Core\QuillForge.Core.csproj" />
+    <ProjectReference Include="..\..\src\QuillForge.LibrarianEval\QuillForge.LibrarianEval.csproj" />
+    <ProjectReference Include="..\..\src\QuillForge.Storage\QuillForge.Storage.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+</Project>
