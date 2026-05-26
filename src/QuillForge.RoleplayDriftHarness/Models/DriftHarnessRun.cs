@@ -67,4 +67,37 @@ public sealed record DriftRunEvaluation
 
     [JsonPropertyName("notes")]
     public string? Notes { get; init; }
+
+    /// <summary>
+    /// Pipeline/provider errors encountered during strict live mode.
+    /// When non-empty, the evaluation should report Passed=false regardless of drift findings,
+    /// because a failed pipeline cannot produce a valid no-drift verdict.
+    /// </summary>
+    [JsonPropertyName("pipeline_errors")]
+    public IReadOnlyList<PipelineError>? PipelineErrors { get; init; }
+
+    /// <summary>
+    /// True when the pipeline encountered provider/auth/tool errors that
+    /// invalidate the evaluation. Derived from PipelineErrors being non-empty.
+    /// </summary>
+    [JsonIgnore]
+    public bool HasPipelineErrors => PipelineErrors is { Count: > 0 };
+}
+
+/// <summary>
+/// A single pipeline/provider error encountered during a strict live turn.
+/// </summary>
+public sealed record PipelineError
+{
+    [JsonPropertyName("turn")]
+    public required int Turn { get; init; }
+
+    [JsonPropertyName("component")]
+    public required string Component { get; init; }
+
+    [JsonPropertyName("error_type")]
+    public required string ErrorType { get; init; }
+
+    [JsonPropertyName("error_message")]
+    public required string ErrorMessage { get; init; }
 }

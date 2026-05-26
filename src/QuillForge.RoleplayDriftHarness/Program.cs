@@ -358,9 +358,20 @@ public static class Program
 
             Console.WriteLine();
             Console.WriteLine($"Strict lore consistency test complete. Run ID: {run.RunId}");
-            Console.WriteLine($"  Passed (no drift): {run.Evaluation?.Passed}");
+            Console.WriteLine($"  Passed (no drift, no pipeline errors): {run.Evaluation?.Passed}");
             Console.WriteLine($"  Events: {run.TraceEvents.Count}");
             Console.WriteLine($"  Drift findings: {run.DriftResult.Findings.Count}");
+            Console.WriteLine($"  Pipeline errors: {run.Evaluation?.PipelineErrors?.Count ?? 0}");
+
+            if (run.Evaluation?.HasPipelineErrors == true)
+            {
+                Console.WriteLine();
+                Console.WriteLine("  PIPELINE ERRORS:");
+                foreach (var err in run.Evaluation.PipelineErrors!)
+                {
+                    Console.WriteLine($"  - Turn {err.Turn} [{err.Component}] {err.ErrorType}: {err.ErrorMessage}");
+                }
+            }
 
             foreach (var finding in run.DriftResult.Findings)
             {
@@ -374,6 +385,14 @@ public static class Program
                 Console.WriteLine($"\nNOTE: {run.Evaluation.Notes}");
             }
 
+            // Exit codes:
+            // 0 = passed (no drift, no pipeline errors)
+            // 2 = drift found (but pipeline completed)
+            // 3 = missing prerequisites (handled above)
+            // 4 = unexpected exception (handled in catch below)
+            // 5 = pipeline/provider errors (pipeline could not complete)
+            if (run.Evaluation?.HasPipelineErrors == true)
+                return 5;
             return run.Evaluation?.Passed == false ? 2 : 0;
         }
         catch (Exception ex)

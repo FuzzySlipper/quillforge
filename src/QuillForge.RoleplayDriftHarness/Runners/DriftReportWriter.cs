@@ -82,6 +82,14 @@ public sealed class DriftReportWriter
                 expected_drift_count = run.Evaluation.ExpectedDriftCount,
                 origins = run.Evaluation.Origins,
                 notes = run.Evaluation.Notes,
+                has_pipeline_errors = run.Evaluation.HasPipelineErrors,
+                pipeline_errors = run.Evaluation.PipelineErrors?.Select(e => new
+                {
+                    turn = e.Turn,
+                    component = e.Component,
+                    error_type = e.ErrorType,
+                    error_message = e.ErrorMessage,
+                }),
             },
         };
 
@@ -133,6 +141,14 @@ public sealed class DriftReportWriter
             drift_count = run.Evaluation?.DriftCount,
             origins = run.Evaluation?.Origins,
             notes = run.Evaluation?.Notes,
+            has_pipeline_errors = run.Evaluation?.HasPipelineErrors ?? false,
+            pipeline_errors = run.Evaluation?.PipelineErrors?.Select(e => new
+            {
+                turn = e.Turn,
+                component = e.Component,
+                error_type = e.ErrorType,
+                error_message = e.ErrorMessage,
+            }),
         };
 
         File.WriteAllText(path, JsonSerializer.Serialize(payload, s_jsonOptions));
@@ -152,7 +168,24 @@ public sealed class DriftReportWriter
         writer.WriteLine($"- **Total Turns**: {run.Turns.Count}");
         writer.WriteLine($"- **Total Trace Events**: {run.TraceEvents.Count}");
         writer.WriteLine($"- **Passed**: {run.Evaluation?.Passed ?? false}");
+        writer.WriteLine($"- **Has Pipeline Errors**: {run.Evaluation?.HasPipelineErrors ?? false}");
         writer.WriteLine();
+
+        if (run.Evaluation?.HasPipelineErrors == true)
+        {
+            writer.WriteLine("## Pipeline Errors Detected");
+            writer.WriteLine();
+            writer.WriteLine("The agent pipeline encountered provider/auth/tool errors and could not complete successfully.");
+            writer.WriteLine("Evaluation is marked as FAILED — no-drift verdict is unreliable when the pipeline did not run.");
+            writer.WriteLine();
+            writer.WriteLine("| Turn | Component | Error Type | Error Message |");
+            writer.WriteLine("|------|-----------|------------|---------------|");
+            foreach (var err in run.Evaluation.PipelineErrors!)
+            {
+                writer.WriteLine($"| {err.Turn} | {err.Component} | {err.ErrorType} | {SanitizeMd(err.ErrorMessage)} |");
+            }
+            writer.WriteLine();
+        }
 
         if (run.DriftResult.HasDrift)
         {

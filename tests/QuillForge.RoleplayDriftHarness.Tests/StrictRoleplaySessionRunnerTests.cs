@@ -268,9 +268,12 @@ public sealed class StrictRoleplaySessionRunnerTests
     }
 
     // ──────────────────────────────────────────────
-    // Fake completion service for deterministic testing
+    // Fake completion services for deterministic testing
     // ──────────────────────────────────────────────
 
+    /// <summary>
+    /// Fake completion service that returns successful responses for deterministic testing.
+    /// </summary>
     private sealed class FakeCompletionService : ICompletionService
     {
         public Task<CompletionResponse> CompleteAsync(
@@ -289,6 +292,182 @@ public sealed class StrictRoleplaySessionRunnerTests
             CompletionRequest request, CancellationToken ct = default)
         {
             return AsyncEnumerable.Empty<StreamEvent>();
+        }
+    }
+
+    /// <summary>
+    /// Fake completion service that throws an authentication/provider error
+    /// on every call, simulating a 401 or invalid-credentials scenario.
+    /// Used to verify that strict evaluation correctly reports Passed=false
+    /// and records PipelineErrors when the agent pipeline cannot complete.
+    /// </summary>
+    private sealed class FailingCompletionService : ICompletionService
+    {
+        public Task<CompletionResponse> CompleteAsync(
+            CompletionRequest request, CancellationToken ct = default)
+        {
+            throw new InvalidOperationException(
+                "401 (Unauthorized): The API key provided is invalid. " +
+                "This simulates a provider authentication failure.");
+        }
+
+        public IAsyncEnumerable<StreamEvent> StreamAsync(
+            CompletionRequest request, CancellationToken ct = default)
+        {
+            throw new InvalidOperationException(
+                "401 (Unauthorized): The API key provided is invalid.");
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // Pipeline error handling tests
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task StrictRunner_WithFailingCompletionService_ReportsPassedFalse()
+    {
+        // When the completion service throws provider/auth errors on every call,
+        // the strict runner should report Passed=false in the evaluation.
+        var completionService = new FailingCompletionService();
+        var runner = new StrictRoleplaySessionRunner(
+            completionService, _detector, "test", "test-model",
+            ndMaxRounds: 2,
+            diagnosticLevel: "minimal");
+
+        var outputDir = Path.Combine(Path.GetTempPath(), "qf-test-failing-strict");
+        try
+        {
+            var run = await runner.RunAsync(outputDir);
+
+            Assert.NotNull(run.Evaluation);
+            Assert.False(run.Evaluation!.Passed,
+                "Strict evaluation must report Passed=false when the completion service fails.");
+            Assert.True(run.Evaluation.HasPipelineErrors,
+                "HasPipelineErrors should be true when pipeline errors occurred.");
+            Assert.NotEmpty(run.Evaluation.PipelineErrors!);
+            Assert.Contains(run.Evaluation.PipelineErrors!, e =>
+                e.Component == "narrative_director" &&
+                e.ErrorType == "InvalidOperationException");
+        }
+        finally
+        {
+            if (Directory.Exists(outputDir))
+                Directory.Delete(outputDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task StrictRunner_WithFailingCompletionService_WritesPipelineErrorsToEvaluationJson()
+    {
+        // Verify that pipeline errors are serialized into evaluation.json,
+        // not just runtime state. A downstream reader should see has_pipeline_errors=true
+        // and the error details in the evaluation artifact.
+        var completionService = new FailingCompletionService();
+        var runner = new StrictRoleplaySessionRunner(
+            completionService, _detector, "test", "test-model",
+            ndMaxRounds: 2,
+            diagnosticLevel: "minimal");
+
+        var outputDir = Path.Combine(Path.GetTempPath(), "qf-test-failing-eval-json");
+        try
+        {
+            var run = await runner.RunAsync(outputDir);
+            Assert.NotNull(run.Evaluation);
+            Assert.False(run.Evaluation!.Passed);
+
+            // Read evaluation.json back and verify pipeline errors are present
+            var evalPath = Path.Combine(outputDir, "evaluation.json");
+            Assert.True(File.Exists(evalPath), "evaluation.json should exist after a strict run.");
+
+            var evalJson = File.ReadAllText(evalPath);
+            Assert.Contains("has_pipeline_errors", evalJson);
+            Assert.Contains("pipeline_errors", evalJson);
+            Assert.Contains("InvalidOperationException", evalJson);
+            Assert.Contains("401", evalJson);
+        }
+        finally
+        {
+            if (Directory.Exists(outputDir))
+                Directory.Delete(outputDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task StrictRunner_WithFailingCompletionService_DoesNotReportFalseDriftFindings()
+    {
+        // When the pipeline fails, drift findings may be empty or meaningless.
+        // Verify the failure is attributed to pipeline errors, not to drift,
+        // and the notes clearly indicate the run was invalid.
+        var completionService = new FailingCompletionService();
+        var runner = new StrictRoleplaySessionRunner(
+            completionService, _detector, "test", "test-model",
+            ndMaxRounds: 2,
+            diagnosticLevel: "minimal");
+
+        var outputDir = Path.Combine(Path.GetTempPath(), "qf-test-failing-no-drift");
+        try
+        {
+            var run = await runner.RunAsync(outputDir);
+
+            Assert.NotNull(run.Evaluation);
+            Assert.False(run.Evaluation!.Passed);
+            Assert.True(run.Evaluation.HasPipelineErrors);
+
+            // The notes should clearly indicate the run was invalid due to pipeline errors
+            Assert.NotNull(run.Evaluation.Notes);
+            Assert.Contains("STRICT LIVE RUN INVALID", run.Evaluation.Notes, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("pipeline", run.Evaluation.Notes, StringComparison.OrdinalIgnoreCase);
+
+            // Drift findings should be absent or empty since the pipeline never ran
+            Assert.False(run.DriftResult.HasDrift,
+                "Drift detection should not report positive findings when pipeline never completed.");
+        }
+        finally
+        {
+            if (Directory.Exists(outputDir))
+                Directory.Delete(outputDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CanReachProvider_ReturnsFalseForFailingService()
+    {
+        var completionService = new FailingCompletionService();
+        var runner = new StrictRoleplaySessionRunner(
+            completionService, _detector, "test", "test-model");
+
+        var result = runner.CanReachProvider();
+        Assert.False(result,
+            "FailingCompletionService throws on every call, so CanReachProvider should return false.");
+    }
+
+    [Fact]
+    public async Task StrictRunner_WithWorkingService_ReportsPassedTrue()
+    {
+        // When the completion service works, the runner should not report pipeline errors.
+        // Note: this does NOT test real LLM, just the fake that returns a minimal response.
+        // Real completions may or may not produce lore bleed — that's the live test's job.
+        var completionService = new FakeCompletionService();
+        var runner = new StrictRoleplaySessionRunner(
+            completionService, _detector, "test", "test-model",
+            ndMaxRounds: 1,
+            diagnosticLevel: "minimal");
+
+        var outputDir = Path.Combine(Path.GetTempPath(), "qf-test-working-strict");
+        try
+        {
+            var run = await runner.RunAsync(outputDir);
+
+            Assert.NotNull(run.Evaluation);
+            Assert.False(run.Evaluation!.HasPipelineErrors,
+                "A working FakeCompletionService should not produce pipeline errors.");
+            Assert.False(run.DriftResult.HasDrift,
+                "A basic FakeCompletionService returning 'Test response' should not trigger drift.");
+        }
+        finally
+        {
+            if (Directory.Exists(outputDir))
+                Directory.Delete(outputDir, recursive: true);
         }
     }
 }

@@ -108,6 +108,7 @@ public sealed class StrictRoleplaySessionRunner
         var runId = Guid.NewGuid().ToString("N");
         var startedAt = DateTimeOffset.UtcNow;
         var traceEvents = new List<TraceEvent>();
+        var pipelineErrors = new List<PipelineError>();
         var turnIndex = 0;
 
         Directory.CreateDirectory(outputDir);
@@ -156,31 +157,42 @@ public sealed class StrictRoleplaySessionRunner
             });
 
             // Run through the real NarrativeDirectorAgent
-            await RunNarrativeDirectorTurn(pipeline, turn, traceEvents, turnIndex, ct);
+            await RunNarrativeDirectorTurn(pipeline, turn, traceEvents, pipelineErrors, turnIndex, ct);
         }
 
         // ── Run drift detection ──
         var completedAt = DateTimeOffset.UtcNow;
         var driftResult = _driftDetector.Detect(traceEvents, s_forbiddenDetails);
 
-        // Build evaluation
+        // Build evaluation — pipeline errors override drift-based pass verdict
+        var hasPipelineErrors = pipelineErrors.Count > 0;
+        var passed = !driftResult.HasDrift && !hasPipelineErrors;
+
         var origins = driftResult.Findings
             .GroupBy(f => f.LikelyOrigin)
             .ToDictionary(g => g.Key, g => g.Count());
 
+        var notes = hasPipelineErrors
+            ? $"STRICT LIVE RUN INVALID: {pipelineErrors.Count} pipeline/provider error(s) encountered. " +
+              $"The agent pipeline could not complete all turns. " +
+              $"First error: [{pipelineErrors[0].Component}] {pipelineErrors[0].ErrorType}: {pipelineErrors[0].ErrorMessage}. " +
+              $"Drift findings ({driftResult.Findings.Count}) are unreliable because the pipeline did not run successfully."
+            : driftResult.HasDrift
+                ? $"Lore bleed detected: {driftResult.Findings.Count} forbidden fact(s) appeared in the real NarrativeDirectorAgent pipeline. " +
+                  $"First contaminated boundary: {driftResult.Findings[0].FirstAppearanceBoundary}. " +
+                  $"Likely origin: {driftResult.Findings[0].LikelyOrigin}."
+                : "No lore bleed detected through the real NarrativeDirectorAgent pipeline.";
+
         var evaluation = new DriftRunEvaluation
         {
-            Passed = !driftResult.HasDrift,
+            Passed = passed,
             TotalTurns = probeTurns.Count,
             TotalEvents = traceEvents.Count,
             DriftCount = driftResult.Findings.Count,
             ExpectedDriftCount = null,
             Origins = origins,
-            Notes = driftResult.HasDrift
-                ? $"Lore bleed detected: {driftResult.Findings.Count} forbidden fact(s) appeared in the real NarrativeDirectorAgent pipeline. " +
-                  $"First contaminated boundary: {driftResult.Findings[0].FirstAppearanceBoundary}. " +
-                  $"Likely origin: {driftResult.Findings[0].LikelyOrigin}."
-                : "No lore bleed detected through the real NarrativeDirectorAgent pipeline.",
+            Notes = notes,
+            PipelineErrors = pipelineErrors.Count > 0 ? pipelineErrors : null,
         };
 
         var run = new DriftHarnessRun
@@ -206,9 +218,20 @@ public sealed class StrictRoleplaySessionRunner
         WriteStrictDiagnostics(outputDir, run);
 
         Console.WriteLine($"\nStrict roleplay session test complete. Run ID: {run.RunId}");
-        Console.WriteLine($"  Passed (no drift): {evaluation.Passed}");
+        Console.WriteLine($"  Passed (no drift, no pipeline errors): {evaluation.Passed}");
         Console.WriteLine($"  Events: {traceEvents.Count}");
         Console.WriteLine($"  Drift findings: {driftResult.Findings.Count}");
+        Console.WriteLine($"  Pipeline errors: {pipelineErrors.Count}");
+
+        if (pipelineErrors.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("  PIPELINE ERRORS:");
+            foreach (var err in pipelineErrors)
+            {
+                Console.WriteLine($"  - Turn {err.Turn} [{err.Component}] {err.ErrorType}: {err.ErrorMessage}");
+            }
+        }
 
         foreach (var finding in driftResult.Findings)
         {
@@ -393,6 +416,7 @@ public sealed class StrictRoleplaySessionRunner
         PipelineComponents pipeline,
         LiveProbeTurn turn,
         List<TraceEvent> traceEvents,
+        List<PipelineError> pipelineErrors,
         int turnIndex,
         CancellationToken ct)
     {
@@ -499,6 +523,13 @@ public sealed class StrictRoleplaySessionRunner
                 Preview = "Narrative Director timed out",
                 Content = "Narrative Director timed out or was cancelled during this probe turn.",
             });
+            pipelineErrors.Add(new PipelineError
+            {
+                Turn = turn.TurnNumber,
+                Component = "narrative_director",
+                ErrorType = "Timeout",
+                ErrorMessage = "Narrative Director Agent was cancelled or timed out during DirectSceneAsync.",
+            });
         }
         catch (Exception ex)
         {
@@ -514,6 +545,13 @@ public sealed class StrictRoleplaySessionRunner
                 Timestamp = DateTimeOffset.UtcNow,
                 Preview = $"Error: {Truncate(ex.Message, 200)}",
                 Content = $"ERROR: {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}",
+            });
+            pipelineErrors.Add(new PipelineError
+            {
+                Turn = turn.TurnNumber,
+                Component = "narrative_director",
+                ErrorType = ex.GetType().Name,
+                ErrorMessage = $"{ex.GetType().FullName}: {ex.Message}",
             });
         }
     }
