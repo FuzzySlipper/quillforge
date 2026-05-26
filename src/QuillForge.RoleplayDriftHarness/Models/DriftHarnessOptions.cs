@@ -49,4 +49,42 @@ public sealed record DriftHarnessOptions
     /// </summary>
     [JsonPropertyName("live_model")]
     public string? LiveModel { get; init; }
+
+    // ── Strict live roleplay session mode ──
+
+    /// <summary>
+    /// If true, run the stricter real-app roleplay session pipeline test
+    /// instead of the simulated boundary approach. Drives actual
+    /// NarrativeDirectorAgent, ProseWriterAgent, and LibrarianAgent
+    /// through the real ToolLoop with a real ICompletionService.
+    /// </summary>
+    [JsonPropertyName("strict_live")]
+    public bool StrictLive { get; init; }
+
+    /// <summary>
+    /// Maximum tool rounds for the Narrative Director in strict live mode.
+    /// Defaults to 8 (matching AppConfig defaults).
+    /// </summary>
+    [JsonPropertyName("strict_nd_max_rounds")]
+    public int StrictNdMaxRounds { get; init; } = 8;
+
+    /// <summary>
+    /// Maximum tool rounds for the Librarian in strict live mode.
+    /// Defaults to 1 (matching AppConfig defaults).
+    /// </summary>
+    [JsonPropertyName("strict_librarian_max_rounds")]
+    public int StrictLibrarianMaxRounds { get; init; } = 1;
+
+    /// <summary>
+    /// Maximum tool rounds for the Prose Writer in strict live mode.
+    /// Defaults to 10 (matching AppConfig defaults).
+    /// </summary>
+    [JsonPropertyName("strict_pw_max_rounds")]
+    public int StrictPwMaxRounds { get; init; } = 10;
+
+    /// <summary>
+    /// Output level for diagnostic data: "minimal", "normal", "verbose".
+    /// </summary>
+    [JsonPropertyName("strict_diagnostic_level")]
+    public string StrictDiagnosticLevel { get; init; } = "normal";
 }
