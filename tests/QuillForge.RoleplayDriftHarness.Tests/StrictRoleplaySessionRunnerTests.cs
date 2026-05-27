@@ -302,14 +302,12 @@ public sealed class StrictRoleplaySessionRunnerTests
             Assert.Contains("allowed_use", json);
             Assert.Contains("rules_fired", json);
 
-            // Verify multiple turns are retained in the aggregate — the File.WriteAllText
-            // per-turn pattern would only preserve the last turn's data, but the new
-            // aggregate pattern should preserve all probe turns that produced diagnostics.
+            // Verify all turns are retained in the aggregate — the File.WriteAllText
+            // per-turn pattern would only preserve the last turn's data. Exact count
+            // also guards against stale diagnostics leaking across repeated runs.
             var doc = JsonDocument.Parse(json);
             var turnsArray = doc.RootElement.GetProperty("turns");
-            Assert.True(turnsArray.GetArrayLength() > 1,
-                $"Expected multiple turns in aggregated diagnostics, got {turnsArray.GetArrayLength()} turn(s). " +
-                "This indicates per-turn diagnostics are being overwritten rather than accumulated.");
+            Assert.Equal(LiveXavierCalebScenario.ProbeTurns.Count, turnsArray.GetArrayLength());
         }
         finally
         {

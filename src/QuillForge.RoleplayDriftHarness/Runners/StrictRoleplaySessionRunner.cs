@@ -115,6 +115,7 @@ public sealed class StrictRoleplaySessionRunner
         var turnIndex = 0;
 
         Directory.CreateDirectory(outputDir);
+        _classificationDiagnostics.Clear();
 
         Console.WriteLine("=== Strict Roleplay Session Runner ===");
         Console.WriteLine($"  Provider: {_provider}");
