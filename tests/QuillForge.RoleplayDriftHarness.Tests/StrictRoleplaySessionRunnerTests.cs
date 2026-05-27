@@ -268,6 +268,71 @@ public sealed class StrictRoleplaySessionRunnerTests
     }
 
     // ──────────────────────────────────────────────
+    // Classification diagnostics serialization
+    // ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task StrictRunner_VerboseLevel_WritesClassificationDiagnosticsArtifact()
+    {
+        // At verbose diagnostic level, classification diagnostics should be
+        // serialized to a dedicated artifact file for offline auditability.
+        var completionService = new FakeCompletionService();
+        var runner = new StrictRoleplaySessionRunner(
+            completionService, _detector, "test", "test-model",
+            ndMaxRounds: 1,
+            diagnosticLevel: "verbose");
+
+        var outputDir = Path.Combine(Path.GetTempPath(), "qf-test-verbose-diag");
+        try
+        {
+            var run = await runner.RunAsync(outputDir);
+
+            var diagPath = Path.Combine(outputDir, "classification-diagnostics.json");
+            Assert.True(File.Exists(diagPath),
+                "classification-diagnostics.json should exist when diagnosticLevel=verbose.");
+
+            var json = File.ReadAllText(diagPath);
+            Assert.Contains("turn", json);
+            Assert.Contains("category", json);
+            Assert.Contains("applicability", json);
+            Assert.Contains("allowed_use", json);
+            Assert.Contains("rules_fired", json);
+        }
+        finally
+        {
+            if (Directory.Exists(outputDir))
+                Directory.Delete(outputDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task StrictRunner_MinimalLevel_DoesNotWriteClassificationDiagnostics()
+    {
+        // At minimal diagnostic level, classification diagnostics should NOT
+        // be serialized — no need for offline audit data when diagnostics are off.
+        var completionService = new FakeCompletionService();
+        var runner = new StrictRoleplaySessionRunner(
+            completionService, _detector, "test", "test-model",
+            ndMaxRounds: 1,
+            diagnosticLevel: "minimal");
+
+        var outputDir = Path.Combine(Path.GetTempPath(), "qf-test-minimal-no-diag");
+        try
+        {
+            var run = await runner.RunAsync(outputDir);
+
+            var diagPath = Path.Combine(outputDir, "classification-diagnostics.json");
+            Assert.False(File.Exists(diagPath),
+                "classification-diagnostics.json should NOT exist when diagnosticLevel=minimal.");
+        }
+        finally
+        {
+            if (Directory.Exists(outputDir))
+                Directory.Delete(outputDir, recursive: true);
+        }
+    }
+
+    // ──────────────────────────────────────────────
     // Fake completion services for deterministic testing
     // ──────────────────────────────────────────────
 

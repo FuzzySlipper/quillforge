@@ -169,7 +169,19 @@ public sealed record LiveProbeTurn
     [JsonPropertyName("contamination_risk")]
     public required string ContaminationRisk { get; init; }
 
-    /// <summary>System-like prompt that instructs the agent about lore boundaries for this turn.</summary>
+    /// <summary>
+    /// Probe prompt documenting the expected lore boundary / oracle description for this turn.
+    /// This is documentation-only — it describes what the probe tests and the expected
+    /// resolution boundaries. It is NOT injected into the agent pipeline because:
+    /// 1. The strict harness tests the unaltered NarrativeDirectorAgent pipeline with
+    ///    its real NarrativeRules, lore stores, and system prompts.
+    /// 2. Injecting additional system-like prompts would change the pipeline behavior
+    ///    under test, defeating the purpose of a live-LLM probe.
+    /// 3. The probe prompt serves as a human-readable test oracle — what boundaries
+    ///    the probe expects the agent to respect on its own.
+    /// See also: StrictRoleplaySessionRunner.RunNarrativeDirectorTurn() which calls
+    /// DirectSceneAsync with only UserMessage; ProbePrompt is intentionally not injected.
+    /// </summary>
     [JsonPropertyName("probe_prompt")]
     public required string ProbePrompt { get; init; }
 }

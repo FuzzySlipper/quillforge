@@ -157,7 +157,7 @@ public sealed class StrictRoleplaySessionRunner
             });
 
             // Run through the real NarrativeDirectorAgent
-            await RunNarrativeDirectorTurn(pipeline, turn, traceEvents, pipelineErrors, turnIndex, ct);
+            await RunNarrativeDirectorTurn(pipeline, turn, traceEvents, pipelineErrors, turnIndex, outputDir, ct);
         }
 
         // ── Run drift detection ──
@@ -418,6 +418,7 @@ public sealed class StrictRoleplaySessionRunner
         List<TraceEvent> traceEvents,
         List<PipelineError> pipelineErrors,
         int turnIndex,
+        string outputDir,
         CancellationToken ct)
     {
         try
@@ -438,6 +439,13 @@ public sealed class StrictRoleplaySessionRunner
             var turnStartedAt = DateTimeOffset.UtcNow;
 
             // ── Drive the real NarrativeDirectorAgent ──
+            // NOTE: Only turn.UserMessage is passed to DirectSceneAsync.
+            // turn.ProbePrompt is intentionally NOT injected here. The probe
+            // prompts are documentation-only test oracle descriptions — they
+            // describe the lore boundaries the probe expects the unaltered
+            // pipeline to respect on its own. Injecting them as system prompts
+            // or additional instructions would change the behavior under test.
+            // See LiveProbeTurn.ProbePrompt for full rationale.
             Console.WriteLine("  [NarrativeDirectorAgent.DirectSceneAsync]");
             var ndStopwatch = Stopwatch.StartNew();
 
@@ -471,7 +479,24 @@ public sealed class StrictRoleplaySessionRunner
             Console.WriteLine($"  Response ({ndStopwatch.ElapsedMilliseconds}ms): {Truncate(ndResponse, 100)}");
 
             // ── Capture ProseWriter boundary (the final prose) ──
-            // The Director's response IS the prose (delegated to write_prose internally)
+            // ACKNOWLEDGED APPROXIMATION: The Director's response IS the prose
+            // (delegated to WriteProseHandler internally). This trace event does
+            // NOT independently capture the real WriteProseHandler output because
+            // the strict harness drives the NarrativeDirectorAgent at the top level
+            // and does not have a separate separation point to intercept the prose
+            // writer's intermediate result.
+            //
+            // What this means:
+            //   - Content/Preview: duplicates the NarrativeDirector response text.
+            //   - DurationMs: estimated as half of ND's total wall time. This is
+            //     a rough heuristic — the actual prose writer sub-duration depends
+            //     on internal Director delegation timing which varies per run.
+            //
+            // To get true ProseWriter timing and output, the harness would need to
+            // instrument WriteProseHandler directly (e.g., via a wrapped handler
+            // that emits a callback event). That is deferred as out-of-scope for
+            // the initial #1675 harness. See NarrativeDirectorAgent -> WriteProseHandler
+            // delegation chain in src/QuillForge.Core/Agents/.
             traceEvents.Add(new TraceEvent
             {
                 Turn = turn.TurnNumber,
@@ -505,7 +530,7 @@ public sealed class StrictRoleplaySessionRunner
             // ── Add diagnostics from the real pipeline ──
             if (_diagnosticLevel != "minimal")
             {
-                await CaptureLoreDiagnostics(pipeline, turn, traceEvents, turnIndex, ct);
+                await CaptureLoreDiagnostics(pipeline, turn, traceEvents, turnIndex, outputDir, ct);
             }
         }
         catch (OperationCanceledException)
@@ -561,6 +586,7 @@ public sealed class StrictRoleplaySessionRunner
         LiveProbeTurn turn,
         List<TraceEvent> traceEvents,
         int turnIndex,
+        string outputDir,
         CancellationToken ct)
     {
         var agentContext = new AgentContext
@@ -621,6 +647,8 @@ public sealed class StrictRoleplaySessionRunner
             var offCharacterNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Caleb" };
             if (bundle.RelevantPassages.Count > 0)
             {
+                var allDiagnostics = new List<ClassificationDiagnostic>();
+
                 foreach (var (passage, i) in bundle.RelevantPassages.Select((p, i) => (p, i)))
                 {
                     var sourcePath = i < bundle.SourceFiles.Count ? bundle.SourceFiles[i] : null;
@@ -631,11 +659,42 @@ public sealed class StrictRoleplaySessionRunner
                         offCharacterNames,
                         offCharacterNames);
 
+                    allDiagnostics.Add(diagnostic);
+
                     if (_diagnosticLevel == "verbose")
                     {
                         Console.WriteLine($"    Classification: {diagnostic.Applicability}/{diagnostic.AllowedUse}");
                         Console.WriteLine($"    Rules fired: {string.Join(", ", diagnostic.RulesFired ?? [])}");
                     }
+                }
+
+                // Serialize classification diagnostics for offline auditability at verbose level.
+                // Written to a dedicated artifact file so downstream tools and reviewers can
+                // inspect which heuristic rules fired for each passage without relying on
+                // console output that scrolls out of view.
+                if (_diagnosticLevel == "verbose" && allDiagnostics.Count > 0)
+                {
+                    var diagPath = Path.Combine(outputDir, "classification-diagnostics.json");
+                    var diagPayload = new
+                    {
+                        turn = turn.TurnNumber,
+                        category = turn.Category,
+                        expected_subject = turn.ExpectedSubject,
+                        diagnostics = allDiagnostics.Select(d => new
+                        {
+                            passage = d.Passage,
+                            active_subject = d.ActiveSubject,
+                            source_path = d.SourcePath,
+                            applicability = d.Applicability.ToString(),
+                            allowed_use = d.AllowedUse.ToString(),
+                            scope = d.Scope.ToString(),
+                            source_kind = d.SourceKind.ToString(),
+                            authority = d.Authority.ToString(),
+                            rules_fired = d.RulesFired,
+                        }),
+                    };
+                    File.WriteAllText(diagPath, JsonSerializer.Serialize(diagPayload, s_jsonOptions));
+                    Console.WriteLine($"  [verbose] Wrote classification diagnostics to: {diagPath}");
                 }
             }
         }
