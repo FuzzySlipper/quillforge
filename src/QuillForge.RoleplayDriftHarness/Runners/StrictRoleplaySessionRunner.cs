@@ -36,6 +36,9 @@ public sealed class StrictRoleplaySessionRunner
     private readonly string _diagnosticLevel;
     private readonly ILogger? _logger;
 
+    /// <summary>Accumulates classification diagnostics per turn for verbose-level runs.</summary>
+    private readonly List<object> _classificationDiagnostics = [];
+
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
         WriteIndented = true,
@@ -216,6 +219,17 @@ public sealed class StrictRoleplaySessionRunner
 
         // Write additional strict-mode-specific diagnostics
         WriteStrictDiagnostics(outputDir, run);
+
+        // Write aggregated classification diagnostics (all turns) for verbose level.
+        // Accumulated by CaptureLoreDiagnostics across all probe turns and written
+        // once here to avoid per-turn File.WriteAllText overwrites that lose data.
+        if (_diagnosticLevel == "verbose" && _classificationDiagnostics.Count > 0)
+        {
+            var diagPath = Path.Combine(outputDir, "classification-diagnostics.json");
+            var aggregatePayload = new { turns = _classificationDiagnostics };
+            File.WriteAllText(diagPath, JsonSerializer.Serialize(aggregatePayload, s_jsonOptions));
+            Console.WriteLine($"  [verbose] Wrote aggregated classification diagnostics ({_classificationDiagnostics.Count} turns) to: {diagPath}");
+        }
 
         Console.WriteLine($"\nStrict roleplay session test complete. Run ID: {run.RunId}");
         Console.WriteLine($"  Passed (no drift, no pipeline errors): {evaluation.Passed}");
@@ -668,14 +682,12 @@ public sealed class StrictRoleplaySessionRunner
                     }
                 }
 
-                // Serialize classification diagnostics for offline auditability at verbose level.
-                // Written to a dedicated artifact file so downstream tools and reviewers can
-                // inspect which heuristic rules fired for each passage without relying on
-                // console output that scrolls out of view.
+                // Accumulate classification diagnostics for offline auditability at verbose level.
+                // Appended per turn and written once as an aggregate after all turns complete,
+                // so no turn's diagnostic data is lost to overwrites.
                 if (_diagnosticLevel == "verbose" && allDiagnostics.Count > 0)
                 {
-                    var diagPath = Path.Combine(outputDir, "classification-diagnostics.json");
-                    var diagPayload = new
+                    _classificationDiagnostics.Add(new
                     {
                         turn = turn.TurnNumber,
                         category = turn.Category,
@@ -692,9 +704,8 @@ public sealed class StrictRoleplaySessionRunner
                             authority = d.Authority.ToString(),
                             rules_fired = d.RulesFired,
                         }),
-                    };
-                    File.WriteAllText(diagPath, JsonSerializer.Serialize(diagPayload, s_jsonOptions));
-                    Console.WriteLine($"  [verbose] Wrote classification diagnostics to: {diagPath}");
+                    });
+                    Console.WriteLine($"  [verbose] Accumulated classification diagnostics for turn {turn.TurnNumber} ({_classificationDiagnostics.Count} turns total).");
                 }
             }
         }

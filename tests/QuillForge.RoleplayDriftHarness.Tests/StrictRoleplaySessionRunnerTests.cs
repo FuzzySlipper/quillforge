@@ -1,3 +1,4 @@
+using System.Text.Json;
 using QuillForge.Core.Models;
 using QuillForge.Core.Services;
 using QuillForge.RoleplayDriftHarness.Fixtures;
@@ -276,10 +277,12 @@ public sealed class StrictRoleplaySessionRunnerTests
     {
         // At verbose diagnostic level, classification diagnostics should be
         // serialized to a dedicated artifact file for offline auditability.
+        // Uses ndMaxRounds: 2 to exercise diagnostic capture across multiple
+        // probe turns and verify all turns are retained in the aggregate.
         var completionService = new FakeCompletionService();
         var runner = new StrictRoleplaySessionRunner(
             completionService, _detector, "test", "test-model",
-            ndMaxRounds: 1,
+            ndMaxRounds: 2,
             diagnosticLevel: "verbose");
 
         var outputDir = Path.Combine(Path.GetTempPath(), "qf-test-verbose-diag");
@@ -292,11 +295,21 @@ public sealed class StrictRoleplaySessionRunnerTests
                 "classification-diagnostics.json should exist when diagnosticLevel=verbose.");
 
             var json = File.ReadAllText(diagPath);
-            Assert.Contains("turn", json);
-            Assert.Contains("category", json);
+            Assert.Contains("\"turns\"", json);
+            Assert.Contains("appearance", json);
+            Assert.Contains("gear_and_augmentations", json);
             Assert.Contains("applicability", json);
             Assert.Contains("allowed_use", json);
             Assert.Contains("rules_fired", json);
+
+            // Verify multiple turns are retained in the aggregate — the File.WriteAllText
+            // per-turn pattern would only preserve the last turn's data, but the new
+            // aggregate pattern should preserve all probe turns that produced diagnostics.
+            var doc = JsonDocument.Parse(json);
+            var turnsArray = doc.RootElement.GetProperty("turns");
+            Assert.True(turnsArray.GetArrayLength() > 1,
+                $"Expected multiple turns in aggregated diagnostics, got {turnsArray.GetArrayLength()} turn(s). " +
+                "This indicates per-turn diagnostics are being overwritten rather than accumulated.");
         }
         finally
         {
