@@ -114,7 +114,8 @@ public sealed class StrictLiveRoleplaySessionTests
             $"Model: {model}\n" +
             $"Base URL: {baseUrl}\n" +
             $"ND Max Rounds: {ndMaxRounds}\n" +
-            $"Passed (no drift): {run.Evaluation?.Passed}\n" +
+            $"Passed (no drift, no pipeline errors): {run.Evaluation?.Passed}\n" +
+            $"Has pipeline errors: {run.Evaluation?.HasPipelineErrors}\n" +
             $"Total events: {run.TraceEvents.Count}\n" +
             $"Drift findings: {run.DriftResult.Findings.Count}\n" +
             $"Test type: STRICT (real NarrativeDirectorAgent pipeline)\n" +
@@ -145,6 +146,16 @@ public sealed class StrictLiveRoleplaySessionTests
 
             await File.WriteAllTextAsync(driftSummaryPath, string.Join("\n", lines));
         }
+
+        Assert.NotNull(run.Evaluation);
+        Assert.False(run.Evaluation.HasPipelineErrors,
+            $"Strict live run encountered provider/tool/pipeline errors and is not a valid no-drift pass. " +
+            $"Details in: {outputDir}");
+        Assert.True(run.Evaluation.Passed,
+            $"Strict live run did not pass the run-level evaluation. " +
+            $"Drift findings: {run.DriftResult.Findings.Count}; " +
+            $"Pipeline errors: {run.Evaluation.PipelineErrors?.Count ?? 0}. " +
+            $"Details in: {outputDir}");
 
         // Assert no drift
         Assert.False(run.DriftResult.HasDrift,
